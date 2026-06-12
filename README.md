@@ -28,3 +28,7 @@ npm install -D prettier eslint @eslint/js typescript-eslint eslint-plugin-n esli
 
 ## Clean dist
 npm install -D rimraf
+
+## Core security + Observability middlewares
+npm install cors helmet morgan express-rate-limit
+npm install -D @types/cors @types/morgan
