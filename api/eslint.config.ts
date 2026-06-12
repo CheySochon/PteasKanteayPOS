@@ -5,11 +5,12 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["**/dist/**", "**/public/**/lib/**"]),
+  globalIgnores(["**/dist/**", "**/node_modules/**"]),
   {
     files: ["src/**/*.{ts,tsx}"],
     extends: [
       js.configs.recommended,
+      // ...tseslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
     ],
     languageOptions: {
@@ -33,7 +34,7 @@ export default defineConfig([
       ],
       "no-console": "warn",
       "no-extra-boolean-cast": "off",
-      "no-process-env": "warn",
+      "no-process-env": "off",
       "n/no-extraneous-import": "error",
     },
   },
