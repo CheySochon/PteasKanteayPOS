@@ -59,7 +59,7 @@ app.use(cookieParser());
  */
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 8,
+  limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -72,14 +72,14 @@ app.use("/api/auth", authRateLimit, authRouter);
 /**
  * Health check endpoints
  */
-app.get("/", (_, res) => res.send("ok"));
-app.get("/health", (_, res) => res.json({ status: "ok" }));
+app.get("/", (_, res) => res.send("OK"));
+app.get("/health", (_, res) => res.json({ status: "OK" }));
 
 /**
  * Error test route (development/debug only)
  */
 app.get("/error", (_, __, next) => {
-  next(new Error("error"));
+  next(new Error("Error"));
 });
 
 /**

@@ -65,3 +65,52 @@ export const login = async (email: string, password: string) => {
 
   return { user, token };
 };
+
+export const updatePassword = async (
+  userId: string,
+  data: {
+    currentPassword: string;
+    newPassword: string;
+  },
+) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const isValid = await comparePassword(
+    data.currentPassword,
+    user.passwordHash,
+  );
+
+  if (!isValid) {
+    throw new Error("Current password is incorrect");
+  }
+
+  const isSamePassword = await comparePassword(
+    data.newPassword,
+    user.passwordHash,
+  );
+
+  if (isSamePassword) {
+    throw new Error("New password must be different from current password");
+  }
+
+  const newPasswordHash = await hashPassword(data.newPassword);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: newPasswordHash,
+      passwordChangedAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
+  return {
+    user: updatedUser,
+  };
+};
