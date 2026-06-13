@@ -1,8 +1,13 @@
 import { Request, Response } from "express";
-import { RegisterBody, LoginBody } from "../schemas/auth.schema.js";
+import {
+  RegisterBody,
+  LoginBody,
+  UpdatePasswordBody,
+} from "../schemas/auth.schema.js";
 import {
   register as registerUser,
   login as loginUser,
+  updatePassword as updateUserPassword,
 } from "../services/auth.service.js";
 
 const cookieOptions = {
@@ -63,6 +68,7 @@ export const logout = (_: Request, res: Response) => {
 
   res.json({
     success: true,
+    message: "Logged out successfully",
   });
 };
 
@@ -71,4 +77,45 @@ export const me = (req: Request, res: Response) => {
     success: true,
     user: req.user,
   });
+};
+
+export const updatePassword = async (
+  req: Request<object, object, UpdatePasswordBody>,
+  res: Response,
+) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    const { user } = await updateUserPassword(userId, {
+      currentPassword,
+      newPassword,
+    });
+
+    res.clearCookie("access_token");
+
+    res.json({
+      success: true,
+      message: "Password updated successfully",
+      user,
+    });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Password update failed";
+
+    res.status(400).json({
+      success: false,
+      message,
+    });
+  }
 };
