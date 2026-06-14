@@ -53,3 +53,21 @@ npm install zod
 cd api
 npm install -D vitest @vitest/coverage-v8 supertest
 npm install -D @types/supertest
+
+## WebSocket (Socket.IO)
+
+cd api
+npm install socket.io
+
+cd web
+npm install socket.io-client
+
+## Charts
+
+cd web
+npm install chart.js react-chartjs-2
+
+## Icons
+
+cd web
+npm install lucide-react
