@@ -1,0 +1,95 @@
+import { prisma } from "../config/prisma.js";
+
+function makeTableToken(name: string): string {
+  return `table-${String(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+}
+
+export const listTables = async () => {
+  return prisma.diningTable.findMany({
+    where: { deletedAt: null },
+    orderBy: { name: "asc" },
+  });
+};
+
+export const createTable = async (data: {
+  name: string;
+  capacity?: number;
+  zone?: string;
+  qrToken?: string;
+  isActive?: boolean;
+}) => {
+  return prisma.diningTable.create({
+    data: {
+      name: data.name,
+      capacity: data.capacity ?? 2,
+      zone: data.zone ?? "indoor",
+      qrToken: data.qrToken ?? makeTableToken(data.name),
+      isActive: data.isActive ?? true,
+    },
+  });
+};
+
+export const updateTable = async (
+  id: number,
+  data: {
+    name?: string;
+    capacity?: number;
+    zone?: string;
+    qrToken?: string;
+    isActive?: boolean;
+  },
+) => {
+  return prisma.diningTable.update({
+    where: { id },
+    data: {
+      name: data.name,
+      capacity: data.capacity,
+      zone: data.zone,
+      qrToken: data.qrToken,
+      isActive: data.isActive,
+    },
+  });
+};
+
+export const deleteTable = async (id: number) => {
+  return prisma.diningTable.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+};
+
+export const getTableByQrToken = async (qrToken: string) => {
+  const table = await prisma.diningTable.findFirst({
+    where: { qrToken, deletedAt: null, isActive: true },
+  });
+
+  if (!table) {
+    throw new Error("Table not found");
+  }
+
+  return table;
+};
+
+export const getQrMenu = async (qrToken: string) => {
+  const table = await getTableByQrToken(qrToken);
+
+  const [categories, products] = await Promise.all([
+    prisma.category.findMany({
+      where: { deletedAt: null },
+      orderBy: { name: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { deletedAt: null, isAvailable: true },
+      include: {
+        category: true,
+        variants: { where: { deletedAt: null, isAvailable: true } },
+        modifierMaps: { include: { modifier: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return { table, categories, products };
+};
