@@ -1,0 +1,73 @@
+"use client";
+
+import { ImageIcon } from "lucide-react";
+import type { Product } from "../lib/types";
+import { apiOrigin } from "../lib/api";
+
+function money(value: number | string) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function resolveImageUrl(imageUrl?: string | null) {
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
+}
+
+export default function ProductGrid({
+  products,
+  onAdd,
+}: {
+  products: Product[];
+  onAdd: (product: Product) => void;
+}) {
+  if (products.length === 0) {
+    return <div className="rounded-lg border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">No products available</div>;
+  }
+
+  return (
+    <div className="grid h-fit content-start items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {products.map((product) => {
+        const imageUrl = resolveImageUrl(product.imageUrl);
+
+        return (
+          <button
+            key={product.id}
+            onClick={() => onAdd(product)}
+            disabled={!product.isAvailable}
+            className="group overflow-hidden rounded-lg border border-gray-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#1D9E75] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <div className="aspect-[5/4] overflow-hidden bg-gray-100">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={product.name}
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-gray-300">
+                  <ImageIcon size={34} />
+                </div>
+              )}
+            </div>
+
+            <div className="p-3.5">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate text-base font-bold leading-tight text-gray-900">{product.name}</div>
+                  <div className="mt-1 truncate text-[11px] uppercase text-gray-400">{product.category?.name || "Uncategorized"}</div>
+                </div>
+                <div className="shrink-0 rounded-md bg-[#E1F5EE] px-2 py-1 text-xs font-bold text-[#0F6E56]">{money(product.basePrice)}</div>
+              </div>
+              <p className="line-clamp-2 min-h-[32px] text-xs leading-4 text-gray-500">{product.description || "Coffee shop item"}</p>
+              {product.variants && product.variants.length > 0 && (
+                <div className="mt-3 text-[11px] text-gray-400">{product.variants.length} variants</div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

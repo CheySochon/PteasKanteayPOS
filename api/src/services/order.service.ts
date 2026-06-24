@@ -78,7 +78,7 @@ export const listOrders = async (query: Record<string, string> = {}) => {
     orderBy: { createdAt: "desc" },
   });
 
-  return orders.map((o) => formatOrder(o as unknown as Record<string, unknown>));
+  return orders.map((o) => formatOrder(o));
 };
 
 export const getOrder = async (id: number) => {
@@ -89,7 +89,7 @@ export const getOrder = async (id: number) => {
 
   if (!order) throw new Error("Order not found");
 
-  return formatOrder(order as unknown as Record<string, unknown>);
+  return formatOrder(order);
 };
 
 export const createOrder = async (
@@ -130,7 +130,7 @@ export const createOrder = async (
     include: buildOrderInclude(),
   });
 
-  return formatOrder(created as unknown as Record<string, unknown>);
+  return formatOrder(created);
 };
 
 export const updateOrderStatus = async (id: number, status: string) => {
@@ -140,7 +140,7 @@ export const updateOrderStatus = async (id: number, status: string) => {
     include: buildOrderInclude(),
   });
 
-  return formatOrder(order as unknown as Record<string, unknown>);
+  return formatOrder(order);
 };
 
 export const deleteOrder = async (id: number) => {
@@ -194,7 +194,7 @@ export const addOrderItem = async (
     include: buildOrderInclude(),
   });
 
-  return formatOrder(updated as unknown as Record<string, unknown>);
+  return formatOrder(updated);
 };
 
 export const splitBill = async (

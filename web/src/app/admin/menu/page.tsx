@@ -1,0 +1,1572 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  BadgeDollarSign,
+  Bell,
+  Camera,
+  CheckCircle2,
+  Eye,
+  ImagePlus,
+  Loader2,
+  Pencil,
+  Plus,
+  Save,
+  Search,
+  Settings,
+  ShoppingBag,
+  Tags,
+  Trash2,
+  UploadCloud,
+  X,
+} from "lucide-react";
+import { useAppLanguage } from "../../../lib/language";
+import { useAppTheme } from "../../../lib/theme";
+import {
+  apiOrigin,
+  createCategory,
+  createProduct,
+  deleteCategory,
+  deleteProduct,
+  getCategories,
+  getOrders,
+  getProducts,
+  updateCategory,
+  updateProduct,
+  uploadProductImage,
+} from "../../../lib/api";
+import { getSocket } from "../../../lib/socket";
+import type { Category, Order, Product } from "../../../lib/types";
+import { useAutoDismiss } from "../../../lib/useAutoDismiss";
+
+
+type ProductForm = {
+  id?: number;
+  name: string;
+  categoryId: string;
+  basePrice: string;
+  description: string;
+  imageUrl: string;
+  isAvailable: boolean;
+};
+
+type CategoryForm = {
+  id?: number;
+  name: string;
+  description: string;
+};
+
+type MenuNotification = {
+  id: string;
+  title: string;
+  detail: string;
+};
+
+const EMPTY_PRODUCT: ProductForm = {
+  name: "",
+  categoryId: "",
+  basePrice: "",
+  description: "",
+  imageUrl: "",
+  isAvailable: true,
+};
+
+const EMPTY_CATEGORY: CategoryForm = {
+  name: "",
+  description: "",
+};
+
+const TEXT = {
+  en: {
+    badge: "Menu Management",
+    title: "Menu",
+    subtitle: "Manage categories, items, prices, images, and availability.",
+    searchPlaceholder: "Search menu items...",
+    notifications: "Notifications",
+    noNotifications: "No new notifications",
+    clearNotifications: "Clear",
+    activeOrderAlert: "Active orders",
+    activeOrderDetail: "orders need attention",
+    newOrderAlert: "New order received",
+    newOrderDetail: "needs attention",
+    settings: "Settings",
+    newItem: "New Item",
+    available: "Available",
+    hidden: "Hidden",
+    categories: "Categories",
+    allItems: "All Items",
+    station: "Station 04",
+    shiftActive: "Shift Active",
+    items: "items",
+    loading: "Loading menu items...",
+    empty: "No menu items found",
+    editCategory: "Edit Category",
+    createCategory: "Create Category",
+    updateFilter: "Update menu filter details.",
+    addFilter: "Add quick filters for the menu.",
+    cancelCategory: "Cancel category edit",
+    categoryName: "Category name",
+    description: "Description",
+    updateCategory: "Update Category",
+    saveCategory: "Save Category",
+    deleteCategory: "Delete Category",
+    soldOut: "Sold Out",
+    noDescription: "No description",
+    outOfOrder: "Out of Order",
+    lowStock: "Low Stock",
+    inStock: "In Stock",
+    editProduct: "Edit product",
+    deleteProduct: "Delete product",
+    editItem: "Edit Item",
+    itemCrud: "Item CRUD",
+    itemNote: "Create, update, photo upload, availability.",
+    uploadImage: "Upload product image",
+    productName: "Product Name",
+    category: "Category",
+    selectCategory: "Select category",
+    basePrice: "Base Price",
+    availableToggle: "Available",
+    availableNote: "Show item on the menu.",
+    clearForm: "Clear form",
+    saveItem: "Save Item",
+    createItem: "Create Item",
+  },
+  km: {
+    badge: "គ្រប់គ្រងមុខម្ហូប",
+    title: "មុខម្ហូប",
+    subtitle: "គ្រប់គ្រងប្រភេទ មុខម្ហូប តម្លៃ រូបភាព និងភាពអាចលក់បាន។",
+    searchPlaceholder: "ស្វែងរកមុខម្ហូប...",
+    notifications: "ការជូនដំណឹង",
+    noNotifications: "មិនមានការជូនដំណឹងថ្មី",
+    clearNotifications: "សម្អាត",
+    activeOrderAlert: "ការបញ្ជាទិញសកម្ម",
+    activeOrderDetail: "ការបញ្ជាទិញត្រូវការការត្រួតពិនិត្យ",
+    newOrderAlert: "ការបញ្ជាទិញថ្មី",
+    newOrderDetail: "ត្រូវការការត្រួតពិនិត្យ",
+    settings: "ការកំណត់",
+    newItem: "មុខម្ហូបថ្មី",
+    available: "អាចលក់បាន",
+    hidden: "លាក់",
+    categories: "ប្រភេទ",
+    allItems: "មុខម្ហូបទាំងអស់",
+    station: "ស្ថានីយ 04",
+    shiftActive: "វេនកំពុងដំណើរការ",
+    items: "មុខម្ហូប",
+    loading: "កំពុងផ្ទុកមុខម្ហូប...",
+    empty: "រកមិនឃើញមុខម្ហូប",
+    editCategory: "កែប្រភេទ",
+    createCategory: "បង្កើតប្រភេទ",
+    updateFilter: "កែព័ត៌មានតម្រងមុខម្ហូប។",
+    addFilter: "បន្ថែមតម្រងលឿនសម្រាប់មុខម្ហូប។",
+    cancelCategory: "បោះបង់ការកែប្រភេទ",
+    categoryName: "ឈ្មោះប្រភេទ",
+    description: "ពិពណ៌នា",
+    updateCategory: "កែប្រភេទ",
+    saveCategory: "រក្សាទុកប្រភេទ",
+    deleteCategory: "លុបប្រភេទ",
+    soldOut: "អស់ពីស្តុក",
+    noDescription: "មិនមានពិពណ៌នា",
+    outOfOrder: "មិនអាចលក់បាន",
+    lowStock: "ស្តុកទាប",
+    inStock: "មានក្នុងស្តុក",
+    editProduct: "កែមុខម្ហូប",
+    deleteProduct: "លុបមុខម្ហូប",
+    editItem: "កែមុខម្ហូប",
+    itemCrud: "គ្រប់គ្រងមុខម្ហូប",
+    itemNote: "បង្កើត កែប្រែ ផ្ទុករូប និងកំណត់ភាពអាចលក់បាន។",
+    uploadImage: "ផ្ទុករូបមុខម្ហូប",
+    productName: "ឈ្មោះមុខម្ហូប",
+    category: "ប្រភេទ",
+    selectCategory: "ជ្រើសរើសប្រភេទ",
+    basePrice: "តម្លៃមូលដ្ឋាន",
+    availableToggle: "អាចលក់បាន",
+    availableNote: "បង្ហាញមុខម្ហូបក្នុងម៉ឺនុយ។",
+    clearForm: "សម្អាតទម្រង់",
+    saveItem: "រក្សាទុកមុខម្ហូប",
+    createItem: "បង្កើតមុខម្ហូប",
+  },
+};
+
+function money(value: number | string) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+const CLEARED_ACTIVE_ORDER_IDS_KEY = "pos_cleared_active_order_ids";
+
+function getClearedActiveOrderIds() {
+  if (typeof window === "undefined") return new Set<number>();
+
+  try {
+    const ids = JSON.parse(localStorage.getItem(CLEARED_ACTIVE_ORDER_IDS_KEY) || "[]");
+    return new Set(
+      Array.isArray(ids)
+        ? ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+        : []
+    );
+  } catch {
+    return new Set<number>();
+  }
+}
+
+function saveClearedActiveOrderIds(ids: Set<number>) {
+  localStorage.setItem(CLEARED_ACTIVE_ORDER_IDS_KEY, JSON.stringify([...ids]));
+}
+
+export default function MenuPage() {
+  const language = useAppLanguage();
+  const t = TEXT[language];
+  const [menuView, setMenuView] = useState("list");
+  const [theme] = useAppTheme();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderAlerts, setOrderAlerts] = useState<MenuNotification[]>([]);
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [clearedActiveOrderIds, setClearedActiveOrderIds] = useState<Set<number>>(
+    getClearedActiveOrderIds
+  );
+  const [selectedCategory, setSelectedCategory] = useState<number | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "hidden">("all");
+  const [query, setQuery] = useState("");
+  const [categoryForm, setCategoryForm] = useState<CategoryForm>(EMPTY_CATEGORY);
+  const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  useAutoDismiss(message, setMessage);
+  useAutoDismiss(error, setError);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
+
+  const dark = theme === "dark";
+  const panelBg = dark ? "bg-[#111827]" : "bg-white";
+  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
+  const isCategoriesView = menuView === "categories";
+
+  const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-blue-400 ${
+    dark
+      ? "border-slate-700/70 bg-[#0f172a] text-slate-100 placeholder:text-slate-500"
+      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
+  }`;
+
+  useEffect(() => {
+    const syncMenuView = () => {
+      const params = new URLSearchParams(window.location.search);
+      setMenuView(params.get("view") === "categories" || window.location.hash === "#categories" ? "categories" : "list");
+    };
+    const syncMenuViewFromEvent = (event: Event) => {
+      const detail = (event as CustomEvent<string>).detail;
+      setMenuView(detail === "categories" ? "categories" : "list");
+    };
+
+    syncMenuView();
+    window.addEventListener("hashchange", syncMenuView);
+    window.addEventListener("popstate", syncMenuView);
+    window.addEventListener("pos-menu-view-change", syncMenuViewFromEvent);
+
+    return () => {
+      window.removeEventListener("hashchange", syncMenuView);
+      window.removeEventListener("popstate", syncMenuView);
+      window.removeEventListener("pos-menu-view-change", syncMenuViewFromEvent);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    Promise.all([getCategories(), getProducts(), getOrders()])
+      .then(([categoryRows, productRows, orderRows]) => {
+        if (!mounted) return;
+        setCategories(categoryRows);
+        setProducts(productRows);
+        setOrders(orderRows);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Unable to load menu");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    function handleOrderCreated(order: Order) {
+      setClearedActiveOrderIds((current) => {
+        if (!current.has(order.id)) return current;
+
+        const next = new Set(current);
+        next.delete(order.id);
+        saveClearedActiveOrderIds(next);
+        return next;
+      });
+
+      setOrders((current) => [
+        order,
+        ...current.filter((entry) => entry.id !== order.id),
+      ]);
+
+      setOrderAlerts((current) => {
+        const label = order.orderNumber || order.orderId || `#${order.id}`;
+        const table = order.table?.name || order.tableNo;
+        const detail = table
+          ? `${label} - ${table} ${t.newOrderDetail}`
+          : `${label} ${t.newOrderDetail}`;
+
+        return [
+          {
+            id: `order-${order.id}-${Date.now()}`,
+            title: t.newOrderAlert,
+            detail,
+          },
+          ...current,
+        ].slice(0, 5);
+      });
+    }
+
+    function handleOrderUpdated(order: Order) {
+      setOrders((current) =>
+        current.map((entry) => (entry.id === order.id ? order : entry))
+      );
+    }
+
+    socket.on("order:created", handleOrderCreated);
+    socket.on("order:updated", handleOrderUpdated);
+
+    return () => {
+      socket.off("order:created", handleOrderCreated);
+      socket.off("order:updated", handleOrderUpdated);
+    };
+  }, [t.newOrderAlert, t.newOrderDetail]);
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === "all" || product.categoryId === selectedCategory;
+
+      const matchesQuery =
+        !normalizedQuery ||
+        product.name.toLowerCase().includes(normalizedQuery) ||
+        (product.description || "").toLowerCase().includes(normalizedQuery);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "available" ? product.isAvailable : !product.isAvailable);
+
+      return matchesCategory && matchesQuery && matchesStatus;
+    });
+  }, [products, query, selectedCategory, statusFilter]);
+
+  const activeOrders = useMemo(
+    () =>
+      orders.filter(
+        (order) => !["completed", "cancelled"].includes(order.status)
+      ),
+    [orders]
+  );
+  const unseenActiveOrders = useMemo(
+    () => activeOrders.filter((order) => !clearedActiveOrderIds.has(order.id)),
+    [activeOrders, clearedActiveOrderIds]
+  );
+
+  const notifications = useMemo(() => {
+    const items: MenuNotification[] = [...orderAlerts];
+
+    if (unseenActiveOrders.length > 0) {
+      items.push({
+        id: `active-orders-${unseenActiveOrders.map((order) => order.id).join("-")}`,
+        title: t.activeOrderAlert,
+        detail: `${unseenActiveOrders.length} ${t.activeOrderDetail}`,
+      });
+    }
+
+    return items.filter((item) => !clearedNotificationIds.has(item.id));
+  }, [clearedNotificationIds, orderAlerts, t, unseenActiveOrders]);
+
+  function clearNotifications() {
+    setClearedNotificationIds((current) => {
+      const next = new Set(current);
+      notifications.forEach((item) => next.add(item.id));
+      return next;
+    });
+    setClearedActiveOrderIds((current) => {
+      const next = new Set(current);
+      activeOrders.forEach((order) => next.add(order.id));
+      saveClearedActiveOrderIds(next);
+      return next;
+    });
+    setOrderAlerts([]);
+  }
+
+  function categoryCount(categoryId: number | "all") {
+    if (categoryId === "all") return products.length;
+    return products.filter((product) => product.categoryId === categoryId).length;
+  }
+
+  async function submitCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setError("");
+
+    try {
+      if (categoryForm.id) {
+        const updated = await updateCategory(categoryForm.id, {
+          name: categoryForm.name,
+          description: categoryForm.description,
+        });
+
+        setCategories((current) =>
+          current
+            .map((category) => (category.id === updated.id ? updated : category))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+
+        setProducts((current) =>
+          current.map((product) =>
+            product.categoryId === updated.id
+              ? { ...product, category: updated }
+              : product,
+          ),
+        );
+
+        setMessage("Category updated successfully.");
+      } else {
+        const created = await createCategory({
+          name: categoryForm.name,
+          description: categoryForm.description,
+        });
+
+        setCategories((current) =>
+          [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
+        );
+
+        setMessage("Category created successfully.");
+      }
+
+      resetCategoryForm();
+      setCategoryEditorOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message}. Login as Admin or Super Admin to save categories.`
+          : "Unable to save category",
+      );
+    }
+  }
+
+  function editCategory(category: Category) {
+    setCategoryForm({
+      id: category.id,
+      name: category.name,
+      description: category.description || "",
+    });
+    setMessage("");
+    setError("");
+    setCategoryEditorOpen(true);
+  }
+
+  function resetCategoryForm() {
+    setCategoryForm(EMPTY_CATEGORY);
+  }
+
+  function createNewCategory() {
+    resetCategoryForm();
+    setMessage("");
+    setError("");
+    setCategoryEditorOpen(true);
+  }
+
+  async function removeCategory(category: Category) {
+    const productCount = products.filter(
+      (product) => product.categoryId === category.id,
+    ).length;
+
+    const detail = productCount > 0 ? ` It has ${productCount} menu item(s).` : "";
+    const ok = window.confirm(`Delete ${category.name}?${detail}`);
+    if (!ok) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      await deleteCategory(category.id);
+      setCategories((current) => current.filter((entry) => entry.id !== category.id));
+
+      if (selectedCategory === category.id) setSelectedCategory("all");
+      if (categoryForm.id === category.id) resetCategoryForm();
+      if (categoryForm.id === category.id) setCategoryEditorOpen(false);
+
+      setMessage("Category deleted successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message}. Login as Admin or Super Admin to delete categories.`
+          : "Unable to delete category",
+      );
+    }
+  }
+
+  async function submitProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      let imageUrl = productForm.imageUrl;
+
+      if (imageFile) {
+        const uploaded = await uploadProductImage(imageFile);
+        imageUrl = uploaded.imageUrl;
+      }
+
+      const payload = {
+        name: productForm.name,
+        categoryId: Number(productForm.categoryId),
+        basePrice: Number(productForm.basePrice || 0),
+        description: productForm.description,
+        imageUrl,
+        isAvailable: productForm.isAvailable,
+      };
+
+      if (productForm.id) {
+        const updated = await updateProduct(productForm.id, payload);
+
+        setProducts((current) =>
+          current.map((product) => (product.id === updated.id ? updated : product)),
+        );
+
+        setMessage("Product updated successfully.");
+      } else {
+        const created = await createProduct(payload);
+        setProducts((current) => [created, ...current]);
+        setMessage("Product created successfully.");
+      }
+
+      resetProductForm();
+      setEditorOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to save product",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeProduct(product: Product) {
+    const ok = window.confirm(`Delete ${product.name}?`);
+    if (!ok) return;
+
+    setMessage("");
+    setError("");
+
+    try {
+      await deleteProduct(product.id);
+      setProducts((current) => current.filter((entry) => entry.id !== product.id));
+
+      if (productForm.id === product.id) resetProductForm();
+
+      setMessage("Product deleted successfully.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message}. Login as Admin or Super Admin to delete products.`
+          : "Unable to delete product",
+      );
+    }
+  }
+
+  async function toggleProductAvailability(product: Product) {
+    setMessage("");
+    setError("");
+
+    try {
+      const updated = await updateProduct(product.id, {
+        isAvailable: !product.isAvailable,
+      });
+
+      setProducts((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message}. Login as Admin or Super Admin to update products.`
+          : "Unable to update product",
+      );
+    }
+  }
+
+  function createNewProduct() {
+    resetProductForm();
+    setEditorOpen(true);
+  }
+
+  function editProduct(product: Product) {
+    setProductForm({
+      id: product.id,
+      name: product.name,
+      categoryId: String(product.categoryId),
+      basePrice: String(product.basePrice),
+      description: product.description || "",
+      imageUrl: product.imageUrl || "",
+      isAvailable: product.isAvailable,
+    });
+
+    setImageFile(null);
+    setImagePreview(product.imageUrl ? resolveImageUrl(product.imageUrl) : "");
+    setMessage("");
+    setError("");
+    setEditorOpen(true);
+  }
+
+  function resetProductForm() {
+    setProductForm(EMPTY_PRODUCT);
+    setImageFile(null);
+    setImagePreview("");
+  }
+
+  function handleImageFile(file: File | null) {
+    setImageFile(file);
+    setImagePreview(
+      file
+        ? URL.createObjectURL(file)
+        : productForm.imageUrl
+          ? resolveImageUrl(productForm.imageUrl)
+          : "",
+    );
+  }
+
+  return (
+    <main className="flex-1 overflow-y-auto bg-[#f6f7fb]">
+        <div className="border-b border-slate-200 bg-white px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <h1 className="text-lg font-black text-slate-950">
+              {isCategoriesView ? t.categories : "Menu Management"}
+            </h1>
+
+            <div className="flex items-center gap-3">
+              {!isCategoriesView && (
+                <div className="relative hidden w-64 sm:block">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={16}
+                  />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t.searchPlaceholder}
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none focus:border-violet-400"
+                  />
+                </div>
+              )}
+
+              <NotificationBell
+                label={t.notifications}
+                emptyLabel={t.noNotifications}
+                clearLabel={t.clearNotifications}
+                notifications={notifications}
+                onClear={clearNotifications}
+              />
+
+              <IconButton label={t.settings} dark={false}>
+                <Settings size={17} />
+              </IconButton>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto w-full max-w-none px-5 py-5">
+
+          {(error || message) && (
+            <div
+              className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
+                error
+                  ? "border-red-200 bg-red-50 text-red-600"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {error || message}
+            </div>
+          )}
+
+          {isCategoriesView ? (
+            <section id="categories" className="space-y-4">
+              <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-wide text-violet-700">
+                    {categories.length} {t.categories}
+                  </div>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    {t.categories}
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">
+                    {t.addFilter}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={createNewCategory}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/20 hover:bg-violet-800"
+                >
+                  <Plus size={17} />
+                  {t.createCategory}
+                </button>
+              </div>
+
+              {categories.length === 0 ? (
+                <EmptyState className={`${panelBg} ${borderCol}`}>
+                  {t.categories}
+                </EmptyState>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {categories.map((category) => {
+                    const itemCount = categoryCount(category.id);
+
+                    return (
+                      <article
+                        key={category.id}
+                        className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-violet-200 hover:shadow-md"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                              <Tags size={19} />
+                            </div>
+
+                            <div className="min-w-0">
+                              <h3 className="truncate text-base font-black text-slate-950">
+                                {category.name}
+                              </h3>
+                              <p className="mt-1 text-xs font-bold uppercase text-slate-400">
+                                {itemCount} {t.items}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => editCategory(category)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-violet-50 hover:text-violet-700"
+                              title={`Edit ${category.name}`}
+                            >
+                              <Pencil size={15} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => removeCategory(category)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              title={`Delete ${category.name}`}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="mt-4 line-clamp-2 min-h-10 text-sm font-medium leading-5 text-slate-500">
+                          {category.description || t.description}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : (
+            <>
+              <section className="mb-4 flex flex-col gap-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative w-full sm:w-96">
+                      <Search
+                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        size={16}
+                      />
+                      <input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder={t.searchPlaceholder}
+                        className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-violet-400"
+                      />
+                    </div>
+
+                    <select
+                      value={statusFilter}
+                      onChange={(event) =>
+                        setStatusFilter(event.target.value as "all" | "available" | "hidden")
+                      }
+                      className="h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-sm outline-none focus:border-violet-400"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="available">{t.available}</option>
+                      <option value="hidden">{t.hidden}</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={createNewProduct}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/20 hover:bg-violet-800"
+                  >
+                    <Plus size={17} />
+                    Add New
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                    <FilterButton
+                      active={selectedCategory === "all"}
+                      onClick={() => setSelectedCategory("all")}
+                      dark={dark}
+                      count={categoryCount("all")}
+                    >
+                      All
+                    </FilterButton>
+
+                    {categories.map((category) => (
+                      <FilterButton
+                        key={category.id}
+                        active={selectedCategory === category.id}
+                        onClick={() => setSelectedCategory(category.id)}
+                        dark={dark}
+                        count={categoryCount(category.id)}
+                      >
+                        {category.name}
+                      </FilterButton>
+                    ))}
+                </div>
+              </section>
+
+              <section>
+                {loading ? (
+                  <EmptyState className={`${panelBg} ${borderCol}`}>
+                    {t.loading}
+                  </EmptyState>
+                ) : filteredProducts.length === 0 ? (
+                  <EmptyState className={`${panelBg} ${borderCol}`}>
+                    {t.empty}
+                  </EmptyState>
+                ) : (
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                    {filteredProducts.map((product) => (
+                      <MenuCard
+                        key={product.id}
+                        product={product}
+                        onEdit={() => editProduct(product)}
+                        onDelete={() => removeProduct(product)}
+                        onToggle={() => void toggleProductAvailability(product)}
+                        text={t}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {!isCategoriesView && editorOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
+              <div className="w-full max-w-sm">
+                <ProductEditor
+                  open={editorOpen}
+                  onOpenChange={setEditorOpen}
+                  productForm={productForm}
+                  setProductForm={setProductForm}
+                  categories={categories}
+                  imagePreview={imagePreview}
+                  handleImageFile={handleImageFile}
+                  resetProductForm={resetProductForm}
+                  submitProduct={submitProduct}
+                  saving={saving}
+                  inputClass={inputClass}
+                  panelBg="bg-white"
+                  mutedPanel="bg-slate-50"
+                  borderCol="border-slate-200"
+                  textPrimary="text-slate-950"
+                  textSecondary="text-slate-500"
+                  text={t}
+                />
+              </div>
+            </div>
+          )}
+
+          {isCategoriesView && categoryEditorOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
+              <div className="w-full max-w-sm">
+                <CategoryEditor
+                  categoryForm={categoryForm}
+                  setCategoryForm={setCategoryForm}
+                  submitCategory={submitCategory}
+                  resetCategoryForm={resetCategoryForm}
+                  onOpenChange={setCategoryEditorOpen}
+                  onDelete={() => {
+                    const category = categories.find(
+                      (entry) => entry.id === categoryForm.id,
+                    );
+                    if (category) void removeCategory(category);
+                  }}
+                  inputClass={inputClass}
+                  panelBg="bg-white"
+                  mutedPanel="bg-slate-50"
+                  borderCol="border-slate-200"
+                  textPrimary="text-slate-950"
+                  textSecondary="text-slate-500"
+                  text={t}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+    </main>
+  );
+}
+
+function MenuCard({
+  product,
+  onEdit,
+  onDelete,
+  onToggle,
+  text,
+}: {
+  product: Product;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+  text: typeof TEXT.en;
+}) {
+  const unavailable = !product.isAvailable;
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="relative aspect-[1.04] bg-slate-100">
+        {product.imageUrl ? (
+          <img
+            src={resolveImageUrl(product.imageUrl)}
+            alt={product.name}
+            className={`h-full w-full object-cover ${unavailable ? "grayscale" : ""}`}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-400">
+            <Camera size={32} />
+          </div>
+        )}
+
+        {unavailable && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35">
+            <span className="rounded-full border border-white/50 bg-slate-950/75 px-4 py-2 text-[11px] font-bold uppercase text-white">
+              {text.soldOut}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-black leading-tight text-slate-950">
+              {product.name}
+            </h3>
+            <p className="mt-1 truncate text-xs font-semibold text-slate-400">
+              {product.category?.name || text.noDescription}
+            </p>
+          </div>
+
+          <span className="shrink-0 text-base font-black text-violet-700">
+            {money(product.basePrice)}
+          </span>
+        </div>
+
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 text-slate-400">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 hover:text-violet-700"
+              title={text.editProduct}
+            >
+              <Pencil size={15} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onDelete}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-red-50 hover:text-red-600"
+              title={text.deleteProduct}
+            >
+              <Trash2 size={15} />
+            </button>
+
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 hover:text-slate-700"
+                title={product.description || text.noDescription}
+              >
+                <Eye size={15} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-pressed={product.isAvailable}
+              className={`relative h-6 w-10 rounded-full transition ${
+                product.isAvailable ? "bg-green-600" : "bg-slate-300"
+              }`}
+              title={product.isAvailable ? text.available : text.hidden}
+            >
+              <span
+                className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
+                  product.isAvailable ? "left-5" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CategoryEditor({
+  categoryForm,
+  setCategoryForm,
+  submitCategory,
+  resetCategoryForm,
+  onOpenChange,
+  onDelete,
+  inputClass,
+  panelBg,
+  mutedPanel,
+  borderCol,
+  textPrimary,
+  textSecondary,
+  text,
+}: {
+  categoryForm: CategoryForm;
+  setCategoryForm: React.Dispatch<React.SetStateAction<CategoryForm>>;
+  submitCategory: (event: FormEvent<HTMLFormElement>) => void;
+  resetCategoryForm: () => void;
+  onOpenChange: (open: boolean) => void;
+  onDelete: () => void;
+  inputClass: string;
+  panelBg: string;
+  mutedPanel: string;
+  borderCol: string;
+  textPrimary: string;
+  textSecondary: string;
+  text: typeof TEXT.en;
+}) {
+  return (
+    <section className={`rounded-xl border shadow-sm ${panelBg} ${borderCol}`}>
+      <div className={`flex items-center justify-between gap-3 p-4 ${textPrimary}`}>
+        <span className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-700 text-white">
+            {categoryForm.id ? <Pencil size={17} /> : <Tags size={17} />}
+          </span>
+
+          <span>
+            <span className="block text-sm font-bold">
+              {categoryForm.id ? text.editCategory : text.createCategory}
+            </span>
+            <span className={`block text-xs ${textSecondary}`}>
+              {categoryForm.id ? text.updateFilter : text.addFilter}
+            </span>
+          </span>
+        </span>
+
+        <button
+          type="button"
+          onClick={() => {
+            resetCategoryForm();
+            onOpenChange(false);
+          }}
+          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${textSecondary} hover:bg-slate-100`}
+          title={text.cancelCategory}
+        >
+          <X size={17} />
+        </button>
+      </div>
+
+      <form onSubmit={submitCategory} className={`space-y-3 border-t p-4 ${borderCol}`}>
+        <div className={`rounded-lg p-3 ${mutedPanel}`}>
+          <Field label={text.categoryName}>
+            <input
+              required
+              value={categoryForm.name}
+              onChange={(event) =>
+                setCategoryForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              className={inputClass}
+            />
+          </Field>
+        </div>
+
+        <Field label={text.description}>
+          <textarea
+            value={categoryForm.description}
+            onChange={(event) =>
+              setCategoryForm((current) => ({
+                ...current,
+                description: event.target.value,
+              }))
+            }
+            rows={4}
+            className={`${inputClass} resize-none`}
+          />
+        </Field>
+
+        <div className="flex gap-2">
+          {categoryForm.id && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+              title={text.deleteCategory}
+            >
+              <Trash2 size={17} />
+            </button>
+          )}
+
+          <button className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 text-sm font-bold text-white hover:bg-violet-800">
+            <Save size={17} />
+            {categoryForm.id ? text.updateCategory : text.saveCategory}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function ProductEditor({
+  open,
+  onOpenChange,
+  productForm,
+  setProductForm,
+  categories,
+  imagePreview,
+  handleImageFile,
+  resetProductForm,
+  submitProduct,
+  saving,
+  inputClass,
+  panelBg,
+  mutedPanel,
+  borderCol,
+  textPrimary,
+  textSecondary,
+  text,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  productForm: ProductForm;
+  setProductForm: React.Dispatch<React.SetStateAction<ProductForm>>;
+  categories: Category[];
+  imagePreview: string;
+  handleImageFile: (file: File | null) => void;
+  resetProductForm: () => void;
+  submitProduct: (event: FormEvent<HTMLFormElement>) => void;
+  saving: boolean;
+  inputClass: string;
+  panelBg: string;
+  mutedPanel: string;
+  borderCol: string;
+  textPrimary: string;
+  textSecondary: string;
+  text: typeof TEXT.en;
+}) {
+  return (
+    <section className={`rounded-xl border shadow-sm ${panelBg} ${borderCol}`}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        className={`flex w-full items-center justify-between gap-3 p-4 text-left ${textPrimary}`}
+      >
+        <span className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+            {productForm.id ? <Pencil size={17} /> : <ShoppingBag size={17} />}
+          </span>
+
+          <span>
+            <span className="block text-sm font-bold">
+              {productForm.id ? text.editItem : text.itemCrud}
+            </span>
+            <span className={`block text-xs ${textSecondary}`}>
+              {text.itemNote}
+            </span>
+          </span>
+        </span>
+
+        {open ? <X size={17} /> : <Plus size={17} />}
+      </button>
+
+      {open && (
+        <form onSubmit={submitProduct} className={`space-y-3 border-t p-4 ${borderCol}`}>
+          <label
+            className={`mx-auto flex h-32 w-32 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed ${borderCol} ${mutedPanel}`}
+          >
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="Product preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center text-slate-400">
+                <ImagePlus size={30} />
+                <span className="text-xs font-bold">{text.uploadImage}</span>
+              </div>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
+            />
+          </label>
+
+          <Field label={text.productName}>
+            <input
+              required
+              value={productForm.name}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label={text.category}>
+            <select
+              required
+              value={productForm.categoryId}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  categoryId: event.target.value,
+                }))
+              }
+              className={inputClass}
+            >
+              <option value="">{text.selectCategory}</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label={text.basePrice}>
+            <div className="relative">
+              <BadgeDollarSign
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
+
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={productForm.basePrice}
+                onChange={(event) =>
+                  setProductForm((current) => ({
+                    ...current,
+                    basePrice: event.target.value,
+                  }))
+                }
+                className={`${inputClass} pl-10`}
+              />
+            </div>
+          </Field>
+
+          <Field label={text.description}>
+            <textarea
+              value={productForm.description}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              rows={3}
+              className={`${inputClass} resize-none`}
+            />
+          </Field>
+
+          <label className={`flex items-center justify-between rounded-lg p-3 ${mutedPanel}`}>
+            <span className="flex items-center gap-2">
+              <CheckCircle2 size={17} className="text-emerald-600" />
+
+              <span>
+                <span className={`block text-sm font-bold ${textPrimary}`}>
+                  {text.availableToggle}
+                </span>
+                <span className={`block text-xs ${textSecondary}`}>
+                  {text.availableNote}
+                </span>
+              </span>
+            </span>
+
+            <input
+              type="checkbox"
+              checked={productForm.isAvailable}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  isAvailable: event.target.checked,
+                }))
+              }
+              className="h-5 w-5 accent-blue-600"
+            />
+          </label>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={resetProductForm}
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${borderCol} ${textSecondary} hover:bg-slate-50`}
+              title={text.clearForm}
+            >
+              <UploadCloud size={17} />
+            </button>
+
+            <button
+              disabled={saving}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
+              {productForm.id ? text.saveItem : text.createItem}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function NotificationBell({
+  label,
+  emptyLabel,
+  clearLabel,
+  notifications,
+  onClear,
+}: {
+  label: string;
+  emptyLabel: string;
+  clearLabel: string;
+  notifications: MenuNotification[];
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+        title={label}
+      >
+        <Bell size={17} />
+        {notifications.length > 0 && (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
+            {notifications.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+          <div className="mb-2 flex items-center justify-between text-sm font-black text-slate-900">
+            <span>{label}</span>
+            {notifications.length > 0 ? (
+              <button
+                type="button"
+                onClick={onClear}
+                className="rounded-md px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-slate-100"
+              >
+                {clearLabel}
+              </button>
+            ) : (
+              <Bell size={15} className="text-slate-400" />
+            )}
+          </div>
+
+          {notifications.length === 0 ? (
+            <div className="rounded-lg bg-slate-50 p-4 text-center text-xs text-slate-500">
+              {emptyLabel}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notifications.slice(0, 5).map((item) => (
+                <div key={item.id} className="flex gap-3 rounded-lg bg-slate-50 p-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1D9E75]/10 text-[#1D9E75]">
+                    <ShoppingBag size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-black text-slate-900">
+                      {item.title}
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500">
+                      {item.detail}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IconButton({
+  label,
+  children,
+  dark,
+}: {
+  label: string;
+  children: ReactNode;
+  dark: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${
+        dark
+          ? "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+          : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+      }`}
+      title={label}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function FilterButton({
+  active,
+  onClick,
+  children,
+  dark,
+  count,
+  flat = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  dark: boolean;
+  count?: number;
+  flat?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-4 text-xs font-black ${
+        active
+          ? "border-violet-200 bg-violet-50 text-violet-700"
+          : flat
+            ? dark
+              ? "border-slate-700 text-slate-300 hover:bg-slate-800"
+              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            : dark
+              ? "border-slate-700 bg-[#0f172a] text-slate-300 hover:bg-slate-800"
+              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      <span>{children}</span>
+      {typeof count === "number" && (
+        <span
+          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] ${
+            active ? "bg-violet-200 text-violet-700" : "bg-slate-200 text-slate-500"
+          }`}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function EmptyState({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl border border-dashed p-10 text-center text-sm font-medium text-slate-500 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function resolveImageUrl(value: string) {
+  if (!value) return "";
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("blob:")
+  ) {
+    return value;
+  }
+
+  return `${apiOrigin}${value}`;
+}

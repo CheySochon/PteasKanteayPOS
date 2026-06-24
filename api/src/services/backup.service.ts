@@ -134,7 +134,7 @@ export const backupSummary = (backup: Backup) => {
       app: backup.app,
       createdAt: backup.createdAt,
       createdBy: backup.createdBy,
-      counts: {} as Record<string, number>,
+      counts: {},
     },
   );
 };
