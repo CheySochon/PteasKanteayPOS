@@ -1,0 +1,383 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrderStatus {
+  pending
+  accepted
+  preparing
+  ready
+  served
+  completed
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+enum PaymentMethod {
+  cash
+  qr
+}
+
+enum TableZone {
+  indoor
+  outdoor
+  vip
+}
+
+enum StockMovementType {
+  in
+  out
+  adjustment
+}
+
+enum ShiftStatus {
+  open
+  closed
+}
+
+enum NotificationType {
+  new_order
+  payment_completed
+  low_stock
+  order_status_updated
+}
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id                    Int             @id @default(autoincrement())
+  name                  String
+  email                 String          @unique
+  password              String
+  roleId                Int
+  role                  Role            @relation(fields: [roleId], references: [id])
+  shifts                Shift[]
+  ordersCreated         Order[]         @relation("OrderCreatedBy")
+  paymentsCreated       Payment[]       @relation("PaymentCreatedBy")
+  stockMovementsCreated StockMovement[] @relation("StockMovementCreatedBy")
+  isActive              Boolean         @default(true)
+  deletedAt             DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([roleId])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+model AppSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       Json
+  category    String   @default("general")
+  description String?
+  updatedById Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+}
+
+model Customer {
+  id            Int       @id @default(autoincrement())
+  name          String
+  phone         String?   @unique
+  email         String?   @unique
+  loyaltyPoints Int       @default(0)
+  orders        Order[]
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([deletedAt])
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  products    Product[]
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([deletedAt])
+}
+
+model Product {
+  id           Int                  @id @default(autoincrement())
+  categoryId   Int
+  category     Category             @relation(fields: [categoryId], references: [id])
+  name         String
+  slug         String               @unique
+  description  String?
+  imageUrl     String?
+  basePrice    Decimal              @db.Decimal(10, 2)
+  isAvailable  Boolean              @default(true)
+  variants     ProductVariant[]
+  modifierMaps ProductModifierMap[]
+  ingredients  ProductIngredient[]
+  orderItems   OrderItem[]
+  deletedAt    DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([categoryId])
+  @@index([isAvailable])
+  @@index([deletedAt])
+}
+
+model ProductVariant {
+  id          Int         @id @default(autoincrement())
+  productId   Int
+  product     Product     @relation(fields: [productId], references: [id])
+  name        String
+  price       Decimal     @db.Decimal(10, 2)
+  sku         String?     @unique
+  isAvailable Boolean     @default(true)
+  orderItems  OrderItem[]
+  deletedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([productId])
+  @@index([isAvailable])
+  @@index([deletedAt])
+}
+
+model ProductModifier {
+  id                 Int                  @id @default(autoincrement())
+  name               String
+  price              Decimal              @db.Decimal(10, 2)
+  isAvailable        Boolean              @default(true)
+  productMaps        ProductModifierMap[]
+  orderItemModifiers OrderItemModifier[]
+  deletedAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([isAvailable])
+  @@index([deletedAt])
+}
+
+model ProductModifierMap {
+  id         Int             @id @default(autoincrement())
+  productId  Int
+  modifierId Int
+  product    Product         @relation(fields: [productId], references: [id])
+  modifier   ProductModifier @relation(fields: [modifierId], references: [id])
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([productId, modifierId])
+  @@index([modifierId])
+}
+
+model DiningTable {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  capacity  Int
+  zone      TableZone
+  qrToken   String    @unique
+  isActive  Boolean   @default(true)
+  orders    Order[]
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([zone])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+model Order {
+  id             Int             @id @default(autoincrement())
+  orderNumber    String          @unique
+  tableId        Int?
+  table          DiningTable?    @relation(fields: [tableId], references: [id])
+  customerId     Int?
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+  createdById    Int?
+  createdBy      User?           @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  status         OrderStatus     @default(pending)
+  subtotal       Decimal         @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal         @default(0) @db.Decimal(10, 2)
+  taxAmount      Decimal         @default(0) @db.Decimal(10, 2)
+  totalAmount    Decimal         @default(0) @db.Decimal(10, 2)
+  notes          String?
+  items          OrderItem[]
+  payments       Payment[]
+  notifications  Notification[]
+  stockMovements StockMovement[]
+  deletedAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderNumber])
+  @@index([tableId])
+  @@index([customerId])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model OrderItem {
+  id         Int                 @id @default(autoincrement())
+  orderId    Int
+  order      Order               @relation(fields: [orderId], references: [id])
+  productId  Int
+  product    Product             @relation(fields: [productId], references: [id])
+  variantId  Int?
+  variant    ProductVariant?     @relation(fields: [variantId], references: [id])
+  quantity   Int
+  unitPrice  Decimal             @db.Decimal(10, 2)
+  totalPrice Decimal             @db.Decimal(10, 2)
+  notes      String?
+  modifiers  OrderItemModifier[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model OrderItemModifier {
+  id          Int             @id @default(autoincrement())
+  orderItemId Int
+  orderItem   OrderItem       @relation(fields: [orderItemId], references: [id])
+  modifierId  Int
+  modifier    ProductModifier @relation(fields: [modifierId], references: [id])
+  price       Decimal         @db.Decimal(10, 2)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([orderItemId])
+  @@index([modifierId])
+}
+
+model Payment {
+  id          Int           @id @default(autoincrement())
+  orderId     Int
+  order       Order         @relation(fields: [orderId], references: [id])
+  method      PaymentMethod
+  status      PaymentStatus @default(pending)
+  amount      Decimal       @db.Decimal(10, 2)
+  reference   String?
+  paidAt      DateTime?
+  createdById Int?
+  createdBy   User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model Ingredient {
+  id              Int                 @id @default(autoincrement())
+  name            String
+  unit            String
+  currentStock    Decimal             @default(0) @db.Decimal(12, 3)
+  minStock        Decimal             @default(0) @db.Decimal(12, 3)
+  costPerUnit     Decimal             @default(0) @db.Decimal(10, 2)
+  productMappings ProductIngredient[]
+  stockMovements  StockMovement[]
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([deletedAt])
+}
+
+model ProductIngredient {
+  id               Int        @id @default(autoincrement())
+  productId        Int
+  product          Product    @relation(fields: [productId], references: [id])
+  ingredientId     Int
+  ingredient       Ingredient @relation(fields: [ingredientId], references: [id])
+  quantityRequired Decimal    @db.Decimal(12, 3)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@unique([productId, ingredientId])
+  @@index([ingredientId])
+}
+
+model StockMovement {
+  id           Int               @id @default(autoincrement())
+  ingredientId Int
+  ingredient   Ingredient        @relation(fields: [ingredientId], references: [id])
+  type         StockMovementType
+  quantity     Decimal           @db.Decimal(12, 3)
+  reason       String?
+  orderId      Int?
+  order        Order?            @relation(fields: [orderId], references: [id])
+  createdById  Int?
+  createdBy    User?             @relation("StockMovementCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([ingredientId])
+  @@index([type])
+  @@index([orderId])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model Shift {
+  id          Int         @id @default(autoincrement())
+  userId      Int
+  user        User        @relation(fields: [userId], references: [id])
+  startTime   DateTime    @default(now())
+  endTime     DateTime?
+  openingCash Decimal     @default(0) @db.Decimal(10, 2)
+  closingCash Decimal?    @db.Decimal(10, 2)
+  status      ShiftStatus @default(open)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([startTime])
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  type      NotificationType
+  title     String
+  message   String
+  orderId   Int?
+  order     Order?           @relation(fields: [orderId], references: [id])
+  isSent    Boolean          @default(false)
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([type])
+  @@index([orderId])
+  @@index([isSent])
+  @@index([createdAt])
+}
