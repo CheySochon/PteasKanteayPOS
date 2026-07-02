@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { Role } from "../prisma/client.js";
+
+const ROLES = ["Admin", "Cashier", "Staff", "Member"] as const;
 
 export const createUserSchema = z.object({
   email: z
@@ -9,20 +10,20 @@ export const createUserSchema = z.object({
     .max(254),
   password: z
     .string({ error: "Password is required" })
-    .min(8, { error: "Password must be at least 8 characters" })
+    .min(4, { error: "Password must be at least 4 characters" })
     .max(64),
-  firstName: z.string().trim().min(1).max(50).optional(),
-  lastName: z.string().trim().min(1).max(50).optional(),
-  role: z.enum(Role).default(Role.WAITER).optional(),
+  name: z.string().trim().min(1).max(100),
+  role: z.enum(ROLES).default("Staff").optional(),
+  roleName: z.enum(ROLES).optional(),
   isActive: z.boolean().default(true).optional(),
 });
 
 export const updateUserSchema = z.object({
   email: z.email().trim().toLowerCase().max(254).optional(),
-  password: z.string().min(8).max(64).optional(),
-  firstName: z.string().trim().min(1).max(50).optional(),
-  lastName: z.string().trim().min(1).max(50).optional(),
-  role: z.enum(Role).optional(),
+  password: z.string().min(4).max(64).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  role: z.enum(ROLES).optional(),
+  roleName: z.enum(ROLES).optional(),
   isActive: z.boolean().optional(),
 });
 

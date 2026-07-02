@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from "express";
-import { Role } from "../prisma/client.js";
+
+function normalizeRole(role: string) {
+  return String(role || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 export const roleMiddleware =
-  (allowedRoles: Role[]) =>
+  (allowedRoles: string[]) =>
   (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res
@@ -10,9 +13,14 @@ export const roleMiddleware =
         .json({ success: false, message: "Authentication required" });
     }
 
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
+    const allowed = allowedRoles.map(normalizeRole);
 
-    if (userRole !== Role.ADMIN && !allowedRoles.includes(userRole)) {
+    if (
+      userRole !== "superadmin" &&
+      userRole !== "admin" &&
+      !allowed.includes(userRole)
+    ) {
       return res
         .status(403)
         .json({ success: false, message: "Insufficient permissions" });

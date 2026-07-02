@@ -5,6 +5,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  listRoles,
 } from "../services/user.service.js";
 import { CreateUserBody, UpdateUserBody } from "../schemas/user.schema.js";
 
@@ -22,14 +23,21 @@ export const create = asyncHandler(
 
 export const update = asyncHandler(
   async (req: Request<{ id: string }, object, UpdateUserBody>, res: Response) => {
-    const user = await updateUser(req.params.id, req.body);
+    const user = await updateUser(Number(req.params.id), req.body);
     res.json({ success: true, message: "User updated", data: user });
   },
 );
 
 export const remove = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
-    await deleteUser(req.params.id);
+    await deleteUser(Number(req.params.id));
     res.json({ success: true, message: "User deleted" });
+  },
+);
+
+export const roles = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const roleRows = await listRoles();
+    res.json({ success: true, message: "Roles fetched", data: roleRows });
   },
 );

@@ -129,7 +129,10 @@ export function permissionsForUser(
 }
 
 export function canAccessPath(pathname: string, role: string, staffPermissions?: StaffPermissions | null) {
-  if (role === "Super Admin") return true;
+  if (role === "Super Admin" || role === "Admin") return true;
+
+  if (role === "Cashier" && (pathname === "/pos" || pathname.startsWith("/pos/"))) return true;
+  if (role === "Staff" && (pathname === "/kds" || pathname.startsWith("/kds/"))) return true;
 
   const rule = routeRoles
     .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
@@ -156,6 +159,9 @@ export function fallbackPathForRole(role: string) {
 
 export function firstAllowedPathForRole(role: string, staffPermissions?: StaffPermissions | null) {
   if (["Super Admin", "Admin"].includes(role)) return "/admin";
+  if (role === "Cashier") return "/pos";
+  if (role === "Staff") return "/kds";
+
   if (["Cashier", "Staff"].includes(role)) {
     return STAFF_PERMISSION_PAGES.find((page) => canAccessPath(page.href, role, staffPermissions))?.href || "/login";
   }

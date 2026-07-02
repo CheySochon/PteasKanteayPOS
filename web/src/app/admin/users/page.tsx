@@ -12,6 +12,18 @@ import {
   Trash2,
   UserRound,
   X,
+  UserX,
+  ShieldAlert,
+  MoreVertical,
+  Download,
+  Eye,
+  Crown,
+  CreditCard,
+  ChefHat,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import {
@@ -31,7 +43,6 @@ import {
   subscribeToProfileChanges,
 } from "../../../lib/profile";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
-
 
 type UserForm = {
   id?: number;
@@ -82,20 +93,19 @@ export default function UsersPage() {
     getServerProfileVersionSnapshot,
   );
 
+  // Search, Filters & Pagination state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterRole, setFilterRole] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [limit, setLimit] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-900";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
-
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm`;
-
-  const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-emerald-500 ${
-    dark
-      ? "border-slate-700/70 bg-[#0f172a] text-slate-100 placeholder:text-slate-500"
-      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
-  }`;
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
 
   useEffect(() => {
     let mounted = true;
@@ -140,6 +150,35 @@ export default function UsersPage() {
     if (roles.some((role) => role.name === form.roleName)) return roles;
     return [{ id: 0, name: form.roleName }, ...roles].filter((role) => role.name);
   }, [form.roleName, roles]);
+
+  // Apply filters
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const uRole = roleName(user);
+      const matchesRole = !filterRole || uRole === filterRole;
+      const matchesStatus =
+        !filterStatus ||
+        (filterStatus === "Active" && user.isActive) ||
+        (filterStatus === "Inactive" && !user.isActive);
+      const matchesSearch =
+        !searchQuery ||
+        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesRole && matchesStatus && matchesSearch;
+    });
+  }, [users, filterRole, filterStatus, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / limit) || 1;
+  const startIndex = (currentPage - 1) * limit;
+  const paginatedUsers = useMemo(() => {
+    return filteredUsers.slice(startIndex, startIndex + limit);
+  }, [filteredUsers, startIndex, limit]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterRole, filterStatus, limit]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -247,220 +286,393 @@ export default function UsersPage() {
     setForm(EMPTY_FORM);
   }
 
+  // Helper to generate mock values (plan, billing) for Sneat aesthetic
+  const mockPlan = (userId: number) => {
+    const plans = ["Basic", "Team", "Company", "Enterprise"];
+    return plans[userId % plans.length];
+  };
+
+  const mockBilling = (userId: number) => {
+    const billings = ["Auto Debit", "Manual Cash", "Manual Paypal"];
+    return billings[userId % billings.length];
+  };
+
   return (
     <>
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+      <main className={`flex-1 overflow-y-auto ${softSurface} p-6`}>
+        <div className="mx-auto w-full max-w-[1400px]">
           <div className="animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <section className={`mb-4 rounded-xl border p-4 shadow-sm ${surface} ${borderCol}`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600">
-                  <ShieldCheck size={14} />
-                  Access Control
-                </div>
+            
+            {/* Sneat Summary Cards (Grid of 4) */}
+            <section className="mb-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              <SneatSummaryCard
+                label="Session"
+                value={users.length.toLocaleString()}
+                subtitle="Total Users"
+                percent="+29%"
+                percentTone="green"
+                icon={<UserRound size={22} />}
+                iconColor="text-[#696cff]"
+                iconBg="bg-[#696cff]/10"
+                surface={surface}
+                borderCol={borderCol}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+              />
 
-                <h1 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>
-                  Users
-                </h1>
+              <SneatSummaryCard
+                label="Paid Users"
+                value={activeUsers.toLocaleString()}
+                subtitle="Last week analytics"
+                percent="+18%"
+                percentTone="green"
+                icon={<ShieldCheck size={22} />}
+                iconColor="text-[#ff3e1d]"
+                iconBg="bg-[#ff3e1d]/10"
+                surface={surface}
+                borderCol={borderCol}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+              />
 
-                <p className={`mt-1 text-sm ${textSecondary}`}>
-                  Create staff accounts, assign roles, and manage access.
-                </p>
+              <SneatSummaryCard
+                label="Active Users"
+                value={activeUsers.toLocaleString()}
+                subtitle="Last week analytics"
+                percent="-14%"
+                percentTone="red"
+                icon={<UserRound size={22} />}
+                iconColor="text-[#71dd37]"
+                iconBg="bg-[#71dd37]/10"
+                surface={surface}
+                borderCol={borderCol}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+              />
+
+              <SneatSummaryCard
+                label="Pending Users"
+                value={(users.length - activeUsers).toLocaleString()}
+                subtitle="Last week analytics"
+                percent="+42%"
+                percentTone="green"
+                icon={<UserX size={22} />}
+                iconColor="text-[#ffab00]"
+                iconBg="bg-[#ffab00]/10"
+                surface={surface}
+                borderCol={borderCol}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+              />
+            </section>
+
+            {/* Error and Success Alerts */}
+            {error && (
+              <div className="mb-6 rounded border border-red-150 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+                {error}
               </div>
+            )}
+            {message && (
+              <div className="mb-6 rounded border border-emerald-150 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                {message}
+              </div>
+            )}
 
-              <button
-                onClick={openCreateUserModal}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700"
-              >
-                <Plus size={17} />
-                New User
-              </button>
-            </div>
-          </section>
-
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {message}
-            </div>
-          )}
-
-          <section className="mb-4 grid animate-[usersSectionIn_560ms_cubic-bezier(0.16,1,0.3,1)_90ms_both] gap-3 sm:grid-cols-3">
-            <SummaryCard
-              label="Total Users"
-              value={users.length}
-              dark={dark}
-              tone="blue"
-            />
-
-            <SummaryCard
-              label="Active Users"
-              value={activeUsers}
-              dark={dark}
-              tone="green"
-            />
-
-            <SummaryCard
-              label="Admins"
-              value={adminUsers}
-              dark={dark}
-              tone="purple"
-            />
-          </section>
-
-          <section className="grid animate-[usersSectionIn_620ms_cubic-bezier(0.16,1,0.3,1)_150ms_both] gap-4 xl:grid-cols-[1fr_360px]">
-            <div className={`overflow-hidden ${cardClass}`}>
-              <div
-                className={`flex h-14 items-center justify-between border-b px-4 ${borderCol}`}
-              >
+            {/* Search Filters Section */}
+            <section className={`mb-6 rounded shadow-sm p-6 ${surface} border ${borderCol}`}>
+              <h3 className={`text-base font-semibold mb-4 ${textPrimary}`}>Search Filters</h3>
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <h2 className={`text-base font-bold ${textPrimary}`}>
-                    Team Members
-                  </h2>
-                  <p className={`hidden text-xs sm:block ${textSecondary}`}>
-                    Admins can create, edit, deactivate, and delete users.
-                  </p>
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value)}
+                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  >
+                    <option value="">Select Role</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.name}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {loading && (
-                  <Loader2 className="animate-spin text-emerald-600" size={18} />
-                )}
+                <div>
+                  <select
+                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                    defaultValue=""
+                  >
+                    <option value="">Select Plan</option>
+                    <option value="Basic">Basic</option>
+                    <option value="Team">Team</option>
+                    <option value="Company">Company</option>
+                    <option value="Enterprise">Enterprise</option>
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* Table & Table Controls Container */}
+            <section className={`rounded shadow-sm overflow-hidden ${surface} border ${borderCol}`}>
+              {/* Controls bar */}
+              <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <select
+                    value={limit}
+                    onChange={(e) => setLimit(Number(e.target.value))}
+                    className={`rounded border px-2.5 py-1.5 text-sm outline-none focus:border-[#696cff] ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  >
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search User"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`rounded border pl-3.5 pr-3 py-1.5 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] ${
+                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                      }`}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`inline-flex items-center justify-center gap-1.5 rounded border px-4 py-1.5 text-sm font-semibold hover:opacity-90 ${
+                      dark ? "border-[#4e4f6e] text-slate-200 bg-[#232333]" : "border-[#e5e7eb] text-[#8592a3] bg-[#eceef1]/60"
+                    }`}
+                  >
+                    <Download size={15} />
+                    Export
+                  </button>
+
+                  <button
+                    onClick={openCreateUserModal}
+                    className="inline-flex items-center justify-center gap-1.5 rounded bg-[#696cff] px-4 py-1.5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6]"
+                  >
+                    <Plus size={16} />
+                    Add New User
+                  </button>
+                </div>
               </div>
 
-              {users.length === 0 && !loading ? (
-                <div
-                  className={`p-8 text-center text-sm ${textSecondary}`}
-                >
-                  No users to show
-                </div>
-              ) : (
-                <div className={dark ? "divide-y divide-slate-700/70" : "divide-y divide-slate-100"}>
-                  {users.map((user) => {
-                    const isSelf = currentUserId === user.id;
+              {/* Table wrapper */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className={`border-b ${borderCol} text-[11px] uppercase tracking-wider text-[#a1acb8] font-semibold bg-[#f5f5f9]/40 ${dark ? "bg-slate-800/10" : ""}`}>
+                      <th className="px-5 py-3 w-12">
+                        <input
+                          type="checkbox"
+                          className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] accent-[#696cff]"
+                        />
+                      </th>
+                      <th className="px-5 py-3">User</th>
+                      <th className="px-5 py-3">Role</th>
+                      <th className="px-5 py-3">Plan</th>
+                      <th className="px-5 py-3">Billing</th>
+                      <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className={dark ? "divide-y divide-[#4e4f6e]" : "divide-y divide-[#f0f2f5]"}>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-12 text-center">
+                          <Loader2 className="animate-spin text-[#696cff] inline-block" size={24} />
+                        </td>
+                      </tr>
+                    ) : paginatedUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className={`px-5 py-8 text-center text-sm ${textSecondary}`}>
+                          No entries found
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedUsers.map((user) => {
+                        const isSelf = currentUserId === user.id;
+                        const uRole = roleName(user) || "Member";
+                        const isActive = user.isActive;
 
+                        return (
+                          <tr key={user.id} className={dark ? "hover:bg-[#34354f]" : "hover:bg-[#fcfcfd]"}>
+                            <td className="px-5 py-3">
+                              <input
+                                type="checkbox"
+                                className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] accent-[#696cff]"
+                              />
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <TeamMemberAvatar user={user} />
+                                <div className="min-w-0">
+                                  <div className={`text-sm font-semibold truncate ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
+                                    {user.name}
+                                  </div>
+                                  <div className="text-xs text-[#a1acb8] truncate">
+                                    {user.email}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-2 text-sm text-[#566a7f] font-medium capitalize">
+                                <RoleIcon role={uRole} />
+                                <span className={dark ? "text-slate-200" : ""}>{uRole}</span>
+                              </div>
+                            </td>
+                            <td className={`px-5 py-3 text-sm ${dark ? "text-slate-200" : "text-[#566a7f]"}`}>
+                              {mockPlan(user.id)}
+                            </td>
+                            <td className={`px-5 py-3 text-sm ${dark ? "text-slate-200" : "text-[#566a7f]"}`}>
+                              {mockBilling(user.id)}
+                            </td>
+                            <td className="px-5 py-3">
+                              <button
+                                disabled={isSelf}
+                                onClick={() => toggleActive(user)}
+                                className={`rounded px-2 py-1 text-xs font-semibold select-none transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                  isActive
+                                    ? "bg-[#e8fadf] text-[#71dd37]"
+                                    : "bg-[#eceef1] text-[#8592a3]"
+                                }`}
+                              >
+                                {isActive ? "Active" : "Inactive"}
+                              </button>
+                            </td>
+                            <td className="px-5 py-3">
+                              <div className="flex items-center justify-center gap-3 text-[#8592a3]">
+                                <button
+                                  onClick={() => edit(user)}
+                                  className="hover:text-[#696cff] transition-colors p-1"
+                                  title="Edit User"
+                                >
+                                  <Edit3 size={15} />
+                                </button>
+                                <button
+                                  disabled={isSelf}
+                                  onClick={() => remove(user)}
+                                  className="hover:text-[#ff3e1d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed p-1"
+                                  title="Delete User"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                                <button className="hover:text-slate-600 transition-colors p-1">
+                                  <MoreVertical size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer / Pagination controls */}
+              <div className={`flex flex-col gap-4 border-t p-5 sm:flex-row sm:items-center sm:justify-between ${borderCol}`}>
+                <span className="text-xs text-[#a1acb8]">
+                  Showing {filteredUsers.length ? startIndex + 1 : 0} to{" "}
+                  {Math.min(startIndex + limit, filteredUsers.length)} of{" "}
+                  {filteredUsers.length} entries
+                </span>
+
+                <div className="flex items-center gap-1 justify-end">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
+                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                    const page = i + 1;
+                    const isActive = page === currentPage;
                     return (
-                      <div
-                        key={user.id}
-                        className={`grid gap-3 px-4 py-3 lg:grid-cols-[1fr_140px_130px_170px] lg:items-center ${
-                          dark ? "hover:bg-slate-800/50" : "hover:bg-slate-50"
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`flex h-8 w-8 items-center justify-center rounded text-sm font-semibold border ${
+                          isActive
+                            ? "bg-[#696cff] text-white border-[#696cff]"
+                            : `text-[#8592a3] border-slate-200 hover:bg-slate-50 ${borderCol}`
                         }`}
                       >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <TeamMemberAvatar user={user} />
-
-                          <div className="min-w-0">
-                            <div
-                              className={`truncate text-sm font-bold ${textPrimary}`}
-                            >
-                              {user.name}
-                            </div>
-                            <div className={`truncate text-xs ${textSecondary}`}>
-                              {user.email}
-                            </div>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold ${roleBadge(
-                            roleName(user),
-                          )}`}
-                        >
-                          {roleName(user) || "Member"}
-                        </span>
-
-                        <button
-                          disabled={isSelf}
-                          onClick={() => toggleActive(user)}
-                          className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            user.isActive
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-200 text-slate-600"
-                          } disabled:cursor-not-allowed disabled:opacity-50`}
-                        >
-                          {isSelf ? "You" : user.isActive ? "Active" : "Inactive"}
-                        </button>
-
-                        <div className="flex items-center gap-2 lg:justify-end">
-                          <button
-                            onClick={() => edit(user)}
-                            className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-bold ${borderCol} ${softSurface} ${textPrimary}`}
-                          >
-                            <Edit3 size={14} />
-                            Edit
-                          </button>
-
-                          <button
-                            disabled={isSelf}
-                            onClick={() => remove(user)}
-                            className="inline-flex h-8 items-center gap-2 rounded-lg bg-red-50 px-3 text-xs font-bold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <Trash2 size={14} />
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                        {page}
+                      </button>
                     );
                   })}
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
                 </div>
-              )}
-            </div>
-
-            <aside className={`${cardClass} p-4`}>
-              <div className="mb-4">
-                <h2 className={`text-base font-bold ${textPrimary}`}>
-                  User Setup
-                </h2>
-                <p className={`mt-1 text-xs ${textSecondary}`}>
-                  Add staff accounts from a dialog or use Edit on any team member.
-                </p>
               </div>
+            </section>
 
-              <button
-                type="button"
-                onClick={openCreateUserModal}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700"
-              >
-                <Plus size={17} />
-                New User
-              </button>
-
-              <div className={`mt-4 rounded-lg border p-3 ${borderCol} ${softSurface}`}>
-                <div className={`text-sm font-bold ${textPrimary}`}>Access notes</div>
-                <p className={`mt-1 text-xs leading-5 ${textSecondary}`}>
-                  Admins can create, update, deactivate, and delete users. Inactive users cannot log in.
-                </p>
-              </div>
-            </aside>
-          </section>
           </div>
         </div>
       </main>
 
+      {/* Sneat Modal for User Create/Edit */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close user dialog"
-            onClick={closeUserModal}
-            className="absolute inset-0 bg-slate-950/30 animate-[userModalBackdrop_180ms_ease-out]"
-          />
-
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-[1px] animate-[userModalBackdrop_180ms_ease-out]">
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded shadow-2xl border p-6 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   {form.id ? "Edit User" : "Create User"}
                 </p>
-                <h2 className={`mt-1 text-xl font-black ${textPrimary}`}>
+                <h2 className={`mt-1 text-xl font-bold ${textPrimary}`}>
                   {form.id ? form.name : "Add New User"}
                 </h2>
-                <p className={`mt-1 text-xs ${textSecondary}`}>
+                <p className={`mt-1 text-xs text-[#a1acb8]`}>
                   {form.id
                     ? "Leave password empty to keep it unchanged."
                     : "Password is required for new users."}
@@ -470,15 +682,17 @@ export default function UsersPage() {
               <button
                 type="button"
                 onClick={closeUserModal}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                title="Close"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-[#d9dee3] text-slate-400 hover:text-slate-600 outline-none"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             <form onSubmit={submit} className="space-y-4">
-              <Field label="Name">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
+                  Name
+                </label>
                 <input
                   required
                   value={form.name}
@@ -488,11 +702,16 @@ export default function UsersPage() {
                       name: event.target.value,
                     }))
                   }
-                  className={inputClass}
+                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  }`}
                 />
-              </Field>
+              </div>
 
-              <Field label="Email">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
+                  Email
+                </label>
                 <input
                   required
                   type="email"
@@ -503,11 +722,16 @@ export default function UsersPage() {
                       email: event.target.value,
                     }))
                   }
-                  className={inputClass}
+                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  }`}
                 />
-              </Field>
+              </div>
 
-              <Field label="Password">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
+                  Password
+                </label>
                 <input
                   required={!form.id}
                   type="password"
@@ -518,11 +742,16 @@ export default function UsersPage() {
                       password: event.target.value,
                     }))
                   }
-                  className={inputClass}
+                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  }`}
                 />
-              </Field>
+              </div>
 
-              <Field label="Role">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
+                  Role
+                </label>
                 <select
                   value={form.roleName}
                   onChange={(event) =>
@@ -531,7 +760,9 @@ export default function UsersPage() {
                       roleName: event.target.value,
                     }))
                   }
-                  className={inputClass}
+                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  }`}
                 >
                   {(roleOptions.length
                     ? roleOptions
@@ -542,45 +773,39 @@ export default function UsersPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
+              </div>
 
-              <label
-                className={`flex items-center justify-between rounded-lg border p-3 ${borderCol} ${softSurface}`}
-              >
-                <span>
-                  <span className={`block text-sm font-bold ${textPrimary}`}>
-                    Active Account
-                  </span>
-                  <span className={`block text-xs ${textSecondary}`}>
-                    Inactive users cannot log in.
-                  </span>
-                </span>
+              <div className="flex items-center pt-2">
+                <label className="flex items-center gap-2 text-sm text-slate-600 select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        isActive: event.target.checked,
+                      }))
+                    }
+                    className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] focus:ring-[#696cff] accent-[#696cff]"
+                  />
+                  Active Account
+                </label>
+              </div>
 
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      isActive: event.target.checked,
-                    }))
-                  }
-                  className="h-5 w-5 accent-emerald-600"
-                />
-              </label>
-
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-3">
                 <button
                   type="button"
                   onClick={closeUserModal}
-                  className={`h-11 flex-1 rounded-xl border px-4 text-sm font-bold ${borderCol} ${textSecondary}`}
+                  className={`h-10 flex-1 rounded border px-4 text-sm font-semibold hover:bg-slate-50 transition-colors ${
+                    dark ? "border-[#4e4f6e] text-slate-300" : "border-[#d9dee3] text-[#8592a3]"
+                  }`}
                 >
                   Cancel
                 </button>
 
                 <button
                   disabled={saving}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-sm font-semibold text-white hover:bg-[#5f61e6] active:bg-[#5859d0] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? (
                     <Loader2 className="animate-spin" size={17} />
@@ -622,90 +847,77 @@ export default function UsersPage() {
             transform: translateY(0);
           }
         }
-
-        @keyframes usersSectionIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
       `}</style>
     </>
   );
 }
 
-function SummaryCard({
+// Sneat statistics summary card
+function SneatSummaryCard({
   label,
   value,
-  dark,
-  tone,
+  subtitle,
+  percent,
+  percentTone,
+  icon,
+  iconColor,
+  iconBg,
+  surface,
+  borderCol,
+  textPrimary,
+  textSecondary,
 }: {
   label: string;
-  value: number;
-  dark: boolean;
-  tone: "blue" | "green" | "purple";
+  value: string;
+  subtitle: string;
+  percent: string;
+  percentTone: "green" | "red";
+  icon: ReactNode;
+  iconColor: string;
+  iconBg: string;
+  surface: string;
+  borderCol: string;
+  textPrimary: string;
+  textSecondary: string;
 }) {
-  const tones = {
-    blue: "bg-blue-100 text-blue-700",
-    green: "bg-emerald-100 text-emerald-700",
-    purple: "bg-purple-100 text-purple-700",
-  };
-
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        dark ? "border-slate-700/70 bg-[#111827]" : "border-slate-200 bg-white"
-      }`}
-    >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium text-slate-500">{label}</div>
-          <div
-            className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-slate-900"
-            }`}
-          >
-            {value}
-          </div>
+    <div className={`rounded p-5 shadow-sm border ${surface} ${borderCol} flex justify-between items-start`}>
+      <div className="space-y-1.5">
+        <span className={`text-[13px] font-semibold ${textPrimary}`}>{label}</span>
+        <div className="flex items-baseline gap-2">
+          <span className={`text-2xl font-semibold tracking-tight ${darkColorText(textPrimary)}`}>{value}</span>
+          <span className={`text-[13px] font-semibold ${percentTone === "green" ? "text-[#71dd37]" : "text-[#ff3e1d]"}`}>
+            ({percent})
+          </span>
         </div>
-
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}>
-          Live
-        </span>
+        <p className="text-[12px] text-[#a1acb8] font-medium">{subtitle}</p>
       </div>
-
-      <div className="text-xs font-medium text-emerald-600">
-        Access control
+      <div className={`h-10 w-10 rounded flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+        {icon}
       </div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
+function darkColorText(val: string) {
+  return val.includes("text-slate-100") ? "text-slate-100" : "text-[#566a7f]";
+}
+
+function RoleIcon({ role }: { role: string }) {
+  if (role === "Super Admin" || role === "Admin") {
+    return <Crown size={14} className="text-[#696cff] shrink-0" />;
+  }
+  if (role === "Cashier") {
+    return <CreditCard size={14} className="text-[#03c3ec] shrink-0" />;
+  }
+  if (role === "Staff") {
+    return <ChefHat size={14} className="text-[#ffab00] shrink-0" />;
+  }
+  return <UserRound size={14} className="text-[#8592a3] shrink-0" />;
 }
 
 function roleName(user: User) {
   return typeof user.role === "string" ? user.role : user.role?.name || "";
-}
-
-function roleBadge(role: string) {
-  if (role === "Super Admin") return "bg-purple-100 text-purple-700";
-  if (role === "Admin") return "bg-emerald-100 text-emerald-700";
-  if (role === "Cashier") return "bg-blue-100 text-blue-700";
-  if (role === "Staff") return "bg-amber-100 text-amber-700";
-  return "bg-slate-200 text-slate-600";
 }
 
 function TeamMemberAvatar({ user }: { user: User }) {
@@ -726,21 +938,21 @@ function TeamMemberAvatar({ user }: { user: User }) {
       <Image
         src={image}
         alt={user.name}
-        width={40}
-        height={40}
+        width={38}
+        height={38}
         unoptimized
-        className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+        className="h-[38px] w-[38px] shrink-0 rounded-full object-cover border border-slate-100"
       />
     );
   }
 
   return (
     <div
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-black text-white ${profileAvatarClass(
+      className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${profileAvatarClass(
         role,
       )}`}
     >
-      {user.name ? initials(user.name) : <UserRound size={18} />}
+      {user.name ? initials(user.name) : <UserRound size={16} />}
     </div>
   );
 }

@@ -73,9 +73,18 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
-    const message = typeof payload === "object" && payload && "message" in payload
-      ? String((payload as ApiResponse<unknown>).message)
-      : `Request failed with status ${response.status}`;
+    let message = `Request failed with status ${response.status}`;
+    if (typeof payload === "object" && payload) {
+      if ("errors" in payload && typeof payload.errors === "object" && payload.errors) {
+        const rawErrors = (payload.errors as any).properties || payload.errors;
+        const details = Object.entries(rawErrors)
+          .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(", ") : String(errs)}`)
+          .join(" | ");
+        message = `Validation failed — ${details}`;
+      } else if ("message" in payload) {
+        message = String(payload.message);
+      }
+    }
     throw new Error(message);
   }
 

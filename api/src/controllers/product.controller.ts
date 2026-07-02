@@ -47,3 +47,20 @@ export const remove = asyncHandler(
     res.json({ success: true, message: "Product deleted" });
   },
 );
+
+export const uploadImage = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "Product image is required" });
+      return;
+    }
+
+    const imageUrl = `/uploads/products/${req.file.filename}`;
+
+    res.status(201).json({
+      success: true,
+      message: "Product image uploaded",
+      data: { imageUrl },
+    });
+  },
+);

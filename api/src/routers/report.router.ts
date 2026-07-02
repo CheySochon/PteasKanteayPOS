@@ -2,7 +2,6 @@ import { Router } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { roleMiddleware } from "../middlewares/role.middleware.js";
-import { Role } from "../prisma/client.js";
 import {
   dailySales,
   monthlySales,
@@ -13,7 +12,7 @@ import {
 const router = Router();
 const reportRoles = [
   authMiddleware,
-  roleMiddleware([Role.ADMIN, Role.MANAGER, Role.CASHIER]),
+  roleMiddleware(["Admin", "Manager", "Cashier"]),
 ];
 
 router.get("/daily-sales", ...reportRoles, asyncHandler(dailySales));

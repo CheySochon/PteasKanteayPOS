@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { prisma } from "../config/prisma.js";
 import {
   RegisterBody,
   LoginBody,
@@ -29,6 +30,7 @@ export const register = async (
     res.status(201).json({
       success: true,
       user,
+      token,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Registration failed";
@@ -52,6 +54,7 @@ export const login = async (
     res.json({
       success: true,
       user,
+      token,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Login failed";
@@ -72,11 +75,26 @@ export const logout = (_: Request, res: Response) => {
   });
 };
 
-export const me = (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    user: req.user,
-  });
+export const me = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { role: true },
+    });
+    if (!user || user.deletedAt) {
+      return res.status(401).json({ success: false, message: "User not found" });
+    }
+    res.json({
+      success: true,
+      data: user,
+    });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 };
 
 export const updatePassword = async (

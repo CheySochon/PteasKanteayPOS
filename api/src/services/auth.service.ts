@@ -1,14 +1,12 @@
 import { prisma } from "../config/prisma.js";
 import { hashPassword, comparePassword } from "../utils/bcrypt.js";
 import { signToken } from "../utils/jwt.js";
-import { Role } from "../prisma/client.js";
 
 export const register = async (data: {
   email: string;
   password: string;
-  firstName?: string;
-  lastName?: string;
-  role?: Role;
+  name: string;
+  role?: string;
 }) => {
   const existing = await prisma.user.findUnique({
     where: { email: data.email },
@@ -18,56 +16,66 @@ export const register = async (data: {
     throw new Error("Email already in use");
   }
 
-  const passwordHash = await hashPassword(data.password);
+  const hashedPassword = await hashPassword(data.password);
+
+  const roleRecord = await prisma.role.findUnique({
+    where: { name: data.role ?? "Staff" },
+  });
+
+  if (!roleRecord) {
+    throw new Error("Invalid role");
+  }
 
   const user = await prisma.user.create({
     data: {
       email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: data.role ?? "WAITER",
+      password: hashedPassword,
+      name: data.name,
+      roleId: roleRecord.id,
     },
+    include: { role: true },
   });
 
   const token = signToken({
     userId: user.id,
-    role: user.role,
+    role: user.role.name,
   });
 
   return { user, token };
 };
 
-export const login = async (email: string, password: string) => {
-  const user = await prisma.user.findUnique({
-    where: { email },
+export const login = async (emailOrUsername: string, password: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: { equals: emailOrUsername, mode: "insensitive" } },
+        { name: { equals: emailOrUsername, mode: "insensitive" } },
+      ],
+      deletedAt: null,
+    },
+    include: { role: true },
   });
 
   if (!user || !user.isActive) {
     throw new Error("Invalid credentials");
   }
 
-  const isValid = await comparePassword(password, user.passwordHash);
+  const isValid = await comparePassword(password, user.password);
 
   if (!isValid) {
     throw new Error("Invalid credentials");
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-
   const token = signToken({
     userId: user.id,
-    role: user.role,
+    role: user.role.name,
   });
 
   return { user, token };
 };
 
 export const updatePassword = async (
-  userId: string,
+  userId: number,
   data: {
     currentPassword: string;
     newPassword: string;
@@ -83,7 +91,7 @@ export const updatePassword = async (
 
   const isValid = await comparePassword(
     data.currentPassword,
-    user.passwordHash,
+    user.password,
   );
 
   if (!isValid) {
@@ -92,7 +100,7 @@ export const updatePassword = async (
 
   const isSamePassword = await comparePassword(
     data.newPassword,
-    user.passwordHash,
+    user.password,
   );
 
   if (isSamePassword) {
@@ -104,8 +112,7 @@ export const updatePassword = async (
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
-      passwordHash: newPasswordHash,
-      passwordChangedAt: new Date(),
+      password: newPasswordHash,
       updatedAt: new Date(),
     },
   });

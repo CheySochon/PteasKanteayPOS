@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { OrderStatus } from "../prisma/client.js";
 
 const ALLOWED_STATUSES = [
   "pending",
@@ -107,7 +108,7 @@ export const createOrder = async (
       notes?: string;
     }[];
   },
-  userId?: string,
+  userId?: number,
 ) => {
   const subtotal = toNum(0);
   const discountAmount = toNum(payload.discountAmount);
@@ -120,7 +121,7 @@ export const createOrder = async (
       tableId: payload.tableId,
       customerId: payload.customerId,
       createdById: userId,
-      status: normalizeStatus(payload.status),
+      status: normalizeStatus(payload.status) as OrderStatus,
       subtotal,
       discountAmount,
       taxAmount,
@@ -136,7 +137,7 @@ export const createOrder = async (
 export const updateOrderStatus = async (id: number, status: string) => {
   const order = await prisma.order.update({
     where: { id },
-    data: { status: normalizeStatus(status) },
+    data: { status: normalizeStatus(status) as OrderStatus },
     include: buildOrderInclude(),
   });
 

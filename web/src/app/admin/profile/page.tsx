@@ -11,6 +11,9 @@ import {
   Trash2,
   UploadCloud,
   UserRound,
+  Crown,
+  CreditCard,
+  ChefHat,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import {
@@ -26,7 +29,6 @@ import {
   subscribeToProfileChanges,
 } from "../../../lib/profile";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
-
 
 function getUserSnapshot() {
   return localStorage.getItem("pos_user") || JSON.stringify({ name: "Guest", role: "Member" });
@@ -63,22 +65,22 @@ export default function ProfilePage() {
   );
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-950";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
   const image = getProfileImage(user);
   const previewImage = removeImage ? "" : pendingImage || image;
   const hasChanges = Boolean(pendingImage || removeImage);
 
   const details = useMemo(
     () => [
-      { label: "Name", value: user.name, Icon: UserRound },
-      { label: "Email", value: user.email || "No email saved", Icon: Mail },
-      { label: "Role", value: user.role, Icon: ShieldCheck },
-      { label: "Status", value: user.isActive === false ? "Inactive" : "Active", Icon: CheckCircle2 },
-      { label: "User ID", value: user.id ? String(user.id) : "Local user", Icon: IdCard },
+      { label: "Name", value: user.name, Icon: UserRound, colorClass: "text-[#696cff] bg-[#696cff]/10" },
+      { label: "Email", value: user.email || "No email saved", Icon: Mail, colorClass: "text-[#03c3ec] bg-[#03c3ec]/10" },
+      { label: "Role", value: user.role, Icon: ShieldCheck, colorClass: "text-[#71dd37] bg-[#71dd37]/10" },
+      { label: "Status", value: user.isActive === false ? "Inactive" : "Active", Icon: CheckCircle2, colorClass: "text-[#ffab00] bg-[#ffab00]/10" },
+      { label: "User ID", value: user.id ? String(user.id) : "Local user", Icon: IdCard, colorClass: "text-[#8592a3] bg-[#8592a3]/10" },
     ],
     [user.email, user.id, user.isActive, user.name, user.role]
   );
@@ -132,140 +134,172 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto px-5 py-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[#1D9E75]/10 px-3 py-1 text-xs font-bold text-[#1D9E75]">
-                <UserRound size={14} />
-                Staff Profile
-              </div>
-              <h1 className={`text-3xl font-black tracking-tight ${textPrimary}`}>
-                Profile
-              </h1>
-              <p className={`mt-1 text-sm ${textSecondary}`}>
-                Manage the staff image and review account details.
-              </p>
+    <main className={`flex-1 overflow-y-auto ${softSurface}`}>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[profilePageIn_520ms_ease-out]">
+        
+        {/* Sneat Profile Header */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#696cff]">
+              <UserRound size={14} />
+              Staff Profile
             </div>
-
-            <button
-              type="button"
-              onClick={saveChanges}
-              disabled={!hasChanges}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D9E75] px-5 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-[#188a66] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Save size={17} />
-              Save Changes
-            </button>
+            <h1 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>
+              Profile Account
+            </h1>
+            <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
+              Manage your staff profile avatar and review your credentials.
+            </p>
           </div>
 
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-              {error}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={saveChanges}
+            disabled={!hasChanges}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
+          >
+            <Save size={16} />
+            Save Changes
+          </button>
+        </div>
 
-          {message && (
-            <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {message}
-            </div>
-          )}
+        {/* Error and Success Alerts */}
+        {error && (
+          <div className="mb-5 rounded border border-red-150 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+            {error}
+          </div>
+        )}
 
-          <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
-            <div className={`rounded-xl border p-5 shadow-sm ${surface} ${borderCol}`}>
-              <div className="flex flex-col items-center text-center">
-                <div className="relative">
-                  {previewImage ? (
-                    <img
-                      src={previewImage}
-                      alt={user.name}
-                      className="h-36 w-36 rounded-2xl object-cover shadow-sm ring-1 ring-slate-200"
-                    />
-                  ) : (
-                    <div
-                      className={`flex h-36 w-36 items-center justify-center rounded-2xl text-4xl font-black text-white shadow-sm ${profileAvatarClass(
-                        user.role,
-                      )}`}
-                    >
-                      {initials(user.name)}
-                    </div>
-                  )}
+        {message && (
+          <div className="mb-5 rounded border border-emerald-150 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">
+            {message}
+          </div>
+        )}
 
-                  <span className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D9E75] text-white shadow-lg shadow-emerald-700/20">
-                    <Camera size={18} />
-                  </span>
+        {/* Profile details grid */}
+        <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
+          {/* Avatar / Photo Panel */}
+          <div className={`rounded border shadow-sm p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
+            <div className="relative group">
+              {previewImage ? (
+                <img
+                  src={previewImage}
+                  alt={user.name}
+                  className="h-32 w-32 rounded-full object-cover border-4 border-slate-100 shadow-md transition-all group-hover:brightness-95"
+                />
+              ) : (
+                <div
+                  className={`flex h-32 w-32 items-center justify-center rounded-full text-3xl font-black text-white shadow-md border-4 border-slate-100 ${profileAvatarClass(
+                    user.role,
+                  )}`}
+                >
+                  {initials(user.name)}
                 </div>
+              )}
 
-                <h2 className={`mt-5 text-xl font-black ${textPrimary}`}>
-                  {user.name}
+              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#696cff] text-white shadow shadow-[#696cff]/30">
+                <Camera size={16} />
+              </span>
+            </div>
+
+            <h2 className={`mt-5 text-lg font-bold ${textPrimary}`}>
+              {user.name}
+            </h2>
+            
+            <div className="mt-2.5 flex items-center gap-1.5 rounded-md px-3 py-1 bg-[#696cff]/10 text-[#696cff]">
+              <RoleIcon role={user.role} />
+              <span className="text-xs font-semibold capitalize">{user.role}</span>
+            </div>
+
+            <div className="mt-6 flex w-full gap-3">
+              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all">
+                <UploadCloud size={15} />
+                Upload Photo
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={uploadProfileImage}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={removeProfileImage}
+                disabled={!previewImage}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
+                title="Remove photo"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* Account Details Panel */}
+          <div className={`rounded border shadow-sm p-6 ${surface} ${borderCol}`}>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h2 className={`text-base font-bold ${textPrimary}`}>
+                  Account Details
                 </h2>
-                <div className={`mt-2 rounded-full px-3 py-1 text-xs font-black ${profileRoleClass(user.role)}`}>
-                  {user.role}
-                </div>
-
-                <div className="mt-5 flex w-full gap-2">
-                  <label className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#1D9E75] px-4 text-sm font-bold text-white hover:bg-[#188a66]">
-                    <UploadCloud size={17} />
-                    Upload
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={uploadProfileImage}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={removeProfileImage}
-                    disabled={!previewImage}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Remove image"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
+                <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
+                  Overview of your credential and system attributes.
+                </p>
               </div>
+              <span className={`rounded px-2.5 py-1 text-xs font-semibold bg-[#eceef1]/60 text-[#8592a3] border ${borderCol}`}>
+                POS Account
+              </span>
             </div>
 
-            <div className={`rounded-xl border p-5 shadow-sm ${surface} ${borderCol}`}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className={`text-lg font-black ${textPrimary}`}>
-                    Account Details
-                  </h2>
-                  <p className={`mt-1 text-sm ${textSecondary}`}>
-                    Details are loaded from the signed-in staff account.
-                  </p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-black ${softSurface} ${textSecondary}`}>
-                  POS Staff
-                </span>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {details.map(({ label, value, Icon }) => (
-                  <div
-                    key={label}
-                    className={`flex items-center gap-3 rounded-lg border p-3 ${borderCol} ${softSurface}`}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1D9E75]/10 text-[#1D9E75]">
-                      <Icon size={18} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {details.map(({ label, value, Icon, colorClass }) => (
+                <div
+                  key={label}
+                  className={`flex items-center gap-3.5 rounded border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""}`}
+                >
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded ${colorClass}`}>
+                    <Icon size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      {label}
                     </div>
-                    <div className="min-w-0">
-                      <div className={`text-[10px] font-black uppercase tracking-wide ${textSecondary}`}>
-                        {label}
-                      </div>
-                      <div className={`mt-0.5 truncate text-sm font-bold ${textPrimary}`}>
-                        {value}
-                      </div>
+                    <div className={`mt-0.5 truncate text-sm font-semibold ${textPrimary}`}>
+                      {value}
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
+      </div>
+
+      <style>{`
+        @keyframes profilePageIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
   );
+}
+
+function RoleIcon({ role }: { role: string }) {
+  if (role === "Super Admin" || role === "Admin") {
+    return <Crown size={14} className="text-[#696cff] shrink-0" />;
+  }
+  if (role === "Cashier") {
+    return <CreditCard size={14} className="text-[#03c3ec] shrink-0" />;
+  }
+  if (role === "Staff") {
+    return <ChefHat size={14} className="text-[#ffab00] shrink-0" />;
+  }
+  return <UserRound size={14} className="text-[#8592a3] shrink-0" />;
 }

@@ -45,7 +45,7 @@ export const latest = asyncHandler(async (_req: Request, res: Response) => {
 });
 
 export const preview = asyncHandler(async (req: Request, res: Response) => {
-  const backup = req.body as unknown;
+  const backup: any = req.body;
   validateBackup(backup);
 
   res.json({
@@ -56,7 +56,7 @@ export const preview = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const restore = asyncHandler(async (req: Request, res: Response) => {
-  const backup = req.body as unknown;
+  const backup: any = req.body;
   validateBackup(backup);
 
   const safetyBackup = await createBackup(req.user);

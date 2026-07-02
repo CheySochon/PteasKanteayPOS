@@ -93,18 +93,18 @@ export default function InventoryPage() {
   const [savingAdjustment, setSavingAdjustment] = useState(false);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-900";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
 
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm`;
+  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
 
-  const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-emerald-500 ${
+  const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
     dark
-      ? "border-slate-700/70 bg-[#0f172a] text-slate-100 placeholder:text-slate-500"
-      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
+      ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
+      : "border-[#d9dee3] bg-white text-[#566a7f]"
   }`;
 
   useEffect(() => {
@@ -274,45 +274,43 @@ export default function InventoryPage() {
 
   return (
     <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
-          <section className={`mb-4 rounded-xl border p-4 shadow-sm ${surface} ${borderCol}`}>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="mb-1 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600">
-                  <Warehouse size={14} />
-                  Inventory Control
-                </div>
-
-                <h1 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>
-                  Inventory Control
-                </h1>
-
-                <p className={`mt-1 text-sm ${textSecondary}`}>
-                  Track ingredients, stock value, low-stock alerts, and movement history.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIngredientForm(EMPTY_INGREDIENT)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700"
-              >
-                <Plus size={17} />
-                New Ingredient
-              </button>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
+        
+        {/* Sneat Inventory Header Banner */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#696cff]">
+              <Warehouse size={14} />
+              Inventory Control
             </div>
-          </section>
+            <h1 className={`text-2xl font-bold tracking-tight ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
+              Inventory Control
+            </h1>
+            <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
+              Track ingredients, stock value, low-stock alerts, and movement history.
+            </p>
+          </div>
 
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-              {error}
-            </div>
-          )}
+          <button
+            onClick={() => setIngredientForm(EMPTY_INGREDIENT)}
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+          >
+            <Plus size={16} />
+            New Ingredient
+          </button>
+        </div>
 
-          {message && (
-            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {message}
-            </div>
-          )}
+        {error && (
+          <div className="mb-5 rounded border border-red-150 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="mb-5 rounded border border-emerald-150 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">
+            {message}
+          </div>
+        )}
 
           <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
@@ -406,17 +404,17 @@ export default function InventoryPage() {
                   </div>
 
                   {loading && (
-                    <Loader2 className="animate-spin text-emerald-600" size={18} />
+                    <Loader2 className="animate-spin text-[#696cff]" size={18} />
                   )}
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[820px] text-left text-sm">
                     <thead
-                      className={`text-[11px] uppercase tracking-wide ${
+                      className={`text-[11px] uppercase tracking-wide border-b ${borderCol} ${
                         dark
                           ? "bg-slate-800 text-slate-400"
-                          : "bg-slate-50 text-slate-500"
+                          : "bg-slate-50 text-[#8592a3]"
                       }`}
                     >
                       <tr>
@@ -450,11 +448,11 @@ export default function InventoryPage() {
                           return (
                             <tr
                               key={ingredient.id}
-                              className={`border-t ${
+                              className={`border-t ${borderCol} ${
                                 dark
-                                  ? "border-slate-700/70 hover:bg-slate-800/50"
-                                  : `border-slate-100 hover:bg-slate-50 ${
-                                      isLow ? "bg-orange-50/60" : ""
+                                  ? "hover:bg-[#2b2c40]/60"
+                                  : `hover:bg-slate-50/80 ${
+                                      isLow ? "bg-[#ffe5e5]/25" : ""
                                     }`
                               }`}
                             >
@@ -467,11 +465,11 @@ export default function InventoryPage() {
                                 </div>
                               </td>
 
-                              <td className={`px-4 py-3 font-medium ${textPrimary}`}>
+                              <td className={`px-4 py-3 font-semibold ${textPrimary}`}>
                                 {decimal(ingredient.currentStock)} {ingredient.unit}
                               </td>
 
-                              <td className={`px-4 py-3 font-medium ${textSecondary}`}>
+                              <td className={`px-4 py-3 font-semibold ${textSecondary}`}>
                                 {decimal(ingredient.minStock)} {ingredient.unit}
                               </td>
 
@@ -481,10 +479,10 @@ export default function InventoryPage() {
 
                               <td className="px-4 py-3">
                                 <span
-                                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+                                  className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                                     isLow
-                                      ? "bg-orange-100 text-orange-700"
-                                      : "bg-emerald-100 text-emerald-700"
+                                      ? "bg-[#ffe5e5] text-[#ff3e1d]"
+                                      : "bg-[#e8fadf] text-[#71dd37]"
                                   }`}
                                 >
                                   {isLow ? "Low" : "Healthy"}
@@ -492,21 +490,21 @@ export default function InventoryPage() {
                               </td>
 
                               <td className="px-4 py-3">
-                                <div className="flex items-center justify-end gap-2">
+                                <div className="flex items-center justify-end gap-2 text-[#8592a3]">
                                   <button
                                     onClick={() => editIngredient(ingredient)}
-                                    className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${borderCol} ${softSurface} ${textPrimary}`}
+                                    className={`inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-[#696cff] transition-all`}
                                     title="Edit ingredient"
                                   >
-                                    <Edit3 size={15} />
+                                    <Edit3 size={14} />
                                   </button>
 
                                   <button
                                     onClick={() => removeIngredient(ingredient)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-red-50 hover:text-[#ff3e1d] transition-all"
                                     title="Delete ingredient"
                                   >
-                                    <Trash2 size={15} />
+                                    <Trash2 size={14} />
                                   </button>
                                 </div>
                               </td>
@@ -627,7 +625,7 @@ export default function InventoryPage() {
 
                   <button
                     disabled={savingIngredient}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-sm font-semibold text-white hover:bg-[#5f61e6] active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingIngredient ? (
                       <Loader2 className="animate-spin" size={17} />
@@ -683,12 +681,12 @@ export default function InventoryPage() {
                         onClick={() =>
                           setAdjustmentForm((current) => ({ ...current, type }))
                         }
-                        className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-lg text-xs font-bold ${
+                        className={`inline-flex h-9 items-center justify-center gap-1.5 rounded text-xs font-semibold select-none transition-all active:scale-95 ${
                           adjustmentForm.type === type
-                            ? "bg-emerald-600 text-white"
+                            ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
                             : dark
-                              ? "bg-[#0f172a] text-slate-400"
-                              : "bg-slate-100 text-slate-500"
+                              ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
+                              : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"
                         }`}
                       >
                         <Icon size={14} />
@@ -730,7 +728,7 @@ export default function InventoryPage() {
 
                   <button
                     disabled={savingAdjustment}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-[#696cff]/20 bg-[#696cff]/10 px-4 text-sm font-semibold text-[#696cff] hover:bg-[#696cff]/20 active:scale-[0.98] transition-all disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {savingAdjustment ? (
                       <Loader2 className="animate-spin" size={17} />
@@ -802,17 +800,17 @@ function SummaryCard({
 }) {
   return (
     <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        dark ? "border-slate-700/70 bg-[#111827]" : "border-slate-200 bg-white"
+      className={`rounded border p-4 shadow-sm ${
+        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-slate-500">{label}</div>
+          <div className="text-xs font-semibold text-[#a1acb8] uppercase tracking-wider">{label}</div>
 
           <div
-            className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-slate-900"
+            className={`mt-1 text-xl font-bold tracking-tight ${
+              dark ? "text-slate-100" : "text-[#566a7f]"
             }`}
           >
             {loading ? "..." : value}
@@ -820,17 +818,17 @@ function SummaryCard({
         </div>
 
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+          className={`flex h-10 w-10 items-center justify-center rounded ${
             tone === "warning"
-              ? "bg-orange-100 text-orange-700"
-              : "bg-emerald-100 text-emerald-700"
+              ? "bg-[#ffe5e5] text-[#ff3e1d]"
+              : "bg-[#e7e7ff] text-[#696cff]"
           }`}
         >
           <Icon size={18} />
         </div>
       </div>
 
-      <div className="text-xs font-medium text-emerald-600">Live inventory</div>
+      <div className="text-[10px] font-semibold text-[#a1acb8] uppercase tracking-wide">Live inventory</div>
     </div>
   );
 }
@@ -861,12 +859,12 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`h-9 rounded-lg px-4 text-xs font-bold ${
+      className={`inline-flex h-9 items-center gap-2 rounded px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
-          ? "bg-emerald-600 text-white"
+          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
           : dark
-            ? "border border-slate-700 bg-[#0f172a] text-slate-300 hover:bg-slate-800"
-            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+            ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
+            : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"
       }`}
     >
       {children}
@@ -876,13 +874,13 @@ function FilterButton({
 
 function MovementBadge({ type }: { type: StockMovementType }) {
   const styles = {
-    in: "bg-emerald-100 text-emerald-700",
-    out: "bg-red-100 text-red-700",
-    adjustment: "bg-blue-100 text-blue-700",
+    in: "bg-[#e8fadf] text-[#71dd37] rounded",
+    out: "bg-[#ffe5e5] text-[#ff3e1d] rounded",
+    adjustment: "bg-[#e5f8ff] text-[#03c3ec] rounded",
   };
 
   return (
-    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${styles[type]}`}>
+    <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${styles[type]}`}>
       {type}
     </span>
   );

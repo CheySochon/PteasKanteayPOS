@@ -4,6 +4,8 @@ import cors from "cors";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import authRouter from "./routers/auth.router.js";
 import userRouter from "./routers/user.router.js";
@@ -32,10 +34,11 @@ app.use(helmet());
  */
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? process.env.CLIENT_URL
-        : "http://localhost:3000",
+    origin: [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      process.env.CLIENT_URL || "",
+    ].filter(Boolean),
     credentials: true,
   }),
 );
@@ -52,7 +55,7 @@ if (process.env.NODE_ENV !== "production") {
  */
 const globalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: process.env.NODE_ENV === "production" ? 100 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -66,12 +69,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
+
 /**
  * Auth rate limit (brute force protection for auth routes)
  */
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: process.env.NODE_ENV === "production" ? 100 : 10000,
   standardHeaders: true,
   legacyHeaders: false,
 });

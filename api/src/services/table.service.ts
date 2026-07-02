@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { TableZone } from "../prisma/client.js";
 
 function makeTableToken(name: string): string {
   return `table-${String(name)
@@ -24,7 +25,7 @@ export const createTable = async (data: {
     data: {
       name: data.name,
       capacity: data.capacity ?? 2,
-      zone: data.zone ?? "indoor",
+      zone: (data.zone ?? "indoor") as TableZone,
       qrToken: data.qrToken ?? makeTableToken(data.name),
       isActive: data.isActive ?? true,
     },
@@ -46,7 +47,7 @@ export const updateTable = async (
     data: {
       name: data.name,
       capacity: data.capacity,
-      zone: data.zone,
+      zone: data.zone as TableZone | undefined,
       qrToken: data.qrToken,
       isActive: data.isActive,
     },

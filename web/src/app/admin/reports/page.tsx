@@ -240,14 +240,14 @@ export default function ReportsPage() {
   const [showExport, setShowExport] = useState(false);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-900";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
 
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm`;
-  const inputClass = `rounded-lg border ${borderCol} ${softSurface} ${textPrimary}`;
+  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
+  const inputClass = `rounded border ${borderCol} ${softSurface} ${textPrimary} focus-within:border-[#696cff] transition-all`;
 
   const selectedDate =
     selectedPeriod === "day"
@@ -372,7 +372,7 @@ export default function ReportsPage() {
       return acc;
     }, {});
 
-    const colors = ["bg-blue-600", "bg-cyan-500", "bg-emerald-500", "bg-slate-300"];
+    const colors = ["bg-[#696cff]", "bg-[#03c3ec]", "bg-[#71dd37]", "bg-[#ff3e1d]"];
 
     return Object.entries(grouped)
       .sort((a, b) => b[1] - a[1])
@@ -394,7 +394,7 @@ export default function ReportsPage() {
   );
 
   const categoryStops = useMemo(() => {
-    const palette = ["#2563eb", "#06b6d4", "#10b981", "#cbd5e1"];
+    const palette = ["#696cff", "#03c3ec", "#71dd37", "#ff3e1d"];
     const rows = categories.length
       ? categories
       : [{ label: t.noSales, value: 1, color: "bg-slate-200" }];
@@ -506,7 +506,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setShowExport((value) => !value)}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                className="inline-flex h-9 items-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
               >
                 <Download size={14} />
                 <span className="hidden sm:inline">{t.export}</span>
@@ -515,7 +515,7 @@ export default function ReportsPage() {
 
               {showExport && (
                 <div
-                  className={`absolute right-0 top-11 z-30 w-48 overflow-hidden rounded-xl border py-2 shadow-lg ${surface} ${borderCol}`}
+                  className={`absolute right-0 top-11 z-30 w-48 overflow-hidden rounded border py-2 shadow-lg ${surface} ${borderCol}`}
                 >
                   <button
                     type="button"
@@ -523,8 +523,8 @@ export default function ReportsPage() {
                       setShowExport(false);
                       void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message));
                     }}
-                    className={`block px-4 py-2 text-sm font-medium hover:bg-blue-50 hover:text-blue-700 ${
-                      dark ? "hover:bg-slate-800" : ""
+                    className={`block w-full text-left px-4 py-2 text-sm font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                      dark ? "hover:bg-[#232333]" : ""
                     } ${textPrimary}`}
                   >
                     {t.downloadCsv}
@@ -536,8 +536,8 @@ export default function ReportsPage() {
                       setShowExport(false);
                       exportPdf();
                     }}
-                    className={`block w-full px-4 py-2 text-left text-sm font-medium hover:bg-blue-50 hover:text-blue-700 ${
-                      dark ? "hover:bg-slate-800" : ""
+                    className={`block w-full px-4 py-2 text-left text-sm font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                      dark ? "hover:bg-[#232333]" : ""
                     } ${textPrimary}`}
                   >
                     {t.printPdf}
@@ -555,11 +555,11 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <section className={`mb-4 rounded-xl border p-4 shadow-sm ${surface} ${borderCol}`}>
+          <section className={`mb-4 rounded border p-4 shadow-sm ${surface} ${borderCol}`}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <span className="rounded bg-[#e8fadf] px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
                     {t.live}
                   </span>
                   <span className={`text-xs ${textSecondary}`}>
@@ -585,7 +585,7 @@ export default function ReportsPage() {
                 <button
                   type="button"
                   onClick={() => setShowCalendar((value) => !value)}
-                  className={`flex h-10 w-full items-center justify-between gap-3 px-3 text-sm font-medium sm:w-[320px] ${inputClass}`}
+                  className={`flex h-10 w-full items-center justify-between gap-3 px-3 text-sm font-semibold sm:w-[320px] ${inputClass}`}
                 >
                   <span className="flex min-w-0 items-center gap-2">
                     <CalendarDays size={16} />
@@ -596,7 +596,7 @@ export default function ReportsPage() {
 
                 {showCalendar && (
                   <div
-                    className={`absolute right-0 top-12 z-30 w-full rounded-xl border p-4 shadow-lg sm:w-[320px] ${surface} ${borderCol}`}
+                    className={`absolute right-0 top-12 z-30 w-full rounded border p-4 shadow-lg sm:w-[320px] ${surface} ${borderCol}`}
                   >
                     <label
                       className={`mb-2 block text-[11px] font-bold uppercase tracking-wide ${textSecondary}`}
@@ -610,12 +610,12 @@ export default function ReportsPage() {
                           key={period}
                           type="button"
                           onClick={() => setSelectedPeriod(period)}
-                          className={`h-9 rounded-lg text-xs font-semibold capitalize ${
+                          className={`h-9 rounded text-xs font-semibold capitalize transition-all ${
                             selectedPeriod === period
-                              ? "bg-blue-600 text-white"
+                              ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
                               : dark
                                 ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]"
                           }`}
                         >
                           {t[period]}
@@ -664,7 +664,7 @@ export default function ReportsPage() {
                           setSelectedYear(String(new Date().getFullYear()));
                           setShowCalendar(false);
                         }}
-                        className="h-9 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                        className="h-9 rounded bg-[#696cff] px-3 text-xs font-semibold text-white hover:bg-[#5f61e6]"
                       >
                         {t.current}
                       </button>
@@ -672,7 +672,7 @@ export default function ReportsPage() {
                       <button
                         type="button"
                         onClick={() => setShowCalendar(false)}
-                        className={`h-9 rounded-lg border px-3 text-xs font-semibold ${borderCol} ${textSecondary}`}
+                        className={`h-9 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${textSecondary} hover:bg-[#f5f5f9] transition-all`}
                       >
                         {t.close}
                       </button>
@@ -734,7 +734,7 @@ export default function ReportsPage() {
 
                 <button
                   type="button"
-                  className={`flex h-9 items-center gap-6 rounded-lg border px-3 text-xs font-semibold ${borderCol} ${softSurface} ${textPrimary}`}
+                  className={`flex h-9 items-center gap-6 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${softSurface} ${textPrimary} hover:bg-[#f5f5f9] transition-all`}
                 >
                   {t.daily}
                   <ChevronDown size={14} />
@@ -742,31 +742,25 @@ export default function ReportsPage() {
               </div>
 
               <div
-                className={`relative h-[240px] rounded-xl border p-3 ${
-                  dark ? "border-slate-700/70 bg-[#0f172a]" : "border-slate-200 bg-slate-50"
-                }`}
+                className={`relative h-[240px] rounded border p-3 ${borderCol} ${softSurface}`}
               >
                 <div
-                  className={`absolute inset-x-3 top-1/3 border-t ${
-                    dark ? "border-slate-700/70" : "border-slate-200"
-                  }`}
+                  className={`absolute inset-x-3 top-1/3 border-t ${borderCol}`}
                 />
                 <div
-                  className={`absolute inset-x-3 top-2/3 border-t ${
-                    dark ? "border-slate-700/70" : "border-slate-200"
-                  }`}
+                  className={`absolute inset-x-3 top-2/3 border-t ${borderCol}`}
                 />
 
                 <div className="absolute inset-x-3 bottom-9 top-3 flex items-end gap-2">
                   {trendRows.map((bar, index) => (
                     <div key={index} className="flex h-full flex-1 flex-col justify-end">
                       <div
-                        className={`rounded-t-md ${
+                        className={`rounded-t-sm ${
                           bar.peak
-                            ? "bg-blue-600"
+                            ? "bg-[#696cff]"
                             : dark
-                              ? "bg-blue-900/50"
-                              : "bg-blue-200"
+                              ? "bg-[#696cff]/40"
+                              : "bg-[#696cff]/20"
                         }`}
                         style={{ height: `${bar.height}%` }}
                       />
@@ -774,7 +768,7 @@ export default function ReportsPage() {
                   ))}
                 </div>
 
-                <div className="absolute inset-x-3 bottom-3 flex justify-between text-[10px] font-bold uppercase text-slate-400">
+                <div className="absolute inset-x-3 bottom-3 flex justify-between text-[10px] font-bold uppercase text-[#a1acb8]">
                   {trendRows.map((bar, index) => (
                     <span key={index}>{bar.label}</span>
                   ))}
@@ -837,12 +831,12 @@ export default function ReportsPage() {
                 </p>
               </div>
 
-              <div className="flex gap-4 text-[10px] font-bold uppercase text-slate-500">
+              <div className="flex gap-4 text-[10px] font-bold uppercase text-[#8592a3]">
                 <span className="flex items-center gap-2">
-                  <i className="h-3 w-3 rounded bg-blue-100" /> {t.quiet}
+                  <i className="h-3 w-3 rounded bg-[#696cff]/10" /> {t.quiet}
                 </span>
                 <span className="flex items-center gap-2">
-                  <i className="h-3 w-3 rounded bg-blue-600" /> {t.peak}
+                  <i className="h-3 w-3 rounded bg-[#696cff]" /> {t.peak}
                 </span>
               </div>
             </div>
@@ -850,7 +844,7 @@ export default function ReportsPage() {
             <div className="overflow-x-auto">
               <div className="grid min-w-[820px] grid-cols-[42px_1fr] gap-x-3 gap-y-2">
                 <div />
-                <div className="grid grid-cols-12 gap-2 text-center text-[10px] font-bold text-slate-400">
+                <div className="grid grid-cols-12 gap-2 text-center text-[10px] font-bold text-[#a1acb8]">
                   {hours.map((hour) => (
                     <span key={hour}>{hour}</span>
                   ))}
@@ -858,7 +852,7 @@ export default function ReportsPage() {
 
                 {heatRows.map((row) => (
                   <div key={row.label} className="contents">
-                    <div className="flex items-center text-[11px] font-bold text-slate-500">
+                    <div className="flex items-center text-[11px] font-bold text-[#8592a3]">
                       {row.label}
                     </div>
 
@@ -866,9 +860,9 @@ export default function ReportsPage() {
                       {row.values.map((value, index) => (
                         <div
                           key={`${row.label}-${index}`}
-                          className="h-8 rounded-md"
+                          className="h-8 rounded-sm"
                           style={{
-                            backgroundColor: `rgba(37, 99, 235, ${0.08 + value * 0.12})`,
+                            backgroundColor: `rgba(105, 108, 255, ${0.08 + value * 0.12})`,
                           }}
                         />
                       ))}
@@ -879,8 +873,8 @@ export default function ReportsPage() {
             </div>
           </section>
 
-          <section className={`overflow-hidden rounded-xl border shadow-sm ${surface} ${borderCol}`}>
-            <div className="flex h-14 items-center justify-between border-b px-4">
+          <section className={`overflow-hidden rounded border shadow-sm ${surface} ${borderCol}`}>
+            <div className="flex h-14 items-center justify-between border-b border-[#f0f2f5] px-4">
               <div>
                 <h2 className={`text-base font-bold ${textPrimary}`}>{t.itemPerformance}</h2>
                 <p className={`hidden text-xs sm:block ${textSecondary}`}>
@@ -891,7 +885,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message))}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded bg-[#696cff] px-4 py-2 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
               >
                 <Download size={14} />
                 {t.exportCsv}
@@ -901,9 +895,7 @@ export default function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead
-                  className={`text-[11px] uppercase tracking-wide ${
-                    dark ? "bg-slate-800 text-slate-400" : "bg-slate-50 text-slate-500"
-                  }`}
+                  className="text-[11px] uppercase tracking-wide bg-[#eceef1]/40 text-[#8592a3]"
                 >
                   <tr>
                     <th className="px-4 py-3 font-bold">{t.itemName}</th>
@@ -921,14 +913,14 @@ export default function ReportsPage() {
                       key={item.name}
                       className={`border-t ${
                         dark
-                          ? "border-slate-700/70 hover:bg-slate-800/50"
-                          : "border-slate-100 hover:bg-slate-50"
-                      }`}
+                          ? "border-[#4e4f6e] hover:bg-[#232333]/60"
+                          : "border-[#f0f2f5] hover:bg-[#f5f5f9]"
+                      } transition-all duration-150`}
                     >
                       <td className={`px-4 py-3 font-medium ${textPrimary}`}>
                         {item.name}
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-500">
+                      <td className="px-4 py-3 font-medium text-[#8592a3]">
                         {item.category}
                       </td>
                       <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
@@ -976,41 +968,41 @@ function MetricCard({
   dark: boolean;
 }) {
   const tones = {
-    green: "bg-emerald-100 text-emerald-700",
-    blue: "bg-blue-100 text-blue-700",
-    orange: "bg-orange-100 text-orange-700",
-    purple: "bg-purple-100 text-purple-700",
+    green: "bg-[#e8fadf] text-[#71dd37]",
+    blue: "bg-[#e7e7ff] text-[#696cff]",
+    orange: "bg-[#fff2e2] text-[#ff9f43]",
+    purple: "bg-[#f2e7ff] text-[#8553f4]",
   };
 
   return (
     <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        dark ? "border-slate-700/70 bg-[#111827]" : "border-slate-200 bg-white"
+      className={`rounded border p-4 shadow-sm ${
+        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
       }`}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div className={`grid h-10 w-10 place-items-center rounded-lg ${tones[tone]}`}>
+        <div className={`grid h-10 w-10 place-items-center rounded ${tones[tone]}`}>
           {icon}
         </div>
 
         <span
-          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+          className={`rounded px-2.5 py-0.5 text-[11px] font-semibold ${
             muted
               ? dark
                 ? "bg-slate-800 text-slate-400"
-                : "bg-slate-100 text-slate-500"
-              : "bg-emerald-50 text-emerald-700"
+                : "bg-[#eceef1]/60 text-[#8592a3]"
+              : "bg-[#e8fadf] text-[#71dd37]"
           }`}
         >
           {delta}
         </span>
       </div>
 
-      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
 
       <div
         className={`mt-1 text-2xl font-bold tracking-tight ${
-          dark ? "text-slate-100" : "text-slate-900"
+          dark ? "text-slate-100" : "text-[#566a7f]"
         }`}
       >
         {value}
@@ -1022,13 +1014,13 @@ function MetricCard({
 function StatusPill({ status }: { status: string }) {
   const style =
     status === "Trending"
-      ? "bg-emerald-100 text-emerald-700"
+      ? "bg-[#e8fadf] text-[#71dd37]"
       : status === "Stable"
-        ? "bg-blue-100 text-blue-700"
-        : "bg-orange-100 text-orange-700";
+        ? "bg-[#e7e7ff] text-[#696cff]"
+        : "bg-[#fff2e2] text-[#ff9f43]";
 
   return (
-    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${style}`}>
+    <span className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase ${style}`}>
       {status}
     </span>
   );

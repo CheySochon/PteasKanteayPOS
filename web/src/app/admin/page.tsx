@@ -186,12 +186,12 @@ export default function DashboardPage() {
   useAutoDismiss(error, setError);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-900";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm`;
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
+  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
 
   const t = TEXT[language];
 
@@ -397,8 +397,8 @@ export default function DashboardPage() {
       {
         label: "Sales",
         data: topProducts.slice(0, 5).map((item) => Number(item.totalSales)),
-        backgroundColor: "#2563eb",
-        borderRadius: 6,
+        backgroundColor: "#696cff",
+        borderRadius: 4,
         maxBarThickness: 28,
       },
     ],
@@ -412,10 +412,10 @@ export default function DashboardPage() {
         data: salesByHour.map((item) => item.total),
         backgroundColor: salesByHour.map((item) =>
           item.total === peakSalesHour.total && item.total > 0
-            ? "#1D9E75"
-            : "rgba(29, 158, 117, 0.45)"
+            ? "#696cff"
+            : "rgba(105, 108, 255, 0.35)"
         ),
-        borderRadius: 6,
+        borderRadius: 4,
         borderSkipped: false,
         maxBarThickness: 24,
       },
@@ -467,7 +467,7 @@ export default function DashboardPage() {
       {
         label: "Orders",
         data: Object.values(orderStatusCount),
-        backgroundColor: ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#64748b"],
+        backgroundColor: ["#71dd37", "#696cff", "#ff9f43", "#ff3e1d", "#03c3ec", "#8592a3"],
         borderWidth: 0,
       },
     ],
@@ -566,7 +566,7 @@ export default function DashboardPage() {
 
                 <div className="grid grid-cols-2 gap-2 sm:min-w-[220px]">
                   <div
-                    className={`rounded-lg border px-3 py-2 text-right ${borderCol} ${softSurface}`}
+                    className={`rounded border px-3 py-2 text-right ${borderCol} ${softSurface}`}
                   >
                     <div
                       className={`text-[10px] font-bold uppercase tracking-wide ${textSecondary}`}
@@ -579,7 +579,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div
-                    className={`rounded-lg border px-3 py-2 text-right ${borderCol} ${softSurface}`}
+                    className={`rounded border px-3 py-2 text-right ${borderCol} ${softSurface}`}
                   >
                     <div
                       className={`text-[10px] font-bold uppercase tracking-wide ${textSecondary}`}
@@ -594,7 +594,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`h-[250px] min-w-0 rounded-xl border p-4 ${borderCol} ${softSurface}`}
+                className={`h-[250px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
               >
                 <Bar data={salesTrendChartData} options={salesChartOptions} />
               </div>
@@ -611,7 +611,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`h-[250px] min-w-0 rounded-xl border p-4 ${borderCol} ${softSurface}`}
+                className={`h-[250px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
               >
                 <Doughnut data={orderStatusChartData} options={doughnutOptions} />
               </div>
@@ -638,11 +638,7 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead
-                    className={`text-[11px] uppercase tracking-wide ${
-                      dark
-                        ? "bg-slate-800 text-slate-400"
-                        : "bg-slate-50 text-slate-500"
-                    }`}
+                    className="text-[11px] uppercase tracking-wide bg-[#eceef1]/40 text-[#8592a3]"
                   >
                     <tr>
                       <th className="px-4 py-3 font-bold">{t.order}</th>
@@ -678,9 +674,9 @@ export default function DashboardPage() {
                           key={order.id}
                           className={`border-t ${
                             dark
-                              ? "border-slate-700/70 hover:bg-slate-800/50"
-                              : "border-slate-100 hover:bg-slate-50"
-                          }`}
+                              ? "border-[#4e4f6e] hover:bg-[#232333]/60"
+                              : "border-[#f0f2f5] hover:bg-[#f5f5f9]"
+                          } transition-all duration-150`}
                         >
                           <td className={`px-4 py-3 font-semibold ${textPrimary}`}>
                             {order.orderNumber || order.orderId}
@@ -721,7 +717,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div
-                  className={`mb-4 h-[240px] min-w-0 rounded-xl border p-4 ${borderCol} ${softSurface}`}
+                  className={`mb-4 h-[240px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
                 >
                   <Bar data={topProductChartData} options={chartOptions} />
                 </div>
@@ -735,7 +731,7 @@ export default function DashboardPage() {
                     topProducts.slice(0, 5).map((item) => (
                       <div
                         key={item.productId}
-                        className={`flex items-center justify-between rounded-lg border px-3 py-2 ${borderCol} ${softSurface}`}
+                        className={`flex items-center justify-between rounded border ${borderCol} ${softSurface}`}
                       >
                         <div className="min-w-0">
                           <div
@@ -758,16 +754,16 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`rounded-xl border p-4 shadow-sm ${
+                className={`rounded border p-4 shadow-sm transition-all duration-150 ${
                   lowStock.length > 0
-                    ? "border-orange-200 bg-orange-50 text-orange-900"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                    ? "border-[#ff3e1d]/20 bg-[#ffe5e5]/50 text-[#ff3e1d]"
+                    : "border-[#71dd37]/20 bg-[#e8fadf]/50 text-[#71dd37]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-base font-bold">{t.lowStock}</h2>
-                    <p className="mt-1 text-sm opacity-80">
+                    <p className="mt-1 text-sm opacity-90">
                       {lowStock.length === 0
                         ? t.allStockGood
                         : `${lowStock.length} ${t.ingredientsNeedAttention}.`}
@@ -775,10 +771,10 @@ export default function DashboardPage() {
                   </div>
 
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                    className={`rounded px-2.5 py-0.5 text-xs font-bold ${
                       lowStock.length > 0
-                        ? "bg-orange-100 text-orange-700"
-                        : "bg-emerald-100 text-emerald-700"
+                        ? "bg-[#ff3e1d]/10 text-[#ff3e1d]"
+                        : "bg-[#71dd37]/10 text-[#71dd37]"
                     }`}
                   >
                     {lowStock.length}
@@ -790,10 +786,10 @@ export default function DashboardPage() {
                     {lowStock.slice(0, 4).map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-lg bg-white/70 px-3 py-2 text-sm"
+                        className="rounded bg-white/90 border border-[#e5e7eb]/80 dark:border-[#4e4f6e]/85 dark:bg-[#2b2c40]/90 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
                       >
-                        <div className="font-semibold">{item.name}</div>
-                        <div className="text-xs opacity-75">
+                        <div className="font-bold">{item.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
                           {t.current}: {item.currentStock} / {t.min}:{" "}
                           {item.minStock}
                         </div>
@@ -823,36 +819,36 @@ function StatCard({
   dark: boolean;
 }) {
   const tones = {
-    green: "bg-emerald-100 text-emerald-700",
-    blue: "bg-blue-100 text-blue-700",
-    orange: "bg-orange-100 text-orange-700",
-    red: "bg-red-100 text-red-700",
+    green: "bg-[#e8fadf] text-[#71dd37]",
+    blue: "bg-[#e7e7ff] text-[#696cff]",
+    orange: "bg-[#fff2e2] text-[#ff9f43]",
+    red: "bg-[#ffe5e5] text-[#ff3e1d]",
   };
 
   return (
     <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        dark ? "border-slate-700/70 bg-[#111827]" : "border-slate-200 bg-white"
+      className={`rounded border p-4 shadow-sm ${
+        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
       }`}
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-slate-500">{label}</div>
+          <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
           <div
             className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-slate-900"
+              dark ? "text-slate-100" : "text-[#566a7f]"
             }`}
           >
             {value}
           </div>
         </div>
 
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${tones[tone]}`}>
+        <span className={`rounded px-2.5 py-0.5 text-[11px] font-semibold ${tones[tone]}`}>
           Live
         </span>
       </div>
 
-      <div className="text-xs font-medium text-blue-600">{note}</div>
+      <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
     </div>
   );
 }

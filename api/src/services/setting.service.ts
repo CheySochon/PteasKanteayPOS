@@ -99,7 +99,7 @@ async function ensureDefaults() {
         update: {},
         create: {
           key,
-          value: DEFAULT_SETTINGS[key].value,
+          value: DEFAULT_SETTINGS[key].value as any,
           category: DEFAULT_SETTINGS[key].category,
           description: DEFAULT_SETTINGS[key].description,
         },
@@ -143,7 +143,7 @@ export const listSettings = async () => {
 
 export const updateSettings = async (
   input: Record<string, unknown>,
-  updatedById?: string,
+  updatedById?: number,
 ) => {
   const keys = Object.keys(input).filter((key) => ALLOWED_KEYS.includes(key));
 
@@ -156,7 +156,7 @@ export const updateSettings = async (
       prisma.appSetting.update({
         where: { key },
         data: {
-          value: sanitizeValue(key, input[key]),
+          value: sanitizeValue(key, input[key]) as any,
           updatedById,
         },
       }),

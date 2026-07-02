@@ -245,14 +245,18 @@ export default function MenuPage() {
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
 
   const dark = theme === "dark";
-  const panelBg = dark ? "bg-[#111827]" : "bg-white";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
+  const panelBg = dark ? "bg-[#2b2c40]" : "bg-white";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
   const isCategoriesView = menuView === "categories";
 
-  const inputClass = `w-full rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-blue-400 ${
+  const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
     dark
-      ? "border-slate-700/70 bg-[#0f172a] text-slate-100 placeholder:text-slate-500"
-      : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400"
+      ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
+      : "border-[#d9dee3] bg-white text-[#566a7f]"
   }`;
 
   useEffect(() => {
@@ -654,87 +658,74 @@ export default function MenuPage() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-[#f6f7fb]">
-        <div className="border-b border-slate-200 bg-white px-5 py-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <h1 className="text-lg font-black text-slate-950">
-              {isCategoriesView ? t.categories : "Menu Management"}
-            </h1>
-
-            <div className="flex items-center gap-3">
-              {!isCategoriesView && (
-                <div className="relative hidden w-64 sm:block">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    size={16}
-                  />
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={t.searchPlaceholder}
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none focus:border-violet-400"
-                  />
-                </div>
-              )}
-
-              <NotificationBell
-                label={t.notifications}
-                emptyLabel={t.noNotifications}
-                clearLabel={t.clearNotifications}
-                notifications={notifications}
-                onClear={clearNotifications}
-              />
-
-              <IconButton label={t.settings} dark={false}>
-                <Settings size={17} />
-              </IconButton>
+    <main className={`flex-grow overflow-y-auto`}>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
+        
+        {/* Sneat Menu Header Banner */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#696cff]">
+              <Tags size={14} />
+              {t.badge}
             </div>
+            <h1 className={`text-2xl font-bold tracking-tight ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
+              {isCategoriesView ? t.categories : t.title}
+            </h1>
+            <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
+              {t.subtitle}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <NotificationBell
+              label={t.notifications}
+              emptyLabel={t.noNotifications}
+              clearLabel={t.clearNotifications}
+              notifications={notifications}
+              onClear={clearNotifications}
+            />
+
+            <IconButton label={t.settings} dark={dark}>
+              <Settings size={17} />
+            </IconButton>
+
+            {isCategoriesView && (
+              <button
+                type="button"
+                onClick={createNewCategory}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+              >
+                <Plus size={16} />
+                {t.createCategory}
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="mx-auto w-full max-w-none px-5 py-5">
+        {(error || message) && (
+          <div
+            className={`mb-5 rounded border px-4 py-2.5 text-xs font-semibold ${
+              error
+                ? "border-red-150 bg-red-50 text-red-600"
+                : "border-emerald-150 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {error || message}
+          </div>
+        )}
 
-          {(error || message) && (
-            <div
-              className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium ${
-                error
-                  ? "border-red-200 bg-red-50 text-red-600"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-              }`}
-            >
-              {error || message}
+        {isCategoriesView ? (
+          <section id="categories" className="space-y-4">
+            <div className="border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#a1acb8]">
+                {categories.length} {t.categories}
+              </span>
             </div>
-          )}
 
-          {isCategoriesView ? (
-            <section id="categories" className="space-y-4">
-              <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-wide text-violet-700">
-                    {categories.length} {t.categories}
-                  </div>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    {t.categories}
-                  </h2>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    {t.addFilter}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={createNewCategory}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/20 hover:bg-violet-800"
-                >
-                  <Plus size={17} />
-                  {t.createCategory}
-                </button>
-              </div>
-
-              {categories.length === 0 ? (
-                <EmptyState className={`${panelBg} ${borderCol}`}>
-                  {t.categories}
-                </EmptyState>
+            {categories.length === 0 ? (
+              <EmptyState className={`${panelBg} ${borderCol}`}>
+                {t.categories}
+              </EmptyState>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {categories.map((category) => {
@@ -793,10 +784,10 @@ export default function MenuPage() {
             </section>
           ) : (
             <>
-              <section className="mb-4 flex flex-col gap-4">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="relative w-full sm:w-96">
+              <section className="mb-6 flex flex-col gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center w-full sm:w-auto">
+                    <div className="relative w-full sm:w-80">
                       <Search
                         className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                         size={16}
@@ -805,7 +796,9 @@ export default function MenuPage() {
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder={t.searchPlaceholder}
-                        className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-violet-400"
+                        className={`h-10 w-full rounded border pl-10 pr-3 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
+                          dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                        }`}
                       />
                     </div>
 
@@ -814,7 +807,9 @@ export default function MenuPage() {
                       onChange={(event) =>
                         setStatusFilter(event.target.value as "all" | "available" | "hidden")
                       }
-                      className="h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-sm outline-none focus:border-violet-400"
+                      className={`h-10 rounded border px-4 text-sm font-semibold outline-none focus:border-[#696cff] ${
+                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                      }`}
                     >
                       <option value="all">All Status</option>
                       <option value="available">{t.available}</option>
@@ -825,14 +820,14 @@ export default function MenuPage() {
                   <button
                     type="button"
                     onClick={createNewProduct}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-violet-700 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/20 hover:bg-violet-800"
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                   >
-                    <Plus size={17} />
-                    Add New
+                    <Plus size={16} />
+                    Add New Product
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                <div className="flex flex-wrap gap-2 border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-4">
                     <FilterButton
                       active={selectedCategory === "all"}
                       onClick={() => setSelectedCategory("all")}
@@ -884,8 +879,8 @@ export default function MenuPage() {
           )}
 
           {!isCategoriesView && editorOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
-              <div className="w-full max-w-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <ProductEditor
                   open={editorOpen}
                   onOpenChange={setEditorOpen}
@@ -898,11 +893,11 @@ export default function MenuPage() {
                   submitProduct={submitProduct}
                   saving={saving}
                   inputClass={inputClass}
-                  panelBg="bg-white"
-                  mutedPanel="bg-slate-50"
-                  borderCol="border-slate-200"
-                  textPrimary="text-slate-950"
-                  textSecondary="text-slate-500"
+                  panelBg={surface}
+                  mutedPanel={softSurface}
+                  borderCol={borderCol}
+                  textPrimary={textPrimary}
+                  textSecondary={textSecondary}
                   text={t}
                 />
               </div>
@@ -910,8 +905,8 @@ export default function MenuPage() {
           )}
 
           {isCategoriesView && categoryEditorOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
-              <div className="w-full max-w-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <CategoryEditor
                   categoryForm={categoryForm}
                   setCategoryForm={setCategoryForm}
@@ -925,11 +920,11 @@ export default function MenuPage() {
                     if (category) void removeCategory(category);
                   }}
                   inputClass={inputClass}
-                  panelBg="bg-white"
-                  mutedPanel="bg-slate-50"
-                  borderCol="border-slate-200"
-                  textPrimary="text-slate-950"
-                  textSecondary="text-slate-500"
+                  panelBg={surface}
+                  mutedPanel={softSurface}
+                  borderCol={borderCol}
+                  textPrimary={textPrimary}
+                  textSecondary={textSecondary}
                   text={t}
                 />
               </div>
@@ -956,91 +951,93 @@ function MenuCard({
   const unavailable = !product.isAvailable;
 
   return (
-    <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="relative aspect-[1.04] bg-slate-100">
-        {product.imageUrl ? (
-          <img
-            src={resolveImageUrl(product.imageUrl)}
-            alt={product.name}
-            className={`h-full w-full object-cover ${unavailable ? "grayscale" : ""}`}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-400">
-            <Camera size={32} />
-          </div>
-        )}
+    <article className="overflow-hidden rounded bg-white dark:bg-[#2b2c40] border border-[#e5e7eb] dark:border-[#4e4f6e] shadow-sm flex flex-col justify-between">
+      <div>
+        <div className="relative aspect-[1.2] bg-slate-100 dark:bg-[#232333] overflow-hidden">
+          {product.imageUrl ? (
+            <img
+              src={resolveImageUrl(product.imageUrl)}
+              alt={product.name}
+              className={`h-full w-full object-cover transition-all duration-200 group-hover:scale-105 ${unavailable ? "grayscale opacity-60" : ""}`}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-500">
+              <Camera size={28} />
+            </div>
+          )}
 
-        {unavailable && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35">
-            <span className="rounded-full border border-white/50 bg-slate-950/75 px-4 py-2 text-[11px] font-bold uppercase text-white">
-              {text.soldOut}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-base font-black leading-tight text-slate-950">
-              {product.name}
-            </h3>
-            <p className="mt-1 truncate text-xs font-semibold text-slate-400">
-              {product.category?.name || text.noDescription}
-            </p>
-          </div>
-
-          <span className="shrink-0 text-base font-black text-violet-700">
-            {money(product.basePrice)}
-          </span>
+          {unavailable && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur-[1px]">
+              <span className="rounded bg-[#ff3e1d] px-3 py-1 text-[10px] font-bold uppercase text-white tracking-wide shadow shadow-[#ff3e1d]/30">
+                {text.soldOut}
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="mt-3 border-t border-slate-100 pt-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 text-slate-400">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {product.name}
+              </h3>
+              <p className="mt-1 truncate text-xs font-semibold text-slate-400">
+                {product.category?.name || text.noDescription}
+              </p>
+            </div>
+
+            <span className="shrink-0 text-sm font-bold text-[#696cff]">
+              {money(product.basePrice)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 pt-2 border-t border-[#f0f2f5] dark:border-[#4e4f6e]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[#8592a3]">
             <button
               type="button"
               onClick={onEdit}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 hover:text-violet-700"
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-[#696cff] transition-all"
               title={text.editProduct}
             >
-              <Pencil size={15} />
+              <Pencil size={14} />
             </button>
 
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-red-50 hover:text-red-600"
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-red-50 hover:text-[#ff3e1d] transition-all"
               title={text.deleteProduct}
             >
-              <Trash2 size={15} />
+              <Trash2 size={14} />
             </button>
-
-              <button
-                type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-slate-100 hover:text-slate-700"
-                title={product.description || text.noDescription}
-              >
-                <Eye size={15} />
-              </button>
-            </div>
 
             <button
               type="button"
-              onClick={onToggle}
-              aria-pressed={product.isAvailable}
-              className={`relative h-6 w-10 rounded-full transition ${
-                product.isAvailable ? "bg-green-600" : "bg-slate-300"
-              }`}
-              title={product.isAvailable ? text.available : text.hidden}
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-slate-700 transition-all"
+              title={product.description || text.noDescription}
             >
-              <span
-                className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${
-                  product.isAvailable ? "left-5" : "left-1"
-                }`}
-              />
+              <Eye size={14} />
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={product.isAvailable}
+            className={`relative h-5 w-9 rounded-full transition-colors active:scale-95 ${
+              product.isAvailable ? "bg-[#71dd37]" : "bg-slate-300"
+            }`}
+            title={product.isAvailable ? text.available : text.hidden}
+          >
+            <span
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                product.isAvailable ? "left-4.5" : "left-0.5"
+              }`}
+            />
+          </button>
         </div>
       </div>
     </article>
@@ -1439,15 +1436,15 @@ function NotificationBell({
           ) : (
             <div className="space-y-2">
               {notifications.slice(0, 5).map((item) => (
-                <div key={item.id} className="flex gap-3 rounded-lg bg-slate-50 p-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1D9E75]/10 text-[#1D9E75]">
+                <div key={item.id} className="flex gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
                     <ShoppingBag size={15} />
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-black text-slate-900">
+                    <div className="truncate text-xs font-black text-slate-900 dark:text-slate-100">
                       {item.title}
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-slate-500">
+                    <div className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                       {item.detail}
                     </div>
                   </div>
@@ -1476,7 +1473,7 @@ function IconButton({
       className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${
         dark
           ? "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-          : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+          : "text-[#8592a3] hover:bg-[#eceef1]/60 hover:text-slate-900"
       }`}
       title={label}
     >
@@ -1515,23 +1512,19 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg border px-4 text-xs font-black ${
+      className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
-          ? "border-violet-200 bg-violet-50 text-violet-700"
-          : flat
-            ? dark
-              ? "border-slate-700 text-slate-300 hover:bg-slate-800"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50"
-            : dark
-              ? "border-slate-700 bg-[#0f172a] text-slate-300 hover:bg-slate-800"
-              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
+          : dark
+            ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
+            : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"
       }`}
     >
       <span>{children}</span>
       {typeof count === "number" && (
         <span
-          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] ${
-            active ? "bg-violet-200 text-violet-700" : "bg-slate-200 text-slate-500"
+          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
+            active ? "bg-white/20 text-white" : "bg-[#8592a3]/15 text-[#8592a3]"
           }`}
         >
           {count}

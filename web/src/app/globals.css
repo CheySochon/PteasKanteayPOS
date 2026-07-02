@@ -1,8 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy:wght@300;400;700&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Noto+Sans+Khmer:wght@100..900&display=swap');
 @import "tailwindcss";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-geist-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-khmer: "Noto Sans Khmer", "Kantumruy", "Kantumruy Pro", "Khmer OS Battambang", "Khmer OS", sans-serif;
 }
 
 @theme inline {
@@ -27,8 +31,11 @@ body {
 }
 
 .font-khmer,
-[lang="km"] {
-  font-family: var(--font-khmer), var(--font-geist-sans), Arial, sans-serif;
+.font-khmer * {
+  font-family: var(--font-khmer), var(--font-geist-sans), Arial, sans-serif !important;
+}
+
+.font-khmer {
   line-height: 1.7;
 }
 

@@ -3,7 +3,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { roleMiddleware } from "../middlewares/role.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { Role } from "../prisma/client.js";
 import {
   createTableSchema,
   updateTableSchema,
@@ -18,7 +17,7 @@ import {
 } from "../controllers/table.controller.js";
 
 const router = Router();
-const adminOnly = [authMiddleware, roleMiddleware([Role.ADMIN])];
+const adminOnly = [authMiddleware, roleMiddleware(["Admin"])];
 
 router.get("/", asyncHandler(list));
 router.post("/", ...adminOnly, validate(createTableSchema), asyncHandler(create));

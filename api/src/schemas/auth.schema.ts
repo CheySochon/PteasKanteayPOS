@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { Role } from "../prisma/client.js";
 
-export const RoleEnum = z.enum(Role);
+export const RoleEnum = z.enum(["Admin", "Cashier", "Staff", "Member"]);
 
 export const registerSchema = z.object({
   email: z
@@ -15,45 +14,25 @@ export const registerSchema = z.object({
 
   password: z
     .string({ error: "Password is required" })
-    .min(12, { error: "Password must be at least 12 characters" })
-    .max(64, { error: "Password must be max 64 characters" })
-    .regex(/[a-z]/, {
-      error: "Password must contain at least one lowercase letter",
-    })
-    .regex(/[A-Z]/, {
-      error: "Password must contain at least one uppercase letter",
-    })
-    .regex(/[0-9]/, { error: "Password must contain at least one number" })
-    .regex(/[^A-Za-z0-9]/, {
-      error: "Password must contain at least one special character",
-    }),
+    .min(4, { error: "Password must be at least 4 characters" })
+    .max(64, { error: "Password must be max 64 characters" }),
 
-  firstName: z
+  name: z
     .string()
     .trim()
-    .min(1, { error: "First name is required" })
-    .max(50, { error: "First name must be max 50 characters" })
-    .optional(),
+    .min(1, { error: "Name is required" })
+    .max(100, { error: "Name must be max 100 characters" }),
 
-  lastName: z
-    .string()
-    .trim()
-    .min(1, { error: "Last name is required" })
-    .max(50, { error: "Last name must be max 50 characters" })
-    .optional(),
-
-  role: RoleEnum.default(Role.WAITER).optional(),
+  role: RoleEnum.default("Staff").optional(),
 });
 
 export const loginSchema = z.object({
   email: z
-    .email({
-      error: (issue) =>
-        issue.input === undefined ? "Email is required" : "Invalid email",
-    })
+    .string({ error: "Email or username is required" })
     .trim()
     .toLowerCase()
-    .max(254, { error: "Email must be max 254 characters" }),
+    .min(1, { error: "Email or username is required" })
+    .max(254, { error: "Email or username must be max 254 characters" }),
 
   password: z
     .string({ error: "Password is required" })
@@ -70,20 +49,8 @@ export const updatePasswordSchema = z
 
     newPassword: z
       .string({ error: "New password is required" })
-      .min(12, { error: "New password must be at least 12 characters" })
-      .max(64, { error: "New password must be max 64 characters" })
-      .regex(/[a-z]/, {
-        error: "New password must contain at least one lowercase letter",
-      })
-      .regex(/[A-Z]/, {
-        error: "New password must contain at least one uppercase letter",
-      })
-      .regex(/[0-9]/, {
-        error: "New password must contain at least one number",
-      })
-      .regex(/[^A-Za-z0-9]/, {
-        error: "New password must contain at least one special character",
-      }),
+      .min(4, { error: "New password must be at least 4 characters" })
+      .max(64, { error: "New password must be max 64 characters" }),
 
     confirmPassword: z
       .string({ error: "Confirm password is required" })

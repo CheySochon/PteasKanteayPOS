@@ -23,6 +23,7 @@ import {
   Tags,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
 } from "lucide-react";
 import { apiOrigin, getSettings } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -36,7 +37,7 @@ import {
   subscribeToProfileChanges,
 } from "../lib/profile";
 
-const BRAND = "#1D9E75";
+const BRAND = "#696cff";
 
 type IconProps = {
   active?: boolean;
@@ -139,6 +140,7 @@ type SideNavItemProps = {
   trailing?: ReactNode;
   contentClass?: string;
   dark?: boolean;
+  isKhmer?: boolean;
 };
 
 export default function Sidebar({
@@ -197,16 +199,16 @@ export default function Sidebar({
   );
 
   const dark = theme === "dark";
-  const sidebarBg = dark ? "bg-[#0c1714]" : "border-r border-emerald-100 bg-white";
-  const navHover = dark ? "hover:bg-emerald-50/[0.07]" : "hover:bg-emerald-50";
-  const navActive = dark ? "bg-[#1d9e75]/[0.22]" : "bg-[#1d9e75]/[0.12]";
-  const headerBorder = dark ? "border-emerald-50/[0.08]" : "border-emerald-100";
-  const dividerClass = dark ? "bg-emerald-50/[0.08]" : "bg-emerald-100";
-  const sectionTextClass = dark ? "text-emerald-50/35" : "text-slate-400";
-  const brandNameClass = dark ? "text-[#6ee7b7]" : "text-[#11845f]";
-  const brandSubtitleClass = dark ? "text-emerald-50/45" : "text-slate-500";
-  const utilityTextClass = dark ? "text-emerald-50/65 hover:bg-emerald-50/[0.07] hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-slate-900";
-  const footerBorderClass = dark ? "border-emerald-50/[0.08]" : "border-emerald-100";
+  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-[#e5e7eb]";
+  const navHover = dark ? "hover:bg-[#232333]/60 hover:text-white" : "hover:bg-[#f5f5f9] hover:text-[#696cff]";
+  const navActive = dark ? "bg-[#696cff]/[0.15] text-[#696cff]" : "bg-[#696cff]/[0.08] text-[#696cff]";
+  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#f5f5f9]";
+  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#f5f5f9]";
+  const sectionTextClass = dark ? "text-slate-400" : "text-[#b4bdc6]";
+  const brandNameClass = dark ? "text-white" : "text-[#566a7f]";
+  const brandSubtitleClass = dark ? "text-slate-400" : "text-[#a1acb8]";
+  const utilityTextClass = dark ? "text-[#8592a3] hover:bg-[#232333]/60 hover:text-[#696cff]" : "text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]";
+  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
   const t = TEXT[language];
   const allowedOverview = NAV_OVERVIEW.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const allowedAccount = NAV_ACCOUNT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
@@ -302,7 +304,7 @@ export default function Sidebar({
         }`}
       >
         <div className="flex items-center gap-[10px] overflow-hidden">
-          <div className="w-9 h-9 rounded-[10px] bg-[#1D9E75] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-emerald-100/10">
+          <div className="w-9 h-9 rounded-[10px] bg-[#696cff] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#696cff]/10">
             {restaurantImageUrl ? (
               <img
                 src={resolveImageUrl(restaurantImageUrl)}
@@ -320,10 +322,10 @@ export default function Sidebar({
 
           {contentMounted && (
             <div className={`overflow-hidden transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-              <div className={`font-khmer whitespace-nowrap text-[13px] font-black leading-5 tracking-normal ${brandNameClass}`}>
+              <div className={`font-khmer whitespace-nowrap leading-5 tracking-normal ${brandNameClass} ${language === "km" ? "text-[14px] font-bold" : "text-[13px] font-black"}`}>
                 {restaurantName}
               </div>
-              <div className={`whitespace-nowrap text-[10px] uppercase tracking-[0.08em] ${brandSubtitleClass}`}>
+              <div className={`whitespace-nowrap uppercase tracking-[0.08em] ${brandSubtitleClass} ${language === "km" ? "text-[10.5px] font-semibold" : "text-[10px]"}`}>
                 {t.restaurantAdmin}
               </div>
             </div>
@@ -348,7 +350,7 @@ export default function Sidebar({
         }`}
       >
         {contentMounted && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} text-[10px] font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px]`}>
+          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
             {t.overview}
           </div>
         )}
@@ -367,6 +369,7 @@ export default function Sidebar({
                 navActive={navActive}
                 navHover={navHover}
                 dark={dark}
+                isKhmer={language === "km"}
                 contentClass={contentMotionClass}
                 onClick={() => {
                   setActiveNav(item.label);
@@ -393,7 +396,7 @@ export default function Sidebar({
               />
 
               {isMenu && menuExpanded && (
-                <div className={`relative mb-2 ml-[18px] mt-1 space-y-1 border-l pl-4 ${dark ? "border-emerald-50/10" : "border-emerald-100"}`}>
+                <div className={`relative mb-2 ml-[18px] mt-1 space-y-1 border-l pl-4 ${dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"}`}>
                   {MENU_CHILDREN.map((child) => (
                     <MenuSubNavItem
                       key={child.key}
@@ -401,6 +404,7 @@ export default function Sidebar({
                       label={child.label}
                       active={activeMenuChild === child.key}
                       dark={dark}
+                      isKhmer={language === "km"}
                       icon={<child.icon size={14} strokeWidth={1.9} />}
                       onClick={() => {
                         setActiveNav("Menu");
@@ -422,7 +426,7 @@ export default function Sidebar({
         <div className={`h-px ${dividerClass} ${sidebarCollapsed ? "m-[12px_0]" : "m-[12px_8px]"}`} />
 
         {contentMounted && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} text-[10px] font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px]`}>
+          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
             {t.account}
           </div>
         )}
@@ -437,6 +441,7 @@ export default function Sidebar({
             navActive={navActive}
             navHover={navHover}
             dark={dark}
+            isKhmer={language === "km"}
             contentClass={contentMotionClass}
             onClick={() => setActiveNav(item.label)}
             icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
@@ -446,12 +451,12 @@ export default function Sidebar({
         {hasToken ? (
           <button
             onClick={logout}
-            className={`w-full flex items-center gap-[10px] rounded-lg text-[13px] mb-[2px] transition-all duration-150 text-left ${
+            className={`w-full flex items-center gap-[10px] rounded text-left transition-all duration-150 ${
               sidebarCollapsed ? "justify-center p-[10px]" : "justify-start p-[9px_10px]"
-            } ${utilityTextClass}`}
+            } ${utilityTextClass} ${language === "km" ? "text-[14px] font-medium" : "text-[13px]"}`}
           >
             <LogOut size={16} strokeWidth={1.8} />
-            {contentMounted && <span className={`flex-1 text-[13px] transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.logout}</span>}
+            {contentMounted && <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.logout}</span>}
           </button>
         ) : (
           <SideNavItem
@@ -462,6 +467,7 @@ export default function Sidebar({
             navActive={navActive}
             navHover={navHover}
             dark={dark}
+            isKhmer={language === "km"}
             contentClass={contentMotionClass}
             onClick={() => setActiveNav("Login")}
             icon={<LogoutIcon active={activeNav === "Login"} />}
@@ -473,21 +479,21 @@ export default function Sidebar({
       <div className={`border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px]"}`}>
         {contentMounted && (
           <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-            <SidebarProfileCard user={currentUser} dark={dark} />
+            <SidebarProfileCard user={currentUser} dark={dark} isKhmer={language === "km"} />
           </div>
         )}
 
         <div className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : "justify-between mb-3"}`}>
           {contentMounted && (
             <div className={`flex items-center gap-[6px] transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-              <span className={dark ? "text-xs text-emerald-50/40" : "text-xs text-slate-400"}>{dark ? "Dark" : "Light"}</span>
+              <span className={dark ? "text-xs text-slate-400" : "text-xs text-slate-400"}>{dark ? "Dark" : "Light"}</span>
             </div>
           )}
 
           <button
             onClick={() => setTheme(dark ? "light" : "dark")}
             className={`w-10 h-[22px] rounded-[11px] border-none cursor-pointer relative transition-colors duration-200 ${
-              dark ? "bg-[#1d9e75]" : "bg-emerald-100"
+              dark ? "bg-[#696cff]" : "bg-[#eceef1]"
             }`}
           >
             <div
@@ -505,9 +511,9 @@ export default function Sidebar({
             localStorage.setItem("pos_language", nextLanguage);
             window.dispatchEvent(new Event("pos-language-change"));
           }}
-          className={`mt-2 flex w-full items-center gap-2 rounded-lg text-xs font-semibold ${utilityTextClass} ${
+          className={`mt-2 flex w-full items-center gap-2 rounded text-xs font-semibold ${utilityTextClass} ${
             sidebarCollapsed ? "justify-center p-2" : "justify-between px-3 py-2"
-          }`}
+          } ${language === "km" ? "text-[12.5px] font-medium" : "text-xs"}`}
           title={t.language}
         >
           <span className="flex items-center gap-2">
@@ -535,6 +541,7 @@ function SideNavItem({
   trailing,
   contentClass = "",
   dark = false,
+  isKhmer = false,
 }: SideNavItemProps) {
   const [hover, setHover] = useState(false);
 
@@ -544,23 +551,24 @@ function SideNavItem({
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className={`w-full flex items-center gap-[10px] rounded-lg border-none cursor-pointer text-[13px] mb-[2px] transition-all duration-150 relative text-left 
-        ${collapsed ? "justify-center p-[10px]" : "justify-start p-[9px_10px]"}
+      className={`w-full flex items-center gap-3 rounded border-none cursor-pointer mb-[2px] transition-all duration-150 relative text-left 
+        ${collapsed ? "justify-center p-[10px]" : "justify-start p-[9px_12px]"}
         ${active ? navActive : hover ? navHover : "bg-transparent"}
-        ${active ? "font-semibold" : "font-normal"}`}
+        ${isKhmer ? "font-bold text-[14.5px] leading-relaxed" : active ? "font-semibold text-[14px]" : "font-medium text-[14px]"}
+      `}
     >
-      <span className={`shrink-0 ${active ? (dark ? "text-[#6ee7b7]" : "text-[#11845f]") : dark ? "text-emerald-50/55" : "text-slate-500"}`}>
+      <span className={`shrink-0 ${active ? "text-[#696cff]" : dark ? "text-slate-400" : "text-[#8592a3]"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 text-[13px] transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white" : "text-slate-950") : dark ? "text-emerald-50/68" : "text-slate-600"}`}>
+        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-[#696cff]" : dark ? "text-slate-300" : "text-[#566a7f]"} ${isKhmer ? "text-[14px] font-bold" : "text-[14px]"}`}>
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-emerald-50/70" : "text-slate-500") : dark ? "text-emerald-50/35" : "text-slate-400"}`}>{trailing}</span>
+        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-[#696cff]" : dark ? "text-slate-500" : "text-[#b4bdc6]"}`}>{trailing}</span>
       )}
     </Link>
   );
@@ -573,6 +581,7 @@ function MenuSubNavItem({
   icon,
   onClick,
   dark = false,
+  isKhmer = false,
 }: {
   href: string;
   label: string;
@@ -580,22 +589,23 @@ function MenuSubNavItem({
   icon: ReactNode;
   onClick: () => void;
   dark?: boolean;
-}) {
+  isKhmer?: boolean;
+ }) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className={`flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] transition ${
+      className={`flex h-9 items-center gap-2 rounded px-3 transition ${
         active
           ? dark
-            ? "bg-[#1d9e75]/[0.22] font-semibold text-white"
-            : "bg-[#1d9e75]/[0.12] font-semibold text-slate-950"
+            ? "bg-[#696cff]/[0.15] font-semibold text-[#696cff]"
+            : "bg-[#696cff]/[0.08] font-semibold text-[#696cff]"
           : dark
-            ? "text-emerald-50/52 hover:bg-emerald-50/[0.07] hover:text-emerald-50/80"
-            : "text-slate-500 hover:bg-emerald-50 hover:text-slate-800"
-      }`}
+            ? "text-slate-400 hover:bg-[#232333]/60 hover:text-white"
+            : "text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]"
+      } ${isKhmer ? "text-[13.5px] font-bold" : active ? "text-[13.5px] font-semibold" : "text-[13.5px] font-medium"}`}
     >
-      <span className={active ? (dark ? "text-[#6ee7b7]" : "text-[#11845f]") : dark ? "text-emerald-50/45" : "text-slate-400"}>{icon}</span>
+      <span className={active ? "text-[#696cff]" : dark ? "text-slate-500" : "text-[#b4bdc6]"}>{icon}</span>
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -604,24 +614,26 @@ function MenuSubNavItem({
 function SidebarProfileCard({
   user,
   dark = false,
+  isKhmer = false,
 }: {
   user: { id?: number; name: string; email?: string; role: string; isActive?: boolean };
   dark?: boolean;
+  isKhmer?: boolean;
 }) {
   const image = getProfileImage(user);
 
   return (
-    <div className={`mb-3 rounded-lg border p-2.5 ${dark ? "border-emerald-50/[0.09] bg-emerald-50/[0.045]" : "border-emerald-100 bg-emerald-50/60"}`}>
+    <div className={`mb-3 rounded border p-2.5 ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-[#e5e7eb] bg-[#f5f5f9]/70"}`}>
       <div className="grid grid-cols-[42px_minmax(0,1fr)_24px] items-center gap-2.5">
         {image ? (
           <img
             src={image}
             alt={user.name}
-            className={`h-[42px] w-[42px] rounded-lg object-cover ring-1 ${dark ? "ring-emerald-50/10" : "ring-emerald-100"}`}
+            className={`h-[42px] w-[42px] rounded object-cover ring-1 ${dark ? "ring-[#4e4f6e]" : "ring-[#e5e7eb]"}`}
           />
         ) : (
           <div
-            className={`flex h-[42px] w-[42px] items-center justify-center rounded-lg text-sm font-black text-white shadow-sm ${profileAvatarClass(
+            className={`flex h-[42px] w-[42px] items-center justify-center rounded text-sm font-black text-white shadow-sm ${profileAvatarClass(
               user.role,
             )}`}
           >
@@ -630,20 +642,20 @@ function SidebarProfileCard({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className={`truncate text-[13px] font-bold leading-4 ${dark ? "text-white" : "text-slate-950"}`}>
+          <div className={`truncate leading-4 ${dark ? "text-white" : "text-[#566a7f]"} ${isKhmer ? "text-[13.5px] font-bold" : "text-[13px] font-bold"}`}>
             {user.name}
           </div>
           <div className="mt-1 flex items-center gap-1.5">
             <span
-              className={`max-w-[76px] truncate rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-4 ${profileRoleClass(
+              className={`max-w-[76px] truncate rounded px-1.5 py-0.5 text-[9px] font-bold leading-4 ${profileRoleClass(
                 user.role,
               )}`}
             >
               {user.role}
             </span>
-            <span className={`flex min-w-0 items-center gap-1 text-[10px] font-semibold ${dark ? "text-emerald-200" : "text-emerald-700"}`}>
-              <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-emerald-400/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="flex min-w-0 items-center gap-1 text-[10px] font-semibold text-[#71dd37]">
+              <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#71dd37]" />
               </span>
               Active
             </span>
@@ -786,45 +798,45 @@ function parseUserSnapshot(snapshot: string) {
 
 // Icons
 function DashboardIcon({ active = false }: IconProps) {
-  return <LayoutDashboard size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <LayoutDashboard size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function PosIcon({ active = false }: IconProps) {
-  return <Utensils size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <Utensils size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function OrdersIcon({ active = false }: IconProps) {
-  return <ShoppingBag size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <ShoppingBag size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function MenuIcon({ active = false }: IconProps) {
-  return <Utensils size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <BookOpen size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function InventoryIcon({ active = false }: IconProps) {
-  return <Layers size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <Layers size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function ReportsIcon({ active = false }: IconProps) {
-  return <BarChart3 size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <BarChart3 size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function TablesIcon({ active = false }: IconProps) {
-  return <Table2 size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <Table2 size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function StaffIcon({ active = false }: IconProps) {
-  return <Users size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <Users size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function PermissionsIcon({ active = false }: IconProps) {
-  return <ShieldCheck size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <ShieldCheck size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function SettingsIcon({ active = false }: IconProps) {
-  return <Settings size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <Settings size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }
 
 function LogoutIcon({ active = false }: IconProps) {
-  return <LogOut size={16} strokeWidth={1.8} color={active ? BRAND : "currentColor"} />;
+  return <LogOut size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
 }

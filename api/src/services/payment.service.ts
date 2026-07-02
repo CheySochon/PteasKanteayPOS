@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { PaymentMethod, PaymentStatus, OrderStatus } from "../prisma/client.js";
 
 function toNum(value: unknown): number {
   return Number(value ?? 0);
@@ -26,7 +27,7 @@ export const createPayment = async (
     amount: number;
     reference?: string;
   },
-  userId?: string,
+  userId?: number,
 ) => {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
@@ -39,8 +40,8 @@ export const createPayment = async (
     const payment = await tx.payment.create({
       data: {
         orderId: order.id,
-        method: payload.method ?? "cash",
-        status: payload.status ?? "completed",
+        method: (payload.method ?? "cash") as PaymentMethod,
+        status: (payload.status ?? "completed") as PaymentStatus,
         amount: toNum(payload.amount),
         reference: payload.reference,
         paidAt: payload.status === "pending" ? null : new Date(),
@@ -55,11 +56,11 @@ export const createPayment = async (
         .reduce((sum, p) => sum + toNum(p.amount), 0) +
       (payment.status === "completed" ? toNum(payment.amount) : 0);
 
-    let updatedOrder = order;
+    let updatedOrder: any = order;
     if (paidTotal >= toNum(order.totalAmount)) {
       updatedOrder = await tx.order.update({
         where: { id: order.id },
-        data: { status: "completed" },
+        data: { status: "completed" as OrderStatus },
       });
     }
 

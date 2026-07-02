@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.js";
+import { StockMovementType } from "../prisma/client.js";
 
 function toNum(value: unknown): number {
   return Number(value ?? 0);
@@ -70,7 +71,7 @@ export const createStockAdjustment = async (data: {
   quantity: number;
   type?: string;
   reason?: string;
-  createdById?: string;
+  createdById?: number;
 }) => {
   const qty = toNum(data.quantity);
   const ingredient = await prisma.ingredient.findUnique({
@@ -91,7 +92,7 @@ export const createStockAdjustment = async (data: {
       data: {
         ingredientId: ingredient.id,
         quantity: qty,
-        type: data.type ?? "adjustment",
+        type: (data.type ?? "adjustment") as StockMovementType,
         reason: data.reason,
         createdById: data.createdById,
       },

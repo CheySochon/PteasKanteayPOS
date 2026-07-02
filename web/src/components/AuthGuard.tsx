@@ -32,9 +32,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const token = localStorage.getItem("pos_token");
         if (token) {
           try {
-            await getMe();
+            const user = await getMe();
             const redirect = new URLSearchParams(window.location.search).get("redirect");
-            router.replace(redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin");
+            let targetPath =
+              redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
+            if (targetPath === "/admin") {
+              const rName = roleName(user);
+              if (rName === "Cashier") {
+                targetPath = "/pos";
+              } else if (rName === "Staff") {
+                targetPath = "/kds";
+              }
+            }
+            router.replace(targetPath);
           } catch {
             localStorage.removeItem("pos_token");
             localStorage.removeItem("pos_user");

@@ -7,7 +7,14 @@ export const authMiddleware = (
   next: NextFunction,
 ) => {
   try {
-    const token = req.cookies?.access_token as unknown;
+    let token = req.cookies?.access_token as string | undefined;
+
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      }
+    }
 
     if (!token || typeof token !== "string") {
       return res.status(401).json({ message: "Unauthorized" });

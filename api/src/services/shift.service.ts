@@ -8,7 +8,7 @@ export const listShifts = async () => {
 };
 
 export const startShift = async (
-  userId: string,
+  userId: number,
   data: { openingCash?: number; notes?: string },
 ) => {
   return prisma.shift.create({

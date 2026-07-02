@@ -34,7 +34,7 @@ type Backup = {
 };
 
 export const createBackup = async (createdBy?: {
-  userId: string;
+  userId: number;
   email?: string;
   role: string;
 }): Promise<Backup> => {
@@ -52,7 +52,7 @@ export const createBackup = async (createdBy?: {
     app: "pos-newflow",
     createdAt: new Date().toISOString(),
     createdBy: createdBy
-      ? { id: createdBy.userId, email: createdBy.email ?? "", role: createdBy.role }
+      ? { id: String(createdBy.userId), email: createdBy.email ?? "", role: createdBy.role }
       : null,
     data,
   };
@@ -108,7 +108,7 @@ export const readBackupFile = async (filename: string): Promise<Backup> => {
   return JSON.parse(raw) as Backup;
 };
 
-export const validateBackup = (backup: unknown): asserts backup is Backup => {
+export function validateBackup(backup: unknown): asserts backup is Backup {
   const b = backup as Partial<Backup>;
   if (!b || typeof b !== "object" || b.app !== "pos-newflow" || !b.data) {
     throw new Error("Invalid backup file");
@@ -119,11 +119,11 @@ export const validateBackup = (backup: unknown): asserts backup is Backup => {
       throw new Error(`Backup is missing ${table.key}`);
     }
   }
-};
+}
 
 export const backupSummary = (backup: Backup) => {
   return TABLES.reduce(
-    (summary, table) => {
+    (summary: any, table) => {
       summary.counts[table.key] = Array.isArray(backup.data?.[table.key])
         ? backup.data[table.key].length
         : 0;

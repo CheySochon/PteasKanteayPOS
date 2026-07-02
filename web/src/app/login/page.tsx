@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { apiOrigin, getSettings, login } from "../../lib/api";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
+import { Eye, EyeOff } from "lucide-react";
 
 const DEFAULT_POS_NAME = "The Tofu";
 
@@ -13,25 +13,29 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [posName, setPosName] = useState(() => {
-    if (typeof window === "undefined") return DEFAULT_POS_NAME;
-    return localStorage.getItem("pos_restaurant_name") || DEFAULT_POS_NAME;
-  });
-  const [restaurantImageUrl, setRestaurantImageUrl] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("pos_restaurant_image_url") || "";
-  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [posName, setPosName] = useState(DEFAULT_POS_NAME);
+  const [restaurantImageUrl, setRestaurantImageUrl] = useState("");
   const [error, setError] = useState("");
   useAutoDismiss(error, setError);
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
+    // Load local storage cache instantly on client-side mount
+    const savedName = localStorage.getItem("pos_restaurant_name");
+    const savedImage = localStorage.getItem("pos_restaurant_image_url");
+    if (savedName) setPosName(savedName);
+    if (savedImage) setRestaurantImageUrl(savedImage);
+
+    // Sync fresh values dynamically from the API settings
     getSettings()
       .then((settings) => {
         const nextName = settings.restaurantName || DEFAULT_POS_NAME;
+        const nextImage = settings.restaurantImageUrl || "";
         setPosName(nextName);
-        setRestaurantImageUrl(settings.restaurantImageUrl || "");
+        setRestaurantImageUrl(nextImage);
         localStorage.setItem("pos_restaurant_name", nextName);
-        localStorage.setItem("pos_restaurant_image_url", settings.restaurantImageUrl || "");
+        localStorage.setItem("pos_restaurant_image_url", nextImage);
         window.dispatchEvent(new Event("pos-settings-change"));
       })
       .catch(() => undefined);
@@ -47,7 +51,19 @@ export default function LoginPage() {
       localStorage.setItem("pos_token", result.token);
       localStorage.setItem("pos_user", JSON.stringify(result.user));
       window.dispatchEvent(new Event("pos-auth-change"));
-      router.replace(getRedirectPath());
+      
+      const redirect = new URLSearchParams(window.location.search).get("redirect");
+      let targetPath = redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
+      if (targetPath === "/admin") {
+        const r = result.user?.role;
+        const role = typeof r === "object" && r ? r.name : r;
+        if (role === "Cashier") {
+          targetPath = "/pos";
+        } else if (role === "Staff") {
+          targetPath = "/kds";
+        }
+      }
+      router.replace(targetPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -56,109 +72,115 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-[420px]">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-[#1D9E75] text-lg font-black text-white shadow-sm shadow-emerald-700/20">
-            {restaurantImageUrl ? (
-              <Image
-                src={resolveImageUrl(restaurantImageUrl)}
-                alt={posName}
-                width={56}
-                height={56}
-                unoptimized
-                className="h-full w-full object-cover"
+    <main className="flex min-h-screen items-center justify-center bg-[#f5f5f9] px-4 py-10 relative overflow-hidden select-none">
+      <div className="w-full max-w-[400px] bg-white rounded border border-[#e5e7eb] p-8 shadow-sm relative z-10">
+        {/* Brand Header */}
+        <div className="text-center mb-6">
+          {restaurantImageUrl ? (
+            <div className="flex justify-center mb-3">
+              <img
+                src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
+                alt="Restaurant Logo"
+                className="h-16 w-16 rounded-full object-cover border border-[#e5e7eb] shadow-sm"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
               />
+            </div>
+          ) : null}
+          <span className="text-2xl font-brand tracking-tight text-[#566a7f] capitalize block">
+            {posName.toLowerCase().endsWith("pos") ? (
+              <>
+                {posName.slice(0, -3).trim()}{" "}
+                <span className="font-bold text-[#696cff] uppercase text-xs tracking-wider ml-1">POS</span>
+              </>
             ) : (
-              initials(posName)
+              <>
+                {posName}{" "}
+                <span className="font-bold text-[#696cff] uppercase text-xs tracking-wider ml-1">POS</span>
+              </>
             )}
-          </div>
+          </span>
+        </div>
 
-          <p className="font-khmer mx-auto max-w-[320px] truncate text-lg font-black leading-7 tracking-normal text-[#1D9E75]">
-            {posName}
-          </p>
-
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
-            Sign in
-          </h1>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Access your admin dashboard
+        {/* Welcome message */}
+        <div className="mb-6 text-center">
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+            Sign In
+          </h2>
+          <p className="text-sm text-[#697a8d] mt-1">
+            Access the restaurant management dashboard
           </p>
         </div>
 
-        <form
-          onSubmit={submit}
-          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-        >
+        <form onSubmit={submit} className="space-y-4">
           {error && (
-            <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+            <div className="rounded border border-red-100 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
               {error}
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
-              </label>
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#1D9E75] focus:ring-3 focus:ring-[#1D9E75]/10"
-              />
-            </div>
+          <div>
+            <label className="block text-[13.5px] font-semibold text-[#566a7f] mb-1.5">
+              Email or Username
+            </label>
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              placeholder="Enter your email or username"
+              className="w-full rounded border border-[#d9dee3] px-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
+              required
+            />
+          </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[13.5px] font-semibold text-[#566a7f]">
                 Password
               </label>
+              <a href="#" className="text-xs font-semibold text-[#696cff] hover:underline">
+                Forgot Password?
+              </a>
+            </div>
+            <div className="relative">
               <input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                type="password"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#1D9E75] focus:ring-3 focus:ring-[#1D9E75]/10"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••••••"
+                className="w-full rounded border border-[#d9dee3] pr-10 pl-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
+                required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 outline-none"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
-          <button
-            disabled={loading}
-            className="mt-6 w-full rounded-xl bg-[#1D9E75] py-3 text-sm font-semibold text-white hover:bg-[#188a66] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
+          <div className="flex items-center mt-4">
+            <label className="flex items-center gap-2 text-sm text-slate-600 select-none cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-[#d9dee3] text-[#696cff] focus:ring-[#696cff] accent-[#696cff]"
+              />
+              Remember Me
+            </label>
+          </div>
 
-          <Link
-            href="/"
-            className="mt-5 block text-center text-sm font-medium text-slate-500 hover:text-[#1D9E75]"
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded bg-[#696cff] py-2.5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/30 hover:bg-[#5f61e6] active:bg-[#5859d0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
           >
-            Back to home
-          </Link>
+            {loading ? "Signing in..." : "Login"}
+          </button>
         </form>
       </div>
     </main>
   );
-}
-
-function getRedirectPath() {
-  const redirect = new URLSearchParams(window.location.search).get("redirect");
-  return redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
-}
-
-function initials(name: string) {
-  return (
-    name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "P"
-  );
-}
-
-function resolveImageUrl(imageUrl: string) {
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }

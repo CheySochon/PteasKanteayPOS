@@ -17,3 +17,20 @@ export const update = asyncHandler(
     res.json({ success: true, message: "Settings updated", data });
   },
 );
+
+export const uploadImage = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "Restaurant image is required" });
+      return;
+    }
+
+    const imageUrl = `/uploads/settings/${req.file.filename}`;
+
+    res.status(201).json({
+      success: true,
+      message: "Restaurant image uploaded",
+      data: { imageUrl },
+    });
+  },
+);
