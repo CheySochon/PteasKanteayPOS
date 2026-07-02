@@ -14,7 +14,6 @@ const productInclude = {
   category: true,
   variants: { where: { deletedAt: null as Date | null } },
   modifierMaps: { include: { modifier: true } },
-  ingredients: { include: { ingredient: true } },
 };
 
 async function uniqueProductSlug(value: string, excludeId?: number): Promise<string> {

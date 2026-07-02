@@ -14,7 +14,6 @@ import productRouter from "./routers/product.router.js";
 import tableRouter from "./routers/table.router.js";
 import orderRouter from "./routers/order.router.js";
 import paymentRouter from "./routers/payment.router.js";
-import inventoryRouter from "./routers/inventory.router.js";
 import customerRouter from "./routers/customer.router.js";
 import shiftRouter from "./routers/shift.router.js";
 import reportRouter from "./routers/report.router.js";
@@ -27,7 +26,12 @@ const app = express();
 /**
  * Security headers (basic HTTP hardening)
  */
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 
 /**
  * CORS (frontend access + cookie support)
@@ -97,7 +101,6 @@ app.use("/api/products", productRouter);
 app.use("/api/tables", tableRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/payments", paymentRouter);
-app.use("/api/inventory", inventoryRouter);
 app.use("/api/customers", customerRouter);
 app.use("/api/shifts", shiftRouter);
 app.use("/api/reports", reportRouter);

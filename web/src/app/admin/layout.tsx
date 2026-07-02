@@ -16,7 +16,7 @@ export default function AdminLayout({
   const bg = theme === "dark" ? "bg-[#0b1120]" : "bg-[#f3f6fb]";
 
   return (
-    <div className={`flex h-screen overflow-hidden font-sans ${bg} ${language === "km" ? "font-khmer" : ""}`}>
+    <div suppressHydrationWarning className={`flex h-screen overflow-hidden font-sans ${bg} ${language === "km" ? "font-khmer" : ""}`}>
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}

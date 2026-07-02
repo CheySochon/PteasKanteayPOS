@@ -16,7 +16,7 @@ export const createProductSchema = z.object({
     .max(200),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(1000).optional(),
-  imageUrl: z.string().trim().url().optional(),
+  imageUrl: z.string().trim().optional(),
   basePrice: z.number().nonnegative(),
   isAvailable: z.boolean().default(true).optional(),
   variants: z.array(variantSchema).optional(),
@@ -27,7 +27,7 @@ export const updateProductSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(1000).optional(),
-  imageUrl: z.string().trim().url().optional().nullable(),
+  imageUrl: z.string().trim().optional().nullable(),
   basePrice: z.number().nonnegative().optional(),
   isAvailable: z.boolean().optional(),
 });

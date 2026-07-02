@@ -231,6 +231,7 @@ export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "hidden">("all");
   const [query, setQuery] = useState("");
+  const [categoryQuery, setCategoryQuery] = useState("");
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(EMPTY_CATEGORY);
   const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -355,6 +356,13 @@ export default function MenuPage() {
       socket.off("order:updated", handleOrderUpdated);
     };
   }, [t.newOrderAlert, t.newOrderDetail]);
+
+  const filteredCategories = useMemo(() => {
+    const normalizedQuery = categoryQuery.trim().toLowerCase();
+    return categories.filter(category => 
+      !normalizedQuery || category.name.toLowerCase().includes(normalizedQuery) || (category.description || "").toLowerCase().includes(normalizedQuery)
+    );
+  }, [categories, categoryQuery]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -716,64 +724,85 @@ export default function MenuPage() {
 
         {isCategoriesView ? (
           <section id="categories" className="space-y-4">
-            <div className="border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-3">
+            
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-[#a1acb8]">
-                {categories.length} {t.categories}
+                {filteredCategories.length} {t.categories}
               </span>
+              <div className="relative w-full sm:w-80">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={16}
+                />
+                <input
+                  value={categoryQuery}
+                  onChange={(event) => setCategoryQuery(event.target.value)}
+                  placeholder="Search categories..."
+                  className={`h-10 w-full rounded border pl-10 pr-3 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  }`}
+                />
+              </div>
             </div>
 
-            {categories.length === 0 ? (
+            {filteredCategories.length === 0 ? (
               <EmptyState className={`${panelBg} ${borderCol}`}>
                 {t.categories}
               </EmptyState>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {categories.map((category) => {
+                  {filteredCategories.map((category) => {
                     const itemCount = categoryCount(category.id);
 
                     return (
                       <article
                         key={category.id}
-                        className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-violet-200 hover:shadow-md"
+                        className="group relative overflow-hidden rounded-xl bg-white dark:bg-[#2b2c40] p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] dark:shadow-[0_2px_6px_0_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-[#696cff]/15 dark:hover:shadow-none border border-transparent hover:border-[#696cff]/20"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-                              <Tags size={19} />
+                        {/* Top Gradient Accent (Visible on Hover) */}
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#696cff] to-[#00f2fe] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+                        <div className="flex items-start justify-between gap-3 relative z-10">
+                          <div className="flex min-w-0 items-center gap-3.5">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff] transition-all duration-300 group-hover:bg-[#696cff] group-hover:text-white group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-md">
+                              <Tags size={20} />
                             </div>
 
                             <div className="min-w-0">
-                              <h3 className="truncate text-base font-black text-slate-950">
+                              <h3 className="truncate text-base font-bold text-[#566a7f] dark:text-[#c9d4ea] transition-colors group-hover:text-[#696cff] dark:group-hover:text-[#696cff]">
                                 {category.name}
                               </h3>
-                              <p className="mt-1 text-xs font-bold uppercase text-slate-400">
-                                {itemCount} {t.items}
+                              <p className="mt-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
+                                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#e7e7ff] text-[#696cff] dark:bg-[#34355a] dark:text-[#7173ba]">
+                                  {itemCount}
+                                </span>
+                                {t.items}
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex shrink-0 items-center gap-1">
+                          <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => editCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-violet-50 hover:text-violet-700"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#eceef1]/50 dark:bg-[#3a3b53] text-[#a1acb8] hover:bg-[#696cff] hover:text-white hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                               title={`Edit ${category.name}`}
                             >
-                              <Pencil size={15} />
+                              <Pencil size={14} />
                             </button>
 
                             <button
                               type="button"
                               onClick={() => removeCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#eceef1]/50 dark:bg-[#3a3b53] text-[#a1acb8] hover:bg-[#ff3e1d] hover:text-white hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                               title={`Delete ${category.name}`}
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
 
-                        <p className="mt-4 line-clamp-2 min-h-10 text-sm font-medium leading-5 text-slate-500">
+                        <p className="mt-4 line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-relaxed text-[#8592a3] relative z-10">
                           {category.description || t.description}
                         </p>
                       </article>
@@ -951,9 +980,9 @@ function MenuCard({
   const unavailable = !product.isAvailable;
 
   return (
-    <article className="overflow-hidden rounded bg-white dark:bg-[#2b2c40] border border-[#e5e7eb] dark:border-[#4e4f6e] shadow-sm flex flex-col justify-between">
+    <article className="overflow-hidden rounded bg-white dark:bg-[#2b2c40] border border-[#d9dee3] dark:border-[#4e4f6e] shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-[#696cff]/30 group">
       <div>
-        <div className="relative aspect-[1.2] bg-slate-100 dark:bg-[#232333] overflow-hidden">
+        <div className="relative aspect-[1.3] bg-[#f5f5f9] dark:bg-[#232333] overflow-hidden">
           {product.imageUrl ? (
             <img
               src={resolveImageUrl(product.imageUrl)}
@@ -978,10 +1007,10 @@ function MenuCard({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight">
+              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#696cff] transition-colors">
                 {product.name}
               </h3>
-              <p className="mt-1 truncate text-xs font-semibold text-slate-400">
+              <p className="mt-1 truncate text-xs font-semibold text-[#a1acb8]">
                 {product.category?.name || text.noDescription}
               </p>
             </div>
@@ -993,13 +1022,13 @@ function MenuCard({
         </div>
       </div>
 
-      <div className="px-4 pb-4 pt-2 border-t border-[#f0f2f5] dark:border-[#4e4f6e]">
+      <div className="px-4 pb-4 pt-2 border-t border-[#d9dee3] dark:border-[#4e4f6e]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[#8592a3]">
             <button
               type="button"
               onClick={onEdit}
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-[#696cff] transition-all"
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all"
               title={text.editProduct}
             >
               <Pencil size={14} />
@@ -1008,7 +1037,7 @@ function MenuCard({
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-red-50 hover:text-[#ff3e1d] transition-all"
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all"
               title={text.deleteProduct}
             >
               <Trash2 size={14} />
@@ -1016,7 +1045,7 @@ function MenuCard({
 
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-slate-700 transition-all"
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-[#566a7f] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea]"
               title={product.description || text.noDescription}
             >
               <Eye size={14} />

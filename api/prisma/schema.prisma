@@ -35,11 +35,6 @@ enum TableZone {
   vip
 }
 
-enum StockMovementType {
-  in
-  out
-  adjustment
-}
 
 enum ShiftStatus {
   open
@@ -49,7 +44,6 @@ enum ShiftStatus {
 enum NotificationType {
   new_order
   payment_completed
-  low_stock
   order_status_updated
 }
 
@@ -71,7 +65,6 @@ model User {
   shifts                Shift[]
   ordersCreated         Order[]         @relation("OrderCreatedBy")
   paymentsCreated       Payment[]       @relation("PaymentCreatedBy")
-  stockMovementsCreated StockMovement[] @relation("StockMovementCreatedBy")
   isActive              Boolean         @default(true)
   deletedAt             DateTime?
   createdAt             DateTime        @default(now())
@@ -134,7 +127,6 @@ model Product {
   isAvailable  Boolean              @default(true)
   variants     ProductVariant[]
   modifierMaps ProductModifierMap[]
-  ingredients  ProductIngredient[]
   orderItems   OrderItem[]
   deletedAt    DateTime?
   createdAt    DateTime             @default(now())
@@ -226,7 +218,6 @@ model Order {
   items          OrderItem[]
   payments       Payment[]
   notifications  Notification[]
-  stockMovements StockMovement[]
   deletedAt      DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -295,56 +286,8 @@ model Payment {
   @@index([createdAt])
 }
 
-model Ingredient {
-  id              Int                 @id @default(autoincrement())
-  name            String
-  unit            String
-  currentStock    Decimal             @default(0) @db.Decimal(12, 3)
-  minStock        Decimal             @default(0) @db.Decimal(12, 3)
-  costPerUnit     Decimal             @default(0) @db.Decimal(10, 2)
-  productMappings ProductIngredient[]
-  stockMovements  StockMovement[]
-  deletedAt       DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
 
-  @@index([deletedAt])
-}
 
-model ProductIngredient {
-  id               Int        @id @default(autoincrement())
-  productId        Int
-  product          Product    @relation(fields: [productId], references: [id])
-  ingredientId     Int
-  ingredient       Ingredient @relation(fields: [ingredientId], references: [id])
-  quantityRequired Decimal    @db.Decimal(12, 3)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-
-  @@unique([productId, ingredientId])
-  @@index([ingredientId])
-}
-
-model StockMovement {
-  id           Int               @id @default(autoincrement())
-  ingredientId Int
-  ingredient   Ingredient        @relation(fields: [ingredientId], references: [id])
-  type         StockMovementType
-  quantity     Decimal           @db.Decimal(12, 3)
-  reason       String?
-  orderId      Int?
-  order        Order?            @relation(fields: [orderId], references: [id])
-  createdById  Int?
-  createdBy    User?             @relation("StockMovementCreatedBy", fields: [createdById], references: [id])
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  @@index([ingredientId])
-  @@index([type])
-  @@index([orderId])
-  @@index([createdById])
-  @@index([createdAt])
-}
 
 model Shift {
   id          Int         @id @default(autoincrement())

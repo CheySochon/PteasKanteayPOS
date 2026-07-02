@@ -90,15 +90,15 @@ export default function SettingsPage() {
   useAutoDismiss(error, setError);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#171a23]" : "bg-white";
-  const softSurface = dark ? "bg-[#1f2330]" : "bg-slate-50";
-  const borderCol = dark ? "border-[#2a2f3d]" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-950";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
-  const inputClass = `w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:border-[#1D9E75] focus:ring-4 focus:ring-[#1D9E75]/10 ${
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-[#566a7f]" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
+    const inputClass = `w-full rounded border px-3.5 py-2.5 text-sm outline-none transition placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
     dark
-      ? "border-[#2a2f3d] bg-[#11141c] text-slate-100 placeholder:text-slate-600"
-      : "border-slate-200 bg-white text-slate-950 placeholder:text-slate-400"
+      ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
+      : "border-[#d9dee3] bg-white text-[#566a7f]"
   }`;
   const isSuperAdmin = storedUserRole().toLowerCase().replace(/[^a-z0-9]/g, "") === "superadmin";
 
@@ -296,12 +296,22 @@ export default function SettingsPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <main className="flex-1 p-6 flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#696cff]" size={36} />
+      </main>
+    );
+  }
+
   return (
-    <main className="flex-1 overflow-y-auto px-5 py-6 lg:px-8">
-        <form onSubmit={submit} className="mx-auto max-w-7xl">
-          <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <main className={`flex-1 overflow-y-auto ${softSurface} p-6`}>
+      <div className="mx-auto w-full max-w-[1400px]">
+        <div className="animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          <form onSubmit={submit}>
+            <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[#1D9E75]/10 px-3 py-1 text-xs font-bold text-[#1D9E75]">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[#696cff]/10 px-3 py-1 text-xs font-bold text-[#696cff]">
                 <Settings2 size={14} />
                 System Settings
               </div>
@@ -315,7 +325,7 @@ export default function SettingsPage() {
 
             <button
               disabled={saveDisabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1D9E75] px-5 text-sm font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-[#188a66] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
             >
               {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
               Save Changes
@@ -323,13 +333,13 @@ export default function SettingsPage() {
           </div>
 
           {error && (
-            <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+            <div className="mb-5 rounded border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
               {error}
             </div>
           )}
 
           {message && (
-            <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <div className="mb-5 rounded border border-[#71dd37]/35 bg-[#e8fadf] px-4 py-3 text-sm font-bold text-[#71dd37]">
               {message}
             </div>
           )}
@@ -345,8 +355,8 @@ export default function SettingsPage() {
                 textPrimary={textPrimary}
                 textSecondary={textSecondary}
               >
-                <div className="mb-4 flex flex-col gap-4 rounded-xl border border-dashed border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl ${softSurface}`}>
+                <div className="mb-4 flex flex-col gap-4 rounded border border-dashed border-slate-200 p-4 sm:flex-row sm:items-center">
+                  <div className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded ${softSurface}`}>
                     {settings.restaurantImageUrl ? (
                       <img
                         src={resolveImageUrl(settings.restaurantImageUrl)}
@@ -365,7 +375,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
 
-                  <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#1D9E75] px-4 text-sm font-bold text-white hover:bg-[#188a66]">
+                  <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/10">
                     {uploadingImage ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
                     {uploadingImage ? "Uploading" : "Upload Image"}
                     <input
@@ -472,7 +482,7 @@ export default function SettingsPage() {
                     textSecondary={textSecondary}
                   />
                   <Field label="Kitchen Display Mode">
-                    <div className={`grid grid-cols-2 rounded-xl p-1 ${softSurface}`}>
+                    <div className={`grid grid-cols-2 rounded p-1 ${softSurface}`}>
                       {(["compact", "comfortable"] as const).map((mode) => (
                         <button
                           key={mode}
@@ -480,7 +490,7 @@ export default function SettingsPage() {
                           onClick={() => update("kitchenDisplayMode", mode)}
                           className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition ${
                             settings.kitchenDisplayMode === mode
-                              ? "bg-[#1D9E75] text-white shadow-sm"
+                              ? "bg-[#696cff] text-white shadow-sm"
                               : `${textSecondary} hover:bg-white/60`
                           }`}
                         >
@@ -539,7 +549,7 @@ export default function SettingsPage() {
                     return (
                       <label
                         key={page.key}
-                        className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 ${borderCol} ${softSurface}`}
+                        className={`flex cursor-pointer items-center justify-between rounded border p-3 ${borderCol} ${softSurface}`}
                       >
                         <div>
                           <div className={`text-sm font-black ${textPrimary}`}>{page.label}</div>
@@ -554,7 +564,7 @@ export default function SettingsPage() {
                               [page.key]: event.target.checked,
                             })
                           }
-                          className="h-5 w-5 accent-[#1D9E75]"
+                          className="h-5 w-5 accent-[#696cff]"
                         />
                       </label>
                     );
@@ -564,9 +574,9 @@ export default function SettingsPage() {
             </div>
 
             <aside className="space-y-5">
-              <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+              <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D9E75]/10 text-[#1D9E75]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff]">
                     <Database size={19} />
                   </div>
                   <div>
@@ -576,7 +586,7 @@ export default function SettingsPage() {
                 </div>
 
                 {!isSuperAdmin ? (
-                  <div className={`rounded-xl border p-4 text-sm ${borderCol} ${softSurface} ${textSecondary}`}>
+                  <div className={`rounded border p-4 text-sm ${borderCol} ${softSurface} ${textSecondary}`}>
                     Login as Super Admin to manage backups.
                   </div>
                 ) : (
@@ -585,7 +595,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={createAndDownloadBackup}
                       disabled={Boolean(backupBusy)}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#1D9E75] px-4 text-sm font-bold text-white hover:bg-[#188a66] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-sm font-bold text-white hover:bg-[#5f61e6] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {backupBusy === "download" ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
                       Create Backup
@@ -595,14 +605,14 @@ export default function SettingsPage() {
                       type="button"
                       onClick={downloadLatestBackup}
                       disabled={Boolean(backupBusy) || backupFiles.length === 0}
-                      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold ${borderCol} ${softSurface} ${textPrimary} disabled:cursor-not-allowed disabled:opacity-60`}
+                      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded border px-4 text-sm font-bold ${borderCol} ${softSurface} ${textPrimary} disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       {backupBusy === "latest" ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
                       Download Latest
                     </button>
 
                     <label
-                      className={`inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold ${borderCol} ${softSurface} ${textPrimary}`}
+                      className={`inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border px-4 text-sm font-bold ${borderCol} ${softSurface} ${textPrimary}`}
                     >
                       {backupBusy === "preview" ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
                       Choose Restore File
@@ -616,7 +626,7 @@ export default function SettingsPage() {
                     </label>
 
                     {restorePreview && (
-                      <div className={`rounded-xl border p-3 ${borderCol} ${softSurface}`}>
+                      <div className={`rounded border p-3 ${borderCol} ${softSurface}`}>
                         <div className={`truncate text-sm font-black ${textPrimary}`}>{restoreFileName}</div>
                         <div className={`mt-1 text-xs ${textSecondary}`}>
                           {backupTotal(restorePreview)} records · {formatDate(restorePreview.createdAt)}
@@ -633,7 +643,7 @@ export default function SettingsPage() {
                       </div>
                     )}
 
-                    <div className={`rounded-xl border p-3 ${borderCol} ${softSurface}`}>
+                    <div className={`rounded border p-3 ${borderCol} ${softSurface}`}>
                       <div className={`text-xs font-black uppercase tracking-[0.12em] text-slate-400`}>Latest Saved</div>
                       {backupFiles[0] ? (
                         <>
@@ -650,9 +660,9 @@ export default function SettingsPage() {
                 )}
               </section>
 
-              <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+              <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
                 <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1D9E75]/10 text-[#1D9E75]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff]">
                     <ReceiptText size={19} />
                   </div>
                   <div>
@@ -661,7 +671,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
+                <div className={`rounded border p-4 ${borderCol} ${softSurface}`}>
                   <div className={`text-center text-base font-black ${textPrimary}`}>
                     {settings.restaurantName || "Restaurant"}
                   </div>
@@ -684,7 +694,7 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between">
                     <span className={`text-sm font-black ${textPrimary}`}>Total</span>
-                    <span className="text-lg font-black text-[#1D9E75]">
+                    <span className="text-lg font-black text-[#696cff]">
                       {currency(
                         42 +
                           42 * (Number(settings.taxRate || 0) / 100) +
@@ -700,7 +710,7 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+              <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
                 <Field label="Receipt Footer">
                   <textarea
                     value={settings.receiptFooter}
@@ -713,6 +723,21 @@ export default function SettingsPage() {
             </aside>
           </div>
         </form>
+      </div>
+    </div>
+
+      <style>{`
+        @keyframes usersPageIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -737,9 +762,9 @@ function Panel({
   textSecondary: string;
 }) {
   return (
-    <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+    <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
       <div className="mb-5 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1D9E75]/10 text-[#1D9E75]">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff]">
           <Icon size={19} />
         </div>
         <div>
@@ -807,7 +832,7 @@ function ToggleRow({
   textSecondary: string;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-4 rounded-xl p-4 ${softSurface}`}>
+    <div className={`flex items-center justify-between gap-4 rounded p-4 ${softSurface}`}>
       <div>
         <div className={`text-sm font-black ${textPrimary}`}>{title}</div>
         <div className={`mt-1 text-xs ${textSecondary}`}>{note}</div>
@@ -817,7 +842,7 @@ function ToggleRow({
         aria-pressed={checked}
         onClick={() => onChange(!checked)}
         className={`relative h-7 w-12 shrink-0 rounded-full transition ${
-          checked ? "bg-[#1D9E75]" : "bg-slate-300"
+          checked ? "bg-[#696cff]" : "bg-slate-300"
         }`}
       >
         <span

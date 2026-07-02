@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Edit3,
   Loader2,
@@ -583,6 +584,13 @@ export default function UsersPage() {
                                 >
                                   <Trash2 size={15} />
                                 </button>
+                                <Link
+                                  href={`/admin/permissions?userId=${user.id}`}
+                                  className="hover:text-[#696cff] transition-colors p-1"
+                                  title="Manage Permissions"
+                                >
+                                  <ShieldCheck size={15} />
+                                </Link>
                                 <button className="hover:text-slate-600 transition-colors p-1">
                                   <MoreVertical size={15} />
                                 </button>

@@ -110,7 +110,6 @@ export type Product = {
   isAvailable: boolean;
   variants?: ProductVariant[];
   modifierMaps?: ProductModifierMap[];
-  ingredients?: ProductIngredient[];
   deletedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;

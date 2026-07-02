@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import "chart.js/auto";
 import type { ChartOptions, TooltipItem } from "chart.js";
-import { Bar, Doughnut } from "react-chartjs-2";
+import { Bar, Doughnut, Line } from "react-chartjs-2";
 import TopBar from "../../components/TopBar";
 import type { Language, NotificationItem } from "../../components/TopBar";
 import OrderStatusBadge from "../../components/OrderStatusBadge";
@@ -398,7 +398,8 @@ export default function DashboardPage() {
         label: "Sales",
         data: topProducts.slice(0, 5).map((item) => Number(item.totalSales)),
         backgroundColor: "#696cff",
-        borderRadius: 4,
+        hoverBackgroundColor: "#5f61e6",
+        borderRadius: 6,
         maxBarThickness: 28,
       },
     ],
@@ -413,16 +414,28 @@ export default function DashboardPage() {
         backgroundColor: salesByHour.map((item) =>
           item.total === peakSalesHour.total && item.total > 0
             ? "#696cff"
-            : "rgba(105, 108, 255, 0.35)"
+            : dark ? "rgba(105, 108, 255, 0.15)" : "rgba(105, 108, 255, 0.15)"
         ),
-        borderRadius: 4,
+        hoverBackgroundColor: "#696cff",
+        borderRadius: 6,
         borderSkipped: false,
         maxBarThickness: 24,
       },
     ],
   };
 
-  const salesChartOptions: ChartOptions<"bar"> = {
+  const commonTooltip = {
+    backgroundColor: dark ? '#2b2c40' : '#fff',
+    titleColor: dark ? '#fff' : '#566a7f',
+    bodyColor: dark ? '#a1acb8' : '#8592a3',
+    borderColor: dark ? '#4e4f6e' : '#e5e7eb',
+    borderWidth: 1,
+    padding: 12,
+    boxPadding: 6,
+    usePointStyle: true,
+  };
+
+  const salesChartOptions: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -430,8 +443,9 @@ export default function DashboardPage() {
         display: false,
       },
       tooltip: {
+        ...commonTooltip,
         callbacks: {
-          label: (context: TooltipItem<"bar">) =>
+          label: (context: TooltipItem<"line">) =>
             `Sales: ${money(context.parsed.y ?? 0)}`,
         },
       },
@@ -439,24 +453,29 @@ export default function DashboardPage() {
     scales: {
       x: {
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
+          color: dark ? "#94a3b8" : "#a1acb8",
           maxRotation: 0,
           autoSkip: true,
           autoSkipPadding: 18,
+          font: { family: "'Public Sans', sans-serif" }
         },
         grid: {
           display: false,
         },
+        border: { display: false }
       },
       y: {
         beginAtZero: true,
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
+          color: dark ? "#94a3b8" : "#a1acb8",
           callback: (value: string | number) => money(value),
+          font: { family: "'Public Sans', sans-serif" }
         },
         grid: {
-          color: dark ? "#334155" : "#e2e8f0",
+          color: dark ? "#4e4f6e" : "#e5e7eb",
+          drawTicks: false,
         },
+        border: { display: false }
       },
     },
   };
@@ -468,7 +487,9 @@ export default function DashboardPage() {
         label: "Orders",
         data: Object.values(orderStatusCount),
         backgroundColor: ["#71dd37", "#696cff", "#ff9f43", "#ff3e1d", "#03c3ec", "#8592a3"],
-        borderWidth: 0,
+        borderWidth: 2,
+        borderColor: dark ? "#2b2c40" : "#ffffff",
+        hoverOffset: 4,
       },
     ],
   };
@@ -478,43 +499,50 @@ export default function DashboardPage() {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        labels: {
-          boxWidth: 10,
-          color: dark ? "#cbd5e1" : "#475569",
-        },
+        display: false,
       },
+      tooltip: commonTooltip,
     },
     scales: {
       x: {
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
+          color: dark ? "#94a3b8" : "#a1acb8",
+          font: { family: "'Public Sans', sans-serif" }
         },
         grid: {
           display: false,
         },
+        border: { display: false }
       },
       y: {
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
+          color: dark ? "#94a3b8" : "#a1acb8",
+          font: { family: "'Public Sans', sans-serif" }
         },
         grid: {
-          color: dark ? "#334155" : "#e2e8f0",
+          color: dark ? "#4e4f6e" : "#e5e7eb",
+          drawTicks: false,
         },
+        border: { display: false }
       },
     },
   };
 
-  const doughnutOptions = {
+  const doughnutOptions: ChartOptions<"doughnut"> = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: '75%',
     plugins: {
       legend: {
         position: "bottom" as const,
         labels: {
           boxWidth: 10,
           color: dark ? "#cbd5e1" : "#475569",
+          font: { family: "'Public Sans', sans-serif" },
+          padding: 20
         },
       },
+      tooltip: commonTooltip,
     },
   };
 
@@ -596,7 +624,7 @@ export default function DashboardPage() {
               <div
                 className={`h-[250px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
               >
-                <Bar data={salesTrendChartData} options={salesChartOptions} />
+                <Line data={salesTrendChartData} options={salesChartOptions} />
               </div>
             </div>
 

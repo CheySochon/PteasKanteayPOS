@@ -231,14 +231,14 @@ export default function OrdersPage() {
   useAutoDismiss(message, setMessage);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#111827]" : "bg-white";
-  const softSurface = dark ? "bg-[#0f172a]" : "bg-slate-50";
-  const borderCol = dark ? "border-slate-700/70" : "border-slate-200";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-900";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-[#c9d4ea]" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-[#a1acb8]" : "text-[#a1acb8]";
 
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm`;
-  const inputClass = `rounded-lg border ${borderCol} ${softSurface} ${textPrimary}`;
+  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
+  const inputClass = `rounded border ${borderCol} ${softSurface} ${textPrimary}`;
 
   useEffect(() => {
     getOrders()
@@ -406,9 +406,9 @@ export default function OrdersPage() {
           dark={dark}
         />
 
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
           {message && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+            <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
               {message}
             </div>
           )}
@@ -476,7 +476,7 @@ export default function OrdersPage() {
                 <div className="flex shrink-0 gap-2 pb-3">
                   <button
                     onClick={() => setShowFilters((value) => !value)}
-                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
+                    className={`inline-flex h-9 items-center gap-2 rounded border px-3 text-xs font-semibold ${
                       showFilters ||
                       statusFilter !== "all" ||
                       typeFilter !== "all" ||
@@ -492,7 +492,7 @@ export default function OrdersPage() {
                   <button
                     onClick={exportCsv}
                     disabled={filteredOrders.length === 0}
-                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${borderCol} ${softSurface} ${textPrimary}`}
+                    className={`inline-flex h-9 items-center gap-2 rounded border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${borderCol} ${softSurface} ${textPrimary}`}
                   >
                     <Download size={14} />
                     {t.export}
@@ -562,7 +562,7 @@ export default function OrdersPage() {
                 <div className="flex items-end">
                   <button
                     onClick={resetFilters}
-                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${borderCol} ${softSurface} ${textPrimary}`}
+                    className={`inline-flex h-10 items-center gap-2 rounded border px-3 text-xs font-semibold ${borderCol} ${softSurface} ${textPrimary}`}
                   >
                     <X size={14} />
                     {t.reset}
@@ -626,7 +626,7 @@ export default function OrdersPage() {
 
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex min-w-12 justify-center rounded-lg px-2 py-1 text-[11px] font-bold ${
+                              className={`inline-flex min-w-12 justify-center rounded px-2 py-1 text-[11px] font-bold ${
                                 tableLabel(order) === "WALK"
                                   ? dark
                                     ? "bg-slate-800 text-slate-300"
@@ -677,7 +677,7 @@ export default function OrdersPage() {
                                   current === order.id ? null : order.id,
                                 )
                               }
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded text-blue-600 hover:bg-blue-50"
                               aria-label="Open order actions"
                             >
                               <MoreVertical size={17} />
@@ -685,7 +685,7 @@ export default function OrdersPage() {
 
                             {openActionId === order.id && (
                               <div
-                                className={`absolute right-4 z-20 w-44 overflow-hidden rounded-xl border py-1 text-left shadow-lg ${
+                                className={`absolute right-4 z-20 w-44 overflow-hidden rounded border py-1 text-left shadow-lg ${
                                   dark
                                     ? "border-slate-700 bg-[#111827]"
                                     : "border-slate-200 bg-white"
@@ -708,7 +708,7 @@ export default function OrdersPage() {
                                     disabled={order.status === status}
                                     className={`block w-full px-3 py-2 text-left text-xs font-semibold capitalize ${
                                       order.status === status
-                                        ? "bg-blue-600 text-white"
+                                        ? "bg-[#696cff] text-white"
                                         : dark
                                           ? "text-slate-200 hover:bg-slate-800"
                                           : "text-slate-700 hover:bg-slate-50"
@@ -741,7 +741,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={currentPage === 1}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={16} />
@@ -751,9 +751,9 @@ export default function OrdersPage() {
                   <button
                     key={pageNumber}
                     onClick={() => setPage(pageNumber)}
-                    className={`h-8 w-8 rounded-lg text-xs font-semibold ${
+                    className={`h-8 w-8 rounded text-xs font-semibold ${
                       currentPage === pageNumber
-                        ? "bg-blue-600 text-white"
+                        ? "bg-[#696cff] text-white"
                         : `${borderCol} ${softSurface} ${textSecondary} border hover:text-blue-600`
                     }`}
                   >
@@ -764,7 +764,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                   disabled={currentPage === totalPages}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
                   aria-label="Next page"
                 >
                   <ChevronRight size={16} />
@@ -793,7 +793,7 @@ export default function OrdersPage() {
               <div className="space-y-2">
                 {orders.filter((o) => o.status === "preparing").length === 0 ? (
                   <div
-                    className={`rounded-lg border px-3 py-6 text-center text-xs ${borderCol} ${softSurface} ${textSecondary}`}
+                    className={`rounded border px-3 py-6 text-center text-xs ${borderCol} ${softSurface} ${textSecondary}`}
                   >
                     {t.noUrgent}
                   </div>
@@ -804,7 +804,7 @@ export default function OrdersPage() {
                     .map((order) => (
                       <div
                         key={order.id}
-                        className={`flex items-center justify-between rounded-lg border px-3 py-3 ${borderCol} ${softSurface}`}
+                        className={`flex items-center justify-between rounded border px-3 py-3 ${borderCol} ${softSurface}`}
                       >
                         <div>
                           <div className={`text-sm font-semibold ${textPrimary}`}>
@@ -815,7 +815,7 @@ export default function OrdersPage() {
                           </div>
                         </div>
 
-                        <button className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600">
+                        <button className="rounded bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600">
                           {t.expedite}
                         </button>
                       </div>
@@ -833,12 +833,12 @@ export default function OrdersPage() {
               </p>
 
               <div
-                className={`mt-4 flex h-28 items-end justify-between gap-2 rounded-xl border px-4 py-3 ${borderCol} ${softSurface}`}
+                className={`mt-4 flex h-28 items-end justify-between gap-2 rounded border px-4 py-3 ${borderCol} ${softSurface}`}
               >
                 {[...Array(5)].map((_, i) => (
                   <div
                     key={i}
-                    className="w-7 rounded-t-md bg-blue-600"
+                    className="w-7 rounded-t-md bg-[#696cff]"
                     style={{ height: `${32 + i * 12}px` }}
                   />
                 ))}
@@ -872,15 +872,15 @@ function SummaryCard({
   liveLabel: string;
 }) {
   const tones = {
-    blue: "bg-blue-100 text-blue-700",
-    green: "bg-emerald-100 text-emerald-700",
-    red: "bg-red-100 text-red-700",
-    purple: "bg-purple-100 text-purple-700",
+    blue: "bg-[#e7e7ff] text-[#696cff]",
+    green: "bg-[#e8fadf] text-[#71dd37]",
+    red: "bg-[#ffe0db] text-[#ff3e1d]",
+    purple: "bg-[#f2e7ff] text-[#8553f4]",
   };
 
   return (
     <div
-      className={`rounded-xl border p-4 shadow-sm ${
+      className={`rounded border p-4 shadow-sm ${
         dark ? "border-slate-700/70 bg-[#111827]" : "border-slate-200 bg-white"
       }`}
     >

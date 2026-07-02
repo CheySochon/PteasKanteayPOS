@@ -48,7 +48,6 @@ const NAV_OVERVIEW = [
   { label: "POS", href: "/pos", icon: PosIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
   { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
-  { label: "Inventory", href: "/admin/inventory", icon: InventoryIcon, badge: undefined },
   { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
 ];
@@ -153,6 +152,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const prevPathnameRef = useRef(pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getSavedSidebarCollapsed(collapsed));
   const [contentMounted, setContentMounted] = useState(() => !getSavedSidebarCollapsed(collapsed));
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
@@ -256,6 +256,44 @@ export default function Sidebar({
   }, []);
 
   useEffect(() => {
+    const prevPathname = prevPathnameRef.current;
+    prevPathnameRef.current = pathname;
+
+    // 1. Sync Menu list expansion state only when navigating from outside to inside Menu
+    const wasOutsideMenu = !prevPathname.startsWith("/admin/menu");
+    const isInsideMenu = pathname.startsWith("/admin/menu");
+
+    if (isInsideMenu && wasOutsideMenu) {
+      setMenuOpen(true);
+    } else if (!isInsideMenu) {
+      setMenuOpen(false);
+    }
+
+    // 2. Sync Active Nav highlight state
+    if (pathname.startsWith("/admin/menu")) {
+      setActiveNav("Menu");
+    } else if (pathname === "/admin") {
+      setActiveNav("Dashboard");
+    } else if (pathname.startsWith("/admin/orders")) {
+      setActiveNav("Orders");
+    } else if (pathname.startsWith("/admin/inventory")) {
+      setActiveNav("Inventory");
+    } else if (pathname.startsWith("/admin/reports")) {
+      setActiveNav("Reports");
+    } else if (pathname.startsWith("/admin/tables")) {
+      setActiveNav("Tables");
+    } else if (pathname.startsWith("/admin/users")) {
+      setActiveNav("Users");
+    } else if (pathname.startsWith("/admin/permissions")) {
+      setActiveNav("Permissions");
+    } else if (pathname.startsWith("/admin/settings")) {
+      setActiveNav("Settings");
+    } else if (pathname.startsWith("/pos")) {
+      setActiveNav("POS");
+    }
+  }, [pathname, setActiveNav]);
+
+  useEffect(() => {
     let mounted = true;
 
     getSettings()
@@ -295,7 +333,7 @@ export default function Sidebar({
   return (
     <>
     <aside
-      className={`${widthClass} fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-30 shrink-0`}
+      className={`${widthClass} fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-30 shrink-0 transition-all duration-[300ms] ease-in-out`}
     >
       {/* Logo */}
       <div
@@ -395,28 +433,40 @@ export default function Sidebar({
                 }
               />
 
-              {isMenu && menuExpanded && (
-                <div className={`relative mb-2 ml-[18px] mt-1 space-y-1 border-l pl-4 ${dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"}`}>
-                  {MENU_CHILDREN.map((child) => (
-                    <MenuSubNavItem
-                      key={child.key}
-                      href={child.href}
-                      label={child.label}
-                      active={activeMenuChild === child.key}
-                      dark={dark}
-                      isKhmer={language === "km"}
-                      icon={<child.icon size={14} strokeWidth={1.9} />}
-                      onClick={() => {
-                        setActiveNav("Menu");
-                        setMenuView(child.key);
-                        window.dispatchEvent(
-                          new CustomEvent("pos-menu-view-change", {
-                            detail: child.key,
-                          }),
-                        );
-                      }}
-                    />
-                  ))}
+              {isMenu && (
+                <div
+                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
+                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
+                  }`}
+                  style={{
+                    maxHeight: menuExpanded ? "120px" : "0px",
+                    opacity: menuExpanded ? 1 : 0,
+                    marginTop: menuExpanded ? "4px" : "0px",
+                    marginBottom: menuExpanded ? "8px" : "0px",
+                  }}
+                >
+                  <div className="space-y-1 py-1">
+                    {MENU_CHILDREN.map((child) => (
+                      <MenuSubNavItem
+                        key={child.key}
+                        href={child.href}
+                        label={child.label}
+                        active={activeMenuChild === child.key}
+                        dark={dark}
+                        isKhmer={language === "km"}
+                        icon={<child.icon size={14} strokeWidth={1.9} />}
+                        onClick={() => {
+                          setActiveNav("Menu");
+                          setMenuView(child.key);
+                          window.dispatchEvent(
+                            new CustomEvent("pos-menu-view-change", {
+                              detail: child.key,
+                            }),
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -524,7 +574,7 @@ export default function Sidebar({
         </button>
       </div>
     </aside>
-    <div className={`${widthClass} h-screen shrink-0`} aria-hidden="true" />
+    <div className={`${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
     </>
   );
 }

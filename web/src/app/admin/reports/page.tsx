@@ -548,7 +548,7 @@ export default function ReportsPage() {
           </div>
         </header>
 
-        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
               {error}
@@ -946,6 +946,19 @@ export default function ReportsPage() {
             © {now.getFullYear()} {t.footer}
           </footer>
         </div>
+
+        <style>{`
+          @keyframes usersPageIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
     </main>
   );
 }

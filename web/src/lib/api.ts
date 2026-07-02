@@ -78,7 +78,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       if ("errors" in payload && typeof payload.errors === "object" && payload.errors) {
         const rawErrors = (payload.errors as any).properties || payload.errors;
         const details = Object.entries(rawErrors)
-          .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(", ") : String(errs)}`)
+          .map(([field, errs]) => {
+            if (Array.isArray(errs)) return `${field}: ${errs.join(", ")}`;
+            if (typeof errs === "object" && errs !== null) return `${field}: ${JSON.stringify(errs)}`;
+            return `${field}: ${String(errs)}`;
+          })
           .join(" | ");
         message = `Validation failed — ${details}`;
       } else if ("message" in payload) {

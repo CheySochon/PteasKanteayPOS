@@ -131,11 +131,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, protectedRoute, router]);
 
-  if (protectedRoute && (denied || authorizedPath !== pathname)) {
+  const hasToken = typeof window !== "undefined" && !!localStorage.getItem("pos_token");
+
+  if (protectedRoute && !hasToken) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-500 shadow-sm">
-          {denied ? "Redirecting to an allowed page..." : "Checking session..."}
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
+        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
+          Checking session...
+        </div>
+      </main>
+    );
+  }
+
+  if (protectedRoute && denied) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
+        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
+          Redirecting to an allowed page...
         </div>
       </main>
     );

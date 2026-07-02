@@ -13,6 +13,8 @@ import {
   Trash2,
   UsersRound,
   X,
+  Store,
+  Loader2,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import {
@@ -54,38 +56,38 @@ const tableStateStyles: Record<
   { border: string; bg: string; badge: string; dot: string; label: string }
 > = {
   available: {
-    border: "border-[#10B981]",
+    border: "border-[#71dd37]/30 hover:border-[#71dd37]",
     bg: "bg-white",
-    badge: "bg-[#D1FAE5] text-[#047857]",
-    dot: "bg-[#10B981]",
+    badge: "bg-[#e8fadf] text-[#71dd37]",
+    dot: "bg-[#71dd37]",
     label: "Available",
   },
   occupied: {
-    border: "border-[#2563EB]",
+    border: "border-[#696cff]/30 hover:border-[#696cff]",
     bg: "bg-white",
-    badge: "bg-[#DBEAFE] text-[#1D4ED8]",
-    dot: "bg-[#2563EB]",
+    badge: "bg-[#e7e7ff] text-[#696cff]",
+    dot: "bg-[#696cff]",
     label: "Occupied",
   },
   dirty: {
-    border: "border-[#F59E0B]",
-    bg: "bg-[#FFF7ED]",
-    badge: "bg-[#FEF3C7] text-[#B45309]",
-    dot: "bg-[#F59E0B]",
-    label: "Dirty",
+    border: "border-[#ff3e1d]/30 hover:border-[#ff3e1d]",
+    bg: "bg-[#ffe5e5]/10",
+    badge: "bg-[#ffe5e5] text-[#ff3e1d]",
+    dot: "bg-[#ff3e1d]",
+    label: "Served / Dirty",
   },
   reserved: {
-    border: "border-[#94A3B8]",
+    border: "border-[#ffab00]/30 hover:border-[#ffab00]",
     bg: "bg-white",
-    badge: "bg-slate-200 text-slate-600",
-    dot: "bg-[#94A3B8]",
+    badge: "bg-[#fff2d6] text-[#ffab00]",
+    dot: "bg-[#ffab00]",
     label: "Reserved",
   },
   inactive: {
-    border: "border-slate-300",
-    bg: "bg-slate-100",
-    badge: "bg-slate-200 text-slate-500",
-    dot: "bg-slate-400",
+    border: "border-[#8592a3]/30",
+    bg: "bg-[#eceef1]/10",
+    badge: "bg-[#eceef1] text-[#8592a3]",
+    dot: "bg-[#8592a3]",
     label: "Inactive",
   },
 };
@@ -132,10 +134,11 @@ export default function TablesPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const dark = theme === "dark";
-  const surface = dark ? "bg-[#171a23]" : "bg-white";
-  const borderCol = dark ? "border-[#2a2f3d]" : "border-[#E6EAF0]";
-  const textPrimary = dark ? "text-slate-100" : "text-[#111827]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#64748B]";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
 
   async function load() {
     setMessage("");
@@ -327,20 +330,23 @@ export default function TablesPage() {
     [latestOrderByTable, tables]
   );
 
-  const recentActivity = liveOrders.slice(0, 4);
 
   return (
     <>
       <main className="flex-1 overflow-y-auto">
-        <div className="grid min-h-full grid-cols-1 xl:grid-cols-[1fr_310px]">
+        <div className="grid min-h-full grid-cols-1 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
           <section className="px-6 py-6 lg:px-8">
             <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <h1 className={`text-3xl font-black tracking-tight ${textPrimary}`}>
-                  Main Dining Floor
+                <div className="mb-2 inline-flex items-center gap-2 rounded bg-[#e7e7ff] px-3 py-1 text-xs font-bold text-[#696cff]">
+                  <Store size={14} />
+                  Main Floor Layout
+                </div>
+                <h1 className={`text-3xl font-bold tracking-tight ${textPrimary}`}>
+                  Floor Dining Tables
                 </h1>
                 <p className={`mt-1 text-sm ${textSecondary}`}>
-                  Live occupancy from table orders and kitchen status
+                  Real-time occupancy status from orders and KDS updates
                 </p>
               </div>
 
@@ -348,29 +354,30 @@ export default function TablesPage() {
                 <button
                   type="button"
                   onClick={openCreateTableModal}
-                  className="flex h-10 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 text-xs font-black text-white hover:bg-[#1D4ED8]"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                 >
                   <Plus size={15} />
                   Add Table
                 </button>
 
-                <div className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-xs font-bold ${surface} ${borderCol} ${textSecondary}`}>
-                  <span>{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Connecting..."}</span>
+                <div className={`flex items-center gap-3 rounded border px-3 py-2 text-xs font-semibold ${surface} ${borderCol} ${textSecondary}`}>
+                  <span>{lastUpdated ? `Sync ${lastUpdated.toLocaleTimeString()}` : "Connecting..."}</span>
                   <button
                     type="button"
                     onClick={load}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2563EB] text-white"
+                    className="flex h-8 w-8 items-center justify-center rounded bg-[#696cff] text-white active:scale-90 transition-all shadow-sm"
                     title="Refresh tables"
                   >
-                    <RefreshCw size={15} />
+                    <RefreshCw size={14} />
                   </button>
                 </div>
               </div>
             </div>
 
+            {/* State Badges Row */}
             <div className="mb-7 flex flex-wrap items-center gap-5">
-              {(["available", "occupied", "dirty", "reserved"] as const).map((state) => (
-                <div key={state} className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+              {(["available", "occupied", "dirty", "reserved", "inactive"] as const).map((state) => (
+                <div key={state} className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#8592a3]">
                   <span className={`h-2.5 w-2.5 rounded-full ${tableStateStyles[state].dot}`} />
                   {tableStateStyles[state].label}
                 </div>
@@ -378,18 +385,20 @@ export default function TablesPage() {
             </div>
 
             {message && (
-              <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+              <div className="mb-5 rounded border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                 {message}
               </div>
             )}
 
             {loading ? (
-              <div className={`rounded-2xl border p-12 text-center text-sm ${borderCol} ${textSecondary}`}>
-                Loading live tables...
+              <div className={`rounded border p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
+                <Loader2 className="mx-auto mb-3 animate-spin text-[#696cff]" size={28} />
+                Loading live floor plan...
               </div>
             ) : tables.length === 0 ? (
-              <div className={`rounded-2xl border border-dashed p-12 text-center text-sm ${borderCol} ${textSecondary}`}>
-                No tables found
+              <div className={`rounded border border-dashed p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
+                <Armchair size={32} className="mx-auto mb-3 text-slate-300" />
+                No dining tables configured on the floor layout.
               </div>
             ) : (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
@@ -399,106 +408,112 @@ export default function TablesPage() {
                   return (
                     <div
                       key={table.id}
-                      className={`min-h-[196px] rounded-2xl border-2 p-5 shadow-sm transition-colors ${styles.border} ${styles.bg}`}
+                      className={`min-h-[200px] rounded border-2 p-5 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 ease-out flex flex-col justify-between ${styles.border} ${styles.bg}`}
                     >
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-black uppercase text-slate-400">Table</div>
-                          <div className={`text-2xl font-black leading-none ${state === "inactive" ? "text-slate-500" : "text-[#111827]"}`}>
-                            {table.name}
+                      <div>
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">Table</div>
+                            <div className={`text-2xl font-bold leading-none ${state === "inactive" ? "text-slate-400" : "text-[#566a7f]"}`}>
+                              {table.name}
+                            </div>
                           </div>
+
+                          <span className={`rounded px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${styles.badge}`}>
+                            {styles.label}
+                          </span>
                         </div>
 
-                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${styles.badge}`}>
-                          {styles.label}
-                        </span>
+                        {/* Specs Grid */}
+                        <div className="space-y-2 text-xs font-semibold">
+                          <div className="flex items-center gap-2 text-[#8592a3]">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f9] text-[#566a7f]">
+                              <UsersRound size={11} />
+                            </span>
+                            <span>{table.capacity} guests</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[#8592a3]">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f9] text-[#566a7f]">
+                              <MapPin size={11} />
+                            </span>
+                            <span className="capitalize">{table.zone}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[#8592a3]">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f9] text-[#566a7f]">
+                              <QrCode size={11} />
+                            </span>
+                            <span className="truncate max-w-[120px]">
+                              {table.qrToken ? `/qr/${table.qrToken}` : "No QR"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
-                            <UsersRound size={12} />
-                          </span>
-                          <span>{table.capacity} guests</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
-                            <MapPin size={12} />
-                          </span>
-                          <span className="capitalize">{table.zone}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 text-slate-500">
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100">
-                            <QrCode size={12} />
-                          </span>
-                          <span className="truncate">
-                            {table.qrToken ? `/qr/${table.qrToken}` : "No QR token"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {order ? (
-                        <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-black text-slate-700">{order.orderNumber || order.orderId}</span>
-                            <span className="capitalize">{order.status}</span>
+                      {/* Lower Area (Orders / Actions) */}
+                      <div>
+                        {order ? (
+                          <div className="mt-4 rounded bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-bold text-[#696cff]">{order.orderNumber || order.orderId}</span>
+                              <span className="rounded bg-[#eceef1] px-1.5 py-0.5 text-[8px] font-bold uppercase">{order.status}</span>
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-[#a1acb8]">
+                              <Clock3 size={11} />
+                              <span>{waitMinutes(order)} min active</span>
+                            </div>
                           </div>
-                          <div className="mt-1 flex items-center gap-1">
-                            <Clock3 size={12} />
-                            {waitMinutes(order)} min
+                        ) : (
+                          <div className="mt-5 flex items-center justify-center">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#eceef1] text-[#eceef1]">
+                              <Armchair size={15} />
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="mt-5 flex items-center justify-center">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-200 text-slate-300">
-                            <Armchair size={19} />
-                          </div>
-                        </div>
-                      )}
+                        )}
 
-                      {state === "dirty" && order && (
-                        <button
-                          type="button"
-                          onClick={() => clearTable(order)}
-                          className="mt-4 w-full rounded-lg bg-[#F59E0B] px-4 py-2 text-xs font-black text-white"
-                        >
-                          Clear Table
-                        </button>
-                      )}
-
-                      <div className="mt-4 flex gap-2">
-                        {table.qrToken && (
+                        {state === "dirty" && order && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setQrImageFailed(false);
-                              setQrTable(table);
-                            }}
-                            className="flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 hover:border-emerald-200 hover:text-emerald-600"
-                            title="Show QR code"
+                            onClick={() => clearTable(order)}
+                            className="mt-4 w-full rounded bg-[#ffab00] hover:bg-[#e09600] px-4 py-2 text-xs font-bold text-white shadow-sm shadow-[#ffab00]/10 transition-all active:scale-95"
                           >
-                            <QrCode size={14} />
-                            QR
+                            Clear & Prepare Table
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => editTable(table)}
-                          className="flex h-9 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-600 hover:border-blue-200 hover:text-blue-600"
-                        >
-                          <Pencil size={14} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeTable(table)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-red-200 hover:text-red-600"
-                          title="Delete table"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+
+                        <div className="mt-4 flex gap-2">
+                          {table.qrToken && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQrImageFailed(false);
+                                setQrTable(table);
+                              }}
+                              className="flex h-9 items-center justify-center gap-2 rounded border border-[#d9dee3] bg-white px-3 text-xs font-bold text-[#8592a3] hover:border-[#71dd37] hover:text-[#71dd37] hover:bg-[#e8fadf]/10 transition-all"
+                              title="Show QR code"
+                            >
+                              <QrCode size={13} />
+                              QR
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => editTable(table)}
+                            className="flex h-9 flex-1 items-center justify-center gap-2 rounded border border-[#d9dee3] bg-white text-xs font-bold text-[#8592a3] hover:border-[#696cff] hover:text-[#696cff] hover:bg-[#e7e7ff]/10 transition-all"
+                          >
+                            <Pencil size={13} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeTable(table)}
+                            className="flex h-9 w-9 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#ff3e1d] hover:bg-[#ffe5e5] transition-all"
+                            title="Delete table"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -507,68 +522,27 @@ export default function TablesPage() {
             )}
           </section>
 
-          <aside className={`border-l px-6 py-6 ${borderCol} ${dark ? "bg-[#11141c]" : "bg-[#F4F6FA]"}`}>
-            <div className={`mb-5 rounded-2xl border p-4 ${surface} ${borderCol}`}>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                Table Setup
-              </p>
-              <p className={`mt-2 text-sm ${textSecondary}`}>
-                Add a new table or use Edit on any table card to update its details.
-              </p>
-              <button
-                type="button"
-                onClick={openCreateTableModal}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 py-3 text-xs font-black text-white hover:bg-[#1D4ED8]"
-              >
-                <Plus size={15} />
-                Add Table
-              </button>
-            </div>
 
-            <div className={`my-6 h-px ${dark ? "bg-[#2a2f3d]" : "bg-slate-200"}`} />
-
-            <div>
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                Live Activity
-              </p>
-
-              <div className="space-y-4">
-                {recentActivity.length === 0 ? (
-                  <div className={`rounded-xl border border-dashed p-4 text-xs ${borderCol} ${textSecondary}`}>
-                    No live table activity yet
-                  </div>
-                ) : (
-                  recentActivity.map((order) => (
-                    <ActivityItem
-                      key={order.id}
-                      color={order.status === "served" ? "bg-[#FEF3C7]" : "bg-[#DBEAFE]"}
-                      title={`${order.tableNo || order.table?.name || "Walk-in"} ${order.status}`}
-                      time={`${waitMinutes(order)} min ago`}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </aside>
         </div>
       </main>
 
+      {/* CREATE / EDIT TABLE MODAL */}
       {isTableModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
             aria-label="Close table dialog"
             onClick={closeTableModal}
-            className="absolute inset-0 bg-slate-950/30 animate-[tableModalBackdrop_180ms_ease-out]"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-[tableModalBackdrop_180ms_ease-out]"
           />
 
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-lg overflow-y-auto rounded-2xl border p-5 shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded border p-5 shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                  {tableForm.id ? "Edit Table" : "Create Table"}
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">
+                  {tableForm.id ? "Edit Configuration" : "Create Table"}
                 </p>
-                <h2 className={`mt-1 text-xl font-black ${textPrimary}`}>
+                <h2 className={`mt-0.5 text-lg font-bold ${textPrimary}`}>
                   {tableForm.id ? tableForm.name : "Add New Table"}
                 </h2>
               </div>
@@ -576,71 +550,71 @@ export default function TablesPage() {
               <button
                 type="button"
                 onClick={closeTableModal}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                className="flex h-8 w-8 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:bg-[#f5f5f9] transition-all"
                 title="Close"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             <form onSubmit={submit} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-1.5">
-                  <span className="text-[11px] font-black uppercase text-slate-400">Table Name</span>
+              <div className="grid gap-4 grid-cols-2">
+                <label className="space-y-1 block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Table Name</span>
                   <input
                     required
                     value={tableForm.name}
                     onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="T5"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                    placeholder="T-5"
+                    className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
                   />
                 </label>
 
-                <label className="space-y-1.5">
-                  <span className="text-[11px] font-black uppercase text-slate-400">Capacity</span>
+                <label className="space-y-1 block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Capacity</span>
                   <input
                     type="number"
                     min={1}
                     value={tableForm.capacity}
                     onChange={(event) => setTableForm((current) => ({ ...current, capacity: event.target.value }))}
                     placeholder="2"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                    className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
                   />
                 </label>
               </div>
 
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-black uppercase text-slate-400">Zone</span>
+              <label className="space-y-1 block">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Zone</span>
                 <select
                   value={tableForm.zone}
                   onChange={(event) =>
                     setTableForm((current) => ({ ...current, zone: event.target.value as TableZone }))
                   }
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                  className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
                 >
                   <option value="indoor">Indoor</option>
                   <option value="outdoor">Outdoor</option>
-                  <option value="vip">VIP</option>
+                  <option value="vip">VIP Area</option>
                 </select>
               </label>
 
-              <label className="space-y-1.5">
-                <span className="text-[11px] font-black uppercase text-slate-400">QR Token</span>
+              <label className="space-y-1 block">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">QR Token</span>
                 <input
                   value={tableForm.qrToken}
                   onChange={(event) => setTableForm((current) => ({ ...current, qrToken: event.target.value }))}
-                  placeholder="Optional, e.g. table-t-5"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                  placeholder="Optional, e.g. table-t5"
+                  className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
                 />
               </label>
 
-              <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 text-sm text-slate-600 ring-1 ring-slate-200">
-                <span className="font-bold">Active table</span>
+              <label className="flex items-center justify-between rounded border border-[#e5e7eb] bg-[#f5f5f9]/60 px-3 py-2 text-xs font-semibold text-[#8592a3]">
+                <span>Enable Guest Ordering</span>
                 <input
                   type="checkbox"
                   checked={tableForm.isActive}
                   onChange={(event) => setTableForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-5 w-5 accent-blue-600"
+                  className="h-4.5 w-4.5 accent-[#696cff] cursor-pointer"
                 />
               </label>
 
@@ -648,13 +622,13 @@ export default function TablesPage() {
                 <button
                   type="button"
                   onClick={closeTableModal}
-                  className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-500 hover:bg-slate-50"
+                  className="h-10 flex-1 rounded border border-[#d9dee3] bg-white px-4 text-xs font-semibold text-[#8592a3] hover:bg-[#f5f5f9] transition-all"
                 >
                   Cancel
                 </button>
-                <button className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 text-xs font-black text-white hover:bg-[#1D4ED8]">
-                  {tableForm.id ? <Save size={15} /> : <Plus size={15} />}
-                  {tableForm.id ? "Update Table" : "Save Table"}
+                <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all">
+                  {tableForm.id ? <Save size={14} /> : <Plus size={14} />}
+                  {tableForm.id ? "Update Setup" : "Save Table"}
                 </button>
               </div>
             </form>
@@ -662,40 +636,41 @@ export default function TablesPage() {
         </div>
       )}
 
+      {/* QR CODE PREVIEW DIALOG */}
       {qrTable && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
             aria-label="Close QR dialog"
             onClick={() => setQrTable(null)}
-            className="absolute inset-0 bg-slate-950/30 animate-[tableModalBackdrop_180ms_ease-out]"
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-[tableModalBackdrop_180ms_ease-out]"
           />
 
-          <div className={`relative w-full max-w-sm rounded-2xl border p-5 text-center shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+          <div className={`relative w-full max-w-sm rounded border p-5 text-center shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
             <button
               type="button"
               onClick={() => setQrTable(null)}
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:bg-[#f5f5f9] transition-all"
               title="Close"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
 
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-              <QrCode size={21} />
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded bg-[#e8fadf] text-[#71dd37]">
+              <QrCode size={22} />
             </div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">QR Demo</p>
-            <h2 className={`mt-1 text-xl font-black ${textPrimary}`}>{qrTable.name}</h2>
-            <p className={`mt-1 text-xs ${textSecondary}`}>Scan to open the public customer ordering page.</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">QR Codes</p>
+            <h2 className={`mt-0.5 text-lg font-bold ${textPrimary}`}>{qrTable.name}</h2>
+            <p className={`mt-1 text-xs ${textSecondary}`}>Scan this QR code to access tableside mobile menus.</p>
 
-            <div className="mx-auto my-5 flex w-fit rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="mx-auto my-5 flex w-fit rounded border border-[#e5e7eb] bg-white p-3 shadow-sm">
               {qrImageFailed ? (
-                <div className="flex h-56 w-56 flex-col items-center justify-center gap-3 rounded-xl bg-slate-50 px-4 text-center">
-                  <QrCode size={34} className="text-slate-300" />
+                <div className="flex h-52 w-52 flex-col items-center justify-center gap-3 rounded bg-[#f5f5f9] px-4 text-center">
+                  <QrCode size={32} className="text-[#a1acb8]" />
                   <div>
-                    <div className="text-sm font-black text-slate-700">QR image not loaded</div>
-                    <div className="mt-1 text-xs font-semibold text-slate-400">
-                      Restart backend, then try again.
+                    <div className="text-xs font-bold text-[#566a7f]">QR failed to generate</div>
+                    <div className="mt-1 text-[10px] text-[#a1acb8]">
+                      Verify database server link.
                     </div>
                   </div>
                 </div>
@@ -703,21 +678,21 @@ export default function TablesPage() {
                 <img
                   src={qrImageUrl(qrTable)}
                   alt={`QR code for ${qrTable.name}`}
-                  className="h-56 w-56"
+                  className="h-52 w-52"
                   onError={() => setQrImageFailed(true)}
                 />
               )}
             </div>
 
-            <div className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-left text-xs font-semibold text-slate-500">
-              <div className="truncate">{qrLink(qrTable)}</div>
+            <div className="mb-4 rounded bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-left text-xs font-semibold text-[#8592a3] border border-slate-100 select-all truncate">
+              {qrLink(qrTable)}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => void copyQrLink(qrTable)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600 hover:bg-slate-50"
+                className="h-10 rounded border border-[#d9dee3] bg-white px-4 text-xs font-bold text-[#8592a3] hover:bg-[#f5f5f9] transition-all"
               >
                 Copy Link
               </button>
@@ -725,7 +700,7 @@ export default function TablesPage() {
                 href={`/qr/${qrTable.qrToken}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-11 items-center justify-center rounded-xl bg-[#2563EB] px-4 text-xs font-black text-white hover:bg-[#1D4ED8]"
+                className="flex h-10 items-center justify-center rounded bg-[#696cff] px-4 text-xs font-bold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] transition-all"
               >
                 Open Demo
               </a>
@@ -750,30 +725,19 @@ export default function TablesPage() {
             transform: translateY(0) scale(1);
           }
         }
+
+        @keyframes usersPageIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
       `}</style>
     </>
   );
 }
 
-function ActivityItem({
-  color,
-  title,
-  time,
-}: {
-  color: string;
-  title: string;
-  time: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${color}`}>
-        <Clock3 size={14} className="text-slate-600" />
-      </div>
-
-      <div>
-        <div className="text-sm font-black text-slate-800">{title}</div>
-        <div className="text-xs text-slate-400">{time}</div>
-      </div>
-    </div>
-  );
-}
