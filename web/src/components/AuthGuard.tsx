@@ -23,6 +23,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const protectedRoute = useMemo(() => isProtectedPath(pathname), [pathname]);
   const [authorizedPath, setAuthorizedPath] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -131,7 +136,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, protectedRoute, router]);
 
-  const hasToken = typeof window !== "undefined" && !!localStorage.getItem("pos_token");
+  if (!mounted) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
+        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
+          Checking session...
+        </div>
+      </main>
+    );
+  }
+
+  const hasToken = !!localStorage.getItem("pos_token");
 
   if (protectedRoute && !hasToken) {
     return (

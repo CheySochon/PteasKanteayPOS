@@ -39,16 +39,16 @@ export const STAFF_PERMISSION_PAGES = [
 const routeRoles: { prefix: string; roles: AppRole[]; staffKey?: string }[] = [
   { prefix: "/admin/permissions", roles: ["Super Admin", "Admin"] },
   { prefix: "/admin/profile", roles: ["Super Admin", "Admin", "Cashier", "Staff"] },
-  { prefix: "/admin/users", roles: ["Super Admin", "Admin", "Staff"], staffKey: "users" },
-  { prefix: "/admin/settings", roles: ["Super Admin", "Admin", "Staff"], staffKey: "settings" },
+  { prefix: "/admin/users", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "users" },
+  { prefix: "/admin/settings", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "settings" },
   { prefix: "/admin/reports", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "reports" },
-  { prefix: "/admin/inventory", roles: ["Super Admin", "Admin", "Staff"], staffKey: "inventory" },
-  { prefix: "/admin/menu", roles: ["Super Admin", "Admin", "Staff"], staffKey: "menu" },
+  { prefix: "/admin/inventory", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "inventory" },
+  { prefix: "/admin/menu", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "menu" },
   { prefix: "/admin/tables", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "tables" },
   { prefix: "/admin/orders", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "orders" },
   { prefix: "/admin", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "dashboard" },
   { prefix: "/pos", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "pos" },
-  { prefix: "/kds", roles: ["Super Admin", "Admin", "Staff"], staffKey: "kds" },
+  { prefix: "/kds", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "kds" },
 ];
 
 export function roleName(user: UserLike | null | undefined): string {
@@ -131,16 +131,15 @@ export function permissionsForUser(
 export function canAccessPath(pathname: string, role: string, staffPermissions?: StaffPermissions | null) {
   if (role === "Super Admin" || role === "Admin") return true;
 
-  if (role === "Cashier" && (pathname === "/pos" || pathname.startsWith("/pos/"))) return true;
-  if (role === "Staff" && (pathname === "/kds" || pathname.startsWith("/kds/"))) return true;
-
   const rule = routeRoles
     .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
     .sort((a, b) => b.prefix.length - a.prefix.length)[0];
 
   if (!rule) return true;
-  if (["Cashier", "Staff"].includes(role) && rule.staffKey) {
-    return Boolean(normalizeStaffPermissions(staffPermissions)[rule.staffKey]);
+
+  if (["Cashier", "Staff", "Member"].includes(role) && rule.staffKey) {
+    const perms = normalizeStaffPermissions(staffPermissions);
+    return Boolean(perms[rule.staffKey]);
   }
 
   return rule.roles.includes(role as AppRole);
@@ -150,21 +149,20 @@ export function canSeeHref(href: string, role: string, staffPermissions?: StaffP
   return canAccessPath(href, role, staffPermissions);
 }
 
-export function fallbackPathForRole(role: string) {
+export function fallbackPathForRole(role: string, staffPermissions?: StaffPermissions | null) {
   if (["Super Admin", "Admin"].includes(role)) return "/admin";
-  if (role === "Cashier") return "/pos";
-  if (role === "Staff") return "/kds";
-  return "/login";
+  return firstAllowedPathForRole(role, staffPermissions);
 }
 
 export function firstAllowedPathForRole(role: string, staffPermissions?: StaffPermissions | null) {
   if (["Super Admin", "Admin"].includes(role)) return "/admin";
+
+  const perms = normalizeStaffPermissions(staffPermissions);
+  const allowedPage = STAFF_PERMISSION_PAGES.find((page) => perms[page.key] && canAccessPath(page.href, role, perms));
+
+  if (allowedPage) return allowedPage.href;
   if (role === "Cashier") return "/pos";
   if (role === "Staff") return "/kds";
-
-  if (["Cashier", "Staff"].includes(role)) {
-    return STAFF_PERMISSION_PAGES.find((page) => canAccessPath(page.href, role, staffPermissions))?.href || "/login";
-  }
 
   return "/login";
 }

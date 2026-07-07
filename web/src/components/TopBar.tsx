@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   Bell,
+  Search,
   Clock3,
   Grid2X2,
   Languages,
@@ -15,8 +16,11 @@ import {
   ShoppingBag,
   Utensils,
   UserRound,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { setAppLanguage } from "../lib/language";
+import { useAppTheme } from "../lib/theme";
 import { canSeeHref, normalizeStaffPermissions } from "../lib/permissions";
 import {
   getProfileImage,
@@ -125,6 +129,9 @@ export default function TopBar({
     getServerProfileVersionSnapshot
   );
 
+  const [appTheme, setAppTheme] = useAppTheme();
+  const isDark = appTheme === "dark";
+
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
@@ -177,18 +184,20 @@ export default function TopBar({
             </div>
           </div>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            {allowedQuickLinks.map(({ label, href, Icon }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm ${textPrimary} ${menuHover}`}
-              >
-                <Icon size={15} />
-                <span>{t.quickLinks[label as keyof typeof t.quickLinks] || label}</span>
-              </Link>
-            ))}
-          </nav>
+          <div className="hidden items-center gap-2 md:flex">
+            <div className="relative flex items-center">
+              <Search size={15} className="absolute left-3 text-[#a1acb8]" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className={`h-8.5 w-60 rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-[#a1acb8] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
+                  isDark
+                    ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
+                    : "border-slate-200/80 bg-[#f5f5f9] text-[#2c3e50]"
+                }`}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
@@ -245,6 +254,17 @@ export default function TopBar({
             title={t.fullscreen}
           >
             <Maximize size={16} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAppTheme(isDark ? "light" : "dark")}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover} transition-all duration-300 active:scale-75`}
+            title={isDark ? "Light Mode" : "Dark Mode"}
+          >
+            <span className="transition-transform duration-500 ease-out transform hover:rotate-[360deg] inline-flex">
+              {isDark ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} />}
+            </span>
           </button>
 
           <div ref={notificationsRef} className="relative">

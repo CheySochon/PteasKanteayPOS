@@ -6,7 +6,8 @@ export function getSocket() {
   if (typeof window === "undefined") return null;
 
   if (!socket) {
-    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000", {
+    const serverUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    socket = io(serverUrl, {
       transports: ["websocket", "polling"],
     });
   }

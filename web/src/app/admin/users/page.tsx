@@ -103,10 +103,10 @@ export default function UsersPage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
-  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
   useEffect(() => {
     let mounted = true;

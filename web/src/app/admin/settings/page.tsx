@@ -100,7 +100,7 @@ export default function SettingsPage() {
       ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
       : "border-[#d9dee3] bg-white text-[#566a7f]"
   }`;
-  const isSuperAdmin = storedUserRole().toLowerCase().replace(/[^a-z0-9]/g, "") === "superadmin";
+  const isSuperAdmin = ["superadmin", "admin"].includes(storedUserRole().toLowerCase().replace(/[^a-z0-9]/g, ""));
 
   useEffect(() => {
     getSettings()
@@ -581,13 +581,13 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <h2 className={`text-sm font-black ${textPrimary}`}>Backup & Restore</h2>
-                    <p className={`text-xs ${textSecondary}`}>Super Admin can export or restore POS data.</p>
+                    <p className={`text-xs ${textSecondary}`}>Admin or Super Admin can export or restore POS data.</p>
                   </div>
                 </div>
 
                 {!isSuperAdmin ? (
                   <div className={`rounded border p-4 text-sm ${borderCol} ${softSurface} ${textSecondary}`}>
-                    Login as Super Admin to manage backups.
+                    Login as Admin or Super Admin to manage backups.
                   </div>
                 ) : (
                   <div className="space-y-3">

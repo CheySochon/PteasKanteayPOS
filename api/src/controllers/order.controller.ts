@@ -31,6 +31,11 @@ export const get = asyncHandler(
 export const create = asyncHandler(
   async (req: Request<object, object, CreateOrderBody>, res: Response) => {
     const data = await createOrder(req.body, req.user?.userId);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("order:created", data);
+      io.emit("order:new", data);
+    }
     res.status(201).json({ success: true, message: "Order created", data });
   },
 );
@@ -41,6 +46,10 @@ export const updateStatus = asyncHandler(
     res: Response,
   ) => {
     const data = await updateOrderStatus(Number(req.params.id), req.body.status);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("order:updated", data);
+    }
     res.json({ success: true, message: "Order status updated", data });
   },
 );

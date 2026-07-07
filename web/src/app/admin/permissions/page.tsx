@@ -26,8 +26,10 @@ import {
   DollarSign,
   Calendar,
 } from "lucide-react";
+import TopBar from "../../../components/TopBar";
+import type { Language, NotificationItem } from "../../../components/TopBar";
 import { getSettings, getUsers, updateSettings } from "../../../lib/api";
-import { useAppLanguage } from "../../../lib/language";
+import { setAppLanguage, useAppLanguage } from "../../../lib/language";
 import { useAppTheme } from "../../../lib/theme";
 import {
   DEFAULT_STAFF_PERMISSIONS,
@@ -134,9 +136,23 @@ function getInitials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+const PAGE_ICONS: Record<string, typeof Home> = {
+  pos: DollarSign,
+  kds: Calendar,
+  orders: UtensilsCrossed,
+  menu: Sparkles,
+  inventory: Package,
+  tables: Tv,
+  dashboard: Home,
+  reports: BarChart3,
+  users: UserCog,
+  settings: Settings,
+};
+
 export default function PermissionsPage() {
   const language = useAppLanguage();
-  const t = TEXT[language];
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const t = TEXT[language || "en"];
   const [theme] = useAppTheme();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("defaults");
@@ -153,10 +169,10 @@ export default function PermissionsPage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
-  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
   const currentPermissions = useMemo(() => {
     const normalized = normalizePermissionSettings(permissionSettings);
@@ -344,19 +360,19 @@ export default function PermissionsPage() {
     return Object.values(currentPermissions).filter(Boolean).length;
   }, [currentPermissions]);
 
-  // Grouped pages definition for beautiful layout
+    // Ultra clean grouped pages definition
   const groupedCategories = useMemo(() => {
     return [
       {
-        title: "💻 POS & KDS Terminals",
+        title: "POS & Terminals",
         items: STAFF_PERMISSION_PAGES.filter((p) => ["pos", "kds"].includes(p.key)),
       },
       {
-        title: "🍔 Service & Stock",
+        title: "Operations & Service",
         items: STAFF_PERMISSION_PAGES.filter((p) => ["orders", "tables", "menu", "inventory"].includes(p.key)),
       },
       {
-        title: "📊 Management & Settings",
+        title: "System & Administration",
         items: STAFF_PERMISSION_PAGES.filter((p) => ["dashboard", "reports", "users", "settings"].includes(p.key)),
       },
     ];
@@ -385,29 +401,40 @@ export default function PermissionsPage() {
   }
 
   return (
-    <main className="flex-1 overflow-y-auto px-5 py-6 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-      <div className="mx-auto max-w-7xl">
-        {/* Header Section */}
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded bg-[#e7e7ff] px-3 py-1 text-xs font-bold text-[#696cff]">
-              <ShieldCheck size={14} />
-              {t.badge}
+    <main className="flex flex-1 flex-col overflow-hidden bg-[#f5f5f9] dark:bg-[#232333]">
+      <TopBar
+        title={t.title}
+        subtitle={t.subtitle}
+        language={language}
+        onLanguageChange={setAppLanguage}
+        notifications={notifications}
+        onClearNotifications={() => setNotifications([])}
+        dark={dark}
+      />
+      <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+        <div className="mx-auto max-w-7xl">
+          {/* Header Action Bar */}
+          <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-white dark:bg-[#2b2c40] p-4 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-slate-200/80 dark:border-[#4e4f6e]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <h1 className={`text-lg font-black ${textPrimary}`}>{t.title}</h1>
+                <p className={`text-xs ${textSecondary}`}>{t.subtitle}</p>
+              </div>
             </div>
-            <h1 className={`text-3xl font-bold tracking-tight ${textPrimary}`}>{t.title}</h1>
-            <p className={`mt-1 text-sm ${textSecondary}`}>{t.subtitle}</p>
-          </div>
 
-          <button
-            type="button"
-            onClick={savePermissions}
-            disabled={loading || saving}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
-          >
-            {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
-            {saving ? t.saving : t.save}
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={savePermissions}
+              disabled={loading || saving}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#696cff] px-6 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
+            >
+              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              {saving ? t.saving : t.save}
+            </button>
+          </div>
 
         {error && (
           <div className="mb-5 rounded border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
@@ -425,7 +452,7 @@ export default function PermissionsPage() {
         <section className="grid gap-6 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_260px]">
           
           {/* Column 1: Search & User Accounts */}
-          <div className={`rounded border p-4 shadow-sm flex flex-col h-[calc(100vh-210px)] ${surface} ${borderCol}`}>
+          <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] flex flex-col h-[calc(100vh-220px)] ${surface} ${borderCol}`}>
             <div className="mb-4 flex items-center gap-2 shrink-0">
               <div className="flex h-9 w-9 items-center justify-center rounded bg-[#e7e7ff] text-[#696cff]">
                 <Users size={18} />
@@ -453,7 +480,7 @@ export default function PermissionsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedUserId("defaults")}
-                className={`flex w-full items-center gap-3 rounded border p-2.5 text-left transition ${
+                className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
                   selectedUserId === "defaults"
                     ? "border-[#696cff] bg-[#696cff]/[0.08] text-[#696cff] font-semibold"
                     : `${borderCol} ${softSurface} ${textPrimary} hover:bg-[#eceef1]/40`
@@ -479,7 +506,7 @@ export default function PermissionsPage() {
                     key={user.id}
                     type="button"
                     onClick={() => setSelectedUserId(String(user.id))}
-                    className={`flex w-full items-center gap-3 rounded border p-2.5 text-left transition ${
+                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
                       active
                         ? "border-[#696cff] bg-[#696cff]/[0.08] text-[#696cff] font-semibold"
                         : `${borderCol} ${softSurface} ${textPrimary} hover:bg-[#eceef1]/40`
@@ -512,7 +539,7 @@ export default function PermissionsPage() {
           {/* Column 2: Presets & Grouped Permission Checklist */}
           <div className="space-y-5">
             {/* Presets Card */}
-            <div className={`rounded border p-4 shadow-sm ${surface} ${borderCol}`}>
+            <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] ${surface} ${borderCol}`}>
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles size={16} className="text-[#ffab00]" />
                 <h3 className={`text-xs font-bold uppercase tracking-wider ${textPrimary}`}>{t.presets}</h3>
@@ -521,28 +548,28 @@ export default function PermissionsPage() {
                 <button
                   type="button"
                   onClick={() => applyPreset("full")}
-                  className="px-3 py-2 rounded text-xs font-bold bg-[#696cff]/[0.08] text-[#696cff] hover:bg-[#696cff]/[0.15] border border-[#696cff]/20 transition-all text-center"
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#696cff]/[0.08] text-[#696cff] hover:bg-[#696cff]/[0.15] border border-[#696cff]/20 transition-all text-center"
                 >
                   {t.presetFull}
                 </button>
                 <button
                   type="button"
                   onClick={() => applyPreset("cashier")}
-                  className="px-3 py-2 rounded text-xs font-bold bg-[#e8fadf] text-[#71dd37] hover:bg-[#e8fadf]/130 border border-[#71dd37]/20 transition-all text-center"
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#e8fadf] text-[#71dd37] hover:bg-[#e8fadf]/130 border border-[#71dd37]/20 transition-all text-center"
                 >
                   {t.presetCashier}
                 </button>
                 <button
                   type="button"
                   onClick={() => applyPreset("staff")}
-                  className="px-3 py-2 rounded text-xs font-bold bg-[#d7f5fc] text-[#03c3ec] hover:bg-[#d7f5fc]/130 border border-[#03c3ec]/20 transition-all text-center"
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#d7f5fc] text-[#03c3ec] hover:bg-[#d7f5fc]/130 border border-[#03c3ec]/20 transition-all text-center"
                 >
                   {t.presetKitchen}
                 </button>
                 <button
                   type="button"
                   onClick={() => applyPreset("none")}
-                  className="px-3 py-2 rounded text-xs font-bold bg-[#ffe5e5] text-[#ff3e1d] hover:bg-[#ffe5e5]/130 border border-[#ff3e1d]/20 transition-all text-center"
+                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#ffe5e5] text-[#ff3e1d] hover:bg-[#ffe5e5]/130 border border-[#ff3e1d]/20 transition-all text-center"
                 >
                   {t.presetNone}
                 </button>
@@ -550,7 +577,7 @@ export default function PermissionsPage() {
             </div>
 
             {/* Permission Options List */}
-            <div className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
+            <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] ${surface} ${borderCol}`}>
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b pb-4 border-[#e5e7eb]/60">
                 <div>
                   <div className="mb-2 inline-flex items-center gap-2 rounded bg-[#eceef1] px-3 py-0.5 text-xs font-semibold text-[#8592a3]">
@@ -577,44 +604,70 @@ export default function PermissionsPage() {
                 )}
               </div>
 
-              {/* Grouped sections */}
+              {/* Ultra Clean List Sections */}
               <div className="space-y-6">
                 {groupedCategories.map((category, catIndex) => (
-                  <div key={catIndex} className="space-y-3">
-                    <h3 className="text-xs font-bold text-[#8592a3] uppercase tracking-wider pl-1">{category.title}</h3>
+                  <div key={catIndex} className="space-y-2">
+                    <div className="flex items-center justify-between px-1 pb-1">
+                      <h3 className="text-[11px] font-black uppercase tracking-wider text-[#8592a3]">{category.title}</h3>
+                      <span className="text-[10px] font-bold text-[#a1acb8]">
+                        {category.items.filter((p) => currentPermissions[p.key]).length}/{category.items.length} Allowed
+                      </span>
+                    </div>
                     
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="divide-y divide-slate-100 dark:divide-[#34355a] rounded-xl border border-slate-200/70 dark:border-[#4e4f6e] overflow-hidden bg-white dark:bg-[#2b2c40]">
                       {category.items.map((page) => {
                         const isGranted = Boolean(currentPermissions[page.key]);
+                        const PageIcon = PAGE_ICONS[page.key] || ShieldCheck;
 
                         return (
-                          <label
+                          <div
                             key={page.key}
-                            className={`flex cursor-pointer items-center justify-between rounded border p-3.5 transition-all ${
-                              isGranted
-                                ? "border-[#696cff]/30 bg-[#696cff]/[0.02] hover:border-[#696cff]"
-                                : "border-[#e5e7eb] bg-transparent hover:border-slate-300"
-                            }`}
+                            onClick={() => updatePermission(page.key, !isGranted)}
+                            className="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-slate-50/80 dark:hover:bg-[#34355a]/50 transition-all duration-150"
                           >
-                            <div className="min-w-0 pr-2">
-                              <span className={`block text-xs font-bold ${textPrimary}`}>{page.label}</span>
-                              <span className="block text-[9.5px] text-[#a1acb8] font-semibold mt-0.5 truncate">{page.href}</span>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                                  isGranted
+                                    ? "bg-[#696cff]/10 text-[#696cff]"
+                                    : "bg-slate-100 text-[#a1acb8] dark:bg-[#3a3b53]"
+                                }`}
+                              >
+                                <PageIcon size={17} />
+                              </div>
+                              <span className={`text-xs font-bold truncate ${textPrimary}`}>{page.label}</span>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => updatePermission(page.key, !isGranted)}
-                              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                                isGranted ? "bg-[#696cff]" : "bg-slate-200"
-                              }`}
-                            >
+                            <div className="flex items-center gap-4">
                               <span
-                                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                                  isGranted ? "translate-x-5.5" : "translate-x-0.5"
+                                className={`hidden sm:inline-block rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
+                                  isGranted
+                                    ? "bg-[#71dd37]/10 text-[#71dd37]"
+                                    : "bg-slate-100 text-[#a1acb8] dark:bg-[#3a3b53]"
                                 }`}
-                              />
-                            </button>
-                          </label>
+                              >
+                                {isGranted ? "Allowed" : "Blocked"}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updatePermission(page.key, !isGranted);
+                                }}
+                                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                                  isGranted ? "bg-[#696cff]" : "bg-slate-200 dark:bg-[#4e4f6e]"
+                                }`}
+                              >
+                                <span
+                                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                    isGranted ? "translate-x-5.5" : "translate-x-0.5"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
@@ -671,6 +724,7 @@ export default function PermissionsPage() {
 
         </section>
       </div>
+    </div>
 
       <style>{`
         @keyframes usersPageIn {

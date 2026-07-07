@@ -32,6 +32,7 @@ export type AppSettings = {
   lowStockAlerts: boolean;
   orderNotifications: boolean;
   kitchenDisplayMode: "compact" | "comfortable";
+  brandColor?: string;
   staffPermissions: Record<string, unknown> & {
     defaults?: Record<string, boolean>;
     users?: Record<string, Record<string, boolean>>;
@@ -141,6 +142,7 @@ export type OrderItem = {
   id: number;
   orderId: number;
   productId: number;
+  name?: string | null;
   product?: Product;
   variantId?: number | null;
   variant?: ProductVariant | null;
@@ -178,6 +180,7 @@ export type Order = {
   tableId?: number | null;
   table?: DiningTable | null;
   tableNo?: string | null;
+  orderType?: string | null;
   customerId?: number | null;
   customer?: Customer | null;
   status: OrderStatus;

@@ -9,7 +9,6 @@ import type { Language, NotificationItem } from "../../components/TopBar";
 import OrderStatusBadge from "../../components/OrderStatusBadge";
 import {
   getDailySales,
-  getLowStock,
   getOrders,
   getTopProducts,
 } from "../../lib/api";
@@ -17,25 +16,44 @@ import { getSocket } from "../../lib/socket";
 import { useAppTheme } from "../../lib/theme";
 import type {
   DailySalesReport,
-  Ingredient,
   Order,
   TopProductReport,
 } from "../../lib/types";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 
+function formatShortOrderNo(order: Order) {
+  const raw = order.orderNumber || order.orderId || `#${order.id}`;
+  if (typeof raw === "string" && raw.startsWith("ORD-")) {
+    const parts = raw.split("-");
+    return `#${parts[parts.length - 1]}`;
+  }
+  return raw;
+}
+
+function formatRecentOrderTime(dateStr: string) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "--";
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 
 const TEXT = {
   en: {
     title: "Admin Dashboard",
-    subtitle: "Sales, orders, products, and stock overview.",
+    subtitle: "Sales, orders, and products overview.",
     todaySales: "Today Sales",
     paid: "Paid",
     todayOrders: "Today Orders",
     ordersCreatedToday: "Orders created today",
     activeOrders: "Active Orders",
     kitchenQueue: "Kitchen and service queue",
-    lowStock: "Low Stock",
-    ingredientsNeedAttention: "Ingredients need attention",
+    completedOrders: "Completed Orders",
+    ordersCompleted: "Orders completed",
     salesAnalytics: "Sales Analytics",
     salesAnalyticsDesc: "Sales amount grouped by order time.",
     orderStatus: "Order Status",
@@ -67,15 +85,15 @@ const TEXT = {
   },
   km: {
     title: "ផ្ទាំងគ្រប់គ្រង",
-    subtitle: "សេចក្តីសង្ខេបការលក់ ការបញ្ជាទិញ មុខម្ហូប និងស្តុក។",
+    subtitle: "សេចក្តីសង្ខេបការលក់ ការបញ្ជាទិញ និងមុខម្ហូប។",
     todaySales: "ការលក់ថ្ងៃនេះ",
     paid: "បានបង់",
     todayOrders: "ការបញ្ជាទិញថ្ងៃនេះ",
     ordersCreatedToday: "បានបង្កើតថ្ងៃនេះ",
     activeOrders: "ការបញ្ជាទិញសកម្ម",
     kitchenQueue: "ជួរផ្ទះបាយ និងសេវាកម្ម",
-    lowStock: "ស្តុកទាប",
-    ingredientsNeedAttention: "គ្រឿងផ្សំត្រូវការត្រួតពិនិត្យ",
+    completedOrders: "ការបញ្ជាទិញបានបញ្ចប់",
+    ordersCompleted: "បានបញ្ចប់រួចរាល់",
     salesAnalytics: "វិភាគការលក់",
     salesAnalyticsDesc: "ចំនួនលក់តាមម៉ោងបញ្ជាទិញ។",
     orderStatus: "ស្ថានភាពការបញ្ជាទិញ",
@@ -172,7 +190,6 @@ export default function DashboardPage() {
   );
   const [orders, setOrders] = useState<Order[]>([]);
   const [dailySales, setDailySales] = useState<DailySalesReport | null>(null);
-  const [lowStock, setLowStock] = useState<Ingredient[]>([]);
   const [topProducts, setTopProducts] = useState<TopProductReport[]>([]);
   const [orderAlerts, setOrderAlerts] = useState<NotificationItem[]>([]);
   const [clearedNotificationIds, setClearedNotificationIds] = useState<Set<string>>(
@@ -187,11 +204,11 @@ export default function DashboardPage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
-  const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
-  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
+  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm transition-shadow hover:shadow-md`;
 
   const t = TEXT[language];
 
@@ -201,14 +218,12 @@ export default function DashboardPage() {
     Promise.all([
       getDailySales(),
       getOrders(),
-      getLowStock(),
       getTopProducts(),
     ])
-      .then(([sales, orderRows, lowRows, topRows]) => {
+      .then(([sales, orderRows, topRows]) => {
         if (!mounted) return;
         setDailySales(sales);
         setOrders(orderRows);
-        setLowStock(lowRows);
         setTopProducts(topRows);
       })
       .catch((err) => setError(err.message))
@@ -282,73 +297,8 @@ export default function DashboardPage() {
     () => activeOrders.filter((order) => !clearedActiveOrderIds.has(order.id)),
     [activeOrders, clearedActiveOrderIds]
   );
-
-  const recentOrders = orders.slice(0, 6);
-
-  const stats = [
-    {
-      label: t.todaySales,
-      value: money(dailySales?.totalSales || 0),
-      note: `${t.paid} ${money(dailySales?.paidTotal || 0)}`,
-      tone: "green" as const,
-    },
-    {
-      label: t.todayOrders,
-      value: String(dailySales?.orderCount || 0),
-      note: t.ordersCreatedToday,
-      tone: "blue" as const,
-    },
-    {
-      label: t.activeOrders,
-      value: String(activeOrders.length),
-      note: t.kitchenQueue,
-      tone: "orange" as const,
-    },
-    {
-      label: t.lowStock,
-      value: String(lowStock.length),
-      note: t.ingredientsNeedAttention,
-      tone: "red" as const,
-    },
-  ];
-
-  const notifications = useMemo(() => {
-    const items: NotificationItem[] = [...orderAlerts];
-
-    if (unseenActiveOrders.length > 0) {
-      items.push({
-        id: `active-orders-${unseenActiveOrders.map((order) => order.id).join("-")}`,
-        title: t.newOrders,
-        detail: `${unseenActiveOrders.length} ${t.newOrdersDetail}`,
-      });
-    }
-
-    if (lowStock.length > 0) {
-      items.push({
-        id: `low-stock-${lowStock.length}`,
-        title: t.lowStockAlert,
-        detail: `${lowStock.length} ${t.lowStockDetail}`,
-        tone: "warning" as const,
-      });
-    }
-
-    return items.filter((item) => !clearedNotificationIds.has(item.id));
-  }, [clearedNotificationIds, lowStock.length, orderAlerts, t, unseenActiveOrders]);
-
-  function clearNotifications() {
-    setClearedNotificationIds((current) => {
-      const next = new Set(current);
-      notifications.forEach((item) => next.add(item.id));
-      return next;
-    });
-    setClearedActiveOrderIds((current) => {
-      const next = new Set(current);
-      activeOrders.forEach((order) => next.add(order.id));
-      saveClearedActiveOrderIds(next);
-      return next;
-    });
-    setOrderAlerts([]);
-  }
+  
+  const recentOrders = useMemo(() => orders.slice(0, 6), [orders]);
 
   const orderStatusCount = useMemo(() => {
     return orders.reduce<Record<string, number>>((acc, order) => {
@@ -391,16 +341,99 @@ export default function DashboardPage() {
     );
   }, [salesByHour]);
 
+  const hourlySalesTotals = salesByHour.map((h) => h.total);
+  const hourlyOrderCounts = salesByHour.map((h) => h.count);
+
+  const stats = [
+    {
+      label: t.todaySales,
+      value: money(dailySales?.totalSales || 0),
+      note: `${t.paid} ${money(dailySales?.paidTotal || 0)}`,
+      tone: "green" as const,
+      sparklineData: hourlySalesTotals,
+      sparklineColor: "#71dd37",
+    },
+    {
+      label: t.todayOrders,
+      value: String(dailySales?.orderCount || 0),
+      note: t.ordersCreatedToday,
+      tone: "blue" as const,
+      sparklineData: hourlyOrderCounts,
+      sparklineColor: "#696cff",
+    },
+    {
+      label: t.activeOrders,
+      value: String(activeOrders.length),
+      note: t.kitchenQueue,
+      tone: "orange" as const,
+      sparklineData: hourlyOrderCounts,
+      sparklineColor: "#ff9f43",
+    },
+    {
+      label: t.completedOrders,
+      value: String(orders.filter((order) => order.status === "completed").length),
+      note: t.ordersCompleted,
+      tone: "green" as const,
+      sparklineData: hourlyOrderCounts,
+      sparklineColor: "#03c3ec",
+    },
+  ];
+
+  const notifications = useMemo(() => {
+    const items: NotificationItem[] = [...orderAlerts];
+
+    if (unseenActiveOrders.length > 0) {
+      items.push({
+        id: `active-orders-${unseenActiveOrders.map((order) => order.id).join("-")}`,
+        title: t.newOrders,
+        detail: `${unseenActiveOrders.length} ${t.newOrdersDetail}`,
+      });
+    }
+
+    return items.filter((item) => !clearedNotificationIds.has(item.id));
+  }, [clearedNotificationIds, orderAlerts, t, unseenActiveOrders]);
+
+  function clearNotifications() {
+    setClearedNotificationIds((current) => {
+      const next = new Set(current);
+      notifications.forEach((item) => next.add(item.id));
+      return next;
+    });
+    setClearedActiveOrderIds((current) => {
+      const next = new Set(current);
+      activeOrders.forEach((order) => next.add(order.id));
+      saveClearedActiveOrderIds(next);
+      return next;
+    });
+    setOrderAlerts([]);
+  }
+
   const topProductChartData = {
     labels: topProducts.slice(0, 5).map((item) => item.productName),
     datasets: [
       {
         label: "Sales",
         data: topProducts.slice(0, 5).map((item) => Number(item.totalSales)),
-        backgroundColor: "#696cff",
-        hoverBackgroundColor: "#5f61e6",
-        borderRadius: 6,
-        maxBarThickness: 28,
+        borderColor: "#696cff",
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 6,
+        pointHoverRadius: 9,
+        pointBackgroundColor: "#ffffff",
+        pointBorderColor: "#696cff",
+        pointBorderWidth: 4,
+        pointHoverBackgroundColor: "#ffffff",
+        pointHoverBorderColor: "#696cff",
+        pointHoverBorderWidth: 5,
+        backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+          gradient.addColorStop(0, dark ? "rgba(105, 108, 255, 0.45)" : "rgba(105, 108, 255, 0.3)");
+          gradient.addColorStop(0.7, dark ? "rgba(105, 108, 255, 0.08)" : "rgba(105, 108, 255, 0.04)");
+          gradient.addColorStop(1, "rgba(105, 108, 255, 0)");
+          return gradient;
+        },
       },
     ],
   };
@@ -409,26 +442,56 @@ export default function DashboardPage() {
     labels: salesByHour.map((item) => hourLabel(item.hour)),
     datasets: [
       {
-        label: "Hourly Sales",
+        label: "Revenue ($)",
         data: salesByHour.map((item) => item.total),
-        backgroundColor: salesByHour.map((item) =>
-          item.total === peakSalesHour.total && item.total > 0
-            ? "#696cff"
-            : dark ? "rgba(105, 108, 255, 0.15)" : "rgba(105, 108, 255, 0.15)"
-        ),
-        hoverBackgroundColor: "#696cff",
-        borderRadius: 6,
-        borderSkipped: false,
-        maxBarThickness: 24,
+        yAxisID: "y",
+        fill: true,
+        tension: 0.4,
+        borderWidth: 3,
+        borderColor: "#696cff",
+        pointRadius: salesByHour.map((item) => (item.total === peakSalesHour.total && item.total > 0 ? 5 : 2)),
+        pointHoverRadius: 7,
+        pointBackgroundColor: "#ffffff",
+        pointBorderColor: "#696cff",
+        pointBorderWidth: 3,
+        pointHoverBackgroundColor: "#696cff",
+        pointHoverBorderColor: "#ffffff",
+        pointHoverBorderWidth: 3,
+        backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+          gradient.addColorStop(0, dark ? "rgba(105, 108, 255, 0.45)" : "rgba(105, 108, 255, 0.3)");
+          gradient.addColorStop(0.7, dark ? "rgba(105, 108, 255, 0.08)" : "rgba(105, 108, 255, 0.04)");
+          gradient.addColorStop(1, "rgba(105, 108, 255, 0)");
+          return gradient;
+        },
+      },
+      {
+        label: "Orders (Count)",
+        data: salesByHour.map((item) => item.count),
+        yAxisID: "y1",
+        fill: false,
+        tension: 0.4,
+        borderWidth: 2,
+        borderDash: [5, 5],
+        borderColor: "#03c3ec",
+        pointRadius: 2,
+        pointHoverRadius: 6,
+        pointBackgroundColor: "#03c3ec",
+        pointBorderColor: "#ffffff",
+        pointBorderWidth: 2,
+        pointHoverBackgroundColor: "#03c3ec",
+        pointHoverBorderColor: "#ffffff",
+        pointHoverBorderWidth: 2,
       },
     ],
   };
 
   const commonTooltip = {
-    backgroundColor: dark ? '#2b2c40' : '#fff',
-    titleColor: dark ? '#fff' : '#566a7f',
-    bodyColor: dark ? '#a1acb8' : '#8592a3',
-    borderColor: dark ? '#4e4f6e' : '#e5e7eb',
+    backgroundColor: dark ? "#2b2c40" : "#ffffff",
+    titleColor: dark ? "#ffffff" : "#1e293b",
+    bodyColor: dark ? "#a1acb8" : "#475569",
+    borderColor: dark ? "#4e4f6e" : "#e2e8f0",
     borderWidth: 1,
     padding: 12,
     boxPadding: 6,
@@ -438,26 +501,46 @@ export default function DashboardPage() {
   const salesChartOptions: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: "index",
+      intersect: false,
+    },
     plugins: {
       legend: {
-        display: false,
+        display: true,
+        position: "top" as const,
+        align: "end" as const,
+        labels: {
+          boxWidth: 10,
+          boxHeight: 8,
+          usePointStyle: true,
+          pointStyle: "circle",
+          color: dark ? "#cbd5e1" : "#334155",
+          font: { family: "'Public Sans', sans-serif", size: 12 },
+          padding: 15,
+        },
       },
       tooltip: {
         ...commonTooltip,
         callbacks: {
-          label: (context: TooltipItem<"line">) =>
-            `Sales: ${money(context.parsed.y ?? 0)}`,
+          title: (items: TooltipItem<"line">[]) => `Time: ${items[0]?.label || ""}`,
+          label: (context: TooltipItem<"line">) => {
+            if (context.datasetIndex === 0) {
+              return ` Revenue: ${money(context.parsed.y ?? 0)}`;
+            }
+            return ` Orders: ${context.parsed.y ?? 0} orders`;
+          },
         },
       },
     },
     scales: {
       x: {
         ticks: {
-          color: dark ? "#94a3b8" : "#a1acb8",
+          color: dark ? "#94a3b8" : "#64748b",
           maxRotation: 0,
           autoSkip: true,
           autoSkipPadding: 18,
-          font: { family: "'Public Sans', sans-serif" }
+          font: { family: "'Public Sans', sans-serif", size: 11 }
         },
         grid: {
           display: false,
@@ -465,15 +548,36 @@ export default function DashboardPage() {
         border: { display: false }
       },
       y: {
+        type: "linear" as const,
+        display: true,
+        position: "left" as const,
         beginAtZero: true,
         ticks: {
-          color: dark ? "#94a3b8" : "#a1acb8",
+          color: dark ? "#94a3b8" : "#64748b",
           callback: (value: string | number) => money(value),
-          font: { family: "'Public Sans', sans-serif" }
+          font: { family: "'Public Sans', sans-serif", size: 11 },
+          padding: 8,
         },
         grid: {
-          color: dark ? "#4e4f6e" : "#e5e7eb",
+          color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(226, 232, 240, 0.8)",
           drawTicks: false,
+        },
+        border: { display: false }
+      },
+      y1: {
+        type: "linear" as const,
+        display: true,
+        position: "right" as const,
+        beginAtZero: true,
+        ticks: {
+          color: "#03c3ec",
+          precision: 0,
+          callback: (value: string | number) => `${value}`,
+          font: { family: "'Public Sans', sans-serif", size: 11 },
+          padding: 8,
+        },
+        grid: {
+          display: false,
         },
         border: { display: false }
       },
@@ -494,7 +598,7 @@ export default function DashboardPage() {
     ],
   };
 
-  const chartOptions: ChartOptions<"bar"> = {
+  const topProductChartOptions: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -506,8 +610,8 @@ export default function DashboardPage() {
     scales: {
       x: {
         ticks: {
-          color: dark ? "#94a3b8" : "#a1acb8",
-          font: { family: "'Public Sans', sans-serif" }
+          color: dark ? "#94a3b8" : "#64748b",
+          font: { family: "'Public Sans', sans-serif", size: 10 }
         },
         grid: {
           display: false,
@@ -515,12 +619,13 @@ export default function DashboardPage() {
         border: { display: false }
       },
       y: {
+        beginAtZero: true,
         ticks: {
           color: dark ? "#94a3b8" : "#a1acb8",
-          font: { family: "'Public Sans', sans-serif" }
+          font: { family: "'Public Sans', sans-serif", size: 10 }
         },
         grid: {
-          color: dark ? "#4e4f6e" : "#e5e7eb",
+          color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(226, 232, 240, 0.8)",
           drawTicks: false,
         },
         border: { display: false }
@@ -561,6 +666,7 @@ export default function DashboardPage() {
         />
 
         <div className="mx-auto w-full max-w-[1600px] px-4 py-4 lg:px-6">
+          <div className="animate-[dashboardPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
               {error}
@@ -576,12 +682,14 @@ export default function DashboardPage() {
                 note={stat.note}
                 tone={stat.tone}
                 dark={dark}
+                sparklineData={stat.sparklineData}
+                sparklineColor={stat.sparklineColor}
               />
             ))}
           </section>
 
           <section className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
-            <div className={`min-w-0 ${cardClass} p-4`}>
+            <div className={`min-w-0 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className={`text-lg font-bold ${textPrimary}`}>
@@ -628,7 +736,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className={`min-w-0 ${cardClass} p-4`}>
+            <div className={`min-w-0 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
               <div className="mb-4">
                 <h2 className={`text-lg font-bold ${textPrimary}`}>
                   {t.orderStatus}
@@ -648,17 +756,17 @@ export default function DashboardPage() {
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,420px)]">
             <div className={`min-w-0 overflow-hidden ${cardClass}`}>
-              <div className="flex h-14 items-center justify-between border-b px-4 text-sm">
+              <div className="flex items-center justify-between p-5">
                 <div>
-                  <h2 className={`text-base font-bold ${textPrimary}`}>
+                  <h2 className={`text-base font-black ${textPrimary}`}>
                     {t.recentOrders}
                   </h2>
-                  <p className={`hidden text-xs sm:block ${textSecondary}`}>
+                  <p className={`hidden text-xs sm:block ${textSecondary} mt-1`}>
                     {t.recentOrdersDesc}
                   </p>
                 </div>
 
-                <span className={`text-xs font-medium ${textSecondary}`}>
+                <span className="rounded-full bg-[#696cff]/10 px-3 py-1 text-[11px] font-black text-[#696cff] transition-all duration-200 hover:scale-105 hover:bg-[#696cff]/20 cursor-default">
                   {recentOrders.length} {t.shown}
                 </span>
               </div>
@@ -666,14 +774,16 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead
-                    className="text-[11px] uppercase tracking-wide bg-[#eceef1]/40 text-[#8592a3]"
+                    className={`text-[10px] font-black uppercase tracking-wider ${
+                      dark ? "bg-[#232333]/80 text-slate-400 border-b border-[#4e4f6e]/50" : "bg-[#f5f5f9] text-[#566a7f] border-b border-slate-100"
+                    } border-t`}
                   >
                     <tr>
-                      <th className="px-4 py-3 font-bold">{t.order}</th>
-                      <th className="px-4 py-3 font-bold">{t.table}</th>
-                      <th className="px-4 py-3 text-center font-bold">{t.status}</th>
-                      <th className="px-4 py-3 font-bold">{t.total}</th>
-                      <th className="px-4 py-3 font-bold">{t.created}</th>
+                      <th className="px-5 py-3 font-bold">{t.order}</th>
+                      <th className="px-5 py-3 font-bold">{t.table}</th>
+                      <th className="px-5 py-3 text-center font-bold">{t.status}</th>
+                      <th className="px-5 py-3 font-bold">{t.total}</th>
+                      <th className="px-5 py-3 font-bold">{t.created}</th>
                     </tr>
                   </thead>
 
@@ -700,30 +810,44 @@ export default function DashboardPage() {
                       recentOrders.map((order) => (
                         <tr
                           key={order.id}
-                          className={`border-t ${
+                          className={`border-b last:border-b-0 ${
                             dark
-                              ? "border-[#4e4f6e] hover:bg-[#232333]/60"
-                              : "border-[#f0f2f5] hover:bg-[#f5f5f9]"
+                              ? "border-[#4e4f6e]/50 hover:bg-[#232333]/40"
+                              : "border-[#f0f2f5] hover:bg-[#f5f5f9]/50"
                           } transition-all duration-150`}
                         >
-                          <td className={`px-4 py-3 font-semibold ${textPrimary}`}>
-                            {order.orderNumber || order.orderId}
+                          <td className="px-5 py-4">
+                            <span className="inline-flex items-center gap-1 rounded bg-[#696cff]/10 px-2 py-0.5 text-xs font-bold text-[#696cff]">
+                              {formatShortOrderNo(order)}
+                            </span>
                           </td>
 
-                          <td className={`px-4 py-3 font-medium ${textSecondary}`}>
-                            {order.tableNo || order.table?.name || t.walkIn}
+                          <td className="px-5 py-4">
+                            {order.tableNo || order.table?.name ? (
+                              <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
+                                dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                              }`}>
+                                {order.tableNo || order.table?.name}
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
+                                dark ? "bg-slate-700/60 text-slate-300" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {t.walkIn}
+                              </span>
+                            )}
                           </td>
 
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-5 py-4 text-center">
                             <OrderStatusBadge status={order.status} />
                           </td>
 
-                          <td className={`px-4 py-3 font-bold ${textPrimary}`}>
+                          <td className={`px-5 py-4 font-black ${textPrimary}`}>
                             {money(order.totalAmount)}
                           </td>
 
-                          <td className={`px-4 py-3 text-xs ${textSecondary}`}>
-                            {new Date(order.createdAt).toLocaleString()}
+                          <td className={`px-5 py-4 text-xs font-semibold ${textSecondary}`}>
+                            {formatRecentOrderTime(order.createdAt)}
                           </td>
                         </tr>
                       ))
@@ -747,7 +871,7 @@ export default function DashboardPage() {
                 <div
                   className={`mb-4 h-[240px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
                 >
-                  <Bar data={topProductChartData} options={chartOptions} />
+                  <Line data={topProductChartData} options={topProductChartOptions} />
                 </div>
 
                 <div className="space-y-2">
@@ -780,56 +904,78 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-
-              <div
-                className={`rounded border p-4 shadow-sm transition-all duration-150 ${
-                  lowStock.length > 0
-                    ? "border-[#ff3e1d]/20 bg-[#ffe5e5]/50 text-[#ff3e1d]"
-                    : "border-[#71dd37]/20 bg-[#e8fadf]/50 text-[#71dd37]"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-bold">{t.lowStock}</h2>
-                    <p className="mt-1 text-sm opacity-90">
-                      {lowStock.length === 0
-                        ? t.allStockGood
-                        : `${lowStock.length} ${t.ingredientsNeedAttention}.`}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`rounded px-2.5 py-0.5 text-xs font-bold ${
-                      lowStock.length > 0
-                        ? "bg-[#ff3e1d]/10 text-[#ff3e1d]"
-                        : "bg-[#71dd37]/10 text-[#71dd37]"
-                    }`}
-                  >
-                    {lowStock.length}
-                  </span>
-                </div>
-
-                {lowStock.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {lowStock.slice(0, 4).map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded bg-white/90 border border-[#e5e7eb]/80 dark:border-[#4e4f6e]/85 dark:bg-[#2b2c40]/90 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
-                      >
-                        <div className="font-bold">{item.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {t.current}: {item.currentStock} / {t.min}:{" "}
-                          {item.minStock}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </aside>
           </section>
         </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes dashboardPageIn {
+          from {
+            opacity: 0;
+            transform: translateY(14px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
+  );
+}
+
+function AnimatedCounter({ value }: { value?: string | number | null }) {
+  const strVal = String(value ?? "");
+  const match = strVal.match(/([^0-9.-]*)([0-9.,]+)(.*)/);
+
+  const prefix = match ? match[1] || "" : "";
+  const rawNumStr = match ? match[2].replace(/,/g, "") : "";
+  const suffix = match ? match[3] || "" : "";
+  const targetNum = match ? parseFloat(rawNumStr) : NaN;
+  const isNumeric = match ? !isNaN(targetNum) : false;
+
+  const decimalPlaces = isNumeric && rawNumStr.includes(".") ? rawNumStr.split(".")[1].length : 0;
+
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isNumeric) return;
+
+    let startTimestamp: number | null = null;
+    const duration = 900;
+
+    function step(timestamp: number) {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      setCount(targetNum * easeProgress);
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setCount(targetNum);
+      }
+    }
+
+    const frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [targetNum, isNumeric]);
+
+  if (!match || !isNumeric) return <>{strVal}</>;
+
+  const formattedNum = count.toLocaleString("en-US", {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  });
+
+  return (
+    <>
+      {prefix}
+      {formattedNum}
+      {suffix}
+    </>
   );
 }
 
@@ -839,12 +985,16 @@ function StatCard({
   note,
   tone,
   dark,
+  sparklineData,
+  sparklineColor = "#71dd37",
 }: {
   label: string;
   value: string;
   note: string;
   tone: "green" | "blue" | "orange" | "red";
   dark: boolean;
+  sparklineData?: number[];
+  sparklineColor?: string;
 }) {
   const tones = {
     green: "bg-[#e8fadf] text-[#71dd37]",
@@ -853,13 +1003,59 @@ function StatCard({
     red: "bg-[#ffe5e5] text-[#ff3e1d]",
   };
 
+  const miniChartData =
+    sparklineData && sparklineData.length > 0
+      ? {
+          labels: sparklineData.map((_, i) => i),
+          datasets: [
+            {
+              data: sparklineData,
+              borderColor: sparklineColor,
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointRadius: sparklineData.map((_, i) => (i === sparklineData.length - 1 ? 5 : 0)),
+              pointBackgroundColor: "#ffffff",
+              pointBorderColor: sparklineColor,
+              pointBorderWidth: 3,
+              pointHoverRadius: 6,
+              backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
+                const ctx = context.chart.ctx;
+                const gradient = ctx.createLinearGradient(0, 0, 0, 45);
+                gradient.addColorStop(0, `${sparklineColor}45`);
+                gradient.addColorStop(1, `${sparklineColor}05`);
+                return gradient;
+              },
+            },
+          ],
+        }
+      : null;
+
+  const miniChartOptions: ChartOptions<"line"> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: { display: false },
+      y: { display: false },
+    },
+    layout: {
+      padding: {
+        top: 4,
+        right: 4,
+        bottom: 2,
+        left: 2,
+      },
+    },
+  };
+
   return (
     <div
       className={`rounded border p-4 shadow-sm ${
         dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
       }`}
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
           <div
@@ -867,7 +1063,7 @@ function StatCard({
               dark ? "text-slate-100" : "text-[#566a7f]"
             }`}
           >
-            {value}
+            <AnimatedCounter value={value} />
           </div>
         </div>
 
@@ -876,7 +1072,14 @@ function StatCard({
         </span>
       </div>
 
-      <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
+      <div className="flex items-end justify-between gap-2">
+        <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
+        {miniChartData && (
+          <div className="h-10 w-24 flex-shrink-0">
+            <Line data={miniChartData} options={miniChartOptions} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

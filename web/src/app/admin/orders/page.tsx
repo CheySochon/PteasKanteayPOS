@@ -454,33 +454,53 @@ export default function OrdersPage() {
           <section className={`mb-4 overflow-hidden ${cardClass}`}>
             <div className={`border-b px-4 pt-4 ${borderCol}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex flex-wrap gap-5">
-                  {orderTabs.map((tab) => (
-                    <button
-                      key={tab.value}
-                      onClick={() => {
-                        setFilter(tab.value);
-                        setPage(1);
-                      }}
-                      className={`border-b-2 px-1 pb-3 text-xs font-bold ${
-                        filter === tab.value
-                          ? "border-blue-600 text-blue-600"
-                          : "border-transparent text-slate-500 hover:text-blue-600"
-                      }`}
-                    >
-                      {t.tabs[tab.value]}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap gap-5">
+                    {orderTabs.map((tab) => (
+                      <button
+                        key={tab.value}
+                        onClick={() => {
+                          setFilter(tab.value);
+                          setPage(1);
+                        }}
+                        className={`border-b-2 px-1 pb-3 text-xs font-bold ${
+                          filter === tab.value
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-slate-500 hover:text-blue-600"
+                        }`}
+                      >
+                        {t.tabs[tab.value]}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="mb-3 rounded-full bg-[#696cff]/10 px-3 py-1 text-[11px] font-black text-[#696cff] whitespace-nowrap transition-all duration-200 hover:scale-105 hover:bg-[#696cff]/20 cursor-default">
+                    {filteredOrders.length} {t.orders}
+                  </span>
                 </div>
 
-                <div className="flex shrink-0 gap-2 pb-3">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 pb-3">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={t.searchPlaceholder}
+                      value={search}
+                      onChange={(event) => {
+                        setSearch(event.target.value);
+                        setPage(1);
+                      }}
+                      className={`h-9 w-48 sm:w-56 rounded border px-3.5 text-xs outline-none placeholder-[#b4bdc6] focus:border-[#696cff] transition-all ${
+                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                      }`}
+                    />
+                  </div>
+
                   <button
                     onClick={() => setShowFilters((value) => !value)}
                     className={`inline-flex h-9 items-center gap-2 rounded border px-3 text-xs font-semibold ${
                       showFilters ||
                       statusFilter !== "all" ||
-                      typeFilter !== "all" ||
-                      search
+                      typeFilter !== "all"
                         ? "border-blue-200 bg-blue-50 text-blue-700"
                         : `${borderCol} ${softSurface} ${textPrimary}`
                     }`}
@@ -503,22 +523,8 @@ export default function OrdersPage() {
 
             {showFilters && (
               <div
-                className={`grid gap-3 border-b px-4 py-4 md:grid-cols-[1fr_180px_180px_auto] ${borderCol}`}
+                className={`grid gap-3 border-b px-4 py-4 md:grid-cols-[180px_180px_auto] justify-end ${borderCol}`}
               >
-                <label className="block">
-                  <span className={`mb-1 block text-[11px] font-bold uppercase ${textSecondary}`}>
-                    {t.search}
-                  </span>
-                  <input
-                    value={search}
-                    onChange={(event) => {
-                      setSearch(event.target.value);
-                      setPage(1);
-                    }}
-                    placeholder={t.searchPlaceholder}
-                    className={`h-10 w-full px-3 text-sm font-medium outline-none focus:border-blue-300 ${inputClass}`}
-                  />
-                </label>
 
                 <label className="block">
                   <span className={`mb-1 block text-[11px] font-bold uppercase ${textSecondary}`}>
@@ -852,6 +858,19 @@ export default function OrdersPage() {
             </div>
           </section>
         </div>
+
+        <style>{`
+          @keyframes usersPageIn {
+            from {
+              opacity: 0;
+              transform: translateY(15px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
     </main>
   );
 }
@@ -892,7 +911,7 @@ function SummaryCard({
               dark ? "text-slate-100" : "text-slate-900"
             }`}
           >
-            {value}
+            <AnimatedCounter value={value} />
           </div>
         </div>
 
@@ -903,5 +922,59 @@ function SummaryCard({
 
       <div className="text-xs font-medium text-blue-600">{note}</div>
     </div>
+  );
+}
+
+function AnimatedCounter({ value }: { value?: string | number | null }) {
+  const strVal = String(value ?? "");
+  const match = strVal.match(/([^0-9.-]*)([0-9.,]+)(.*)/);
+
+  const prefix = match ? match[1] || "" : "";
+  const rawNumStr = match ? match[2].replace(/,/g, "") : "";
+  const suffix = match ? match[3] || "" : "";
+  const targetNum = match ? parseFloat(rawNumStr) : NaN;
+  const isNumeric = match ? !isNaN(targetNum) : false;
+
+  const decimalPlaces = isNumeric && rawNumStr.includes(".") ? rawNumStr.split(".")[1].length : 0;
+
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isNumeric) return;
+
+    let startTimestamp: number | null = null;
+    const duration = 900;
+
+    function step(timestamp: number) {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      setCount(targetNum * easeProgress);
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setCount(targetNum);
+      }
+    }
+
+    const frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [targetNum, isNumeric]);
+
+  if (!match || !isNumeric) return <>{strVal}</>;
+
+  const formattedNum = count.toLocaleString("en-US", {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  });
+
+  return (
+    <>
+      {prefix}
+      {formattedNum}
+      {suffix}
+    </>
   );
 }

@@ -8,19 +8,22 @@ const BACKUP_VERSION = 1;
 const BACKUP_DIR = path.join(__dirname, "..", "..", "backups");
 
 const TABLES = [
+  { key: "roles", model: "role" },
   { key: "users", model: "user" },
   { key: "appSettings", model: "appSetting" },
   { key: "customers", model: "customer" },
   { key: "categories", model: "category" },
   { key: "diningTables", model: "diningTable" },
-  { key: "ingredients", model: "ingredient" },
   { key: "products", model: "product" },
   { key: "productVariants", model: "productVariant" },
+  { key: "productModifiers", model: "productModifier" },
+  { key: "productModifierMaps", model: "productModifierMap" },
   { key: "orders", model: "order" },
   { key: "orderItems", model: "orderItem" },
+  { key: "orderItemModifiers", model: "orderItemModifier" },
   { key: "payments", model: "payment" },
-  { key: "stockMovements", model: "stockMovement" },
   { key: "shifts", model: "shift" },
+  { key: "notifications", model: "notification" },
 ] as const;
 
 type BackupData = Record<string, unknown[]>;

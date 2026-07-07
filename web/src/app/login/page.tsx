@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiOrigin, getSettings, login } from "../../lib/api";
+import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { Eye, EyeOff } from "lucide-react";
 
@@ -53,15 +54,20 @@ export default function LoginPage() {
       window.dispatchEvent(new Event("pos-auth-change"));
       
       const redirect = new URLSearchParams(window.location.search).get("redirect");
-      let targetPath = redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
-      if (targetPath === "/admin") {
-        const r = result.user?.role;
-        const role = typeof r === "object" && r ? r.name : r;
-        if (role === "Cashier") {
-          targetPath = "/pos";
-        } else if (role === "Staff") {
-          targetPath = "/kds";
+      let targetPath = redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "";
+      
+      const r = result.user?.role;
+      const role = typeof r === "object" && r ? r.name : r;
+
+      if (!targetPath) {
+        let userPerms = null;
+        const savedPermsRaw = localStorage.getItem("pos_staff_permissions");
+        if (savedPermsRaw) {
+          try {
+            userPerms = JSON.parse(savedPermsRaw);
+          } catch {}
         }
+        targetPath = firstAllowedPathForRole(String(role || "Member"), userPerms);
       }
       router.replace(targetPath);
     } catch (err) {
@@ -73,7 +79,7 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f5f5f9] px-4 py-10 relative overflow-hidden select-none">
-      <div className="w-full max-w-[400px] bg-white rounded border border-[#e5e7eb] p-8 shadow-sm relative z-10">
+      <div className="w-full max-w-[380px] bg-white rounded-lg border border-[#e5e7eb] p-8 shadow-sm relative z-10 animate-[loginIn_400ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Brand Header */}
         <div className="text-center mb-6">
           {restaurantImageUrl ? (
@@ -81,75 +87,50 @@ export default function LoginPage() {
               <img
                 src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
                 alt="Restaurant Logo"
-                className="h-16 w-16 rounded-full object-cover border border-[#e5e7eb] shadow-sm"
+                className="h-14 w-14 rounded-full object-cover border border-[#e5e7eb] shadow-sm"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
             </div>
           ) : null}
-          <span className="text-2xl font-brand tracking-tight text-[#566a7f] capitalize block">
-            {posName.toLowerCase().endsWith("pos") ? (
-              <>
-                {posName.slice(0, -3).trim()}{" "}
-                <span className="font-bold text-[#696cff] uppercase text-xs tracking-wider ml-1">POS</span>
-              </>
-            ) : (
-              <>
-                {posName}{" "}
-                <span className="font-bold text-[#696cff] uppercase text-xs tracking-wider ml-1">POS</span>
-              </>
-            )}
-          </span>
-        </div>
-
-        {/* Welcome message */}
-        <div className="mb-6 text-center">
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight">
-            Sign In
-          </h2>
-          <p className="text-sm text-[#697a8d] mt-1">
-            Access the restaurant management dashboard
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#566a7f]">
+            {posName}
+          </h1>
         </div>
 
         <form onSubmit={submit} className="space-y-4">
           {error && (
-            <div className="rounded border border-red-100 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+            <div className="rounded-md border border-red-100 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-[13.5px] font-semibold text-[#566a7f] mb-1.5">
-              Email or Username
+            <label className="block text-[13px] font-semibold text-[#566a7f] mb-1.5">
+              Email
             </label>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
-              placeholder="Enter your email or username"
-              className="w-full rounded border border-[#d9dee3] px-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
+              placeholder="name@example.com"
+              className="w-full rounded-md border border-[#d9dee3] px-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
               required
             />
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-[13.5px] font-semibold text-[#566a7f]">
-                Password
-              </label>
-              <a href="#" className="text-xs font-semibold text-[#696cff] hover:underline">
-                Forgot Password?
-              </a>
-            </div>
+            <label className="block text-[13px] font-semibold text-[#566a7f] mb-1.5">
+              Password
+            </label>
             <div className="relative">
               <input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••••••"
-                className="w-full rounded border border-[#d9dee3] pr-10 pl-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
+                className="w-full rounded-md border border-[#d9dee3] pr-10 pl-3.5 py-2 text-sm text-slate-800 outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
                 required
               />
               <button
@@ -162,25 +143,28 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex items-center mt-4">
-            <label className="flex items-center gap-2 text-sm text-slate-600 select-none cursor-pointer">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-[#d9dee3] text-[#696cff] focus:ring-[#696cff] accent-[#696cff]"
-              />
-              Remember Me
-            </label>
-          </div>
-
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-[#696cff] py-2.5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/30 hover:bg-[#5f61e6] active:bg-[#5859d0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+            className="w-full rounded-md bg-[#696cff] py-2.5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/30 hover:bg-[#5f61e6] active:bg-[#5859d0] transition-colors disabled:opacity-60 disabled:cursor-not-allowed mt-4"
           >
-            {loading ? "Signing in..." : "Login"}
+            {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
       </div>
+
+      <style jsx>{`
+        @keyframes loginIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+      `}</style>
     </main>
   );
 }

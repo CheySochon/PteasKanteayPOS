@@ -8,14 +8,14 @@ import {
   ChevronDown,
   ChevronUp,
   LayoutDashboard,
-  ShoppingBag,
-  Utensils,
-  Layers,
-  BarChart3,
-  Users,
-  Settings,
+  Store,
+  ReceiptText,
+  UtensilsCrossed,
+  TrendingUp,
+  Armchair,
+  UsersRound,
+  Settings2,
   ShieldCheck,
-  Table2,
   LogOut,
   Languages,
   ListFilter,
@@ -23,7 +23,6 @@ import {
   Tags,
   ChevronLeft,
   ChevronRight,
-  BookOpen,
 } from "lucide-react";
 import { apiOrigin, getSettings } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -45,7 +44,6 @@ type IconProps = {
 
 const NAV_OVERVIEW = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
-  { label: "POS", href: "/pos", icon: PosIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
   { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
   { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
@@ -553,25 +551,6 @@ export default function Sidebar({
             />
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            const nextLanguage = language === "km" ? "en" : "km";
-            localStorage.setItem("pos_language", nextLanguage);
-            window.dispatchEvent(new Event("pos-language-change"));
-          }}
-          className={`mt-2 flex w-full items-center gap-2 rounded text-xs font-semibold ${utilityTextClass} ${
-            sidebarCollapsed ? "justify-center p-2" : "justify-between px-3 py-2"
-          } ${language === "km" ? "text-[12.5px] font-medium" : "text-xs"}`}
-          title={t.language}
-        >
-          <span className="flex items-center gap-2">
-            <Languages size={15} />
-            {contentMounted && <span className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.language}</span>}
-          </span>
-          {contentMounted && <span className={`uppercase transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{language}</span>}
-        </button>
       </div>
     </aside>
     <div className={`${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
@@ -848,45 +827,45 @@ function parseUserSnapshot(snapshot: string) {
 
 // Icons
 function DashboardIcon({ active = false }: IconProps) {
-  return <LayoutDashboard size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <LayoutDashboard size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function PosIcon({ active = false }: IconProps) {
-  return <Utensils size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <Store size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function OrdersIcon({ active = false }: IconProps) {
-  return <ShoppingBag size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <ReceiptText size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function MenuIcon({ active = false }: IconProps) {
-  return <BookOpen size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <UtensilsCrossed size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function InventoryIcon({ active = false }: IconProps) {
-  return <Layers size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <Store size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function ReportsIcon({ active = false }: IconProps) {
-  return <BarChart3 size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <TrendingUp size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function TablesIcon({ active = false }: IconProps) {
-  return <Table2 size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <Armchair size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function StaffIcon({ active = false }: IconProps) {
-  return <Users size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <UsersRound size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function PermissionsIcon({ active = false }: IconProps) {
-  return <ShieldCheck size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <ShieldCheck size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function SettingsIcon({ active = false }: IconProps) {
-  return <Settings size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <Settings2 size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }
 
 function LogoutIcon({ active = false }: IconProps) {
-  return <LogOut size={19} strokeWidth={1.5} color={active ? BRAND : "currentColor"} />;
+  return <LogOut size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
 }

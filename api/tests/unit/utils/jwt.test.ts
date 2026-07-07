@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import jwt from "jsonwebtoken";
 import { signToken, verifyToken } from "../../../src/utils/jwt.js";
 import type { JwtPayload } from "../../../src/types/jwt.type.js";
-import { Role } from "../../../src/prisma/client.js";
 
 vi.mock("jsonwebtoken", () => ({
   default: {
@@ -23,8 +22,8 @@ describe("jwt utils", () => {
     mockedSign.mockReturnValue("fake_token");
 
     const payload: JwtPayload = {
-      userId: "123",
-      role: Role.WAITER,
+      userId: 123,
+      role: "Staff",
     };
 
     const result = signToken(payload);
@@ -42,8 +41,8 @@ describe("jwt utils", () => {
 
   it("should verify token and return payload", () => {
     const decoded: JwtPayload = {
-      userId: "123",
-      role: Role.WAITER,
+      userId: 123,
+      role: "Staff",
     };
 
     mockedVerify.mockReturnValue(decoded);

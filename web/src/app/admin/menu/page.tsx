@@ -213,6 +213,54 @@ function saveClearedActiveOrderIds(ids: Set<number>) {
   localStorage.setItem(CLEARED_ACTIVE_ORDER_IDS_KEY, JSON.stringify([...ids]));
 }
 
+
+function getCategoryBadgeStyle(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("drink") || lower.includes("beverage") || lower.includes("boba") || lower.includes("coffee") || lower.includes("tea")) {
+    return {
+      bg: "bg-cyan-500/10 dark:bg-cyan-500/20",
+      text: "text-cyan-600 dark:text-cyan-400",
+      border: "border-cyan-200 dark:border-cyan-800/50",
+      gradient: "from-cyan-500 to-blue-600",
+      pill: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",
+    };
+  }
+  if (lower.includes("burger") || lower.includes("food") || lower.includes("main") || lower.includes("pizza") || lower.includes("meat")) {
+    return {
+      bg: "bg-amber-500/10 dark:bg-amber-500/20",
+      text: "text-amber-600 dark:text-amber-400",
+      border: "border-amber-200 dark:border-amber-800/50",
+      gradient: "from-amber-500 to-orange-600",
+      pill: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    };
+  }
+  if (lower.includes("dessert") || lower.includes("sweet") || lower.includes("cake") || lower.includes("ice")) {
+    return {
+      bg: "bg-pink-500/10 dark:bg-pink-500/20",
+      text: "text-pink-600 dark:text-pink-400",
+      border: "border-pink-200 dark:border-pink-800/50",
+      gradient: "from-pink-500 to-rose-600",
+      pill: "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
+    };
+  }
+  if (lower.includes("snack") || lower.includes("side") || lower.includes("starter") || lower.includes("appetizer")) {
+    return {
+      bg: "bg-emerald-500/10 dark:bg-emerald-500/20",
+      text: "text-emerald-600 dark:text-emerald-400",
+      border: "border-emerald-200 dark:border-emerald-800/50",
+      gradient: "from-emerald-500 to-teal-600",
+      pill: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    };
+  }
+  return {
+    bg: "bg-[#696cff]/10 dark:bg-[#696cff]/20",
+    text: "text-[#696cff] dark:text-[#8587ff]",
+    border: "border-[#696cff]/20 dark:border-[#696cff]/30",
+    gradient: "from-[#696cff] to-[#8553f4]",
+    pill: "bg-[#696cff]/10 text-[#696cff] dark:bg-[#696cff]/25 dark:text-[#a3a5ff]",
+  };
+}
+
 export default function MenuPage() {
   const language = useAppLanguage();
   const t = TEXT[language];
@@ -723,12 +771,54 @@ export default function MenuPage() {
         )}
 
         {isCategoriesView ? (
-          <section id="categories" className="space-y-4">
-            
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#a1acb8]">
-                {filteredCategories.length} {t.categories}
-              </span>
+          <section id="categories" className="space-y-6">
+            {/* Top Stat Summary Cards */}
+            <div className="grid gap-5 sm:grid-cols-3">
+              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
+                    Total Categories
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                    {categories.length}
+                  </p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shadow-sm">
+                  <Tags size={22} />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
+                    Total Products
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                    {products.length}
+                  </p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#03c3ec]/10 text-[#03c3ec] shadow-sm">
+                  <ShoppingBag size={22} />
+                </div>
+              </div>
+
+              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
+                    Active Menu Items
+                  </p>
+                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                    {products.filter((p) => p.isAvailable).length}
+                  </p>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#71dd37]/10 text-[#71dd37] shadow-sm">
+                  <CheckCircle2 size={22} />
+                </div>
+              </div>
+            </div>
+
+            {/* Toolbar: Search */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2">
               <div className="relative w-full sm:w-80">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -738,54 +828,57 @@ export default function MenuPage() {
                   value={categoryQuery}
                   onChange={(event) => setCategoryQuery(event.target.value)}
                   placeholder="Search categories..."
-                  className={`h-10 w-full rounded border pl-10 pr-3 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                  className={`h-10 w-full rounded-lg border pl-10 pr-3 text-sm outline-none placeholder-slate-400 focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all ${
+                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-[#2c3e50]"
                   }`}
                 />
               </div>
             </div>
 
+            {/* Categories Cards Grid */}
             {filteredCategories.length === 0 ? (
               <EmptyState className={`${panelBg} ${borderCol}`}>
                 {t.categories}
               </EmptyState>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {filteredCategories.map((category) => {
-                    const itemCount = categoryCount(category.id);
+            ) : (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredCategories.map((category) => {
+                  const itemCount = categoryCount(category.id);
+                  const style = getCategoryBadgeStyle(category.name);
+                  const percentOfTotal = products.length > 0 ? Math.round((itemCount / products.length) * 100) : 0;
 
-                    return (
-                      <article
-                        key={category.id}
-                        className="group relative overflow-hidden rounded-xl bg-white dark:bg-[#2b2c40] p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] dark:shadow-[0_2px_6px_0_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-[#696cff]/15 dark:hover:shadow-none border border-transparent hover:border-[#696cff]/20"
-                      >
-                        {/* Top Gradient Accent (Visible on Hover) */}
-                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#696cff] to-[#00f2fe] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                  return (
+                    <article
+                      key={category.id}
+                      className="group relative flex flex-col justify-between overflow-hidden rounded-xl bg-white dark:bg-[#2b2c40] p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] dark:shadow-[0_2px_6px_0_rgba(0,0,0,0.2)] border border-transparent dark:border-[#4e4f6e] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-[#696cff]/15 hover:border-[#696cff]/20"
+                    >
+                      {/* Top Gradient Bar */}
+                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${style.gradient}`} />
 
-                        <div className="flex items-start justify-between gap-3 relative z-10">
-                          <div className="flex min-w-0 items-center gap-3.5">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff] transition-all duration-300 group-hover:bg-[#696cff] group-hover:text-white group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-md">
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3.5">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${style.bg} ${style.text} ${style.border} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
                               <Tags size={20} />
                             </div>
 
                             <div className="min-w-0">
-                              <h3 className="truncate text-base font-bold text-[#566a7f] dark:text-[#c9d4ea] transition-colors group-hover:text-[#696cff] dark:group-hover:text-[#696cff]">
+                              <h3 className={`truncate text-base font-bold transition-colors group-hover:text-[#696cff] ${textPrimary}`}>
                                 {category.name}
                               </h3>
-                              <p className="mt-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
-                                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#e7e7ff] text-[#696cff] dark:bg-[#34355a] dark:text-[#7173ba]">
-                                  {itemCount}
+                              <div className="mt-1 flex items-center gap-2">
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${style.pill}`}>
+                                  {itemCount} {t.items}
                                 </span>
-                                {t.items}
-                              </p>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="flex shrink-0 items-center gap-1.5">
+                          <div className="flex shrink-0 items-center gap-1">
                             <button
                               type="button"
                               onClick={() => editCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#eceef1]/50 dark:bg-[#3a3b53] text-[#a1acb8] hover:bg-[#696cff] hover:text-white hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#3a3b53] text-slate-500 dark:text-slate-400 hover:bg-[#696cff] hover:text-white transition-all duration-150"
                               title={`Edit ${category.name}`}
                             >
                               <Pencil size={14} />
@@ -794,7 +887,7 @@ export default function MenuPage() {
                             <button
                               type="button"
                               onClick={() => removeCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-[#eceef1]/50 dark:bg-[#3a3b53] text-[#a1acb8] hover:bg-[#ff3e1d] hover:text-white hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#3a3b53] text-slate-500 dark:text-slate-400 hover:bg-[#ff3e1d] hover:text-white transition-all duration-150"
                               title={`Delete ${category.name}`}
                             >
                               <Trash2 size={14} />
@@ -802,15 +895,22 @@ export default function MenuPage() {
                           </div>
                         </div>
 
-                        <p className="mt-4 line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-relaxed text-[#8592a3] relative z-10">
+                        <p className={`mt-4 line-clamp-2 min-h-[2.5rem] text-xs font-medium leading-relaxed ${textSecondary}`}>
                           {category.description || t.description}
                         </p>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+                      </div>
+
+                      {/* Bottom Share Bar */}
+                      <div className="mt-5 border-t border-slate-100 dark:border-[#3a3b53] pt-3 flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                        <span>Share of menu</span>
+                        <span className="font-bold text-[#696cff]">{percentOfTotal}%</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
           ) : (
             <>
               <section className="mb-6 flex flex-col gap-4">
@@ -908,8 +1008,8 @@ export default function MenuPage() {
           )}
 
           {!isCategoriesView && editorOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
-              <div className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div onClick={() => { resetCategoryForm(); setCategoryEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <ProductEditor
                   open={editorOpen}
                   onOpenChange={setEditorOpen}

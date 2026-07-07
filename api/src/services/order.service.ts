@@ -99,34 +99,68 @@ export const createOrder = async (
     customerId?: number;
     status?: string;
     notes?: string;
+    subtotal?: number;
     discountAmount?: number;
     taxAmount?: number;
+    totalAmount?: number;
     items?: {
       productId: number;
       variantId?: number;
       quantity?: number;
+      unitPrice?: number;
+      price?: number;
+      totalPrice?: number;
       notes?: string;
     }[];
   },
   userId?: number,
 ) => {
-  const subtotal = toNum(0);
+  const rawItems = payload.items || [];
+  
+  let calculatedSubtotal = 0;
+  const itemsToCreate = [];
+
+  for (const item of rawItems) {
+    const product = await prisma.product.findUnique({
+      where: { id: Number(item.productId) },
+    });
+
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const unitPrice = toNum(item.unitPrice ?? item.price ?? product?.basePrice ?? 0);
+    const totalPrice = toNum(item.totalPrice ?? (unitPrice * qty));
+
+    calculatedSubtotal += totalPrice;
+
+    itemsToCreate.push({
+      productId: Number(item.productId),
+      variantId: item.variantId ? Number(item.variantId) : null,
+      quantity: qty,
+      unitPrice: unitPrice,
+      totalPrice: totalPrice,
+      notes: item.notes || null,
+    });
+  }
+
+  const subtotal = payload.subtotal ? toNum(payload.subtotal) : calculatedSubtotal;
   const discountAmount = toNum(payload.discountAmount);
   const taxAmount = toNum(payload.taxAmount);
-  const totalAmount = Math.max(subtotal - discountAmount + taxAmount, 0);
+  const totalAmount = payload.totalAmount ? toNum(payload.totalAmount) : Math.max(subtotal - discountAmount + taxAmount, 0);
 
   const created = await prisma.order.create({
     data: {
       orderNumber: await generateOrderNumber(),
-      tableId: payload.tableId,
-      customerId: payload.customerId,
-      createdById: userId,
+      tableId: payload.tableId ? Number(payload.tableId) : null,
+      customerId: payload.customerId ? Number(payload.customerId) : null,
+      createdById: userId ? Number(userId) : null,
       status: normalizeStatus(payload.status) as OrderStatus,
       subtotal,
       discountAmount,
       taxAmount,
       totalAmount,
       notes: payload.notes,
+      items: {
+        create: itemsToCreate,
+      },
     },
     include: buildOrderInclude(),
   });

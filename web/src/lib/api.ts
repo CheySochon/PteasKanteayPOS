@@ -21,7 +21,7 @@ import type {
   User,
 } from "./types";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
 const API_ORIGIN = API_URL.replace(/\/api$/, "");
 
 type RequestOptions = {
@@ -177,13 +177,7 @@ export const getPayments = () => request<Payment[]>("/payments");
 export const createPayment = (body: Partial<Payment>) => request<Payment>("/payments", { method: "POST", body });
 export const getOrderPayments = (orderId: number) => request<Payment[]>(`/orders/${orderId}/payments`);
 
-export const getIngredients = () => request<Ingredient[]>("/inventory/ingredients");
-export const createIngredient = (body: Partial<Ingredient>) => request<Ingredient>("/inventory/ingredients", { method: "POST", body });
-export const updateIngredient = (id: number, body: Partial<Ingredient>) => request<Ingredient>(`/inventory/ingredients/${id}`, { method: "PUT", body });
-export const deleteIngredient = (id: number) => request<void>(`/inventory/ingredients/${id}`, { method: "DELETE" });
-export const getStockMovements = () => request<StockMovement[]>("/inventory/stock-movements");
-export const createStockAdjustment = (body: { ingredientId: number; type: StockMovementType; quantity: number; reason?: string }) => request<StockMovement>("/inventory/stock-adjustment", { method: "POST", body });
-export const getLowStock = () => request<Ingredient[]>("/inventory/low-stock");
+
 
 export const getCustomers = () => request<Customer[]>("/customers");
 export const getCustomer = (id: number) => request<Customer>(`/customers/${id}`);
