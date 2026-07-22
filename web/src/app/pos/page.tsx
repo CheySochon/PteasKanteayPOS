@@ -146,14 +146,14 @@ export default function PosPage() {
 
   function addProduct(product: Product) {
     const item = cartItemFromProduct(product);
-    const key = `${item.productId}-${item.variantId || "base"}`;
+    const key = item.productId;
 
     setCart((current) => {
-      const exists = current.some((entry) => `${entry.productId}-${entry.variantId || "base"}` === key);
+      const exists = current.some((entry) => entry.productId === key);
       if (!exists) return [...current, item];
 
       return current.map((entry) =>
-        `${entry.productId}-${entry.variantId || "base"}` === key
+        entry.productId === key
           ? { ...entry, quantity: entry.quantity + 1 }
           : entry
       );
@@ -171,7 +171,6 @@ export default function PosPage() {
         taxAmount: serviceFee + vat,
         items: cart.map((item) => ({
           productId: item.productId,
-          variantId: item.variantId,
           quantity: item.quantity,
         })),
       });
@@ -189,12 +188,12 @@ export default function PosPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f5f9] p-3 text-slate-700 sm:p-5">
-      <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-[1440px] overflow-hidden rounded border border-[#e5e7eb] bg-white shadow-sm">
+    <main className="h-screen w-screen overflow-hidden bg-[#f5f5f9] flex flex-col text-slate-700">
+      <div className="flex flex-1 overflow-hidden bg-[#f5f5f9] w-full h-full">
         
         {/* Left Side: Product Grid & Search */}
-        <section className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-[70px] items-center gap-3 border-b border-[#eceef1] px-4 sm:px-6">
+        <section className="flex min-w-0 flex-1 flex-col bg-[#f5f5f9]">
+          <header className="flex h-[70px] items-center gap-3 border-b border-[#eceef1] px-4 sm:px-6 bg-white">
             <div className="flex h-10 shrink-0 items-center gap-2 pr-2">
               {restaurantImageUrl ? (
                 <img
@@ -246,7 +245,7 @@ export default function PosPage() {
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 bg-[#f5f5f9]">
             {message && (
               <div className="mb-4 rounded border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
                 {message}
@@ -288,16 +287,6 @@ export default function PosPage() {
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} onAdd={() => addProduct(product)} />
                 ))}
-
-                <button
-                  type="button"
-                  className="flex min-h-[190px] flex-col items-center justify-center rounded border border-dashed border-[#d9dee3] bg-slate-50/30 text-xs font-semibold text-[#8592a3] hover:bg-slate-50 transition-all"
-                >
-                  <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#d9dee3]">
-                    <Plus size={16} />
-                  </span>
-                  Add Custom Item
-                </button>
               </div>
             )}
           </div>
@@ -374,7 +363,7 @@ export default function PosPage() {
                   const product = productMap.get(item.productId);
                   return (
                     <TicketItem
-                      key={`${item.productId}-${item.variantId || "base"}`}
+                      key={`${item.productId}-${index}`}
                       item={item}
                       imageUrl={resolveImageUrl(product?.imageUrl)}
                       onIncrement={() =>
@@ -403,100 +392,82 @@ export default function PosPage() {
           </div>
 
           {/* Checkout Totals Summary Section */}
-          <div className="border-t border-[#eceef1] px-6 py-5 bg-[#f5f5f9]/40">
+          <div className="border-t border-[#eceef1] px-6 py-5 bg-[#f5f5f9]/40 space-y-3">
             <SummaryRow label="Subtotal" value={money(subtotal)} />
-            <SummaryRow
-              label={`Split (${splitCount} guests)`}
-              value={splitOpen ? `${money(splitAmount)} each` : "Off"}
-            />
-            <SummaryRow
-              label={`Discount (${discountPercent}%)`}
-              value={discountAmount > 0 ? `-${money(discountAmount)}` : money(0)}
-            />
 
-            {/* Expanding Custom Boxes (Split/Discount) */}
-            {(splitOpen || discountOpen) && (
-              <div className="my-4 space-y-3.5 rounded border border-[#e5e7eb] bg-white p-3.5 shadow-sm">
-                {splitOpen && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">Split Bill</span>
-                      <span className="text-sm font-bold text-[#696cff]">{money(splitAmount)} each</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSplitCount((value) => Math.max(2, value - 1))}
-                        className="flex h-9 w-9 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:bg-[#f5f5f9] transition-all"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input
-                        type="number"
-                        min={2}
-                        value={splitCount}
-                        onChange={(event) => setSplitCount(Math.max(2, Number(event.target.value || 2)))}
-                        className="h-9 min-w-0 flex-1 rounded border border-[#d9dee3] bg-white text-center text-sm font-bold outline-none focus:border-[#696cff] transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSplitCount((value) => value + 1)}
-                        className="flex h-9 w-9 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:bg-[#f5f5f9] transition-all"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {discountOpen && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">Discount Overrides</span>
-                      <span className="text-sm font-bold text-[#ff3e1d]">-{money(discountAmount)}</span>
-                    </div>
-                    
-                    {/* Discount Input */}
-                    <div className="relative mb-3">
-                      <Percent className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#a1acb8]" size={14} />
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={discountPercent}
-                        onChange={(event) =>
-                          setDiscountPercent(Math.min(100, Math.max(0, Number(event.target.value || 0))))
-                        }
-                        className="h-10 w-full rounded border border-[#d9dee3] bg-white pl-9 pr-3 text-sm font-semibold outline-none focus:border-[#696cff] transition-all"
-                      />
-                    </div>
-
-                    {/* Dynamic Promo Presets (Showcase Idea!) */}
-                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#a1acb8] flex items-center gap-1.5">
-                      <Tag size={11} />
-                      Promo Presets
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {PROMO_CODES.map((promo) => (
-                        <button
-                          key={promo.code}
-                          type="button"
-                          onClick={() => setDiscountPercent(promo.value)}
-                          className={`h-8 rounded text-[10px] font-bold tracking-wide uppercase transition-all ${
-                            discountPercent === promo.value
-                              ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
-                              : "bg-[#f5f5f9] text-[#8592a3] border border-[#d9dee3]/60 hover:text-[#696cff]"
-                          }`}
-                          title={promo.code}
-                        >
-                          {promo.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {/* Split Bill Direct Input Row */}
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="text-[#a1acb8]">Split Bill (Guests)</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSplitCount((value) => Math.max(1, value - 1))}
+                    className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
+                  >
+                    <Minus size={11} />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={splitCount}
+                    onChange={(event) => setSplitCount(Math.max(1, Number(event.target.value || 1)))}
+                    className="h-6 w-10 rounded border border-[#d9dee3] bg-white text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSplitCount((value) => value + 1)}
+                    className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
+                  >
+                    <Plus size={11} />
+                  </button>
+                </div>
               </div>
-            )}
+              <span className="text-[#566a7f] font-bold">
+                {splitCount > 1 ? `${money(splitAmount)} each` : money(total)}
+              </span>
+            </div>
+
+            {/* Discount Direct Input Row */}
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="text-[#a1acb8]">Discount (%)</span>
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={discountPercent}
+                    onChange={(event) =>
+                      setDiscountPercent(Math.min(100, Math.max(0, Number(event.target.value || 0))))
+                    }
+                    className="h-6 w-14 rounded border border-[#d9dee3] bg-white pr-4 text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="pointer-events-none absolute right-1.5 text-[10px] font-bold text-[#a1acb8]">%</span>
+                </div>
+              </div>
+              <span className="text-[#ff3e1d] font-bold">
+                {discountAmount > 0 ? `-${money(discountAmount)}` : money(0)}
+              </span>
+            </div>
+
+            {/* Promo preset quick buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {PROMO_CODES.map((promo) => (
+                <button
+                  key={promo.code}
+                  type="button"
+                  onClick={() => setDiscountPercent(discountPercent === promo.value ? 0 : promo.value)}
+                  className={`h-6 rounded-md px-2 text-[9px] font-extrabold uppercase transition-all ${
+                    discountPercent === promo.value
+                      ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
+                      : "bg-white text-[#8592a3] border border-[#d9dee3] hover:text-[#696cff]"
+                  }`}
+                >
+                  {promo.label}
+                </button>
+              ))}
+            </div>
 
             <SummaryRow label={`Service Charge (${Math.round(serviceRate * 100)}%)`} value={money(serviceFee)} />
             <SummaryRow label={`VAT (${Math.round(vatRate * 100)}%)`} value={money(vat)} />
@@ -504,32 +475,6 @@ export default function PosPage() {
             <div className="mt-4 flex items-end justify-between border-t pt-3 border-[#eceef1]">
               <span className="text-sm font-bold uppercase tracking-wider text-[#8592a3]">Total Amount</span>
               <span className="text-3xl font-bold text-[#696cff]">{money(total)}</span>
-            </div>
-
-            {/* Split & Discount Buttons */}
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSplitOpen((value) => !value)}
-                className={`h-10 rounded border text-xs font-semibold transition-all ${
-                  splitOpen
-                    ? "border-[#696cff]/20 bg-[#696cff]/10 text-[#696cff]"
-                    : "border-[#d9dee3] text-[#8592a3] hover:bg-[#f5f5f9]"
-                }`}
-              >
-                Split Bill
-              </button>
-              <button
-                type="button"
-                onClick={() => setDiscountOpen((value) => !value)}
-                className={`h-10 rounded border text-xs font-semibold transition-all ${
-                  discountOpen
-                    ? "border-[#696cff]/20 bg-[#696cff]/10 text-[#696cff]"
-                    : "border-[#d9dee3] text-[#8592a3] hover:bg-[#f5f5f9]"
-                }`}
-              >
-                Discount
-              </button>
             </div>
 
             {/* Pay Now Button */}
@@ -640,7 +585,7 @@ function TicketItem({
           <div className="min-w-0">
             <h3 className="truncate text-xs font-bold text-[#566a7f]">{item.name}</h3>
             <p className="mt-0.5 text-[9.5px] font-semibold text-[#a1acb8]">
-              {item.variantName || "Regular"} • {money(item.unitPrice)}
+              {money(item.unitPrice)}
             </p>
           </div>
           <span className="text-xs font-bold text-[#566a7f]">

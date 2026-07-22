@@ -66,30 +66,7 @@ export type Category = {
   updatedAt?: string;
 };
 
-export type ProductVariant = {
-  id: number;
-  productId: number;
-  name: string;
-  price: Money;
-  sku?: string | null;
-  isAvailable: boolean;
-  deletedAt?: string | null;
-};
 
-export type ProductModifier = {
-  id: number;
-  name: string;
-  price: Money;
-  isAvailable: boolean;
-  deletedAt?: string | null;
-};
-
-export type ProductModifierMap = {
-  id: number;
-  productId: number;
-  modifierId: number;
-  modifier?: ProductModifier;
-};
 
 export type ProductIngredient = {
   id: number;
@@ -109,8 +86,6 @@ export type Product = {
   imageUrl?: string | null;
   basePrice: Money;
   isAvailable: boolean;
-  variants?: ProductVariant[];
-  modifierMaps?: ProductModifierMap[];
   deletedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -130,13 +105,7 @@ export type DiningTable = {
   updatedAt?: string;
 };
 
-export type OrderItemModifier = {
-  id: number;
-  orderItemId: number;
-  modifierId: number;
-  price: Money;
-  modifier?: ProductModifier;
-};
+
 
 export type OrderItem = {
   id: number;
@@ -144,13 +113,10 @@ export type OrderItem = {
   productId: number;
   name?: string | null;
   product?: Product;
-  variantId?: number | null;
-  variant?: ProductVariant | null;
   quantity: number;
   unitPrice: Money;
   totalPrice: Money;
   notes?: string | null;
-  modifiers?: OrderItemModifier[];
 };
 
 export type Payment = {
@@ -164,14 +130,7 @@ export type Payment = {
   createdAt?: string;
 };
 
-export type Customer = {
-  id: number;
-  name: string;
-  phone?: string | null;
-  email?: string | null;
-  loyaltyPoints: number;
-  createdAt?: string;
-};
+
 
 export type Order = {
   id: number;
@@ -181,8 +140,6 @@ export type Order = {
   table?: DiningTable | null;
   tableNo?: string | null;
   orderType?: string | null;
-  customerId?: number | null;
-  customer?: Customer | null;
   status: OrderStatus;
   subtotal: Money;
   discountAmount: Money;
@@ -191,6 +148,7 @@ export type Order = {
   notes?: string | null;
   items?: OrderItem[];
   payments?: Payment[];
+  createdBy?: User | null;
   createdAt: string;
   updatedAt?: string;
 };
@@ -256,8 +214,6 @@ export type QrMenu = {
 
 export type CreateOrderItemInput = {
   productId: number;
-  variantId?: number;
-  modifierIds?: number[];
   quantity: number;
   notes?: string;
 };
@@ -265,7 +221,6 @@ export type CreateOrderItemInput = {
 export type CreateOrderInput = {
   tableId?: number;
   tableNo?: string;
-  customerId?: number;
   notes?: string;
   status?: OrderStatus;
   discountAmount?: Money;

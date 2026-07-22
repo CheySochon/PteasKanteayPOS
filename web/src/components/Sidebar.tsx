@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { apiOrigin, getSettings } from "../lib/api";
+import { apiOrigin, getSettings, logoutApi } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
 import {
   getProfileImage,
@@ -46,8 +46,8 @@ const NAV_OVERVIEW = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
   { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
-  { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
+  { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
 ];
 
 const MENU_CHILDREN = [
@@ -312,6 +312,8 @@ export default function Sidebar({
   }, [currentUser.id]);
 
   function logout() {
+    void logoutApi().catch(() => null);
+    localStorage.removeItem("pos_logged_in");
     localStorage.removeItem("pos_token");
     localStorage.removeItem("pos_user");
     window.dispatchEvent(new Event("pos-auth-change"));
@@ -523,34 +525,13 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Footer / Toggle Section */}
-      <div className={`border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px]"}`}>
+      {/* Footer Section */}
+      <div className={`border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px_4px]"}`}>
         {contentMounted && (
           <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
             <SidebarProfileCard user={currentUser} dark={dark} isKhmer={language === "km"} />
           </div>
         )}
-
-        <div className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : "justify-between mb-3"}`}>
-          {contentMounted && (
-            <div className={`flex items-center gap-[6px] transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-              <span className={dark ? "text-xs text-slate-400" : "text-xs text-slate-400"}>{dark ? "Dark" : "Light"}</span>
-            </div>
-          )}
-
-          <button
-            onClick={() => setTheme(dark ? "light" : "dark")}
-            className={`w-10 h-[22px] rounded-[11px] border-none cursor-pointer relative transition-colors duration-200 ${
-              dark ? "bg-[#696cff]" : "bg-[#eceef1]"
-            }`}
-          >
-            <div
-              className={`absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all ${
-                dark ? "left-[calc(100%-19px)]" : "left-[3px]"
-              }`}
-            />
-          </button>
-        </div>
       </div>
     </aside>
     <div className={`${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />

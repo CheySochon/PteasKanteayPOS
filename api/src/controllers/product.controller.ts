@@ -49,7 +49,7 @@ export const remove = asyncHandler(
 );
 
 export const uploadImage = asyncHandler(
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     if (!req.file) {
       res.status(400).json({ success: false, message: "Product image is required" });
       return;

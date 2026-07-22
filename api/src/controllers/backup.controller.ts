@@ -7,6 +7,7 @@ import {
   readBackupFile,
   validateBackup,
   backupSummary,
+  type Backup,
 } from "../services/backup.service.js";
 
 export const download = asyncHandler(async (req: Request, res: Response) => {
@@ -44,8 +45,8 @@ export const latest = asyncHandler(async (_req: Request, res: Response) => {
   res.send(JSON.stringify(backup, null, 2));
 });
 
-export const preview = asyncHandler(async (req: Request, res: Response) => {
-  const backup: any = req.body;
+export const preview = asyncHandler((req: Request, res: Response) => {
+  const backup = req.body as unknown as Backup;
   validateBackup(backup);
 
   res.json({
@@ -56,7 +57,7 @@ export const preview = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const restore = asyncHandler(async (req: Request, res: Response) => {
-  const backup: any = req.body;
+  const backup = req.body as unknown as Backup;
   validateBackup(backup);
 
   const safetyBackup = await createBackup(req.user);

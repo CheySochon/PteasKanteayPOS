@@ -11,16 +11,11 @@ const TABLES = [
   { key: "roles", model: "role" },
   { key: "users", model: "user" },
   { key: "appSettings", model: "appSetting" },
-  { key: "customers", model: "customer" },
   { key: "categories", model: "category" },
   { key: "diningTables", model: "diningTable" },
   { key: "products", model: "product" },
-  { key: "productVariants", model: "productVariant" },
-  { key: "productModifiers", model: "productModifier" },
-  { key: "productModifierMaps", model: "productModifierMap" },
   { key: "orders", model: "order" },
   { key: "orderItems", model: "orderItem" },
-  { key: "orderItemModifiers", model: "orderItemModifier" },
   { key: "payments", model: "payment" },
   { key: "shifts", model: "shift" },
   { key: "notifications", model: "notification" },
@@ -28,7 +23,7 @@ const TABLES = [
 
 type BackupData = Record<string, unknown[]>;
 
-type Backup = {
+export type Backup = {
   version: number;
   app: string;
   createdAt: string;
@@ -44,7 +39,7 @@ export const createBackup = async (createdBy?: {
   const data: BackupData = {};
 
   for (const table of TABLES) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
     data[table.key] = await (prisma as any)[table.model].findMany({
       orderBy: { id: "asc" },
     });
@@ -63,58 +58,51 @@ export const createBackup = async (createdBy?: {
 
 export const saveBackupFile = async (
   backup: Backup,
-  prefix = "backup",
-): Promise<{ filename: string; filePath: string }> => {
+  prefix = "pos-backup",
+) => {
   await fs.mkdir(BACKUP_DIR, { recursive: true });
-
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `${prefix}-${stamp}.json`;
+  const filename = `${prefix}-${new Date().toISOString().slice(0, 10)}-${Date.now()}.json`;
   const filePath = path.join(BACKUP_DIR, filename);
-
-  await fs.writeFile(filePath, JSON.stringify(backup, null, 2), "utf8");
-
+  await fs.writeFile(filePath, JSON.stringify(backup, null, 2), "utf-8");
   return { filename, filePath };
 };
 
 export const listBackupFiles = async () => {
-  try {
-    const entries = await fs.readdir(BACKUP_DIR, { withFileTypes: true });
-    const files = await Promise.all(
-      entries
-        .filter((e) => e.isFile() && e.name.endsWith(".json"))
-        .map(async (e) => {
-          const filePath = path.join(BACKUP_DIR, e.name);
-          const stat = await fs.stat(filePath);
-          return {
-            filename: e.name,
-            size: stat.size,
-            createdAt: stat.birthtime,
-            updatedAt: stat.mtime,
-          };
-        }),
-    );
+  await fs.mkdir(BACKUP_DIR, { recursive: true });
+  const files = await fs.readdir(BACKUP_DIR);
+  const jsonFiles = files.filter((f) => f.endsWith(".json"));
 
-    return files.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw err;
-  }
+  const items = await Promise.all(
+    jsonFiles.map(async (filename) => {
+      const filePath = path.join(BACKUP_DIR, filename);
+      const stat = await fs.stat(filePath);
+      return {
+        filename,
+        size: stat.size,
+        createdAt: stat.birthtime.toISOString(),
+      };
+    }),
+  );
+
+  return items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 };
 
 export const readBackupFile = async (filename: string): Promise<Backup> => {
-  const safeName = path.basename(filename ?? "");
-  if (!safeName.endsWith(".json")) {
-    throw new Error("Invalid backup filename");
-  }
-
-  const raw = await fs.readFile(path.join(BACKUP_DIR, safeName), "utf8");
-  return JSON.parse(raw) as Backup;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(BACKUP_DIR, safeFilename);
+  const content = await fs.readFile(filePath, "utf-8");
+  return JSON.parse(content) as Backup;
 };
 
-export function validateBackup(backup: unknown): asserts backup is Backup {
-  const b = backup as Partial<Backup>;
-  if (!b || typeof b !== "object" || b.app !== "pos-newflow" || !b.data) {
-    throw new Error("Invalid backup file");
+export const validateBackup = (backup: unknown): void => {
+  if (!backup || typeof backup !== "object") {
+    throw new Error("Invalid backup payload");
+  }
+
+  const b = backup as Backup;
+
+  if (!b.version || !b.app || !b.data) {
+    throw new Error("Backup file missing required headers");
   }
 
   for (const table of TABLES) {
@@ -122,22 +110,20 @@ export function validateBackup(backup: unknown): asserts backup is Backup {
       throw new Error(`Backup is missing ${table.key}`);
     }
   }
-}
+};
 
 export const backupSummary = (backup: Backup) => {
-  return TABLES.reduce(
-    (summary: any, table) => {
-      summary.counts[table.key] = Array.isArray(backup.data?.[table.key])
-        ? backup.data[table.key].length
-        : 0;
-      return summary;
-    },
-    {
-      version: backup.version,
-      app: backup.app,
-      createdAt: backup.createdAt,
-      createdBy: backup.createdBy,
-      counts: {},
-    },
-  );
+  const counts: Record<string, number> = {};
+  for (const table of TABLES) {
+    counts[table.key] = Array.isArray(backup.data?.[table.key])
+      ? backup.data[table.key].length
+      : 0;
+  }
+  return {
+    version: backup.version,
+    app: backup.app,
+    createdAt: backup.createdAt,
+    createdBy: backup.createdBy,
+    counts,
+  };
 };

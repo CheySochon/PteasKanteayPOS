@@ -18,6 +18,9 @@ import {
   UserRound,
   Sun,
   Moon,
+  Eye,
+  X,
+  ChefHat,
 } from "lucide-react";
 import { setAppLanguage } from "../lib/language";
 import { useAppTheme } from "../lib/theme";
@@ -39,6 +42,18 @@ export type NotificationItem = {
   title: string;
   detail: string;
   tone?: "default" | "warning";
+  orderId?: string | number;
+  orderNumber?: string;
+  tableNo?: string;
+  totalAmount?: number;
+  time?: string;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    price?: number;
+    notes?: string;
+    image?: string;
+  }>;
 };
 
 type TopBarProps = {
@@ -50,6 +65,9 @@ type TopBarProps = {
   onClearNotifications?: () => void;
   dark?: boolean;
   onMenuToggle?: () => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  searchPlaceholder?: string;
 };
 
 const quickLinks = [
@@ -106,9 +124,13 @@ export default function TopBar({
   onClearNotifications,
   dark = false,
   onMenuToggle,
+  searchQuery,
+  onSearchChange,
+  searchPlaceholder,
 }: TopBarProps) {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
   const languageRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const user = parseUserSnapshot(
@@ -150,11 +172,11 @@ export default function TopBar({
   }, []);
 
   const unreadCount = notifications.length;
-  const surface = dark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
-  const dropdownSurface = dark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
-  const menuHover = dark ? "hover:bg-white/10" : "hover:bg-slate-100";
-  const textPrimary = dark ? "text-slate-100" : "text-slate-800";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
+  const surface = isDark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
+  const dropdownSurface = isDark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
+  const menuHover = isDark ? "hover:bg-white/10" : "hover:bg-slate-100";
+  const textPrimary = isDark ? "text-slate-100" : "text-slate-800";
+  const textSecondary = isDark ? "text-slate-400" : "text-slate-500";
   const kmClass = language === "km" ? "font-khmer" : "";
   const t = labels[language];
   const allowedQuickLinks = quickLinks.filter(({ href }) => canSeeHref(href, user.role, staffPermissions));
@@ -189,7 +211,9 @@ export default function TopBar({
               <Search size={15} className="absolute left-3 text-[#a1acb8]" />
               <input
                 type="text"
-                placeholder="Search..."
+                value={searchQuery ?? ""}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                placeholder={searchPlaceholder ?? "Search..."}
                 className={`h-8.5 w-60 rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-[#a1acb8] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
                   isDark
                     ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
@@ -201,6 +225,27 @@ export default function TopBar({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* Sleek Easy & Clean POS / KDS Quick Switcher */}
+          <div className="hidden items-center gap-1.5 sm:flex mr-1 border-r border-slate-200/80 dark:border-[#4e4f6e] pr-2.5">
+            <Link
+              href="/pos"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#696cff]/10 px-2.5 text-xs font-black text-[#696cff] hover:bg-[#696cff] hover:text-white active:scale-95 transition-all shadow-sm"
+              title="Open POS Terminal"
+            >
+              <Utensils size={14} />
+              <span className="hidden md:inline font-bold">POS</span>
+            </Link>
+
+            <Link
+              href="/kds"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white active:scale-95 transition-all shadow-sm"
+              title="Open Kitchen Display (KDS)"
+            >
+              <ChefHat size={14} />
+              <span className="hidden md:inline font-bold">KDS</span>
+            </Link>
+          </div>
+
           <div ref={languageRef} className="relative">
             <button
               type="button"
@@ -306,25 +351,52 @@ export default function TopBar({
                 ) : (
                   <div className="space-y-2">
                     {notifications.slice(0, 5).map((item) => (
-                      <div key={item.id} className="flex gap-3 rounded-lg bg-slate-50 p-3">
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedNotification(item);
+                          setNotificationsOpen(false);
+                        }}
+                        className={`flex w-full items-start gap-3 rounded-lg p-2.5 text-left transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                          isDark ? "bg-[#232333] hover:bg-[#2b2c40]" : "bg-slate-50 hover:bg-slate-100/80 border border-slate-200/50"
+                        }`}
+                      >
                         <div
                           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                             item.tone === "warning"
                               ? "bg-orange-100 text-orange-700"
-                              : "bg-[#1D9E75]/10 text-[#1D9E75]"
+                              : "bg-[#696cff]/10 text-[#696cff]"
                           }`}
                         >
                           {item.tone === "warning" ? <Package size={15} /> : <ShoppingBag size={15} />}
                         </div>
-                        <div className="min-w-0">
-                          <div className={`truncate text-xs font-black ${textPrimary} ${kmClass}`}>
-                            {item.title}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <div className={`truncate text-xs font-black ${textPrimary} ${kmClass}`}>
+                              {item.title}
+                            </div>
+                            <span className="shrink-0 rounded bg-[#696cff]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#696cff]">
+                              {language === "km" ? "មើលមុខម្ហូប" : "View Dishes"}
+                            </span>
                           </div>
                           <div className={`mt-0.5 truncate text-xs ${textSecondary} ${kmClass}`}>
                             {item.detail}
                           </div>
+                          {item.items && item.items.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {item.items.slice(0, 2).map((dish, dIdx) => (
+                                <span key={dIdx} className="rounded bg-slate-200/60 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-white/10 dark:text-slate-300">
+                                  {dish.quantity}x {dish.name}
+                                </span>
+                              ))}
+                              {item.items.length > 2 && (
+                                <span className="text-[10px] text-slate-400 font-bold">+{item.items.length - 2} more</span>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -350,6 +422,130 @@ export default function TopBar({
           </Link>
         </div>
       </div>
+
+      {/* Quick Order Items Preview Modal */}
+      {selectedNotification && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div
+            className={`w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl transition-all ${
+              isDark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-800"
+            }`}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b px-5 py-4 border-slate-200/80 dark:border-[#4e4f6e] bg-[#696cff]/5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff] text-white shadow-sm shadow-[#696cff]/30">
+                  <Utensils size={18} />
+                </div>
+                <div>
+                  <h3 className={`text-base font-black tracking-tight ${kmClass}`}>
+                    {language === "km" ? "ព័ត៌មានមុខម្ហូបក្នុង Order" : "Order Dishes Preview"}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {selectedNotification.orderNumber || selectedNotification.title}
+                    {selectedNotification.tableNo ? ` • Table ${selectedNotification.tableNo}` : ""}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNotification(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content / Dishes List */}
+            <div className="max-h-[360px] overflow-y-auto p-5 space-y-3">
+              {selectedNotification.items && selectedNotification.items.length > 0 ? (
+                selectedNotification.items.map((dish, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between rounded-xl p-3 border transition-all ${
+                      isDark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-slate-50 border-slate-200/60 hover:bg-slate-100/60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {dish.image ? (
+                        <img src={dish.image} alt={dish.name} className="h-10 w-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
+                          <ShoppingBag size={18} />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{dish.name}</div>
+                        {dish.notes && (
+                          <div className="truncate text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                            Note: {dish.notes}
+                          </div>
+                        )}
+                        {dish.price ? (
+                          <div className="text-[11px] text-slate-500 font-medium">${dish.price.toFixed(2)} / item</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="inline-block rounded-md bg-[#696cff] px-2.5 py-1 text-xs font-black text-white">
+                        x{dish.quantity}
+                      </span>
+                      {dish.price ? (
+                        <div className="mt-1 text-xs font-black text-slate-800 dark:text-slate-100">
+                          ${(dish.price * dish.quantity).toFixed(2)}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-4 text-center dark:bg-[#2b2c40] dark:border-[#4e4f6e]">
+                  <div className="flex justify-center mb-2 text-[#696cff]">
+                    <ShoppingBag size={24} />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    {selectedNotification.title}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {selectedNotification.detail}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t px-5 py-3.5 border-slate-200/80 dark:border-[#4e4f6e] bg-slate-50/50 dark:bg-[#2b2c40]">
+              <div>
+                {selectedNotification.totalAmount ? (
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</span>
+                    <div className="text-base font-black text-[#71dd37]">${selectedNotification.totalAmount.toFixed(2)}</div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/admin/orders"
+                  onClick={() => setSelectedNotification(null)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] transition-all shadow-sm shadow-[#696cff]/20"
+                >
+                  <Eye size={14} />
+                  <span>{language === "km" ? "មើលក្នុង Orders" : "View in Orders"}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setSelectedNotification(null)}
+                  className="h-9 rounded-lg border border-slate-200 px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-[#4e4f6e] dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  {language === "km" ? "បិទ" : "Close"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Armchair,
   Clock3,
+  Crown,
+  DoorOpen,
+  Layers,
   MapPin,
   Pencil,
   Plus,
@@ -17,6 +20,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
+import { useAppLanguage, setAppLanguage } from "../../../lib/language";
+import TopBar from "../../../components/TopBar";
 import {
   apiBaseUrl,
   createTable,
@@ -130,9 +135,11 @@ function getTableState(table: DiningTable, order?: Order): TableState {
 }
 
 export default function TablesPage() {
+  const language = useAppLanguage();
   const [theme] = useAppTheme();
   const [tables, setTables] = useState<DiningTable[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedZone, setSelectedZone] = useState<"all" | TableZone>("all");
   const [tableForm, setTableForm] = useState<TableForm>(EMPTY_TABLE_FORM);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [qrTable, setQrTable] = useState<DiningTable | null>(null);
@@ -273,15 +280,30 @@ export default function TablesPage() {
     return `${browserApiBaseUrl}/tables/${encodeURIComponent(table.qrToken)}/qr-code?url=${encodeURIComponent(qrLink(table))}`;
   }
 
+  const [deleteConfirmTable, setDeleteConfirmTable] = useState<DiningTable | null>(null);
+
+  useEffect(() => {
+    if (!deleteConfirmTable) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setDeleteConfirmTable(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deleteConfirmTable]);
+
   async function copyQrLink(table: DiningTable) {
     await navigator.clipboard.writeText(qrLink(table));
     setMessage(`QR link copied for ${table.name}.`);
   }
 
-  async function removeTable(table: DiningTable) {
-    const ok = window.confirm(`Delete ${table.name}?`);
-    if (!ok) return;
-
+  async function confirmRemoveTable() {
+    if (!deleteConfirmTable) return;
+    const table = deleteConfirmTable;
+    setDeleteConfirmTable(null);
     setMessage("");
 
     try {
@@ -289,7 +311,7 @@ export default function TablesPage() {
       setTables((current) => current.filter((entry) => entry.id !== table.id));
       if (tableForm.id === table.id) closeTableModal();
       setLastUpdated(new Date());
-      setMessage("Table deleted.");
+      setMessage(`Table ${table.name} deleted.`);
     } catch (err) {
       setMessage(
         err instanceof Error
@@ -333,6 +355,15 @@ export default function TablesPage() {
     }, {});
   }, [liveOrders]);
 
+  const zoneCounts = useMemo(() => {
+    return {
+      all: tables.length,
+      indoor: tables.filter((t) => t.zone === "indoor").length,
+      outdoor: tables.filter((t) => t.zone === "outdoor").length,
+      vip: tables.filter((t) => t.zone === "vip").length,
+    };
+  }, [tables]);
+
   const tableCards = useMemo(
     () =>
       tables.map((table) => {
@@ -343,45 +374,81 @@ export default function TablesPage() {
     [latestOrderByTable, tables]
   );
 
+  const filteredTableCards = useMemo(() => {
+    return tableCards.filter(({ table }) => {
+      if (selectedZone === "all") return true;
+      return table.zone === selectedZone;
+    });
+  }, [tableCards, selectedZone]);
+
 
   return (
     <>
-      <main className="flex-1 overflow-y-auto">
-        <div className="grid min-h-full grid-cols-1 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <section className="px-6 py-6 lg:px-8">
-            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded bg-[#e7e7ff] px-3 py-1 text-xs font-bold text-[#696cff]">
-                  <Store size={14} />
-                  Main Floor Layout
-                </div>
-                <h1 className={`text-3xl font-bold tracking-tight ${textPrimary}`}>
-                  Floor Dining Tables
-                </h1>
-                <p className={`mt-1 text-sm ${textSecondary}`}>
-                  Real-time occupancy status from orders and KDS updates
-                </p>
+      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+        <TopBar
+          title={language === "km" ? "តុអាហារ" : "Floor Dining Tables"}
+          subtitle={language === "km" ? "គ្រប់គ្រង និងតាមដានស្ថានភាពតុអាហារ" : "Manage floor plan, table status, and QR codes."}
+          language={language}
+          onLanguageChange={setAppLanguage}
+          notifications={[]}
+          dark={dark}
+        />
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div className="mx-auto w-full max-w-[1400px]">
+            {/* Single Integrated Toolbar: Zone Tabs (Left) + Actions (Right) */}
+            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4 border-slate-200/80 dark:border-[#4e4f6e]">
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { id: "all", label: language === "km" ? "តុ & បន្ទប់ទាំងអស់" : "All Tables & Rooms", count: zoneCounts.all, icon: Layers },
+                  { id: "indoor", label: language === "km" ? "សាលធំ (Indoor)" : "Indoor Hall", count: zoneCounts.indoor, icon: Store },
+                  { id: "outdoor", label: language === "km" ? "យ៉រ/ខាងក្រៅ (Outdoor)" : "Outdoor Area", count: zoneCounts.outdoor, icon: MapPin },
+                  { id: "vip", label: language === "km" ? "បន្ទប់ VIP (VIP Rooms)" : "VIP Rooms", count: zoneCounts.vip, icon: Crown },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = selectedZone === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSelectedZone(tab.id as "all" | TableZone)}
+                      className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-150 ${
+                        isActive
+                          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
+                          : dark
+                            ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
+                            : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <Icon size={14} className={isActive ? "text-white" : tab.id === "vip" ? "text-amber-500" : "text-[#696cff]"} />
+                      <span>{tab.label}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${isActive ? "bg-white/20 text-white" : dark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3">
                 <button
                   type="button"
                   onClick={openCreateTableModal}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                 >
-                  <Plus size={15} />
-                  Add Table
+                  <Plus size={14} />
+                  {language === "km" ? "បន្ថែមតុថ្មី" : "Add Table"}
                 </button>
 
-                <div className={`flex items-center gap-3 rounded border px-3 py-2 text-xs font-semibold ${surface} ${borderCol} ${textSecondary}`}>
+                <div className={`flex items-center gap-3 rounded-lg border px-3 py-1.5 text-xs font-semibold ${surface} ${borderCol} ${textSecondary}`}>
                   <span>{lastUpdated ? `Sync ${lastUpdated.toLocaleTimeString()}` : "Connecting..."}</span>
                   <button
                     type="button"
                     onClick={load}
-                    className="flex h-8 w-8 items-center justify-center rounded bg-[#696cff] text-white active:scale-90 transition-all shadow-sm"
+                    className="flex h-7 w-7 items-center justify-center rounded bg-[#696cff] text-white active:scale-90 transition-all shadow-sm"
                     title="Refresh tables"
                   >
-                    <RefreshCw size={14} />
+                    <RefreshCw size={13} />
                   </button>
                 </div>
               </div>
@@ -408,14 +475,14 @@ export default function TablesPage() {
                 <Loader2 className="mx-auto mb-3 animate-spin text-[#696cff]" size={28} />
                 Loading live floor plan...
               </div>
-            ) : tables.length === 0 ? (
+            ) : filteredTableCards.length === 0 ? (
               <div className={`rounded border border-dashed p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
                 <Armchair size={32} className="mx-auto mb-3 text-slate-300" />
-                No dining tables configured on the floor layout.
+                No tables or rooms found in this zone.
               </div>
             ) : (
               <div className="grid gap-3.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 items-start justify-start">
-                {tableCards.map(({ table, order, state }) => {
+                {filteredTableCards.map(({ table, order, state }) => {
                   const styles = tableStateStyles[state];
                   const cardBackground =
                     state === "dirty"
@@ -427,12 +494,21 @@ export default function TablesPage() {
                   return (
                     <div
                       key={table.id}
-                      className={`w-full min-h-[185px] rounded-xl border-2 p-3.5 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 ease-out flex flex-col justify-between ${styles.border} ${cardBackground}`}
+                      className={`w-full min-h-[185px] rounded-xl border p-3.5 shadow-xs hover:shadow transition-all duration-150 flex flex-col justify-between ${styles.border} ${cardBackground}`}
                     >
                       <div>
                         <div className="mb-4 flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">Table</div>
+                            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">
+                              {table.zone === "vip" ? (
+                                <span className="inline-flex items-center gap-1 text-amber-500 font-extrabold">
+                                  <Crown size={11} />
+                                  VIP Room
+                                </span>
+                              ) : (
+                                "Table"
+                              )}
+                            </div>
                             <div className={`text-2xl font-bold leading-none ${state === "inactive" ? "text-slate-400" : "text-[#566a7f]"}`}>
                               {table.name}
                             </div>
@@ -542,7 +618,7 @@ export default function TablesPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => removeTable(table)}
+                            onClick={() => setDeleteConfirmTable(table)}
                             className={`flex h-9 w-9 items-center justify-center rounded border transition-all ${
                               dark
                                 ? "border-[#4e4f6e] bg-[#232333] text-[#ff3e1d] hover:bg-[#ff3e1d]/10"
@@ -559,9 +635,8 @@ export default function TablesPage() {
                 })}
               </div>
             )}
-          </section>
 
-
+          </div>
         </div>
       </main>
 
@@ -759,6 +834,48 @@ export default function TablesPage() {
           </div>
         </div>
       )}
+
+      {deleteConfirmTable && (
+          <div
+            onClick={() => setDeleteConfirmTable(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-sm overflow-hidden rounded-xl border p-6 text-center shadow-2xl animate-[tableModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both] cursor-default ${dark ? "bg-[#1f2130] border-[#383a50] text-slate-100" : "bg-white border-slate-200 text-slate-800"}`}
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                <Trash2 size={26} />
+              </div>
+
+              <h3 className="text-lg font-black tracking-tight">
+                {language === "km" ? "បញ្ជាក់ការលុបតុ" : "Delete Table?"}
+              </h3>
+              <p className={`mt-2 text-xs font-medium ${textSecondary}`}>
+                {language === "km"
+                  ? `តើអ្នកពិតជាចង់លុបតុ "${deleteConfirmTable.name}" មែនទេ? ទិន្នន័យនេះមិនអាចត្រឡប់មកវិញបានទេ។`
+                  : `Are you sure you want to delete table "${deleteConfirmTable.name}"? This action cannot be undone.`}
+              </p>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTable(null)}
+                  className={`flex-1 rounded-lg border py-2.5 text-xs font-bold transition-all ${dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRemoveTable}
+                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20"
+                >
+                  {language === "km" ? "លុបចោល" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       <style>{`
         @keyframes tableModalBackdrop {

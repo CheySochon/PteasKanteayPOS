@@ -67,6 +67,8 @@ export default function TableQrPage({
   const [submitting, setSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [orderNote, setOrderNote] = useState("");
 
   useEffect(() => {
     // Pre-connect socket for instant order emission
@@ -158,6 +160,7 @@ export default function TableQrPage({
           tableId: menuData.table?.id,
           tableNo: menuData.table?.name,
           orderType: "dine-in",
+          notes: orderNote,
           items: cart.map((item) => ({
             productId: item.productId,
             name: item.name,
@@ -189,6 +192,8 @@ export default function TableQrPage({
       }
 
       setCart([]);
+      setOrderNote("");
+      setIsReviewOpen(false);
       setOrderSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to place order.");
@@ -267,15 +272,15 @@ export default function TableQrPage({
             </div>
           </div>
 
-          {/* Category Filter Tabs */}
+          {/* Category Filter Tabs (Sneat UI Style) */}
           <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar pb-1 border-t border-slate-100 pt-3">
             <button
               type="button"
               onClick={() => setSelectedCategory("all")}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
+              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
                 selectedCategory === "all"
-                  ? "bg-[#696cff] text-white shadow-md shadow-[#696cff]/30"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
+                  : "bg-slate-100/70 text-[#8592a3] hover:text-[#696cff] hover:bg-slate-200/50"
               }`}
             >
               All Items ({productsList.length})
@@ -288,10 +293,10 @@ export default function TableQrPage({
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-all ${
+                  className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
                     selectedCategory === cat.id
-                      ? "bg-[#696cff] text-white shadow-md shadow-[#696cff]/30"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
+                      : "bg-slate-100/70 text-[#8592a3] hover:text-[#696cff] hover:bg-slate-200/50"
                   }`}
                 >
                   {cat.name} ({count})
@@ -333,7 +338,7 @@ export default function TableQrPage({
             <p className="text-xs text-slate-400 mt-1">Try selecting a different category or search term.</p>
           </div>
         ) : (
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid gap-3.5 sm:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => {
               const qty = getQuantity(product.id);
               const img = product.imageUrl
@@ -345,38 +350,38 @@ export default function TableQrPage({
               return (
                 <article
                   key={product.id}
-                  className="group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-white p-4 border-2 border-slate-100/70 hover:border-[#696cff]/70 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(105,108,255,0.08)] hover:-translate-y-1"
+                  className="group relative flex flex-col justify-between overflow-hidden rounded-xl sm:rounded-2xl bg-white p-3 sm:p-4 border border-slate-100 hover:border-[#696cff]/50 transition-all duration-300 hover:shadow-[0_6px_20px_rgba(105,108,255,0.06)] hover:-translate-y-0.5"
                 >
                   <div>
-                    {/* Food Photo Container - white background blends white-background images perfectly */}
-                    <div className="relative aspect-[1.2] w-full overflow-hidden rounded-xl bg-white border border-slate-100/50 flex items-center justify-center p-2">
+                    {/* Food Photo Container */}
+                    <div className="relative aspect-[1.3] sm:aspect-[1.2] w-full overflow-hidden rounded-lg sm:rounded-xl bg-white border border-slate-100/50 flex items-center justify-center p-1.5">
                       {img ? (
                         <img
                           src={img}
                           alt={product.name}
-                          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-103"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-slate-300">
-                          <UtensilsCrossed size={28} />
+                          <UtensilsCrossed size={20} className="sm:size-[28px]" />
                         </div>
                       )}
                     </div>
 
                     {/* Product Name & Description */}
-                    <div className="mt-3">
-                      <h3 className="text-sm font-black text-slate-800 truncate group-hover:text-[#696cff] transition-colors">
+                    <div className="mt-2.5">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-800 truncate group-hover:text-[#696cff] transition-colors">
                         {product.name}
                       </h3>
-                      <p className="mt-1 text-[11px] text-slate-400 leading-normal line-clamp-2 min-h-[2rem]">
+                      <p className="mt-0.5 text-[10px] sm:text-[11px] text-slate-400 leading-normal line-clamp-1 sm:line-clamp-2 min-h-[1.2rem] sm:min-h-[2rem]">
                         {product.description || "Freshly prepared dish"}
                       </p>
                     </div>
                   </div>
 
                   {/* Price & Cart Add Button */}
-                  <div className="mt-4 pt-3 border-t border-slate-100/70 flex items-center justify-between">
-                    <span className="text-sm font-black text-slate-800">
+                  <div className="mt-3.5 pt-2.5 border-t border-slate-100/70 flex items-center justify-between">
+                    <span className="text-xs sm:text-sm font-black text-slate-800">
                       ${Number(product.basePrice).toFixed(2)}
                     </span>
 
@@ -384,27 +389,27 @@ export default function TableQrPage({
                       <button
                         type="button"
                         onClick={() => addToCart(product)}
-                        className="inline-flex h-8 items-center gap-1 rounded-xl bg-[#696cff]/8 text-xs font-black text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all px-3"
+                        className="inline-flex h-7 sm:h-8 items-center gap-0.5 rounded-lg sm:rounded-xl bg-[#696cff]/8 text-[10px] sm:text-xs font-black text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all px-2 sm:px-3"
                       >
-                        <Plus size={13} />
+                        <Plus size={11} className="sm:size-[13px]" />
                         Add
                       </button>
                     ) : (
-                      <div className="flex items-center gap-1 rounded-xl bg-slate-100/70 p-0.5 border border-slate-200/40">
+                      <div className="flex items-center gap-0.5 rounded-lg sm:rounded-xl bg-slate-100/70 p-0.5 border border-slate-200/40">
                         <button
                           type="button"
                           onClick={() => removeFromCart(product.id)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-600 shadow-sm hover:bg-slate-50 transition-all"
+                          className="flex h-6 sm:h-7 w-6 sm:w-7 items-center justify-center rounded bg-white text-slate-600 shadow-sm hover:bg-slate-50 transition-all"
                         >
-                          <Minus size={11} />
+                          <Minus size={9} className="sm:size-[11px]" />
                         </button>
-                        <span className="text-xs font-extrabold text-slate-700 px-2">{qty}</span>
+                        <span className="text-[10px] sm:text-xs font-extrabold text-slate-700 px-1 sm:px-2">{qty}</span>
                         <button
                           type="button"
                           onClick={() => addToCart(product)}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#696cff] text-white shadow-sm hover:bg-[#5f61e6] transition-all"
+                          className="flex h-6 sm:h-7 w-6 sm:w-7 items-center justify-center rounded bg-[#696cff] text-white shadow-sm hover:bg-[#5f61e6] transition-all"
                         >
-                          <Plus size={11} />
+                          <Plus size={9} className="sm:size-[11px]" />
                         </button>
                       </div>
                     )}
@@ -422,7 +427,7 @@ export default function TableQrPage({
           <button
             type="button"
             disabled={submitting}
-            onClick={submitOrder}
+            onClick={() => setIsReviewOpen(true)}
             className="flex w-full items-center justify-between rounded-2xl bg-[#696cff] px-6 py-4 text-white shadow-2xl shadow-[#696cff]/40 hover:bg-[#5f61e6] active:scale-98 transition-all"
           >
             <div className="flex items-center gap-3">
@@ -433,6 +438,85 @@ export default function TableQrPage({
             </div>
             <span className="text-lg font-extrabold">${totalPrice.toFixed(2)}</span>
           </button>
+        </div>
+      )}
+
+      {/* Review Order Drawer / Modal */}
+      {isReviewOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4">
+          {/* Overlay click to close */}
+          <div className="absolute inset-0" onClick={() => setIsReviewOpen(false)}></div>
+          
+          <div className="relative w-full max-w-md rounded-t-3xl bg-white p-6 pb-8 shadow-2xl animate-in slide-in-from-bottom duration-250 sm:rounded-2xl z-10">
+            {/* Grabber bar for mobile aesthetic */}
+            <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-slate-200 sm:hidden"></div>
+
+            <div className="flex items-center justify-between border-b pb-4 mb-4">
+              <h3 className="text-lg font-bold text-slate-800">Review Your Order</h3>
+              <button
+                type="button"
+                onClick={() => setIsReviewOpen(false)}
+                className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500 hover:bg-slate-200"
+              >
+                Add More
+              </button>
+            </div>
+
+            {/* List of Cart Items */}
+            <div className="max-h-48 overflow-y-auto space-y-3.5 mb-5 pr-1.5 no-scrollbar">
+              {cart.map((item) => (
+                <div key={item.productId} className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-slate-800">{item.name}</div>
+                    <div className="text-xs font-semibold text-slate-400">
+                      ${item.price.toFixed(2)} x {item.quantity}
+                    </div>
+                  </div>
+                  <div className="text-sm font-extrabold text-slate-700">
+                    ${(item.price * item.quantity).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Kitchen Note Input Field */}
+            <div className="mb-6">
+              <label htmlFor="order-note" className="block text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+                Add note for kitchen (optional)
+              </label>
+              <textarea
+                id="order-note"
+                value={orderNote}
+                onChange={(e) => setOrderNote(e.target.value)}
+                placeholder="e.g., No spicy, less sweet, no onions..."
+                rows={2}
+                maxLength={500}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-sm font-medium outline-none placeholder-slate-400 focus:border-[#696cff] focus:bg-white transition-all resize-none text-slate-800"
+              />
+            </div>
+
+            {/* Submit Actions */}
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={submitOrder}
+              className="flex w-full items-center justify-between rounded-2xl bg-[#696cff] px-6 py-4 text-white shadow-xl shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-98 transition-all disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2.5">
+                {submitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                ) : (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-[10px] font-black">
+                    {totalItems}
+                  </span>
+                )}
+                <span className="text-sm font-bold">
+                  {submitting ? "Sending..." : "Send Order to Kitchen"}
+                </span>
+              </div>
+              <span className="text-base font-extrabold">${totalPrice.toFixed(2)}</span>
+            </button>
+          </div>
         </div>
       )}
     </main>

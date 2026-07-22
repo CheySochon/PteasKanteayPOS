@@ -385,8 +385,8 @@ export default function PermissionsPage() {
     { key: "orders", label: "Orders", icon: <UtensilsCrossed size={15} /> },
     { key: "menu", label: "Menu Catalog", icon: <Sparkles size={15} /> },
     { key: "inventory", label: "Inventory", icon: <Package size={15} /> },
-    { key: "reports", label: "Reports", icon: <BarChart3 size={15} /> },
     { key: "tables", label: "Tables", icon: <Tv size={15} /> },
+    { key: "reports", label: "Reports", icon: <BarChart3 size={15} /> },
     { key: "users", label: "Users & Staff", icon: <UserCog size={15} /> },
     { key: "settings", label: "Settings", icon: <Settings size={15} /> },
     { key: "kds", label: "KDS (Kitchen)", icon: <Calendar size={15} /> },
@@ -401,7 +401,7 @@ export default function PermissionsPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col overflow-hidden bg-[#f5f5f9] dark:bg-[#232333]">
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
       <TopBar
         title={t.title}
         subtitle={t.subtitle}
@@ -411,89 +411,50 @@ export default function PermissionsPage() {
         onClearNotifications={() => setNotifications([])}
         dark={dark}
       />
-      <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-        <div className="mx-auto max-w-7xl">
-          {/* Header Action Bar */}
-          <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-white dark:bg-[#2b2c40] p-4 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-slate-200/80 dark:border-[#4e4f6e]">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
-                <ShieldCheck size={22} />
-              </div>
-              <div>
-                <h1 className={`text-lg font-black ${textPrimary}`}>{t.title}</h1>
-                <p className={`text-xs ${textSecondary}`}>{t.subtitle}</p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={savePermissions}
-              disabled={loading || saving}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#696cff] px-6 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
-            >
-              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-              {saving ? t.saving : t.save}
-            </button>
-          </div>
-
-        {error && (
-          <div className="mb-5 rounded border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-            {error}
-          </div>
-        )}
-
-        {message && (
-          <div className="mb-5 rounded border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-            {message}
-          </div>
-        )}
-
-        {/* Main Grid Layout */}
-        <section className="grid gap-6 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_260px]">
+      
+      <div className="flex-1 p-6 overflow-y-auto animate-[pageFadeIn_350ms_ease-out_both]">
+        <div className="mx-auto w-full max-w-[1300px] flex flex-col lg:flex-row gap-6 items-stretch min-h-[calc(100vh-140px)]">
           
-          {/* Column 1: Search & User Accounts */}
-          <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] flex flex-col h-[calc(100vh-220px)] ${surface} ${borderCol}`}>
-            <div className="mb-4 flex items-center gap-2 shrink-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded bg-[#e7e7ff] text-[#696cff]">
-                <Users size={18} />
-              </div>
-              <div>
-                <h2 className={`text-sm font-bold ${textPrimary}`}>{t.userAccess}</h2>
-                <p className={`text-[11px] ${textSecondary}`}>{t.selectUser}</p>
-              </div>
+          {/* Column 1: Directory (Left Sidebar) */}
+          <div className={`w-full lg:w-[290px] rounded-lg border p-5 flex flex-col shrink-0 transition-all duration-300 ${surface} ${borderCol} shadow-sm`}>
+            <div className="mb-4">
+              <h2 className={`text-xs font-bold uppercase tracking-wider ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                Staff Accounts
+              </h2>
             </div>
 
             {/* Search Input */}
-            <div className="relative mb-3 shrink-0">
-              <Search className="absolute left-3 top-2.5 text-[#8592a3]" size={15} />
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-2.5 text-[#a1acb8]" size={14} />
               <input
                 type="text"
                 placeholder={t.searchUser}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`h-9 w-full rounded border pl-9 pr-3 text-xs outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
+                className={`h-9 w-full rounded border pl-9 pr-4 text-xs font-medium outline-none transition-all duration-150 ${
+                  dark 
+                    ? "border-slate-800 bg-[#1e1e2d] focus:border-[#696cff]" 
+                    : "border-slate-200 bg-slate-50/50 focus:border-[#696cff]"
+                } ${textPrimary}`}
               />
             </div>
 
-            {/* User List scrollable container */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+            {/* User List */}
+            <div className="flex-1 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
               <button
                 type="button"
                 onClick={() => setSelectedUserId("defaults")}
-                className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
+                className={`flex w-full items-center gap-3 px-3 py-2.5 rounded transition-all duration-150 text-left ${
                   selectedUserId === "defaults"
-                    ? "border-[#696cff] bg-[#696cff]/[0.08] text-[#696cff] font-semibold"
-                    : `${borderCol} ${softSurface} ${textPrimary} hover:bg-[#eceef1]/40`
+                    ? "bg-[#696cff]/10 text-[#696cff] font-bold"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#eceef1] text-[#8592a3]">
-                  <Settings size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block text-xs font-bold leading-tight truncate">{t.defaultStaff}</span>
-                  <span className="block text-[10px] text-[#8592a3] leading-tight truncate">Global configurations</span>
-                </div>
+                <Settings size={15} className={selectedUserId === "defaults" ? "text-[#696cff]" : "text-slate-400"} />
+                <span className="text-xs">{t.defaultStaff}</span>
               </button>
+
+              <div className={`h-px my-2.5 ${dark ? "bg-slate-800" : "bg-slate-100"}`} />
 
               {filteredUsers.map((user) => {
                 const active = selectedUserId === String(user.id);
@@ -506,27 +467,27 @@ export default function PermissionsPage() {
                     key={user.id}
                     type="button"
                     onClick={() => setSelectedUserId(String(user.id))}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
+                    className={`flex w-full items-center gap-3 px-3 py-2.5 rounded transition-all duration-150 text-left ${
                       active
-                        ? "border-[#696cff] bg-[#696cff]/[0.08] text-[#696cff] font-semibold"
-                        : `${borderCol} ${softSurface} ${textPrimary} hover:bg-[#eceef1]/40`
+                        ? "bg-[#696cff]/10 text-[#696cff] font-semibold"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${avatarCol}`}>
+                    <div className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded text-xs font-bold ${avatarCol} shadow-sm`}>
                       {initials}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="block text-xs font-bold leading-tight truncate">{user.name}</span>
-                        <span
-                          className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${
-                            custom ? "bg-[#e8fadf] text-[#71dd37]" : "bg-[#eceef1] text-[#8592a3]"
-                          }`}
-                        >
-                          {custom ? t.custom : t.inherited}
+                        <span className={`block text-xs truncate font-medium ${active ? "text-[#696cff] font-semibold" : ""}`}>
+                          {user.name}
                         </span>
+                        {custom && (
+                          <span className="shrink-0 text-[8px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                            {t.custom}
+                          </span>
+                        )}
                       </div>
-                      <span className={`block text-[10px] leading-tight truncate ${active ? "text-[#696cff]/80" : textSecondary}`}>
+                      <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate leading-none">
                         {user.email}
                       </span>
                     </div>
@@ -536,206 +497,191 @@ export default function PermissionsPage() {
             </div>
           </div>
 
-          {/* Column 2: Presets & Grouped Permission Checklist */}
-          <div className="space-y-5">
-            {/* Presets Card */}
-            <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] ${surface} ${borderCol}`}>
-              <div className="mb-3 flex items-center gap-2">
-                <Sparkles size={16} className="text-[#ffab00]" />
-                <h3 className={`text-xs font-bold uppercase tracking-wider ${textPrimary}`}>{t.presets}</h3>
-              </div>
-              <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-                <button
-                  type="button"
-                  onClick={() => applyPreset("full")}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#696cff]/[0.08] text-[#696cff] hover:bg-[#696cff]/[0.15] border border-[#696cff]/20 transition-all text-center"
-                >
-                  {t.presetFull}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset("cashier")}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#e8fadf] text-[#71dd37] hover:bg-[#e8fadf]/130 border border-[#71dd37]/20 transition-all text-center"
-                >
-                  {t.presetCashier}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset("staff")}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#d7f5fc] text-[#03c3ec] hover:bg-[#d7f5fc]/130 border border-[#03c3ec]/20 transition-all text-center"
-                >
-                  {t.presetKitchen}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyPreset("none")}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold shadow-sm bg-[#ffe5e5] text-[#ff3e1d] hover:bg-[#ffe5e5]/130 border border-[#ff3e1d]/20 transition-all text-center"
-                >
-                  {t.presetNone}
-                </button>
-              </div>
-            </div>
-
-            {/* Permission Options List */}
-            <div className={`rounded-2xl border p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] ${surface} ${borderCol}`}>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b pb-4 border-[#e5e7eb]/60">
-                <div>
-                  <div className="mb-2 inline-flex items-center gap-2 rounded bg-[#eceef1] px-3 py-0.5 text-xs font-semibold text-[#8592a3]">
-                    <UserRound size={12} />
-                    {selectedUser ? selectedUser.name : t.defaultStaff}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <h2 className={`text-base font-bold ${textPrimary}`}>{t.staff}</h2>
-                    <span className="rounded bg-[#696cff]/10 text-[#696cff] px-2 py-0.5 text-[10px] font-bold">
-                      {activeCount} / {STAFF_PERMISSION_PAGES.length} Enabled
-                    </span>
-                  </div>
-                  <p className={`mt-1 text-xs ${textSecondary}`}>{t.staffNote}</p>
+          {/* Column 2: Workspace Settings (Right Area) */}
+          <div className={`flex-1 rounded-lg border p-6 flex flex-col transition-all duration-300 ${surface} ${borderCol} shadow-sm`}>
+            
+            {/* Header / Active User profile */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-slate-100 dark:border-slate-800 gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                  selectedUserId === "defaults" ? "bg-emerald-500/10 text-emerald-500" : "bg-[#696cff]/10 text-[#696cff]"
+                }`}>
+                  {selectedUserId === "defaults" ? <Settings size={20} /> : <UserCog size={20} />}
                 </div>
+                <div>
+                  <h1 className={`text-base font-bold ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
+                    {selectedUserId === "defaults" ? t.defaultStaff : selectedUser?.name}
+                  </h1>
+                  <p className="text-xs text-[#a1acb8] mt-0.5 font-medium">
+                    {selectedUserId === "defaults" 
+                      ? "Configure fallback permissions for new accounts" 
+                      : `Active account: ${userRoleName(selectedUser!)}`}
+                  </p>
+                </div>
+              </div>
 
+              <div className="flex items-center gap-2.5">
                 {hasCustomPermissions && (
                   <button
                     type="button"
                     onClick={clearUserOverride}
-                    className="h-8 rounded border border-[#d9dee3] px-3 text-xs font-semibold text-[#ff3e1d] bg-[#ffe5e5]/40 hover:bg-[#ffe5e5] transition-all"
+                    className="h-8.5 rounded border border-slate-200 dark:border-slate-700 bg-transparent px-4 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all"
                   >
                     {t.useDefault}
                   </button>
                 )}
-              </div>
 
-              {/* Ultra Clean List Sections */}
-              <div className="space-y-6">
-                {groupedCategories.map((category, catIndex) => (
-                  <div key={catIndex} className="space-y-2">
-                    <div className="flex items-center justify-between px-1 pb-1">
-                      <h3 className="text-[11px] font-black uppercase tracking-wider text-[#8592a3]">{category.title}</h3>
-                      <span className="text-[10px] font-bold text-[#a1acb8]">
-                        {category.items.filter((p) => currentPermissions[p.key]).length}/{category.items.length} Allowed
-                      </span>
-                    </div>
-                    
-                    <div className="divide-y divide-slate-100 dark:divide-[#34355a] rounded-xl border border-slate-200/70 dark:border-[#4e4f6e] overflow-hidden bg-white dark:bg-[#2b2c40]">
+                <button
+                  type="button"
+                  onClick={savePermissions}
+                  disabled={loading || saving}
+                  className="inline-flex h-8.5 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {saving ? t.saving : t.save}
+                </button>
+              </div>
+            </div>
+
+            {/* Segmented Presets Control */}
+            <div className="py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                Quick Presets
+              </span>
+
+              {/* Modern Cohesive Pill Selector */}
+              <div className="inline-flex p-0.5 rounded-lg bg-slate-50 dark:bg-[#1e1e2d] border border-slate-200 dark:border-slate-800/80">
+                {[
+                  { key: "full", label: t.presetFull },
+                  { key: "cashier", label: t.presetCashier },
+                  { key: "staff", label: t.presetKitchen },
+                  { key: "none", label: t.presetNone },
+                ].map((item) => {
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => applyPreset(item.key as any)}
+                      className="px-3.5 py-1.5 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all"
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded border border-red-200 bg-red-500/5 px-5 py-3 text-xs font-semibold text-red-600 flex items-center gap-2.5 animate-[shake_300ms_ease-in-out]">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                {error}
+              </div>
+            )}
+
+            {message && (
+              <div className="mt-4 rounded border border-emerald-200 bg-emerald-500/5 px-5 py-3 text-xs font-semibold text-emerald-600 flex items-center gap-2.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {message}
+              </div>
+            )}
+
+            {/* Access Matrix Scroll Area */}
+            <div className="flex-1 overflow-y-auto space-y-6 mt-4 pr-1 custom-scrollbar">
+              {groupedCategories.map((category) => {
+                return (
+                  <div key={category.title} className="space-y-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block pb-1 border-b border-slate-100 dark:border-slate-800">
+                      {category.title}
+                    </span>
+
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
                       {category.items.map((page) => {
                         const isGranted = Boolean(currentPermissions[page.key]);
                         const PageIcon = PAGE_ICONS[page.key] || ShieldCheck;
+                        
+                        const friendlyName = 
+                          page.key === "pos" ? "POS Register" :
+                          page.key === "kds" ? "Kitchen Screen" :
+                          page.key === "orders" ? "Orders List" :
+                          page.key === "tables" ? "Dining Tables" :
+                          page.key === "menu" ? "Menu Catalog" :
+                          page.key === "inventory" ? "Inventory Manager" :
+                          page.key === "dashboard" ? "Dashboard Stats" :
+                          page.key === "reports" ? "Reports & Export" :
+                          page.key === "users" ? "Staff Accounts" :
+                          "System Settings";
 
                         return (
-                          <div
-                            key={page.key}
-                            onClick={() => updatePermission(page.key, !isGranted)}
-                            className="flex cursor-pointer items-center justify-between px-4 py-3 hover:bg-slate-50/80 dark:hover:bg-[#34355a]/50 transition-all duration-150"
-                          >
+                          <div key={page.key} className="py-3 flex items-center justify-between group">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div
-                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                                  isGranted
-                                    ? "bg-[#696cff]/10 text-[#696cff]"
-                                    : "bg-slate-100 text-[#a1acb8] dark:bg-[#3a3b53]"
-                                }`}
-                              >
-                                <PageIcon size={17} />
-                              </div>
-                              <span className={`text-xs font-bold truncate ${textPrimary}`}>{page.label}</span>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                              <span
-                                className={`hidden sm:inline-block rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
-                                  isGranted
-                                    ? "bg-[#71dd37]/10 text-[#71dd37]"
-                                    : "bg-slate-100 text-[#a1acb8] dark:bg-[#3a3b53]"
-                                }`}
-                              >
-                                {isGranted ? "Allowed" : "Blocked"}
+                              <span className={isGranted ? "text-[#696cff]" : "text-slate-400"}>
+                                <PageIcon size={16} />
                               </span>
-
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updatePermission(page.key, !isGranted);
-                                }}
-                                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                                  isGranted ? "bg-[#696cff]" : "bg-slate-200 dark:bg-[#4e4f6e]"
-                                }`}
-                              >
-                                <span
-                                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                                    isGranted ? "translate-x-5.5" : "translate-x-0.5"
-                                  }`}
-                                />
-                              </button>
+                              <span className={`text-xs font-semibold ${isGranted ? (dark ? "text-slate-100" : "text-[#566a7f]") : "text-slate-400"}`}>
+                                {friendlyName}
+                              </span>
                             </div>
+
+                            <button
+                              type="button"
+                              onClick={() => updatePermission(page.key, !isGranted)}
+                              className={`relative h-5 w-8.5 shrink-0 rounded-full transition-all duration-300 outline-none ${
+                                isGranted ? "bg-[#696cff] shadow-sm" : "bg-slate-200 dark:bg-slate-700"
+                              }`}
+                            >
+                              <span
+                                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-300 ${
+                                  isGranted ? "left-4" : "left-0.5"
+                                }`}
+                              />
+                            </button>
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
 
               {selectedUserId !== "defaults" && !hasCustomPermissions && (
-                <div className="mt-6 rounded bg-[#e7e7ff]/30 text-[#696cff] border border-[#696cff]/20 px-4 py-3 text-xs font-medium">
-                  {t.inheritedNote}
+                <div className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#1a1a26] px-4.5 py-3.5 text-xs text-slate-500 font-medium leading-relaxed">
+                  💡 This user is inheriting default staff permissions. Toggling options will automatically create custom access overrides.
                 </div>
               )}
             </div>
+
           </div>
 
-          {/* Column 3: Live Sidebar Preview (Super WOW feature!) */}
-          <div className="hidden xl:block">
-            <div className={`rounded border p-4 shadow-sm sticky top-6 ${surface} ${borderCol}`}>
-              <div className="mb-4">
-                <h3 className={`text-xs font-bold uppercase tracking-wider ${textPrimary}`}>{t.previewTitle}</h3>
-                <p className={`text-[10px] ${textSecondary}`}>{t.previewSubtitle}</p>
-              </div>
-
-              {/* Mini Mock Sidebar representation */}
-              <div className="rounded border border-dashed p-3 border-[#e5e7eb] space-y-1.5 bg-[#f5f5f9]/20">
-                {mockSidebarItems.map((item) => {
-                  const isVisible = Boolean(currentPermissions[item.key]);
-
-                  return (
-                    <div
-                      key={item.key}
-                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded text-[11px] font-semibold transition-all ${
-                        isVisible
-                          ? "bg-white text-[#566a7f] shadow-sm border border-slate-100"
-                          : "opacity-40 line-through text-[#a1acb8]"
-                      }`}
-                    >
-                      <div className={isVisible ? "text-[#696cff]" : "text-[#8592a3]"}>
-                        {item.icon}
-                      </div>
-                      <span className="flex-1 truncate">{item.label}</span>
-                      
-                      {isVisible ? (
-                        <Eye size={12} className="text-[#71dd37] shrink-0" />
-                      ) : (
-                        <EyeOff size={12} className="text-[#ff3e1d] shrink-0" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-        </section>
+        </div>
       </div>
-    </div>
-
       <style>{`
-        @keyframes usersPageIn {
+        @keyframes pageFadeIn {
           from {
             opacity: 0;
-            transform: translateY(10px);
+            transform: translateY(8px);
           }
           to {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(133, 146, 163, 0.2);
+          border-radius: 99px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(133, 146, 163, 0.4);
         }
       `}</style>
     </main>

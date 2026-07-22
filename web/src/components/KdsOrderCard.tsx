@@ -70,8 +70,11 @@ function getElapsedMinutes(createdAt: string | Date) {
 }
 
 function formatTicketNumber(order: Order) {
+  if (order.id) {
+    return `#${String(order.id).padStart(4, "0")}`;
+  }
   const raw = order.orderNumber || order.orderId || `#${order.id}`;
-  if (raw.startsWith("ORD-")) {
+  if (typeof raw === "string" && raw.startsWith("ORD-")) {
     const parts = raw.split("-");
     const lastPart = parts[parts.length - 1];
     return `#${lastPart}`;

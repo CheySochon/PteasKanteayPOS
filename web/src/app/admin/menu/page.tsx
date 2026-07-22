@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppLanguage } from "../../../lib/language";
+import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
 import {
   apiOrigin,
@@ -102,7 +103,7 @@ const TEXT = {
     loading: "Loading menu items...",
     empty: "No menu items found",
     editCategory: "Edit Category",
-    createCategory: "Create Category",
+    createCategory: "Add New Category",
     updateFilter: "Update menu filter details.",
     addFilter: "Add quick filters for the menu.",
     cancelCategory: "Cancel category edit",
@@ -119,8 +120,8 @@ const TEXT = {
     editProduct: "Edit product",
     deleteProduct: "Delete product",
     editItem: "Edit Item",
-    itemCrud: "Item CRUD",
-    itemNote: "Create, update, photo upload, availability.",
+    itemCrud: "Add New Item",
+    itemNote: "Create or update menu item details, pricing, and photo.",
     uploadImage: "Upload product image",
     productName: "Product Name",
     category: "Category",
@@ -156,7 +157,7 @@ const TEXT = {
     loading: "កំពុងផ្ទុកមុខម្ហូប...",
     empty: "រកមិនឃើញមុខម្ហូប",
     editCategory: "កែប្រភេទ",
-    createCategory: "បង្កើតប្រភេទ",
+    createCategory: "បន្ថែមប្រភេទថ្មី",
     updateFilter: "កែព័ត៌មានតម្រងមុខម្ហូប។",
     addFilter: "បន្ថែមតម្រងលឿនសម្រាប់មុខម្ហូប។",
     cancelCategory: "បោះបង់ការកែប្រភេទ",
@@ -172,9 +173,9 @@ const TEXT = {
     inStock: "មានក្នុងស្តុក",
     editProduct: "កែមុខម្ហូប",
     deleteProduct: "លុបមុខម្ហូប",
-    editItem: "កែមុខម្ហូប",
-    itemCrud: "គ្រប់គ្រងមុខម្ហូប",
-    itemNote: "បង្កើត កែប្រែ ផ្ទុករូប និងកំណត់ភាពអាចលក់បាន។",
+    editItem: "កែប្រែមុខម្ហូប",
+    itemCrud: "បន្ថែមមុខម្ហូបថ្មី",
+    itemNote: "បញ្ចូលព័ត៌មានមុខម្ហូបថ្មី តម្លៃ និងរូបភាព។",
     uploadImage: "ផ្ទុករូបមុខម្ហូប",
     productName: "ឈ្មោះមុខម្ហូប",
     category: "ប្រភេទ",
@@ -292,6 +293,18 @@ export default function MenuPage() {
   const [saving, setSaving] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -557,28 +570,34 @@ export default function MenuPage() {
     ).length;
 
     const detail = productCount > 0 ? ` It has ${productCount} menu item(s).` : "";
-    const ok = window.confirm(`Delete ${category.name}?${detail}`);
-    if (!ok) return;
+    setConfirmModal({
+      isOpen: true,
+      title: language === "km" ? "លុបប្រភេទមុខម្ហូប" : "Delete Category",
+      message: language === "km" 
+        ? `តើអ្នកប្រាកដជាចង់លុបប្រភេទ "${category.name}" ដែរឬទេ?${productCount > 0 ? ` វាមានមុខម្ហូបចំនួន ${productCount} នៅក្នុងនោះ។` : ""}`
+        : `Are you sure you want to delete the category "${category.name}"?${detail}`,
+      onConfirm: async () => {
+        setMessage("");
+        setError("");
+        try {
+          await deleteCategory(category.id);
+          setCategories((current) => current.filter((entry) => entry.id !== category.id));
 
-    setMessage("");
-    setError("");
+          if (selectedCategory === category.id) setSelectedCategory("all");
+          if (categoryForm.id === category.id) resetCategoryForm();
+          if (categoryForm.id === category.id) setCategoryEditorOpen(false);
 
-    try {
-      await deleteCategory(category.id);
-      setCategories((current) => current.filter((entry) => entry.id !== category.id));
-
-      if (selectedCategory === category.id) setSelectedCategory("all");
-      if (categoryForm.id === category.id) resetCategoryForm();
-      if (categoryForm.id === category.id) setCategoryEditorOpen(false);
-
-      setMessage("Category deleted successfully.");
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? `${err.message}. Login as Admin or Super Admin to delete categories.`
-          : "Unable to delete category",
-      );
-    }
+          setMessage("Category deleted successfully.");
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? `${err.message}. Login as Admin or Super Admin to delete categories.`
+              : "Unable to delete category",
+          );
+        }
+        setConfirmModal((c) => ({ ...c, isOpen: false }));
+      }
+    });
   }
 
   async function submitProduct(event: FormEvent<HTMLFormElement>) {
@@ -630,26 +649,32 @@ export default function MenuPage() {
   }
 
   async function removeProduct(product: Product) {
-    const ok = window.confirm(`Delete ${product.name}?`);
-    if (!ok) return;
+    setConfirmModal({
+      isOpen: true,
+      title: language === "km" ? "លុបមុខម្ហូប" : "Delete Product",
+      message: language === "km" 
+        ? `តើអ្នកប្រាកដជាចង់លុបមុខម្ហូប "${product.name}" ដែរឬទេ?`
+        : `Are you sure you want to delete the product "${product.name}"?`,
+      onConfirm: async () => {
+        setMessage("");
+        setError("");
+        try {
+          await deleteProduct(product.id);
+          setProducts((current) => current.filter((entry) => entry.id !== product.id));
 
-    setMessage("");
-    setError("");
+          if (productForm.id === product.id) resetProductForm();
 
-    try {
-      await deleteProduct(product.id);
-      setProducts((current) => current.filter((entry) => entry.id !== product.id));
-
-      if (productForm.id === product.id) resetProductForm();
-
-      setMessage("Product deleted successfully.");
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? `${err.message}. Login as Admin or Super Admin to delete products.`
-          : "Unable to delete product",
-      );
-    }
+          setMessage("Product deleted successfully.");
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? `${err.message}. Login as Admin or Super Admin to delete products.`
+              : "Unable to delete product",
+          );
+        }
+        setConfirmModal((c) => ({ ...c, isOpen: false }));
+      }
+    });
   }
 
   async function toggleProductAvailability(product: Product) {
@@ -714,49 +739,24 @@ export default function MenuPage() {
   }
 
   return (
-    <main className={`flex-grow overflow-y-auto`}>
-      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
-        
-        {/* Sneat Menu Header Banner */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#696cff]">
-              <Tags size={14} />
-              {t.badge}
-            </div>
-            <h1 className={`text-2xl font-bold tracking-tight ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
-              {isCategoriesView ? t.categories : t.title}
-            </h1>
-            <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
-              {t.subtitle}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <NotificationBell
-              label={t.notifications}
-              emptyLabel={t.noNotifications}
-              clearLabel={t.clearNotifications}
-              notifications={notifications}
-              onClear={clearNotifications}
-            />
-
-            <IconButton label={t.settings} dark={dark}>
-              <Settings size={17} />
-            </IconButton>
-
-            {isCategoriesView && (
-              <button
-                type="button"
-                onClick={createNewCategory}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
-              >
-                <Plus size={16} />
-                {t.createCategory}
-              </button>
-            )}
-          </div>
-        </div>
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+      <TopBar
+        title={isCategoriesView ? t.categories : t.title}
+        subtitle={t.subtitle}
+        language={language}
+        onLanguageChange={(nextLanguage) => {
+          localStorage.setItem("pos_language", nextLanguage);
+          window.dispatchEvent(new Event("pos-language-change"));
+        }}
+        notifications={[]}
+        dark={dark}
+        searchQuery={isCategoriesView ? categoryQuery : query}
+        onSearchChange={isCategoriesView ? setCategoryQuery : setQuery}
+        searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
+      />
+      
+      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
+        <div className="mx-auto w-full max-w-[1400px]">
 
         {(error || message) && (
           <div
@@ -771,10 +771,10 @@ export default function MenuPage() {
         )}
 
         {isCategoriesView ? (
-          <section id="categories" className="space-y-6">
+          <section id="categories" className="space-y-5">
             {/* Top Stat Summary Cards */}
-            <div className="grid gap-5 sm:grid-cols-3">
-              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
                     Total Categories
@@ -783,12 +783,12 @@ export default function MenuPage() {
                     {categories.length}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shadow-sm">
-                  <Tags size={22} />
+                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff] shadow-sm">
+                  <Tags size={20} />
                 </div>
               </div>
 
-              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
                     Total Products
@@ -797,12 +797,12 @@ export default function MenuPage() {
                     {products.length}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#03c3ec]/10 text-[#03c3ec] shadow-sm">
-                  <ShoppingBag size={22} />
+                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#03c3ec]/10 text-[#03c3ec] shadow-sm">
+                  <ShoppingBag size={20} />
                 </div>
               </div>
 
-              <div className="rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex items-center justify-between">
+              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
                     Active Menu Items
@@ -811,172 +811,176 @@ export default function MenuPage() {
                     {products.filter((p) => p.isAvailable).length}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#71dd37]/10 text-[#71dd37] shadow-sm">
-                  <CheckCircle2 size={22} />
+                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#71dd37]/10 text-[#71dd37] shadow-sm">
+                  <CheckCircle2 size={20} />
                 </div>
               </div>
             </div>
 
-            {/* Toolbar: Search */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2">
-              <div className="relative w-full sm:w-80">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={16}
-                />
-                <input
-                  value={categoryQuery}
-                  onChange={(event) => setCategoryQuery(event.target.value)}
-                  placeholder="Search categories..."
-                  className={`h-10 w-full rounded-lg border pl-10 pr-3 text-sm outline-none placeholder-slate-400 focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-[#2c3e50]"
-                  }`}
-                />
+            {/* Categories Data Table Container - Fits Sneat Design System 100% */}
+            <section className={`rounded shadow-sm overflow-hidden ${surface} border ${borderCol}`}>
+              {/* Controls Header */}
+              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0f2f5] dark:border-[#4e4f6e]">
+                <div className="flex items-center gap-2.5">
+                  <h3 className={`text-base font-semibold ${textPrimary}`}>
+                    {language === "km" ? "បញ្ជីប្រភេទមុខម្ហូប" : "Categories List"}
+                  </h3>
+                  <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#696cff]/10 px-2.5 text-[11px] font-bold text-[#696cff]">
+                    {filteredCategories.length}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={createNewCategory}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                >
+                  <Plus size={14} />
+                  {t.createCategory}
+                </button>
               </div>
-            </div>
 
-            {/* Categories Cards Grid */}
-            {filteredCategories.length === 0 ? (
-              <EmptyState className={`${panelBg} ${borderCol}`}>
-                {t.categories}
-              </EmptyState>
-            ) : (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {filteredCategories.map((category) => {
-                  const itemCount = categoryCount(category.id);
-                  const style = getCategoryBadgeStyle(category.name);
-                  const percentOfTotal = products.length > 0 ? Math.round((itemCount / products.length) * 100) : 0;
+              {/* Data Table */}
+              {filteredCategories.length === 0 ? (
+                <EmptyState className={`${panelBg} ${borderCol}`}>
+                  {t.categories}
+                </EmptyState>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <thead>
+                      <tr className={`border-b ${borderCol} text-[11px] uppercase tracking-wider text-[#a1acb8] font-semibold bg-[#f5f5f9]/40 ${dark ? "bg-slate-800/10" : ""}`}>
+                        <th className="px-5 py-3">
+                          {language === "km" ? "ឈ្មោះប្រភេទ" : "CATEGORY"}
+                        </th>
+                        <th className="px-5 py-3">
+                          {language === "km" ? "ការពណ៌នា" : "DESCRIPTION"}
+                        </th>
+                        <th className="px-5 py-3">
+                          {language === "km" ? "ចំនួនមុខម្ហូប" : "PRODUCTS"}
+                        </th>
+                        <th className="px-5 py-3">
+                          {language === "km" ? "ស្ថានភាព" : "STATUS"}
+                        </th>
+                        <th className="px-5 py-3 text-center">
+                          {language === "km" ? "សកម្មភាព" : "ACTIONS"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className={dark ? "divide-y divide-[#4e4f6e]" : "divide-y divide-[#f0f2f5]"}>
+                      {filteredCategories.map((category) => {
+                        const itemCount = categoryCount(category.id);
+                        const style = getCategoryBadgeStyle(category.name);
 
-                  return (
-                    <article
-                      key={category.id}
-                      className="group relative flex flex-col justify-between overflow-hidden rounded-xl bg-white dark:bg-[#2b2c40] p-5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] dark:shadow-[0_2px_6px_0_rgba(0,0,0,0.2)] border border-transparent dark:border-[#4e4f6e] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-[#696cff]/15 hover:border-[#696cff]/20"
-                    >
-                      {/* Top Gradient Bar */}
-                      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${style.gradient}`} />
-
-                      <div>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3.5">
-                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${style.bg} ${style.text} ${style.border} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
-                              <Tags size={20} />
-                            </div>
-
-                            <div className="min-w-0">
-                              <h3 className={`truncate text-base font-bold transition-colors group-hover:text-[#696cff] ${textPrimary}`}>
-                                {category.name}
-                              </h3>
-                              <div className="mt-1 flex items-center gap-2">
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${style.pill}`}>
-                                  {itemCount} {t.items}
+                        return (
+                          <tr
+                            key={category.id}
+                            className={dark ? "hover:bg-[#34354f]" : "hover:bg-[#fcfcfd]"}
+                          >
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border ${style.bg} ${style.text} ${style.border}`}>
+                                  <Tags size={16} />
+                                </div>
+                                <span className={`text-sm font-semibold ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
+                                  {category.name}
                                 </span>
                               </div>
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => editCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#3a3b53] text-slate-500 dark:text-slate-400 hover:bg-[#696cff] hover:text-white transition-all duration-150"
-                              title={`Edit ${category.name}`}
-                            >
-                              <Pencil size={14} />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => removeCategory(category)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-[#3a3b53] text-slate-500 dark:text-slate-400 hover:bg-[#ff3e1d] hover:text-white transition-all duration-150"
-                              title={`Delete ${category.name}`}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className={`mt-4 line-clamp-2 min-h-[2.5rem] text-xs font-medium leading-relaxed ${textSecondary}`}>
-                          {category.description || t.description}
-                        </p>
-                      </div>
-
-                      {/* Bottom Share Bar */}
-                      <div className="mt-5 border-t border-slate-100 dark:border-[#3a3b53] pt-3 flex items-center justify-between text-[11px] font-semibold text-slate-400">
-                        <span>Share of menu</span>
-                        <span className="font-bold text-[#696cff]">{percentOfTotal}%</span>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+                            </td>
+                            <td className={`px-5 py-3 text-sm max-w-xs truncate ${dark ? "text-slate-400" : "text-[#8592a3]"}`}>
+                              {category.description || "-"}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${style.pill}`}>
+                                {itemCount} {t.items}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className="inline-flex items-center gap-1.5 rounded bg-[#71dd37]/10 px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#71dd37]" />
+                                {language === "km" ? "សកម្ម" : "Active"}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-center">
+                              <div className="flex justify-center items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => editCategory(category)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#696cff]/10 hover:text-[#696cff] transition-colors"
+                                  title={`Edit ${category.name}`}
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeCategory(category)}
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-colors"
+                                  title={`Delete ${category.name}`}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </section>
           ) : (
             <>
-              <section className="mb-6 flex flex-col gap-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center w-full sm:w-auto">
-                    <div className="relative w-full sm:w-80">
-                      <Search
-                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                        size={16}
-                      />
-                      <input
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder={t.searchPlaceholder}
-                        className={`h-10 w-full rounded border pl-10 pr-3 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
-                          dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                        }`}
-                      />
-                    </div>
+              <section className="mb-4 flex flex-col gap-3">
+                {/* 1. Categories List Row */}
+                <div className="flex flex-wrap gap-2">
+                  <FilterButton
+                    active={selectedCategory === "all"}
+                    onClick={() => setSelectedCategory("all")}
+                    dark={dark}
+                    count={categoryCount("all")}
+                  >
+                    All
+                  </FilterButton>
 
-                    <select
-                      value={statusFilter}
-                      onChange={(event) =>
-                        setStatusFilter(event.target.value as "all" | "available" | "hidden")
-                      }
-                      className={`h-10 rounded border px-4 text-sm font-semibold outline-none focus:border-[#696cff] ${
-                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                      }`}
+                  {categories.map((category) => (
+                    <FilterButton
+                      key={category.id}
+                      active={selectedCategory === category.id}
+                      onClick={() => setSelectedCategory(category.id)}
+                      dark={dark}
+                      count={categoryCount(category.id)}
                     >
-                      <option value="all">All Status</option>
-                      <option value="available">{t.available}</option>
-                      <option value="hidden">{t.hidden}</option>
-                    </select>
-                  </div>
+                      {category.name}
+                    </FilterButton>
+                  ))}
+                </div>
+
+                {/* 2. Status Select & Add Product Row */}
+                <div className="flex items-center justify-between gap-3 border-t border-[#e5e7eb]/80 dark:border-[#4e4f6e]/50 pt-3">
+                  <select
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as "all" | "available" | "hidden")
+                    }
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
+                      dark ? "border-[#4e4f6e] bg-[#2b2c40] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="available">{t.available}</option>
+                    <option value="hidden">{t.hidden}</option>
+                  </select>
 
                   <button
                     type="button"
                     onClick={createNewProduct}
-                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} />
                     Add New Product
                   </button>
-                </div>
-
-                <div className="flex flex-wrap gap-2 border-b border-[#e5e7eb] dark:border-[#4e4f6e] pb-4">
-                    <FilterButton
-                      active={selectedCategory === "all"}
-                      onClick={() => setSelectedCategory("all")}
-                      dark={dark}
-                      count={categoryCount("all")}
-                    >
-                      All
-                    </FilterButton>
-
-                    {categories.map((category) => (
-                      <FilterButton
-                        key={category.id}
-                        active={selectedCategory === category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        dark={dark}
-                        count={categoryCount(category.id)}
-                      >
-                        {category.name}
-                      </FilterButton>
-                    ))}
                 </div>
               </section>
 
@@ -997,8 +1001,10 @@ export default function MenuPage() {
                         product={product}
                         onEdit={() => editProduct(product)}
                         onDelete={() => removeProduct(product)}
+                        onView={() => setViewingProduct(product)}
                         onToggle={() => void toggleProductAvailability(product)}
                         text={t}
+                        dark={dark}
                       />
                     ))}
                   </div>
@@ -1033,6 +1039,139 @@ export default function MenuPage() {
             </div>
           )}
 
+          {/* Product Details View Modal */}
+          {viewingProduct && (
+            <div onClick={() => setViewingProduct(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm overflow-hidden rounded-xl shadow-2xl border p-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+                <div className="flex items-center justify-between border-b pb-3 mb-4 border-[#e5e7eb] dark:border-[#4e4f6e]">
+                  <h3 className={`text-base font-bold ${textPrimary}`}>
+                    {language === "km" ? "ព័ត៌មានមុខម្ហូប" : "Product Details"}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setViewingProduct(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="aspect-[1.3] w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 mb-4 border border-[#e5e7eb] dark:border-[#4e4f6e]">
+                  {viewingProduct.imageUrl ? (
+                    <img src={resolveImageUrl(viewingProduct.imageUrl)} alt={viewingProduct.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-slate-300">
+                      <Camera size={36} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className={`text-base font-bold ${textPrimary}`}>{viewingProduct.name}</h4>
+                      <span className="mt-1 inline-flex items-center rounded-full bg-[#696cff]/10 px-2.5 py-0.5 text-[10.5px] font-bold text-[#696cff]">
+                        {viewingProduct.category?.name || "No Category"}
+                      </span>
+                    </div>
+                    <span className="text-lg font-bold text-[#696cff]">{money(viewingProduct.basePrice)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs border-t border-b py-2 border-[#e5e7eb] dark:border-[#4e4f6e]">
+                    <span className={textSecondary}>{language === "km" ? "ស្ថានភាព" : "Status"}</span>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[10px] uppercase ${viewingProduct.isAvailable ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10" : "bg-red-50 text-red-600 dark:bg-red-500/10"}`}>
+                      {viewingProduct.isAvailable ? (language === "km" ? "មានក្នុងស្តុក" : "Available") : (language === "km" ? "អស់ស្តុក" : "Sold Out")}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className={`block text-[11px] font-bold uppercase tracking-wider ${textSecondary} mb-1`}>
+                      {language === "km" ? "ការពណ៌នា" : "Description"}
+                    </span>
+                    <p className={`text-xs leading-relaxed ${textPrimary} ${!viewingProduct.description ? "italic text-slate-400" : ""}`}>
+                      {viewingProduct.description || (language === "km" ? "គ្មានការពណ៌នា" : "No description provided.")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-end gap-2 border-t pt-3 border-[#e5e7eb] dark:border-[#4e4f6e]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = viewingProduct;
+                      setViewingProduct(null);
+                      editProduct(p);
+                    }}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                  >
+                    <Pencil size={13} />
+                    {language === "km" ? "កែប្រែ" : "Edit Product"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Custom Confirmation Modal */}
+          {confirmModal.isOpen && (
+            <>
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-[1px] animate-[confirmFadeIn_180ms_ease-out]">
+                <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-sm overflow-hidden rounded-xl shadow-2xl border p-6 animate-[confirmScaleIn_200ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-500">
+                      <Trash2 size={20} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`text-base font-bold ${textPrimary}`}>
+                        {confirmModal.title}
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        {confirmModal.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
+                      className={`h-9.5 rounded px-4 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border ${
+                        dark ? "border-slate-700 text-slate-300" : "border-[#d9dee3] text-[#8592a3]"
+                      }`}
+                    >
+                      {language === "km" ? "បោះបង់" : "Cancel"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void confirmModal.onConfirm();
+                      }}
+                      className="h-9.5 rounded bg-red-500 hover:bg-red-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors active:scale-95"
+                    >
+                      {language === "km" ? "លុប" : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <style>{`
+                @keyframes confirmFadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 1; }
+                }
+                @keyframes confirmScaleIn {
+                  from {
+                    opacity: 0;
+                    transform: scale(0.96) translateY(6px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: scale(1) translateY(0);
+                  }
+                }
+              `}</style>
+            </>
+          )}
+
           {isCategoriesView && categoryEditorOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
               <div className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
@@ -1060,6 +1199,7 @@ export default function MenuPage() {
             </div>
           )}
         </div>
+      </div>
     </main>
   );
 }
@@ -1068,26 +1208,33 @@ function MenuCard({
   product,
   onEdit,
   onDelete,
+  onView,
   onToggle,
   text,
+  dark,
 }: {
   product: Product;
   onEdit: () => void;
   onDelete: () => void;
+  onView: () => void;
   onToggle: () => void;
   text: typeof TEXT.en;
+  dark: boolean;
 }) {
   const unavailable = !product.isAvailable;
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-[#d9dee3]";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
 
   return (
-    <article className="overflow-hidden rounded bg-white dark:bg-[#2b2c40] border border-[#d9dee3] dark:border-[#4e4f6e] shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:border-[#696cff]/30 group">
+    <article className={`overflow-hidden rounded ${surface} border ${borderCol} shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
       <div>
-        <div className="relative aspect-[1.3] bg-[#f5f5f9] dark:bg-[#232333] overflow-hidden">
+        <div className={`relative aspect-[1.3] ${softSurface} overflow-hidden`}>
           {product.imageUrl ? (
             <img
               src={resolveImageUrl(product.imageUrl)}
               alt={product.name}
-              className={`h-full w-full object-cover transition-all duration-200 group-hover:scale-105 ${unavailable ? "grayscale opacity-60" : ""}`}
+              className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-500">
@@ -1145,7 +1292,8 @@ function MenuCard({
 
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#eceef1]/60 hover:text-[#566a7f] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea]"
+              onClick={onView}
+              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea]"
               title={product.description || text.noDescription}
             >
               <Eye size={14} />
@@ -1335,13 +1483,8 @@ function ProductEditor({
             {productForm.id ? <Pencil size={17} /> : <ShoppingBag size={17} />}
           </span>
 
-          <span>
-            <span className="block text-sm font-bold">
-              {productForm.id ? text.editItem : text.itemCrud}
-            </span>
-            <span className={`block text-xs ${textSecondary}`}>
-              {text.itemNote}
-            </span>
+          <span className="block text-sm font-bold">
+            {productForm.id ? text.editItem : text.itemCrud}
           </span>
         </span>
 
@@ -1474,19 +1617,11 @@ function ProductEditor({
             />
           </label>
 
-          <div className="flex gap-2">
+          <div className="pt-1">
             <button
-              type="button"
-              onClick={resetProductForm}
-              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${borderCol} ${textSecondary} hover:bg-slate-50`}
-              title={text.clearForm}
-            >
-              <UploadCloud size={17} />
-            </button>
-
-            <button
+              type="submit"
               disabled={saving}
-              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-600/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
               {productForm.id ? text.saveItem : text.createItem}

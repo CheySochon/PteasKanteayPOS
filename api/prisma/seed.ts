@@ -81,68 +81,50 @@ async function main() {
       category: "Coffee",
       name: "Americano",
       description: "Espresso with hot water.",
-      variants: [
-        ["Small", 2.0],
-        ["Medium", 2.5],
-        ["Large", 3.0],
-      ] as [string, number][],
+      price: 2.0,
     },
     {
       category: "Coffee",
       name: "Latte",
       description: "Espresso with steamed milk.",
-      variants: [
-        ["Small", 2.5],
-        ["Medium", 3.0],
-        ["Large", 3.5],
-      ] as [string, number][],
+      price: 2.5,
     },
     {
       category: "Coffee",
       name: "Cappuccino",
       description: "Espresso, milk, and foam.",
-      variants: [
-        ["Small", 2.5],
-        ["Medium", 3.0],
-        ["Large", 3.5],
-      ] as [string, number][],
+      price: 2.5,
     },
     {
       category: "Tea",
       name: "Green Tea",
       description: "Fresh brewed green tea.",
-      variants: [
-        ["Medium", 2.75],
-        ["Large", 3.25],
-      ] as [string, number][],
+      price: 2.75,
     },
     {
       category: "Frappe",
       name: "Chocolate Frappe",
       description: "Iced blended chocolate drink.",
-      variants: [
-        ["Medium", 3.5],
-        ["Large", 4.0],
-      ] as [string, number][],
+      price: 3.5,
     },
     {
       category: "Food",
       name: "Croissant",
       description: "Buttery baked croissant.",
-      variants: [["Regular", 2.25]] as [string, number][],
+      price: 2.25,
     },
     {
       category: "Dessert",
       name: "Cheesecake",
       description: "Classic cheesecake slice.",
-      variants: [["Slice", 3.25]] as [string, number][],
+      price: 3.25,
     },
   ];
 
   const products: Record<string, { id: number }> = {};
   for (const definition of productDefinitions) {
     const slug = slugify(definition.name);
-    const basePrice = definition.variants[0][1];
+    const basePrice = definition.price;
     const product = await prisma.product.upsert({
       where: { slug },
       update: {
@@ -163,70 +145,6 @@ async function main() {
       },
     });
     products[definition.name] = product;
-
-    for (const [variantName, price] of definition.variants) {
-      const sku = `${slug}-${slugify(variantName)}`;
-      await prisma.productVariant.upsert({
-        where: { sku },
-        update: {
-          productId: product.id,
-          name: variantName,
-          price,
-          isAvailable: true,
-          deletedAt: null,
-        },
-        create: {
-          productId: product.id,
-          name: variantName,
-          price,
-          sku,
-          isAvailable: true,
-        },
-      });
-    }
-  }
-
-  const modifierDefinitions = [
-    ["Extra Shot", 0.5],
-    ["Less Sugar", 0.0],
-    ["Normal Sugar", 0.0],
-    ["Extra Sugar", 0.0],
-    ["Oat Milk", 0.75],
-    ["Whipped Cream", 0.5],
-  ] as [string, number][];
-
-  const modifiers: Record<string, { id: number }> = {};
-  for (const [name, price] of modifierDefinitions) {
-    modifiers[name] = await upsertByName("productModifier", name, {
-      price,
-      isAvailable: true,
-      deletedAt: null,
-    });
-  }
-
-  const drinkProducts = [
-    "Americano",
-    "Latte",
-    "Cappuccino",
-    "Green Tea",
-    "Chocolate Frappe",
-  ];
-  for (const productName of drinkProducts) {
-    for (const modifierName of Object.keys(modifiers)) {
-      await prisma.productModifierMap.upsert({
-        where: {
-          productId_modifierId: {
-            productId: products[productName].id,
-            modifierId: modifiers[modifierName].id,
-          },
-        },
-        update: {},
-        create: {
-          productId: products[productName].id,
-          modifierId: modifiers[modifierName].id,
-        },
-      });
-    }
   }
 
   const tables = [
@@ -245,79 +163,8 @@ async function main() {
     });
   }
 
-  const ingredientDefinitions = [
-    ["Coffee Beans", "g", 5000, 500, 0.03],
-    ["Milk", "ml", 10000, 1000, 0.01],
-    ["Sugar", "g", 3000, 500, 0.005],
-    ["Tea Leaves", "g", 2000, 300, 0.02],
-    ["Chocolate Powder", "g", 2500, 300, 0.015],
-    ["Croissant Dough", "pcs", 30, 5, 0.8],
-    ["Cheesecake Slice", "pcs", 20, 5, 1.2],
-  ] as [string, string, number, number, number][];
-
-  const ingredients: Record<string, { id: number }> = {};
-  for (const [
-    name,
-    unit,
-    currentStock,
-    minStock,
-    costPerUnit,
-  ] of ingredientDefinitions) {
-    ingredients[name] = await upsertByName("ingredient", name, {
-      unit,
-      currentStock,
-      minStock,
-      costPerUnit,
-      deletedAt: null,
-    });
-  }
-
-  const productIngredientMappings = {
-    Americano: [["Coffee Beans", 18]],
-    Latte: [
-      ["Coffee Beans", 18],
-      ["Milk", 180],
-    ],
-    Cappuccino: [
-      ["Coffee Beans", 18],
-      ["Milk", 140],
-    ],
-    "Green Tea": [
-      ["Tea Leaves", 8],
-      ["Sugar", 12],
-    ],
-    "Chocolate Frappe": [
-      ["Chocolate Powder", 30],
-      ["Milk", 160],
-      ["Sugar", 20],
-    ],
-    Croissant: [["Croissant Dough", 1]],
-    Cheesecake: [["Cheesecake Slice", 1]],
-  } as Record<string, [string, number][]>;
-
-  for (const [productName, mappings] of Object.entries(
-    productIngredientMappings,
-  )) {
-    for (const [ingredientName, quantityRequired] of mappings) {
-      await prisma.productIngredient.upsert({
-        where: {
-          productId_ingredientId: {
-            productId: products[productName].id,
-            ingredientId: ingredients[ingredientName].id,
-          },
-        },
-        update: { quantityRequired },
-        create: {
-          productId: products[productName].id,
-          ingredientId: ingredients[ingredientName].id,
-          quantityRequired,
-        },
-      });
-    }
-  }
-
   console.log(
-    "Seed completed: roles, admin user, categories, products, modifiers, tables, ingredients.",
+    "Seed completed: roles, admin user, categories, products, modifiers, and tables.",
   );
 }
 

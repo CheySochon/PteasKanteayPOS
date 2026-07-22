@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-const variantSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  price: z.number().nonnegative(),
-  sku: z.string().trim().max(100).optional(),
-  isAvailable: z.boolean().default(true).optional(),
-});
-
 export const createProductSchema = z.object({
   categoryId: z.number({ error: "categoryId is required" }).int().positive(),
   name: z
@@ -19,7 +12,6 @@ export const createProductSchema = z.object({
   imageUrl: z.string().trim().optional(),
   basePrice: z.number().nonnegative(),
   isAvailable: z.boolean().default(true).optional(),
-  variants: z.array(variantSchema).optional(),
 });
 
 export const updateProductSchema = z.object({

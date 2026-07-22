@@ -1,10 +1,7 @@
-import { Request, Response, NextFunction, RequestHandler } from "express";
+import { RequestHandler } from "express";
 
-type AsyncFunction = (
-  req: any,
-  res: any,
-  next: any,
-) => Promise<any> | any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-redundant-type-constituents
+type AsyncFunction = (req: any, res: any, next: any) => Promise<any> | any;
 
 export const asyncHandler =
   (fn: AsyncFunction): RequestHandler =>

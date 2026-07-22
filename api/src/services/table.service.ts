@@ -85,8 +85,6 @@ export const getQrMenu = async (qrToken: string) => {
       where: { deletedAt: null, isAvailable: true },
       include: {
         category: true,
-        variants: { where: { deletedAt: null, isAvailable: true } },
-        modifierMaps: { include: { modifier: true } },
       },
       orderBy: { name: "asc" },
     }),

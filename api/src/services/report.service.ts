@@ -41,18 +41,12 @@ async function salesSummary(range: { start: Date; end: Date }) {
       createdAt: { gte: range.start, lt: range.end },
       status: { not: "cancelled" },
     },
-    include: { payments: true },
   });
 
   const totalSales = orders.reduce((sum, o) => sum + toNum(o.totalAmount), 0);
-  const paidTotal = orders.reduce(
-    (sum, o) =>
-      sum +
-      o.payments
-        .filter((p) => p.status === "completed")
-        .reduce((s, p) => s + toNum(p.amount), 0),
-    0,
-  );
+  const paidTotal = orders
+    .filter((o) => o.status === "completed")
+    .reduce((sum, o) => sum + toNum(o.totalAmount), 0);
 
   return {
     orderCount: orders.length,
@@ -169,7 +163,7 @@ export const exportCsv = async (dateString?: string, period = "month") => {
             table: order.table?.name ?? "Walk-in",
             item: "",
             category: "",
-            quantity: "" as any,
+            quantity: 0,
             status: order.status,
             totalAmount: toNum(order.totalAmount),
             createdAt: order.createdAt.toISOString(),
@@ -182,7 +176,7 @@ export const exportCsv = async (dateString?: string, period = "month") => {
         table: order.table?.name ?? "Walk-in",
         item: item.product?.name ?? "Unknown",
         category: item.product?.category?.name ?? "Uncategorized",
-        quantity: item.quantity as any,
+        quantity: item.quantity,
         status: order.status,
         totalAmount: toNum(item.totalPrice),
         createdAt: order.createdAt.toISOString(),

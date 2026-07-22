@@ -7,6 +7,7 @@ export const errorMiddleware = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction,
 ) => {
+  // eslint-disable-next-line no-console
   console.error(err);
 
   const message = err instanceof Error ? err.message : "Internal server error";

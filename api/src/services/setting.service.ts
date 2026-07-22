@@ -87,6 +87,31 @@ const DEFAULT_SETTINGS: Record<
     category: "permissions",
     description: "Page permissions for Staff role",
   },
+  telegramBotToken: {
+    value: "",
+    category: "telegram",
+    description: "Telegram Bot API Token",
+  },
+  telegramChatId: {
+    value: "",
+    category: "telegram",
+    description: "Telegram Chat ID",
+  },
+  telegramAlertLogin: {
+    value: true,
+    category: "telegram",
+    description: "Send alert on staff login",
+  },
+  telegramAlertFailedLogin: {
+    value: true,
+    category: "telegram",
+    description: "Send warning alert on failed login",
+  },
+  telegramAlertNewOrder: {
+    value: true,
+    category: "telegram",
+    description: "Send alert on new order",
+  },
 };
 
 const ALLOWED_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -99,6 +124,7 @@ async function ensureDefaults() {
         update: {},
         create: {
           key,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
           value: DEFAULT_SETTINGS[key].value as any,
           category: DEFAULT_SETTINGS[key].category,
           description: DEFAULT_SETTINGS[key].description,
@@ -120,14 +146,15 @@ function sanitizeValue(key: string, value: unknown): SettingValue {
     return Math.max(0, Number(value ?? 0));
   }
 
-  if (["autoAcceptQrOrders", "lowStockAlerts", "orderNotifications"].includes(key)) {
+  if (["autoAcceptQrOrders", "lowStockAlerts", "orderNotifications", "telegramAlertLogin", "telegramAlertFailedLogin", "telegramAlertNewOrder"].includes(key)) {
     return Boolean(value);
   }
 
   if (key === "kitchenDisplayMode") {
+    const val = typeof DEFAULT_SETTINGS[key].value === "string" ? DEFAULT_SETTINGS[key].value : "compact";
     return ["compact", "comfortable"].includes(String(value))
       ? String(value)
-      : String(DEFAULT_SETTINGS[key].value);
+      : val;
   }
 
   return typeof value === "string" ? value.trim() : (value as SettingValue);
@@ -156,6 +183,7 @@ export const updateSettings = async (
       prisma.appSetting.update({
         where: { key },
         data: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
           value: sanitizeValue(key, input[key]) as any,
           updatedById,
         },

@@ -34,10 +34,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     async function verifySession() {
       if (pathname === "/login") {
-        const token = localStorage.getItem("pos_token");
-        if (token) {
+        const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
+        if (hasSession) {
           try {
             const user = await getMe();
+            localStorage.setItem("pos_logged_in", "true");
             const redirect = new URLSearchParams(window.location.search).get("redirect");
             let targetPath =
               redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
@@ -51,6 +52,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
             router.replace(targetPath);
           } catch {
+            localStorage.removeItem("pos_logged_in");
             localStorage.removeItem("pos_token");
             localStorage.removeItem("pos_user");
             window.dispatchEvent(new Event("pos-auth-change"));
@@ -63,8 +65,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const token = localStorage.getItem("pos_token");
-      if (!token) {
+      const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
+      if (!hasSession) {
         router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
         return;
       }
@@ -74,6 +76,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const settings = await getSettings().catch(() => null);
         const staffPermissions = permissionsForUser(user.id, settings?.staffPermissions);
 
+        localStorage.setItem("pos_logged_in", "true");
         localStorage.setItem("pos_user", JSON.stringify(user));
         localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
         window.dispatchEvent(new Event("pos-auth-change"));
@@ -90,6 +93,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           setAuthorizedPath(pathname);
         }
       } catch {
+        localStorage.removeItem("pos_logged_in");
         localStorage.removeItem("pos_token");
         localStorage.removeItem("pos_user");
         window.dispatchEvent(new Event("pos-auth-change"));
@@ -146,9 +150,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const hasToken = !!localStorage.getItem("pos_token");
+  const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
 
-  if (protectedRoute && !hasToken) {
+  if (protectedRoute && !hasSession) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
         <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">

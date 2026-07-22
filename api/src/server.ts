@@ -1,6 +1,6 @@
 import "./config/env.js";
 import http from "http";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import app from "./app.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -17,17 +17,18 @@ const io = new Server(httpServer, {
 
 app.set("io", io);
 
-io.on("connection", (socket: any) => {
-  socket.on("order:new", (order: any) => {
+io.on("connection", (socket: Socket) => {
+  socket.on("order:new", (order: unknown) => {
     io.emit("order:created", order);
   });
 
-  socket.on("order:update", (order: any) => {
+  socket.on("order:update", (order: unknown) => {
     io.emit("order:updated", order);
   });
 });
 
 httpServer.listen(PORT, HOST, () => {
+  // eslint-disable-next-line no-console
   console.log(`🚀 API + WebSockets running on http://${HOST}:${PORT}`);
 });
 

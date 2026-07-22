@@ -12,8 +12,6 @@ function slugify(value: string): string {
 
 const productInclude = {
   category: true,
-  variants: { where: { deletedAt: null as Date | null } },
-  modifierMaps: { include: { modifier: true } },
 };
 
 async function uniqueProductSlug(value: string, excludeId?: number): Promise<string> {
@@ -66,7 +64,6 @@ export const createProduct = async (data: {
   imageUrl?: string;
   basePrice: number;
   isAvailable?: boolean;
-  variants?: { name: string; price: number; sku?: string; isAvailable?: boolean }[];
 }) => {
   const slug = await uniqueProductSlug(data.slug ?? data.name);
 
@@ -79,16 +76,6 @@ export const createProduct = async (data: {
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable ?? true,
-      variants: Array.isArray(data.variants)
-        ? {
-            create: data.variants.map((v) => ({
-              name: v.name,
-              price: v.price,
-              sku: v.sku,
-              isAvailable: v.isAvailable ?? true,
-            })),
-          }
-        : undefined,
     },
     include: productInclude,
   });

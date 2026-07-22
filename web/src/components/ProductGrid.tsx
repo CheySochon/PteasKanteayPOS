@@ -61,9 +61,7 @@ export default function ProductGrid({
                 <div className="shrink-0 rounded-md bg-[#E1F5EE] px-2 py-1 text-xs font-bold text-[#0F6E56]">{money(product.basePrice)}</div>
               </div>
               <p className="line-clamp-2 min-h-[32px] text-xs leading-4 text-gray-500">{product.description || "Coffee shop item"}</p>
-              {product.variants && product.variants.length > 0 && (
-                <div className="mt-3 text-[11px] text-gray-400">{product.variants.length} variants</div>
-              )}
+
             </div>
           </button>
         );

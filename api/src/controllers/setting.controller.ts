@@ -19,7 +19,7 @@ export const update = asyncHandler(
 );
 
 export const uploadImage = asyncHandler(
-  async (req: Request, res: Response) => {
+  (req: Request, res: Response) => {
     if (!req.file) {
       res.status(400).json({ success: false, message: "Restaurant image is required" });
       return;

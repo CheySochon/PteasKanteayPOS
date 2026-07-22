@@ -22,6 +22,9 @@ import type {
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 
 function formatShortOrderNo(order: Order) {
+  if (order.id) {
+    return `#${String(order.id).padStart(4, "0")}`;
+  }
   const raw = order.orderNumber || order.orderId || `#${order.id}`;
   if (typeof raw === "string" && raw.startsWith("ORD-")) {
     const parts = raw.split("-");
@@ -39,6 +42,16 @@ function formatRecentOrderTime(dateStr: string) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
   return date.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getOrderTableName(order: Order, fallbackText: string) {
+  if (order.tableNo) return order.tableNo;
+  if (order.table?.name) return order.table.name;
+  if (order.notes) {
+    const match = order.notes.match(/(?:table|តុ)\s*[:#-]?\s*([^\n,]+)/i);
+    if (match && match[1]) return match[1].trim();
+  }
+  return fallbackText;
 }
 
 
@@ -82,6 +95,9 @@ const TEXT = {
     lowStockDetail: "ingredients are below minimum stock",
     newOrderAlert: "New order received",
     newOrderDetail: "needs attention",
+    by: "by",
+    qrOrder: "via QR Ordering",
+    posCounter: "POS Counter",
   },
   km: {
     title: "ផ្ទាំងគ្រប់គ្រង",
@@ -102,7 +118,7 @@ const TEXT = {
     recentOrdersDesc: "ការបញ្ជាទិញអតិថិជនចុងក្រោយ។",
     shown: "បានបង្ហាញ",
     order: "លេខបញ្ជា",
-    table: "តុ",
+    table: "តុ / អ្នកកុម្ម៉ង់",
     status: "ស្ថានភាព",
     total: "សរុប",
     created: "បានបង្កើត",
@@ -122,6 +138,9 @@ const TEXT = {
     lowStockDetail: "គ្រឿងផ្សំក្រោមកម្រិតអប្បបរមា",
     newOrderAlert: "ការបញ្ជាទិញថ្មី",
     newOrderDetail: "ត្រូវការការត្រួតពិនិត្យ",
+    by: "ដោយ",
+    qrOrder: "តាម QR Ordering",
+    posCounter: "បញ្ជរ POS",
   },
 };
 
@@ -260,11 +279,25 @@ export default function DashboardPage() {
           ? `${label} - ${table} ${t.newOrderDetail}`
           : `${label} ${t.newOrderDetail}`;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const items = order.items?.map((i: any) => ({
+          name: i.product?.name || i.name || "Item",
+          quantity: i.quantity || 1,
+          price: Number(i.unitPrice || i.price || 0),
+          notes: i.notes || i.specialNotes,
+          image: i.product?.image || i.image,
+        }));
+
         return [
           {
             id: `order-${order.id}-${Date.now()}`,
             title: t.newOrderAlert,
             detail,
+            orderId: order.id,
+            orderNumber: label,
+            tableNo: String(table || ""),
+            totalAmount: Number(order.totalAmount || 0),
+            items,
           },
           ...current,
         ].slice(0, 5);
@@ -298,7 +331,7 @@ export default function DashboardPage() {
     [activeOrders, clearedActiveOrderIds]
   );
   
-  const recentOrders = useMemo(() => orders.slice(0, 6), [orders]);
+  const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
 
   const orderStatusCount = useMemo(() => {
     return orders.reduce<Record<string, number>>((acc, order) => {
@@ -730,7 +763,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`h-[250px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
+                className={`h-[220px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
               >
                 <Line data={salesTrendChartData} options={salesChartOptions} />
               </div>
@@ -747,14 +780,14 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`h-[250px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
+                className={`h-[220px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
               >
                 <Doughnut data={orderStatusChartData} options={doughnutOptions} />
               </div>
             </div>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,420px)]">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,420px)] items-stretch">
             <div className={`min-w-0 overflow-hidden ${cardClass}`}>
               <div className="flex items-center justify-between p-5">
                 <div>
@@ -823,19 +856,30 @@ export default function DashboardPage() {
                           </td>
 
                           <td className="px-5 py-4">
-                            {order.tableNo || order.table?.name ? (
-                              <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
-                                dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
-                              }`}>
-                                {order.tableNo || order.table?.name}
+                            <div className="flex flex-col gap-0.5">
+                              <div>
+                                {getOrderTableName(order, t.walkIn) !== t.walkIn ? (
+                                  <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
+                                    dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                                  }`}>
+                                    {getOrderTableName(order, t.walkIn)}
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
+                                    dark ? "bg-slate-700/60 text-slate-300" : "bg-slate-100 text-slate-600"
+                                  }`}>
+                                    {t.walkIn}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-[11px] font-medium ${textSecondary}`}>
+                                {order.createdBy?.name
+                                  ? `${t.by} ${order.createdBy.name}`
+                                  : order.tableId || order.tableNo || getOrderTableName(order, "")
+                                    ? t.qrOrder
+                                    : t.posCounter}
                               </span>
-                            ) : (
-                              <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold ${
-                                dark ? "bg-slate-700/60 text-slate-300" : "bg-slate-100 text-slate-600"
-                              }`}>
-                                {t.walkIn}
-                              </span>
-                            )}
+                            </div>
                           </td>
 
                           <td className="px-5 py-4 text-center">
@@ -857,8 +901,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <aside className="min-w-0 space-y-4">
-              <div className={`${cardClass} p-4`}>
+            <div className="min-w-0">
+              <div className={`${cardClass} p-5 h-full flex flex-col`}>
                 <div className="mb-4">
                   <h2 className={`text-base font-bold ${textPrimary}`}>
                     {t.topProducts}
@@ -868,43 +912,21 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div
-                  className={`mb-4 h-[240px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
-                >
-                  <Line data={topProductChartData} options={topProductChartOptions} />
-                </div>
-
-                <div className="space-y-2">
-                  {topProducts.length === 0 ? (
-                    <div className={`text-xs ${textSecondary}`}>
-                      {t.noProductSales}
+                {topProducts.length === 0 ? (
+                  <div className={`text-xs ${textSecondary} py-8 text-center flex-1 flex items-center justify-center`}>
+                    {t.noProductSales}
+                  </div>
+                ) : (
+                  <div
+                    className={`min-w-0 rounded border p-4 flex-1 flex flex-col justify-center items-center ${borderCol} ${softSurface}`}
+                  >
+                    <div className="w-full h-[220px] relative">
+                      <Line data={topProductChartData} options={topProductChartOptions} />
                     </div>
-                  ) : (
-                    topProducts.slice(0, 5).map((item) => (
-                      <div
-                        key={item.productId}
-                        className={`flex items-center justify-between rounded border ${borderCol} ${softSurface}`}
-                      >
-                        <div className="min-w-0">
-                          <div
-                            className={`truncate text-sm font-semibold ${textPrimary}`}
-                          >
-                            {item.productName}
-                          </div>
-                          <div className={`text-xs ${textSecondary}`}>
-                            {item.quantity} {t.sold}
-                          </div>
-                        </div>
-
-                        <div className={`text-sm font-bold ${textPrimary}`}>
-                          {money(item.totalSales)}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-            </aside>
+            </div>
           </section>
         </div>
       </div>
@@ -1074,11 +1096,6 @@ function StatCard({
 
       <div className="flex items-end justify-between gap-2">
         <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
-        {miniChartData && (
-          <div className="h-10 w-24 flex-shrink-0">
-            <Line data={miniChartData} options={miniChartOptions} />
-          </div>
-        )}
       </div>
     </div>
   );

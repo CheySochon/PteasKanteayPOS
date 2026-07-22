@@ -18,7 +18,6 @@ import {
   addItem,
   splitBillHandler,
 } from "../controllers/order.controller.js";
-import { listByOrder } from "../controllers/payment.controller.js";
 
 const router = Router();
 const staffRoles = [
@@ -48,6 +47,5 @@ router.post(
   validate(splitBillSchema),
   asyncHandler(splitBillHandler),
 );
-router.get("/:orderId/payments", ...staffRoles, asyncHandler(listByOrder));
 
 export default router;

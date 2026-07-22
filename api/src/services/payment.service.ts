@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma.js";
-import { PaymentMethod, PaymentStatus, OrderStatus } from "../prisma/client.js";
+import { PaymentMethod, PaymentStatus } from "../prisma/client.js";
 
 function toNum(value: unknown): number {
   return Number(value ?? 0);
@@ -56,11 +56,12 @@ export const createPayment = async (
         .reduce((sum, p) => sum + toNum(p.amount), 0) +
       (payment.status === "completed" ? toNum(payment.amount) : 0);
 
-    let updatedOrder: any = order;
+    let updatedOrder = order;
     if (paidTotal >= toNum(order.totalAmount)) {
       updatedOrder = await tx.order.update({
         where: { id: order.id },
-        data: { status: "completed" as OrderStatus },
+        data: { status: "completed" },
+        include: { items: true, table: true, payments: true },
       });
     }
 

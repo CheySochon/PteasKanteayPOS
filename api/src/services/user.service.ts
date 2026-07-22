@@ -79,7 +79,7 @@ export const updateUser = async (
     throw new Error("User not found");
   }
 
-  const updateData: Record<string, any> = {};
+  const updateData: Record<string, unknown> = {};
 
   if (data.email !== undefined) updateData.email = data.email;
   if (data.name !== undefined) updateData.name = data.name;

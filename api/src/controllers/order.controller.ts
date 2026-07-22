@@ -15,6 +15,7 @@ import {
   AddOrderItemBody,
   SplitBillBody,
 } from "../schemas/order.schema.js";
+import { verifyToken } from "../utils/jwt.js";
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const data = await listOrders(req.query as Record<string, string>);
@@ -30,8 +31,27 @@ export const get = asyncHandler(
 
 export const create = asyncHandler(
   async (req: Request<object, object, CreateOrderBody>, res: Response) => {
-    const data = await createOrder(req.body, req.user?.userId);
-    const io = req.app.get("io");
+    let userId = req.user?.userId;
+    if (!userId) {
+      let token = (req.cookies as Record<string, string> | undefined)?.access_token;
+      if (!token && req.headers.authorization) {
+        const authHeader = req.headers.authorization;
+        if (authHeader.startsWith("Bearer ")) {
+          token = authHeader.substring(7);
+        }
+      }
+      if (token) {
+        try {
+          const decoded = verifyToken(token);
+          userId = decoded?.userId;
+        } catch {
+          // Ignore invalid token to allow guest orders
+        }
+      }
+    }
+
+    const data = await createOrder(req.body, userId);
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("order:created", data);
       io.emit("order:new", data);
@@ -46,7 +66,7 @@ export const updateStatus = asyncHandler(
     res: Response,
   ) => {
     const data = await updateOrderStatus(Number(req.params.id), req.body.status);
-    const io = req.app.get("io");
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("order:updated", data);
     }

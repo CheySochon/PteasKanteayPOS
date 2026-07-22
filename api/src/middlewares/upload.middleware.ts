@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -47,7 +48,7 @@ const settingStorage = multer.diskStorage({
   },
 });
 
-function fileFilter(_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+function fileFilter(_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) {
   if (!file.mimetype.startsWith("image/")) {
     return cb(new Error("Only image files are allowed"));
   }

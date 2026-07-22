@@ -1,12 +1,8 @@
 "use client";
 
-import type { ProductVariant } from "../lib/types";
-
 export type CartItem = {
   productId: number;
   name: string;
-  variantId?: number;
-  variantName?: string;
   unitPrice: number;
   quantity: number;
 };
@@ -15,15 +11,11 @@ export function cartItemFromProduct(product: {
   id: number;
   name: string;
   basePrice: number | string;
-  variants?: ProductVariant[];
 }): CartItem {
-  const variant = product.variants?.find((entry) => entry.isAvailable);
   return {
     productId: product.id,
     name: product.name,
-    variantId: variant?.id,
-    variantName: variant?.name,
-    unitPrice: Number(variant?.price ?? product.basePrice ?? 0),
+    unitPrice: Number(product.basePrice ?? 0),
     quantity: 1,
   };
 }
@@ -55,11 +47,11 @@ export default function CartPanel({
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-xs text-gray-500">Select products to start an order</div>
         ) : items.map((item, index) => (
-          <div key={`${item.productId}-${item.variantId || "base"}-${index}`} className="rounded-lg bg-gray-50 p-3">
+          <div key={`${item.productId}-${index}`} className="rounded-lg bg-gray-50 p-3">
             <div className="flex justify-between gap-2">
               <div>
                 <div className="text-sm font-semibold text-gray-900">{item.name}</div>
-                <div className="text-[11px] text-gray-500">{item.variantName || "Regular"} · ${item.unitPrice.toFixed(2)}</div>
+                <div className="text-[11px] text-gray-500">${item.unitPrice.toFixed(2)}</div>
               </div>
               <div className="text-sm font-bold text-gray-900">${(item.unitPrice * item.quantity).toFixed(2)}</div>
             </div>

@@ -2,16 +2,13 @@ import { z } from "zod";
 
 const orderItemSchema = z.object({
   productId: z.number().int().positive(),
-  variantId: z.number().int().positive().optional(),
   quantity: z.number().int().positive().default(1),
   notes: z.string().trim().max(500).optional(),
-  modifierIds: z.array(z.number().int().positive()).optional(),
 });
 
 export const createOrderSchema = z.object({
   tableId: z.number().int().positive().optional(),
   tableNo: z.string().trim().optional(),
-  customerId: z.number().int().positive().optional(),
   status: z.string().default("pending").optional(),
   notes: z.string().trim().max(1000).optional(),
   discountAmount: z.number().nonnegative().default(0).optional(),

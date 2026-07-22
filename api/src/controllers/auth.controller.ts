@@ -10,12 +10,13 @@ import {
   login as loginUser,
   updatePassword as updateUserPassword,
 } from "../services/auth.service.js";
+import { createAuditLog } from "../services/audit.service.js";
 
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "strict" as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000,
+  maxAge: 12 * 60 * 60 * 1000,
 };
 
 export const register = async (
@@ -46,10 +47,24 @@ export const login = async (
   req: Request<object, object, LoginBody>,
   res: Response,
 ) => {
+  const ipAddress = (req.headers["x-forwarded-for"] as string) || req.ip || req.socket.remoteAddress || "Localhost";
+  const userAgent = req.headers["user-agent"] || "Browser";
+
   try {
     const { user, token } = await loginUser(req.body.email, req.body.password);
 
     res.cookie("access_token", token, cookieOptions);
+
+    // Record Successful Login Audit Log
+    createAuditLog({
+      userId: user.id,
+      userName: user.name,
+      userRole: typeof user.role === "string" ? user.role : (user.role as any)?.name || "Staff",
+      action: "LOGIN",
+      status: "SUCCESS",
+      ipAddress,
+      userAgent,
+    }).catch(() => {});
 
     res.json({
       success: true,
@@ -58,6 +73,17 @@ export const login = async (
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Login failed";
+
+    // Record Failed Login Audit Log & Telegram Warning Alert
+    createAuditLog({
+      userName: req.body.email || "Unknown User",
+      userRole: "Guest",
+      action: "FAILED_LOGIN",
+      status: "FAILED",
+      ipAddress,
+      userAgent,
+      details: message,
+    }).catch(() => {});
 
     res.status(401).json({
       success: false,
@@ -92,7 +118,7 @@ export const me = async (req: Request, res: Response) => {
       success: true,
       data: user,
     });
-  } catch (err: unknown) {
+  } catch (_err: unknown) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

@@ -13,7 +13,7 @@ export default function AdminLayout({
   const [theme, setTheme] = useAppTheme();
   const language = useAppLanguage();
   const [collapsed, setCollapsed] = useState(false);
-  const bg = theme === "dark" ? "bg-[#0b1120]" : "bg-[#f3f6fb]";
+  const bg = theme === "dark" ? "bg-[#232333]" : "bg-[#f3f6fb]";
 
   return (
     <div suppressHydrationWarning className={`flex h-screen overflow-hidden font-sans ${bg} ${language === "km" ? "font-khmer" : ""}`}>

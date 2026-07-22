@@ -4,7 +4,6 @@ import type {
   AuthResult,
   Category,
   CreateOrderInput,
-  Customer,
   DailySalesReport,
   DiningTable,
   Ingredient,
@@ -67,6 +66,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     method: options.method || "GET",
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
+    credentials: "include",
   });
 
   const contentType = response.headers.get("content-type") || "";
@@ -103,6 +103,7 @@ export const apiBaseUrl = API_URL;
 export const apiOrigin = API_ORIGIN;
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
+export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
 export const getMe = () => request<User>("/auth/me");
 export const getCategories = () => request<Category[]>("/categories");
 export const createCategory = (body: Partial<Category>) => request<Category>("/categories", { method: "POST", body });
@@ -126,6 +127,7 @@ export async function uploadProductImage(file: File) {
     method: "POST",
     headers,
     body: formData,
+    credentials: "include",
   });
 
   const payload = await response.json();
@@ -149,6 +151,7 @@ export async function uploadRestaurantImage(file: File) {
     method: "POST",
     headers,
     body: formData,
+    credentials: "include",
   });
 
   const payload = await response.json();
@@ -179,11 +182,7 @@ export const getOrderPayments = (orderId: number) => request<Payment[]>(`/orders
 
 
 
-export const getCustomers = () => request<Customer[]>("/customers");
-export const getCustomer = (id: number) => request<Customer>(`/customers/${id}`);
-export const createCustomer = (body: Partial<Customer>) => request<Customer>("/customers", { method: "POST", body });
-export const updateCustomer = (id: number, body: Partial<Customer>) => request<Customer>(`/customers/${id}`, { method: "PUT", body });
-export const getCustomerOrders = (id: number) => request<Order[]>(`/customers/${id}/orders`);
+
 
 export const getDailySales = (date?: string) => request<DailySalesReport>(date ? `/reports/daily-sales?date=${date}` : "/reports/daily-sales");
 export const getMonthlySales = (date?: string) => request<MonthlySalesReport>(date ? `/reports/monthly-sales?date=${date}` : "/reports/monthly-sales");
@@ -208,6 +207,7 @@ export async function downloadBackup(latest = false) {
 
   const response = await fetch(`${API_URL}/backups/${latest ? "latest" : "download"}`, {
     headers,
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -228,3 +228,38 @@ export async function downloadBackup(latest = false) {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export type AuditLogItem = {
+  id: number;
+  userId?: number;
+  userName: string;
+  userRole: string;
+  action: string;
+  ipAddress?: string;
+  userAgent?: string;
+  status: "SUCCESS" | "FAILED";
+  details?: string;
+  createdAt: string;
+};
+
+export type TelegramConfig = {
+  botToken: string;
+  chatId: string;
+  alertLogin: boolean;
+  alertFailedLogin: boolean;
+  alertNewOrder: boolean;
+};
+
+export const getAuditLogs = (query?: { search?: string; status?: string; page?: number; limit?: number }) => {
+  const params = new URLSearchParams();
+  if (query?.search) params.append("search", query.search);
+  if (query?.status) params.append("status", query.status);
+  if (query?.page) params.append("page", String(query.page));
+  if (query?.limit) params.append("limit", String(query.limit));
+  const qs = params.toString();
+  return request<{ items: AuditLogItem[]; total: number; page: number; totalPages: number }>(`/audit/audit-logs${qs ? `?${qs}` : ""}`);
+};
+
+export const getTelegramConfig = () => request<TelegramConfig>("/audit/telegram");
+export const updateTelegramConfig = (body: Partial<TelegramConfig>) => request<TelegramConfig>("/audit/telegram", { method: "POST", body });
+export const testTelegramBot = (body: { botToken: string; chatId: string }) => request<{ message: string }>("/audit/telegram/test", { method: "POST", body });

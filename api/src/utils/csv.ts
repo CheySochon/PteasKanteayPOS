@@ -5,7 +5,8 @@ type CsvColumn = {
 
 function escapeCsv(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const text = String(value);
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  const text = typeof value === "object" ? JSON.stringify(value) : (typeof value === "string" ? value : String(value));
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

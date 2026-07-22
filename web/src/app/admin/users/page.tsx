@@ -18,6 +18,7 @@ import {
   MoreVertical,
   Download,
   Eye,
+  EyeOff,
   Crown,
   CreditCard,
   ChefHat,
@@ -27,6 +28,8 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
+import { useAppLanguage, setAppLanguage } from "../../../lib/language";
+import TopBar from "../../../components/TopBar";
 import {
   createUser,
   deleteUser,
@@ -64,6 +67,7 @@ const EMPTY_FORM: UserForm = {
 
 export default function UsersPage() {
   const [theme] = useAppTheme();
+  const language = useAppLanguage();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
@@ -86,6 +90,7 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [showModalPassword, setShowModalPassword] = useState(false);
   useAutoDismiss(message, setMessage);
   useAutoDismiss(error, setError);
   useSyncExternalStore(
@@ -225,20 +230,32 @@ export default function UsersPage() {
     }
   }
 
-  async function remove(user: User) {
-    const ok = window.confirm(`Delete ${user.name}?`);
-    if (!ok) return;
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
 
+  useEffect(() => {
+    if (!deleteConfirmUser) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setDeleteConfirmUser(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deleteConfirmUser]);
+
+  async function confirmRemoveUser() {
+    if (!deleteConfirmUser) return;
+    const user = deleteConfirmUser;
+    setDeleteConfirmUser(null);
     setMessage("");
     setError("");
 
     try {
       await deleteUser(user.id);
-
       setUsers((current) => current.filter((entry) => entry.id !== user.id));
-
       if (form.id === user.id) closeUserModal();
-
       setMessage("User deleted successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete user");
@@ -272,6 +289,7 @@ export default function UsersPage() {
 
     setMessage("");
     setError("");
+    setShowModalPassword(false);
     setIsUserModalOpen(true);
   }
 
@@ -279,93 +297,30 @@ export default function UsersPage() {
     setForm(EMPTY_FORM);
     setMessage("");
     setError("");
+    setShowModalPassword(false);
     setIsUserModalOpen(true);
   }
 
   function closeUserModal() {
     setIsUserModalOpen(false);
+    setShowModalPassword(false);
     setForm(EMPTY_FORM);
   }
 
-  // Helper to generate mock values (plan, billing) for Sneat aesthetic
-  const mockPlan = (userId: number) => {
-    const plans = ["Basic", "Team", "Company", "Enterprise"];
-    return plans[userId % plans.length];
-  };
-
-  const mockBilling = (userId: number) => {
-    const billings = ["Auto Debit", "Manual Cash", "Manual Paypal"];
-    return billings[userId % billings.length];
-  };
-
   return (
     <>
-      <main className={`flex-1 overflow-y-auto ${softSurface} p-6`}>
-        <div className="mx-auto w-full max-w-[1400px]">
-          <div className="animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-            
-            {/* Sneat Summary Cards (Grid of 4) */}
-            <section className="mb-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <SneatSummaryCard
-                label="Session"
-                value={users.length.toLocaleString()}
-                subtitle="Total Users"
-                percent="+29%"
-                percentTone="green"
-                icon={<UserRound size={22} />}
-                iconColor="text-[#696cff]"
-                iconBg="bg-[#696cff]/10"
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              />
+      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+        <TopBar
+          title={language === "km" ? "គណនីបុគ្គលិក" : "Staff Accounts"}
+          subtitle={language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក តួនាទី និងស្ថានភាព" : "Manage system user credentials, roles, and status."}
+          language={language}
+          onLanguageChange={setAppLanguage}
+          notifications={[]}
+          dark={dark}
+        />
 
-              <SneatSummaryCard
-                label="Paid Users"
-                value={activeUsers.toLocaleString()}
-                subtitle="Last week analytics"
-                percent="+18%"
-                percentTone="green"
-                icon={<ShieldCheck size={22} />}
-                iconColor="text-[#ff3e1d]"
-                iconBg="bg-[#ff3e1d]/10"
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              />
-
-              <SneatSummaryCard
-                label="Active Users"
-                value={activeUsers.toLocaleString()}
-                subtitle="Last week analytics"
-                percent="-14%"
-                percentTone="red"
-                icon={<UserRound size={22} />}
-                iconColor="text-[#71dd37]"
-                iconBg="bg-[#71dd37]/10"
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              />
-
-              <SneatSummaryCard
-                label="Pending Users"
-                value={(users.length - activeUsers).toLocaleString()}
-                subtitle="Last week analytics"
-                percent="+42%"
-                percentTone="green"
-                icon={<UserX size={22} />}
-                iconColor="text-[#ffab00]"
-                iconBg="bg-[#ffab00]/10"
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              />
-            </section>
+        <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div className="mx-auto w-full max-w-[1400px]">
 
             {/* Error and Success Alerts */}
             {error && (
@@ -379,67 +334,16 @@ export default function UsersPage() {
               </div>
             )}
 
-            {/* Search Filters Section */}
-            <section className={`mb-6 rounded shadow-sm p-6 ${surface} border ${borderCol}`}>
-              <h3 className={`text-base font-semibold mb-4 ${textPrimary}`}>Search Filters</h3>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  >
-                    <option value="">Select Role</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.name}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <select
-                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                    defaultValue=""
-                  >
-                    <option value="">Select Plan</option>
-                    <option value="Basic">Basic</option>
-                    <option value="Team">Team</option>
-                    <option value="Company">Company</option>
-                    <option value="Enterprise">Enterprise</option>
-                  </select>
-                </div>
-
-                <div>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  >
-                    <option value="">Select Status</option>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-            </section>
-
             {/* Table & Table Controls Container */}
             <section className={`rounded shadow-sm overflow-hidden ${surface} border ${borderCol}`}>
-              {/* Controls bar */}
-              <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              {/* Unified Controls & Filters Bar */}
+              <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between border-b border-slate-100 dark:border-[#4e4f6e]/50">
+                {/* Left Side: Limit, Search & Dropdown Filters */}
+                <div className="flex flex-wrap items-center gap-2.5">
                   <select
                     value={limit}
                     onChange={(e) => setLimit(Number(e.target.value))}
-                    className={`rounded border px-2.5 py-1.5 text-sm outline-none focus:border-[#696cff] ${
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
                       dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                     }`}
                   >
@@ -448,36 +352,65 @@ export default function UsersPage() {
                     <option value="50">50</option>
                     <option value="100">100</option>
                   </select>
-                </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="Search User"
+                      placeholder="Search User..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`rounded border pl-3.5 pr-3 py-1.5 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] ${
+                      className={`h-9 w-48 sm:w-56 rounded-lg border pl-3.5 pr-3 text-xs font-semibold outline-none placeholder-[#b4bdc6] focus:border-[#696cff] transition-all ${
                         dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                       }`}
                     />
                   </div>
 
-                  <button
-                    type="button"
-                    className={`inline-flex items-center justify-center gap-1.5 rounded border px-4 py-1.5 text-sm font-semibold hover:opacity-90 ${
-                      dark ? "border-[#4e4f6e] text-slate-200 bg-[#232333]" : "border-[#e5e7eb] text-[#8592a3] bg-[#eceef1]/60"
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value)}
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                     }`}
                   >
-                    <Download size={15} />
+                    <option value="">All Roles</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.name}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  >
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Right Side: Export & Add User */}
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-4 text-xs font-semibold hover:opacity-90 transition-all ${
+                      dark ? "border-[#4e4f6e] text-slate-200 bg-[#232333]" : "border-[#d9dee3] text-[#8592a3] bg-[#eceef1]/60"
+                    }`}
+                  >
+                    <Download size={14} />
                     Export
                   </button>
 
                   <button
+                    type="button"
                     onClick={openCreateUserModal}
-                    className="inline-flex items-center justify-center gap-1.5 rounded bg-[#696cff] px-4 py-1.5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6]"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                   >
-                    <Plus size={16} />
+                    <Plus size={15} />
                     Add New User
                   </button>
                 </div>
@@ -496,8 +429,6 @@ export default function UsersPage() {
                       </th>
                       <th className="px-5 py-3">User</th>
                       <th className="px-5 py-3">Role</th>
-                      <th className="px-5 py-3">Plan</th>
-                      <th className="px-5 py-3">Billing</th>
                       <th className="px-5 py-3">Status</th>
                       <th className="px-5 py-3 text-center">Action</th>
                     </tr>
@@ -505,13 +436,13 @@ export default function UsersPage() {
                   <tbody className={dark ? "divide-y divide-[#4e4f6e]" : "divide-y divide-[#f0f2f5]"}>
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center">
+                        <td colSpan={5} className="px-5 py-12 text-center">
                           <Loader2 className="animate-spin text-[#696cff] inline-block" size={24} />
                         </td>
                       </tr>
                     ) : paginatedUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className={`px-5 py-8 text-center text-sm ${textSecondary}`}>
+                        <td colSpan={5} className={`px-5 py-8 text-center text-sm ${textSecondary}`}>
                           No entries found
                         </td>
                       </tr>
@@ -548,12 +479,6 @@ export default function UsersPage() {
                                 <span className={dark ? "text-slate-200" : ""}>{uRole}</span>
                               </div>
                             </td>
-                            <td className={`px-5 py-3 text-sm ${dark ? "text-slate-200" : "text-[#566a7f]"}`}>
-                              {mockPlan(user.id)}
-                            </td>
-                            <td className={`px-5 py-3 text-sm ${dark ? "text-slate-200" : "text-[#566a7f]"}`}>
-                              {mockBilling(user.id)}
-                            </td>
                             <td className="px-5 py-3">
                               <button
                                 disabled={isSelf}
@@ -578,7 +503,7 @@ export default function UsersPage() {
                                 </button>
                                 <button
                                   disabled={isSelf}
-                                  onClick={() => remove(user)}
+                                  onClick={() => setDeleteConfirmUser(user)}
                                   className="hover:text-[#ff3e1d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed p-1"
                                   title="Delete User"
                                 >
@@ -740,20 +665,31 @@ export default function UsersPage() {
                 <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
                   Password
                 </label>
-                <input
-                  required={!form.id}
-                  type="password"
-                  value={form.password}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                  }`}
-                />
+                <div className="relative">
+                  <input
+                    required={!form.id}
+                    type={showModalPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        password: event.target.value,
+                      }))
+                    }
+                    placeholder={form.id ? "•••••••• (Leave blank to keep current)" : "••••••••"}
+                    className={`w-full rounded border pl-3.5 pr-10 py-2 text-sm outline-none focus:border-[#696cff] ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowModalPassword((prev) => !prev)}
+                    className="absolute right-3 top-2.5 text-[#8592a3] hover:text-[#696cff] transition-colors p-0.5"
+                    title={showModalPassword ? "Hide Password" : "Show Password"}
+                  >
+                    {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -827,6 +763,48 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+        {deleteConfirmUser && (
+          <div
+            onClick={() => setDeleteConfirmUser(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-[userModalBackdrop_200ms_ease-out_both] cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-sm overflow-hidden rounded-xl border p-6 text-center shadow-2xl animate-[userModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both] cursor-default ${dark ? "bg-[#1f2130] border-[#383a50] text-slate-100" : "bg-white border-slate-200 text-slate-800"}`}
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                <Trash2 size={26} />
+              </div>
+
+              <h3 className="text-lg font-black tracking-tight">
+                {language === "km" ? "បញ្ជាក់ការលុបគណនី" : "Delete User Account?"}
+              </h3>
+              <p className={`mt-2 text-xs font-medium ${textSecondary}`}>
+                {language === "km"
+                  ? `តើអ្នកពិតជាចង់លុបគណនី "${deleteConfirmUser.name}" មែនទេ? ទិន្នន័យនេះមិនអាចត្រឡប់មកវិញបានទេ។`
+                  : `Are you sure you want to delete user "${deleteConfirmUser.name}"? This action cannot be undone.`}
+              </p>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmUser(null)}
+                  className={`flex-1 rounded-lg border py-2.5 text-xs font-bold transition-all ${dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmRemoveUser}
+                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20"
+                >
+                  {language === "km" ? "លុបចោល" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       <style>{`
         @keyframes userModalBackdrop {

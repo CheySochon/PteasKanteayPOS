@@ -16,7 +16,7 @@ function toNum(value: unknown): number {
 }
 
 function normalizeStatus(status: unknown): string {
-  const s = String(status ?? "pending").toLowerCase();
+  const s = (typeof status === "string" ? status : "pending").toLowerCase();
   return ALLOWED_STATUSES.includes(s) ? s : "pending";
 }
 
@@ -37,13 +37,10 @@ export function formatOrder(order: Record<string, unknown> | null) {
 function buildOrderInclude() {
   return {
     table: true,
-    customer: true,
     createdBy: true,
     items: {
       include: {
         product: true,
-        variant: true,
-        modifiers: { include: { modifier: true } },
       },
     },
     payments: true,
@@ -58,13 +55,7 @@ async function generateOrderNumber(): Promise<string> {
     String(date.getDate()).padStart(2, "0"),
   ].join("");
 
-  const count = await prisma.order.count({
-    where: {
-      createdAt: {
-        gte: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
-      },
-    },
-  });
+  const count = await prisma.order.count();
 
   return `ORD-${stamp}-${String(count + 1).padStart(4, "0")}`;
 }
@@ -96,7 +87,6 @@ export const getOrder = async (id: number) => {
 export const createOrder = async (
   payload: {
     tableId?: number;
-    customerId?: number;
     status?: string;
     notes?: string;
     subtotal?: number;
@@ -105,7 +95,6 @@ export const createOrder = async (
     totalAmount?: number;
     items?: {
       productId: number;
-      variantId?: number;
       quantity?: number;
       unitPrice?: number;
       price?: number;
@@ -133,7 +122,6 @@ export const createOrder = async (
 
     itemsToCreate.push({
       productId: Number(item.productId),
-      variantId: item.variantId ? Number(item.variantId) : null,
       quantity: qty,
       unitPrice: unitPrice,
       totalPrice: totalPrice,
@@ -150,7 +138,6 @@ export const createOrder = async (
     data: {
       orderNumber: await generateOrderNumber(),
       tableId: payload.tableId ? Number(payload.tableId) : null,
-      customerId: payload.customerId ? Number(payload.customerId) : null,
       createdById: userId ? Number(userId) : null,
       status: normalizeStatus(payload.status) as OrderStatus,
       subtotal,
@@ -189,7 +176,6 @@ export const addOrderItem = async (
   orderId: number,
   payload: {
     productId: number;
-    variantId?: number;
     quantity?: number;
     notes?: string;
   },
@@ -212,7 +198,6 @@ export const addOrderItem = async (
     data: {
       orderId: order.id,
       productId: product.id,
-      variantId: payload.variantId,
       quantity,
       unitPrice,
       totalPrice,
