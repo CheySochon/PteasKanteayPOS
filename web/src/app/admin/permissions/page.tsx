@@ -27,6 +27,7 @@ import {
   Calendar,
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
+import Link from "next/link";
 import type { Language, NotificationItem } from "../../../components/TopBar";
 import { getSettings, getUsers, updateSettings } from "../../../lib/api";
 import { setAppLanguage, useAppLanguage } from "../../../lib/language";
@@ -412,6 +413,24 @@ export default function PermissionsPage() {
         dark={dark}
       />
       
+      {/* Shared Tabs for Staff & Roles */}
+      <div className={`px-4 pt-4 lg:px-6 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+        <div className="mx-auto w-full max-w-[1300px] flex gap-6">
+          <Link 
+            href="/admin/users" 
+            className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"}`}
+          >
+            <span className="flex items-center gap-2"><UserRound size={16} /> {language === "km" ? "បញ្ជីបុគ្គលិក" : "User List"}</span>
+          </Link>
+          <Link 
+            href="/admin/permissions" 
+            className={`pb-3 font-bold text-[14px] border-b-[3px] transition-colors border-[#0F522B] text-[#0F522B]`}
+          >
+            <span className="flex items-center gap-2"><ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}</span>
+          </Link>
+        </div>
+      </div>
+      
       <div className="flex-1 p-6 overflow-y-auto animate-[pageFadeIn_350ms_ease-out_both]">
         <div className="mx-auto w-full max-w-[1300px] flex flex-col lg:flex-row gap-6 items-stretch min-h-[calc(100vh-140px)]">
           
@@ -469,7 +488,7 @@ export default function PermissionsPage() {
                     onClick={() => setSelectedUserId(String(user.id))}
                     className={`flex w-full items-center gap-3 px-3 py-2.5 rounded transition-all duration-150 text-left ${
                       active
-                        ? "bg-[#696cff]/10 text-[#696cff] font-semibold"
+                        ? "bg-[#0F522B]/10 text-[#0F522B] font-semibold"
                         : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
@@ -478,7 +497,7 @@ export default function PermissionsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className={`block text-xs truncate font-medium ${active ? "text-[#696cff] font-semibold" : ""}`}>
+                        <span className={`block text-xs truncate font-medium ${active ? "text-[#0F522B] font-semibold" : ""}`}>
                           {user.name}
                         </span>
                         {custom && (
@@ -626,7 +645,7 @@ export default function PermissionsPage() {
                               type="button"
                               onClick={() => updatePermission(page.key, !isGranted)}
                               className={`relative h-5 w-8.5 shrink-0 rounded-full transition-all duration-300 outline-none ${
-                                isGranted ? "bg-[#696cff] shadow-sm" : "bg-slate-200 dark:bg-slate-700"
+                                isGranted ? "bg-[#0F522B] shadow-sm" : "bg-slate-200 dark:bg-slate-700"
                               }`}
                             >
                               <span

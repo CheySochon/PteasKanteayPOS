@@ -254,11 +254,11 @@ function getCategoryBadgeStyle(name: string) {
     };
   }
   return {
-    bg: "bg-[#696cff]/10 dark:bg-[#696cff]/20",
-    text: "text-[#696cff] dark:text-[#8587ff]",
-    border: "border-[#696cff]/20 dark:border-[#696cff]/30",
-    gradient: "from-[#696cff] to-[#8553f4]",
-    pill: "bg-[#696cff]/10 text-[#696cff] dark:bg-[#696cff]/25 dark:text-[#a3a5ff]",
+    bg: "bg-[#0F522B]/10 dark:bg-[#0F522B]/20",
+    text: "text-[#0F522B] dark:text-emerald-400",
+    border: "border-[#0F522B]/20 dark:border-[#0F522B]/30",
+    gradient: "from-[#0F522B] to-[#0A3E20]",
+    pill: "bg-[#0F522B]/10 text-[#0F522B] dark:bg-[#0F522B]/25 dark:text-emerald-300",
   };
 }
 
@@ -783,7 +783,7 @@ export default function MenuPage() {
                     {categories.length}
                   </p>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff] shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#0F522B]/10 text-[#0F522B] shadow-sm">
                   <Tags size={20} />
                 </div>
               </div>
@@ -825,7 +825,7 @@ export default function MenuPage() {
                   <h3 className={`text-base font-semibold ${textPrimary}`}>
                     {language === "km" ? "បញ្ជីប្រភេទមុខម្ហូប" : "Categories List"}
                   </h3>
-                  <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#696cff]/10 px-2.5 text-[11px] font-bold text-[#696cff]">
+                  <span className="inline-flex h-5 items-center justify-center rounded-full bg-[#0F522B]/10 px-2.5 text-[11px] font-bold text-[#0F522B]">
                     {filteredCategories.length}
                   </span>
                 </div>
@@ -833,7 +833,7 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={createNewCategory}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
                 >
                   <Plus size={14} />
                   {t.createCategory}
@@ -906,7 +906,7 @@ export default function MenuPage() {
                                 <button
                                   type="button"
                                   onClick={() => editCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#696cff]/10 hover:text-[#696cff] transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#0F522B]/10 hover:text-[#0F522B] transition-colors"
                                   title={`Edit ${category.name}`}
                                 >
                                   <Pencil size={15} />
@@ -976,7 +976,7 @@ export default function MenuPage() {
                   <button
                     type="button"
                     onClick={createNewProduct}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
                   >
                     <Plus size={14} />
                     Add New Product
@@ -1070,11 +1070,11 @@ export default function MenuPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className={`text-base font-bold ${textPrimary}`}>{viewingProduct.name}</h4>
-                      <span className="mt-1 inline-flex items-center rounded-full bg-[#696cff]/10 px-2.5 py-0.5 text-[10.5px] font-bold text-[#696cff]">
+                      <span className="mt-1 inline-flex items-center rounded-full bg-[#0F522B]/10 px-2.5 py-0.5 text-[10.5px] font-bold text-[#0F522B]">
                         {viewingProduct.category?.name || "No Category"}
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-[#696cff]">{money(viewingProduct.basePrice)}</span>
+                    <span className="text-lg font-bold text-[#0F522B]">{money(viewingProduct.basePrice)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs border-t border-b py-2 border-[#e5e7eb] dark:border-[#4e4f6e]">
@@ -1102,7 +1102,7 @@ export default function MenuPage() {
                       setViewingProduct(null);
                       editProduct(p);
                     }}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
                   >
                     <Pencil size={13} />
                     {language === "km" ? "កែប្រែ" : "Edit Product"}
@@ -1254,7 +1254,7 @@ function MenuCard({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#696cff] transition-colors">
+              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors">
                 {product.name}
               </h3>
               <p className="mt-1 truncate text-xs font-semibold text-[#a1acb8]">
@@ -1262,7 +1262,7 @@ function MenuCard({
               </p>
             </div>
 
-            <span className="shrink-0 text-sm font-bold text-[#696cff]">
+            <span className="shrink-0 text-sm font-bold text-[#0F522B]">
               {money(product.basePrice)}
             </span>
           </div>
@@ -1354,7 +1354,7 @@ function CategoryEditor({
     <section className={`rounded-xl border shadow-sm ${panelBg} ${borderCol}`}>
       <div className={`flex items-center justify-between gap-3 p-4 ${textPrimary}`}>
         <span className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-700 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F522B] text-white">
             {categoryForm.id ? <Pencil size={17} /> : <Tags size={17} />}
           </span>
 
@@ -1479,7 +1479,7 @@ function ProductEditor({
         className={`flex w-full items-center justify-between gap-3 p-4 text-left ${textPrimary}`}
       >
         <span className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F522B] text-white">
             {productForm.id ? <Pencil size={17} /> : <ShoppingBag size={17} />}
           </span>
 
@@ -1613,7 +1613,7 @@ function ProductEditor({
                   isAvailable: event.target.checked,
                 }))
               }
-              className="h-5 w-5 accent-blue-600"
+              className="h-5 w-5 accent-[#0F522B] cursor-pointer"
             />
           </label>
 
@@ -1621,7 +1621,7 @@ function ProductEditor({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0F522B] px-4 text-sm font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
               {productForm.id ? text.saveItem : text.createItem}
@@ -1778,7 +1778,7 @@ function FilterButton({
       onClick={onClick}
       className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
-          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
+          ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/25"
           : dark
             ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
             : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"

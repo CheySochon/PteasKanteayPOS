@@ -1,33 +1,56 @@
 import { prisma } from "../config/prisma.js";
 
+const DEFAULT_BOT_TOKEN = "8948111433:AAHBfQ5a45EdpjfgK8ljgx0RRK6HGNBHFIU";
+const DEFAULT_CHAT_ID = "1511785587";
+
+function extractVal(val: any): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") return val.trim();
+  if (typeof val === "object" && val.value && typeof val.value === "string") {
+    return val.value.trim();
+  }
+  return String(val).trim();
+}
+
 export async function getTelegramConfig() {
-  const settings = await prisma.appSetting.findMany({
-    where: {
-      key: {
-        in: [
-          "telegramBotToken",
-          "telegramChatId",
-          "telegramAlertLogin",
-          "telegramAlertFailedLogin",
-          "telegramAlertNewOrder",
-          "telegram_bot_token",
-          "telegram_chat_id",
-          "telegram_alert_login",
-          "telegram_alert_failed_login",
-          "telegram_alert_new_order",
-        ],
+  let settings: any[] = [];
+  try {
+    settings = await prisma.appSetting.findMany({
+      where: {
+        key: {
+          in: [
+            "telegramBotToken",
+            "telegramChatId",
+            "telegramAlertLogin",
+            "telegramAlertFailedLogin",
+            "telegramAlertNewOrder",
+            "telegram_bot_token",
+            "telegram_chat_id",
+            "telegram_alert_login",
+            "telegram_alert_failed_login",
+            "telegram_alert_new_order",
+          ],
+        },
       },
-    },
-  });
+    });
+  } catch (err: any) {
+    console.error("[getTelegramConfig Error]:", err?.message);
+  }
 
   const configMap: Record<string, any> = {};
   for (const s of settings) {
-    configMap[s.key] = typeof s.value === "string" ? s.value : (s.value as any)?.value ?? s.value;
+    configMap[s.key] = s.value;
   }
 
+  const rawToken = extractVal(configMap["telegramBotToken"] || configMap["telegram_bot_token"]);
+  const rawChatId = extractVal(configMap["telegramChatId"] || configMap["telegram_chat_id"]);
+
+  const botToken = rawToken || process.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN;
+  const chatId = rawChatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_CHAT_ID;
+
   return {
-    botToken: String(configMap["telegramBotToken"] || configMap["telegram_bot_token"] || process.env.TELEGRAM_BOT_TOKEN || ""),
-    chatId: String(configMap["telegramChatId"] || configMap["telegram_chat_id"] || process.env.TELEGRAM_CHAT_ID || ""),
+    botToken,
+    chatId,
     alertLogin: Boolean(configMap["telegramAlertLogin"] ?? configMap["telegram_alert_login"] ?? true),
     alertFailedLogin: Boolean(configMap["telegramAlertFailedLogin"] ?? configMap["telegram_alert_failed_login"] ?? true),
     alertNewOrder: Boolean(configMap["telegramAlertNewOrder"] ?? configMap["telegram_alert_new_order"] ?? true),
@@ -37,13 +60,15 @@ export async function getTelegramConfig() {
 export async function sendTelegramMessage(message: string, customToken?: string, customChatId?: string) {
   try {
     const config = await getTelegramConfig();
-    const token = customToken || config.botToken;
-    const chatId = customChatId || config.chatId;
+    const token = (customToken || config.botToken || DEFAULT_BOT_TOKEN).trim();
+    const chatId = (customChatId || config.chatId || DEFAULT_CHAT_ID).trim();
 
     if (!token || !chatId) {
-      console.log("[Telegram Alert] Skipped: Bot Token or Chat ID not configured yet.");
+      console.log("[Telegram Alert] Skipped: Bot Token or Chat ID empty.");
       return { success: false, error: "Missing Bot Token or Chat ID" };
     }
+
+    console.log(`[Telegram Alert] Sending to Chat ID: ${chatId}...`);
 
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     const response = await fetch(url, {
@@ -62,6 +87,7 @@ export async function sendTelegramMessage(message: string, customToken?: string,
       return { success: false, error: data.description };
     }
 
+    console.log("[Telegram Alert Success]: Message sent!");
     return { success: true };
   } catch (err: any) {
     console.error("[Telegram Network Error]:", err.message);

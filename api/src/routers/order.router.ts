@@ -17,6 +17,7 @@ import {
   remove,
   addItem,
   splitBillHandler,
+  getActiveOrdersByQr,
 } from "../controllers/order.controller.js";
 
 const router = Router();
@@ -26,6 +27,7 @@ const staffRoles = [
 ];
 
 router.get("/", asyncHandler(list));
+router.get("/qr/:qrToken", asyncHandler(getActiveOrdersByQr));
 router.get("/:id", asyncHandler(get));
 router.post("/", validate(createOrderSchema), asyncHandler(create));
 router.put(

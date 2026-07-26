@@ -36,17 +36,20 @@ import {
   subscribeToProfileChanges,
 } from "../lib/profile";
 
-const BRAND = "#696cff";
+const BRAND = "#0F522B";
 
 type IconProps = {
   active?: boolean;
 };
 
-const NAV_OVERVIEW = [
+const NAV_MAIN = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
-  { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
+];
+
+const NAV_MANAGEMENT = [
+  { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
   { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
 ];
 
@@ -55,9 +58,8 @@ const MENU_CHILDREN = [
   { key: "categories", label: "Categories", href: "/admin/menu?view=categories", icon: Tags },
 ];
 
-const NAV_ACCOUNT = [
-  { label: "Users", href: "/admin/users", icon: StaffIcon, badge: undefined },
-  { label: "Permissions", href: "/admin/permissions", icon: PermissionsIcon, badge: undefined },
+const NAV_SYSTEM = [
+  { label: "Staff & Roles", href: "/admin/users", icon: StaffIcon, badge: undefined },
   { label: "Settings", href: "/admin/settings", icon: SettingsIcon, badge: undefined },
 ];
 
@@ -66,6 +68,9 @@ let cachedStaffPermissions = normalizeStaffPermissions();
 
 const TEXT = {
   en: {
+    main: "Main",
+    management: "Management",
+    system: "System",
     overview: "Overview",
     account: "Account",
     restaurantAdmin: "Restaurant Admin",
@@ -83,11 +88,15 @@ const TEXT = {
       Reports: "Reports",
       Tables: "Tables",
       Users: "Users",
+      "Staff & Roles": "Staff & Roles",
       Permissions: "Permissions",
       Settings: "Settings",
     },
   },
   km: {
+    main: "ចម្បង",
+    management: "ការគ្រប់គ្រង",
+    system: "ប្រព័ន្ធ",
     overview: "ទិដ្ឋភាពទូទៅ",
     account: "គណនី",
     restaurantAdmin: "គ្រប់គ្រងភោជនីយដ្ឋាន",
@@ -104,6 +113,7 @@ const TEXT = {
       Reports: "របាយការណ៍",
       Tables: "តុ",
       Users: "អ្នកប្រើប្រាស់",
+      "Staff & Roles": "បុគ្គលិក និងតួនាទី",
       Settings: "ការកំណត់",
     },
   },
@@ -113,6 +123,7 @@ type Theme = "light" | "dark";
 
 function getSavedSidebarCollapsed(fallback: boolean) {
   if (typeof window === "undefined") return fallback;
+  if (window.innerWidth < 768) return true;
   const saved = localStorage.getItem("pos_sidebar_collapsed");
   return saved === null ? fallback : saved === "true";
 }
@@ -197,19 +208,22 @@ export default function Sidebar({
   );
 
   const dark = theme === "dark";
-  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-[#e5e7eb]";
-  const navHover = dark ? "hover:bg-[#232333]/60 hover:text-white" : "hover:bg-[#f5f5f9] hover:text-[#696cff]";
-  const navActive = dark ? "bg-[#696cff]/[0.15] text-[#696cff]" : "bg-[#696cff]/[0.08] text-[#696cff]";
-  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#f5f5f9]";
-  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#f5f5f9]";
-  const sectionTextClass = dark ? "text-slate-400" : "text-[#b4bdc6]";
-  const brandNameClass = dark ? "text-white" : "text-[#566a7f]";
-  const brandSubtitleClass = dark ? "text-slate-400" : "text-[#a1acb8]";
-  const utilityTextClass = dark ? "text-[#8592a3] hover:bg-[#232333]/60 hover:text-[#696cff]" : "text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]";
-  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
+  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-[#F8FAF9] border-r border-[#E2E9E4]";
+  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
+  const navActive = dark 
+    ? "bg-[#0F522B] text-white font-extrabold shadow-md shadow-[#0F522B]/40 ring-1 ring-emerald-400/30" 
+    : "bg-[#0F522B] text-white font-extrabold shadow-sm border-l-4 border-[#09391D]";
+  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#E2E9E4]";
+  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#E2E9E4]";
+  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#0F522B]/60 font-bold";
+  const brandNameClass = dark ? "text-white font-black" : "text-[#0F522B] font-black";
+  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#0F522B]/70 font-semibold";
+  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#334155] hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
+  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#E2E9E4]";
   const t = TEXT[language];
-  const allowedOverview = NAV_OVERVIEW.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
-  const allowedAccount = NAV_ACCOUNT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
+  const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
+  const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
+  const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
   const activeMenuChild = menuView === "categories" ? "categories" : "list";
 
@@ -332,8 +346,18 @@ export default function Sidebar({
 
   return (
     <>
+    {!sidebarCollapsed && (
+      <button
+        type="button"
+        aria-label="Close menu backdrop"
+        onClick={toggleSidebar}
+        className="fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-[2px] md:hidden cursor-default border-none outline-none"
+      />
+    )}
     <aside
-      className={`${widthClass} fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-30 shrink-0 transition-all duration-[300ms] ease-in-out`}
+      className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-all duration-[300ms] ease-in-out ${
+        sidebarCollapsed ? "max-md:-translate-x-full w-16 min-w-[64px]" : "w-[230px] min-w-[230px] shadow-2xl md:shadow-none"
+      }`}
     >
       {/* Logo */}
       <div
@@ -342,7 +366,7 @@ export default function Sidebar({
         }`}
       >
         <div className="flex items-center gap-[10px] overflow-hidden">
-          <div className="w-9 h-9 rounded-[10px] bg-[#696cff] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#696cff]/10">
+          <div className="w-9 h-9 rounded-[10px] bg-[#0F522B] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#0F522B]/30 shadow-md">
             {restaurantImageUrl ? (
               <img
                 src={resolveImageUrl(restaurantImageUrl)}
@@ -353,7 +377,7 @@ export default function Sidebar({
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="8" width="18" height="12" rx="2" fill="white" opacity="0.9" />
                 <rect x="7" y="4" width="10" height="6" rx="1.5" fill="white" opacity="0.6" />
-                <rect x="9" y="5.5" width="6" height="2.5" rx="0.75" fill={BRAND} />
+                <rect x="9" y="5.5" width="6" height="2.5" rx="0.75" fill="#0F522B" />
               </svg>
             )}
           </div>
@@ -387,15 +411,42 @@ export default function Sidebar({
           sidebarCollapsed ? "p-[12px_8px]" : "p-[12px_10px]"
         }`}
       >
-        {contentMounted && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
-            {t.overview}
+        {/* MAIN */}
+        {contentMounted && allowedMain.length > 0 && (
+          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[12px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
+            {t.main}
           </div>
         )}
 
-        {allowedOverview.map((item) => {
-          const active = isNavItemActive(item.label, item.href);
+        {allowedMain.map((item) => (
+          <SideNavItem
+            key={item.label}
+            {...item}
+            label={t.nav[item.label as keyof typeof t.nav] || item.label}
+            active={isNavItemActive(item.label, item.href)}
+            collapsed={!contentMounted}
+            navActive={navActive}
+            navHover={navHover}
+            dark={dark}
+            isKhmer={language === "km"}
+            contentClass={contentMotionClass}
+            onClick={() => setActiveNav(item.label)}
+            icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
+          />
+        ))}
+
+        <div className={`h-px ${dividerClass} ${sidebarCollapsed ? "m-[12px_0]" : "m-[12px_8px]"}`} />
+
+        {/* MANAGEMENT */}
+        {contentMounted && allowedManagement.length > 0 && (
+          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
+            {t.management}
+          </div>
+        )}
+
+        {allowedManagement.map((item) => {
           const isMenu = item.label === "Menu";
+          const active = isNavItemActive(item.label, item.href) || (isMenu && activeNav === "Menu");
 
           return (
             <div key={item.label}>
@@ -475,13 +526,14 @@ export default function Sidebar({
 
         <div className={`h-px ${dividerClass} ${sidebarCollapsed ? "m-[12px_0]" : "m-[12px_8px]"}`} />
 
-        {contentMounted && (
+        {/* SYSTEM */}
+        {contentMounted && allowedSystem.length > 0 && (
           <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
-            {t.account}
+            {t.system}
           </div>
         )}
 
-        {allowedAccount.map((item) => (
+        {allowedSystem.map((item) => (
           <SideNavItem
             key={item.label}
             {...item}
@@ -497,16 +549,27 @@ export default function Sidebar({
             icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
           />
         ))}
+      </div>
+
+      {/* Footer Section */}
+      <div className={`mt-auto border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px_14px]"}`}>
+        {contentMounted && (
+          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
+            <SidebarProfileCard user={currentUser} dark={dark} isKhmer={language === "km"} />
+          </div>
+        )}
 
         {hasToken ? (
           <button
             onClick={logout}
-            className={`w-full flex items-center gap-[10px] rounded text-left transition-all duration-150 ${
-              sidebarCollapsed ? "justify-center p-[10px]" : "justify-start p-[9px_10px]"
-            } ${utilityTextClass} ${language === "km" ? "text-[14px] font-medium" : "text-[13px]"}`}
+            className={`w-full flex items-center justify-center gap-[10px] rounded-lg p-2.5 text-center transition-all duration-150 ${
+              dark 
+                ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20" 
+                : "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200/80"
+            } font-bold shadow-sm ${language === "km" ? "text-[14px]" : "text-[13px]"}`}
           >
-            <LogOut size={16} strokeWidth={1.8} />
-            {contentMounted && <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.logout}</span>}
+            <LogOut size={16} strokeWidth={2.2} />
+            {contentMounted && !sidebarCollapsed && <span className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.logout}</span>}
           </button>
         ) : (
           <SideNavItem
@@ -524,17 +587,8 @@ export default function Sidebar({
           />
         )}
       </div>
-
-      {/* Footer Section */}
-      <div className={`border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px_4px]"}`}>
-        {contentMounted && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-            <SidebarProfileCard user={currentUser} dark={dark} isKhmer={language === "km"} />
-          </div>
-        )}
-      </div>
     </aside>
-    <div className={`${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
+    <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
     </>
   );
 }
@@ -567,18 +621,18 @@ function SideNavItem({
         ${isKhmer ? "font-bold text-[14.5px] leading-relaxed" : active ? "font-semibold text-[14px]" : "font-medium text-[14px]"}
       `}
     >
-      <span className={`shrink-0 ${active ? "text-[#696cff]" : dark ? "text-slate-400" : "text-[#8592a3]"}`}>
+      <span className={`shrink-0 ${active ? "text-white" : dark ? "text-emerald-300/80 group-hover:text-white" : "text-[#0F522B]/75 group-hover:text-[#0F522B]"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-[#696cff]" : dark ? "text-slate-300" : "text-[#566a7f]"} ${isKhmer ? "text-[14px] font-bold" : "text-[14px]"}`}>
+        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white font-bold" : dark ? "text-slate-200 font-medium" : "text-[#334155] font-semibold"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}>
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-[#696cff]" : dark ? "text-slate-500" : "text-[#b4bdc6]"}`}>{trailing}</span>
+        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white" : dark ? "text-emerald-400/70" : "text-[#0F522B]/60"}`}>{trailing}</span>
       )}
     </Link>
   );
@@ -607,15 +661,13 @@ function MenuSubNavItem({
       onClick={onClick}
       className={`flex h-9 items-center gap-2 rounded px-3 transition ${
         active
-          ? dark
-            ? "bg-[#696cff]/[0.15] font-semibold text-[#696cff]"
-            : "bg-[#696cff]/[0.08] font-semibold text-[#696cff]"
-          : dark
-            ? "text-slate-400 hover:bg-[#232333]/60 hover:text-white"
-            : "text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]"
-      } ${isKhmer ? "text-[13.5px] font-bold" : active ? "text-[13.5px] font-semibold" : "text-[13.5px] font-medium"}`}
+          ? "bg-[#0F522B] border-l-2 border-[#09391D] font-bold text-white shadow-sm"
+          : dark 
+            ? "text-slate-300 hover:bg-white/[0.07] hover:text-white"
+            : "text-[#334155] hover:bg-[#0F522B]/10 hover:text-[#0F522B]"
+      } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={active ? "text-[#696cff]" : dark ? "text-slate-500" : "text-[#b4bdc6]"}>{icon}</span>
+      <span className={active ? "text-white" : dark ? "text-emerald-400/60" : "text-[#0F522B]/60"}>{icon}</span>
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -633,37 +685,42 @@ function SidebarProfileCard({
   const image = getProfileImage(user);
 
   return (
-    <div className={`mb-3 rounded border p-2.5 ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-[#e5e7eb] bg-[#f5f5f9]/70"}`}>
+    <Link
+      href="/admin/profile"
+      className={`block mb-3 rounded-xl border p-2.5 group transition-all duration-200 ${
+        dark 
+          ? "border-[#4e4f6e] bg-[#232333]/60 hover:bg-[#232333] hover:border-[#696cff]/40"
+          : "border-[#E2E9E4] bg-white hover:border-[#0F522B]/40 hover:shadow-sm"
+      }`}
+    >
       <div className="grid grid-cols-[42px_minmax(0,1fr)_24px] items-center gap-2.5">
         {image ? (
           <img
             src={image}
             alt={user.name}
-            className={`h-[42px] w-[42px] rounded object-cover ring-1 ${dark ? "ring-[#4e4f6e]" : "ring-[#e5e7eb]"}`}
+            className={`h-[42px] w-[42px] rounded-lg object-cover ring-1 ${dark ? "ring-[#4e4f6e]" : "ring-[#0F522B]/20"}`}
           />
         ) : (
           <div
-            className={`flex h-[42px] w-[42px] items-center justify-center rounded text-sm font-black text-white shadow-sm ${profileAvatarClass(
-              user.role,
-            )}`}
+            className={`flex h-[42px] w-[42px] items-center justify-center rounded-lg ${dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"} text-sm font-black shadow-sm ring-1 ring-[#0F522B]/20`}
           >
             {initials(user.name)}
           </div>
         )}
 
         <div className="min-w-0 flex-1">
-          <div className={`truncate leading-4 ${dark ? "text-white" : "text-[#566a7f]"} ${isKhmer ? "text-[13.5px] font-bold" : "text-[13px] font-bold"}`}>
+          <div className={`truncate leading-4 font-bold ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13.5px]" : "text-[13px]"}`}>
             {user.name}
           </div>
           <div className="mt-1 flex items-center gap-1.5">
             <span
-              className={`max-w-[76px] truncate rounded px-1.5 py-0.5 text-[9px] font-bold leading-4 ${profileRoleClass(
-                user.role,
-              )}`}
+              className={`max-w-[76px] truncate rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
+                dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"
+              }`}
             >
               {user.role}
             </span>
-            <span className="flex min-w-0 items-center gap-1 text-[10px] font-semibold text-[#71dd37]">
+            <span className={`flex min-w-0 items-center gap-1 text-[10px] font-semibold ${dark ? "text-[#71dd37]" : "text-[#0F522B]"}`}>
               <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/20">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#71dd37]" />
               </span>
@@ -672,15 +729,16 @@ function SidebarProfileCard({
           </div>
         </div>
 
-        <Link
-          href="/admin/profile"
-          className={`inline-flex h-6 w-6 items-center justify-center self-start rounded-md ${dark ? "text-emerald-50/40 hover:bg-emerald-50/[0.08] hover:text-white" : "text-slate-400 hover:bg-white hover:text-slate-700"}`}
+        <div
+          className={`inline-flex h-6 w-6 items-center justify-center self-start rounded-md transition-colors ${
+            dark ? "text-slate-400 group-hover:bg-[#4e4f6e]/40 group-hover:text-white" : "text-[#0F522B]/60 group-hover:bg-[#0F522B]/10 group-hover:text-[#0F522B]"
+          }`}
           title="Profile options"
         >
           <MoreHorizontal size={15} />
-        </Link>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -808,45 +866,45 @@ function parseUserSnapshot(snapshot: string) {
 
 // Icons
 function DashboardIcon({ active = false }: IconProps) {
-  return <LayoutDashboard size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <LayoutDashboard size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function PosIcon({ active = false }: IconProps) {
-  return <Store size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <Store size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function OrdersIcon({ active = false }: IconProps) {
-  return <ReceiptText size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <ReceiptText size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function MenuIcon({ active = false }: IconProps) {
-  return <UtensilsCrossed size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <UtensilsCrossed size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function InventoryIcon({ active = false }: IconProps) {
-  return <Store size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <Store size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function ReportsIcon({ active = false }: IconProps) {
-  return <TrendingUp size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <TrendingUp size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function TablesIcon({ active = false }: IconProps) {
-  return <Armchair size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <Armchair size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function StaffIcon({ active = false }: IconProps) {
-  return <UsersRound size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <UsersRound size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function PermissionsIcon({ active = false }: IconProps) {
-  return <ShieldCheck size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <ShieldCheck size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function SettingsIcon({ active = false }: IconProps) {
-  return <Settings2 size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <Settings2 size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function LogoutIcon({ active = false }: IconProps) {
-  return <LogOut size={18} strokeWidth={1.75} color={active ? BRAND : "currentColor"} />;
+  return <LogOut size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }

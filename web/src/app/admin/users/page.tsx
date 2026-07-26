@@ -311,13 +311,31 @@ export default function UsersPage() {
     <>
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
         <TopBar
-          title={language === "km" ? "គណនីបុគ្គលិក" : "Staff Accounts"}
-          subtitle={language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក តួនាទី និងស្ថានភាព" : "Manage system user credentials, roles, and status."}
+          title={language === "km" ? "បុគ្គលិក និងសិទ្ធិ" : "Staff & Roles"}
+          subtitle={language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក និងតួនាទី" : "Manage system users and their roles."}
           language={language}
           onLanguageChange={setAppLanguage}
           notifications={[]}
           dark={dark}
         />
+
+        {/* Shared Tabs for Staff & Roles */}
+        <div className={`px-4 pt-4 lg:px-6 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+          <div className="mx-auto w-full max-w-[1400px] flex gap-6">
+            <Link 
+              href="/admin/users" 
+              className={`pb-3 font-bold text-[14px] border-b-[3px] transition-colors border-[#0F522B] text-[#0F522B]`}
+            >
+              <span className="flex items-center gap-2"><UserRound size={16} /> {language === "km" ? "បញ្ជីបុគ្គលិក" : "User List"}</span>
+            </Link>
+            <Link 
+              href="/admin/permissions" 
+              className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"}`}
+            >
+              <span className="flex items-center gap-2"><ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}</span>
+            </Link>
+          </div>
+        </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
           <div className="mx-auto w-full max-w-[1400px]">
@@ -408,7 +426,7 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={openCreateUserModal}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
                   >
                     <Plus size={15} />
                     Add New User
@@ -595,7 +613,7 @@ export default function UsersPage() {
 
       {/* Sneat Modal for User Create/Edit */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-[1px] animate-[userModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
           <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded shadow-2xl border p-6 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
@@ -767,7 +785,7 @@ export default function UsersPage() {
         {deleteConfirmUser && (
           <div
             onClick={() => setDeleteConfirmUser(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-[userModalBackdrop_200ms_ease-out_both] cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_200ms_ease-out_both] cursor-pointer"
           >
             <div
               onClick={(e) => e.stopPropagation()}

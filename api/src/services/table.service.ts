@@ -76,7 +76,7 @@ export const getTableByQrToken = async (qrToken: string) => {
 export const getQrMenu = async (qrToken: string) => {
   const table = await getTableByQrToken(qrToken);
 
-  const [categories, products] = await Promise.all([
+  const [categories, products, setting] = await Promise.all([
     prisma.category.findMany({
       where: { deletedAt: null },
       orderBy: { name: "asc" },
@@ -88,7 +88,18 @@ export const getQrMenu = async (qrToken: string) => {
       },
       orderBy: { name: "asc" },
     }),
+    prisma.systemSetting.findFirst({
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
 
-  return { table, categories, products };
+  return {
+    table,
+    categories,
+    products,
+    restaurant: {
+      name: setting?.restaurantName || "ភោជនីយដ្ឋាន ផ្ទះកន្ធាយ ផ្លូវ៦០",
+      logoUrl: setting?.restaurantImageUrl || "",
+    },
+  };
 };

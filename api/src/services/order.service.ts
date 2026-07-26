@@ -230,3 +230,27 @@ export const splitBill = async (
 
   return { orderId: (order as Record<string, unknown>).id, totalAmount: (order as Record<string, unknown>).totalAmount, splits };
 };
+
+export const getActiveOrdersByQrToken = async (qrToken: string) => {
+  const table = await prisma.diningTable.findUnique({
+    where: { qrToken, isActive: true, deletedAt: null },
+  });
+  if (!table) throw new Error("Table not found or inactive");
+
+  const orders = await prisma.order.findMany({
+    where: {
+      tableId: table.id,
+      deletedAt: null,
+      status: {
+        in: ["pending", "accepted", "preparing", "ready", "served"],
+      },
+    },
+    include: {
+      items: {
+        include: { product: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return orders;
+};

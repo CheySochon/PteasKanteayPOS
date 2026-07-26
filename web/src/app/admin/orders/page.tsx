@@ -181,8 +181,16 @@ const TEXT = {
 type OrderTab = "all" | "active" | "completed" | "cancelled";
 type OrderTypeFilter = "all" | "dine-in" | "takeout";
 
+const RIEL_RATE = 4100;
+
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function moneyRiel(value: number | string) {
+  const num = Number(value || 0);
+  const riel = Math.round(num * RIEL_RATE);
+  return `${riel.toLocaleString("en-US")}៛`;
 }
 
 function waitMinutes(order: Order) {
@@ -530,7 +538,7 @@ export default function OrdersPage() {
                     ))}
                   </div>
 
-                  <span className="mb-3 rounded-full bg-[#696cff]/10 px-3 py-1 text-[11px] font-black text-[#696cff] whitespace-nowrap transition-all duration-200 hover:scale-105 hover:bg-[#696cff]/20 cursor-default">
+                  <span className="mb-3 rounded-full bg-[#0F522B]/10 px-3 py-1 text-[11px] font-black text-[#0F522B] whitespace-nowrap transition-all duration-200 hover:scale-105 hover:bg-[#0F522B]/20 cursor-default">
                     {filteredOrders.length} {t.orders}
                   </span>
                 </div>
@@ -545,7 +553,7 @@ export default function OrdersPage() {
                         setSearch(event.target.value);
                         setPage(1);
                       }}
-                      className={`h-9 w-48 sm:w-56 rounded border px-3.5 text-xs outline-none placeholder-[#b4bdc6] focus:border-[#696cff] transition-all ${
+                      className={`h-9 w-48 sm:w-56 rounded border px-3.5 text-xs outline-none placeholder-[#b4bdc6] focus:border-[#0F522B] transition-all ${
                         dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                       }`}
                     />
@@ -743,7 +751,10 @@ export default function OrdersPage() {
                           </td>
 
                           <td className={`px-4 py-3 text-right text-sm font-bold ${textPrimary}`}>
-                            {money(order.totalAmount)}
+                            <div>{money(order.totalAmount)}</div>
+                            <div className="text-[11px] font-bold text-[#0F522B] dark:text-emerald-400">
+                              {moneyRiel(order.totalAmount)}
+                            </div>
                           </td>
 
                           <td className="relative px-4 py-3 text-right order-action-container">
@@ -996,26 +1007,43 @@ export default function OrdersPage() {
                 </div>
 
                 {/* Total Breakdown */}
-                <div className={`rounded-xl border p-4 space-y-2 text-xs ${dark ? "border-[#383a50] bg-[#171923]" : "border-slate-200/80 bg-slate-50/50"}`}>
-                  <div className="flex justify-between text-slate-500 font-medium">
+                <div className={`rounded-xl border p-4 space-y-2.5 text-xs ${dark ? "border-[#383a50] bg-[#171923]" : "border-slate-200/80 bg-slate-50/50"}`}>
+                  <div className="flex justify-between items-center text-slate-500 font-medium">
                     <span>Subtotal</span>
-                    <span className="font-bold">{money(viewOrderModal.subtotal)}</span>
+                    <div className="text-right">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{money(viewOrderModal.subtotal)}</span>
+                      <span className="text-[11px] font-bold text-[#0F522B] dark:text-emerald-400 block">
+                        {moneyRiel(viewOrderModal.subtotal)}
+                      </span>
+                    </div>
                   </div>
+
                   {Number(viewOrderModal.discountAmount || 0) > 0 && (
-                    <div className="flex justify-between text-red-500 font-medium">
+                    <div className="flex justify-between items-center text-red-500 font-medium">
                       <span>Discount</span>
                       <span className="font-bold">-{money(viewOrderModal.discountAmount)}</span>
                     </div>
                   )}
+
                   {Number(viewOrderModal.taxAmount || 0) > 0 && (
-                    <div className="flex justify-between text-slate-500 font-medium">
+                    <div className="flex justify-between items-center text-slate-500 font-medium">
                       <span>Tax / Service Charge</span>
                       <span className="font-bold">+{money(viewOrderModal.taxAmount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between border-t pt-2.5 text-base font-black">
-                    <span>{language === "km" ? "ទឹកប្រាក់សរុប" : "Total Amount"}</span>
-                    <span className="text-[#696cff]">{money(viewOrderModal.totalAmount)}</span>
+
+                  <div className="flex justify-between items-center border-t border-slate-200 dark:border-slate-700/80 pt-3">
+                    <span className="text-base font-black text-slate-900 dark:text-white">
+                      {language === "km" ? "ទឹកប្រាក់សរុប" : "Total Amount"}
+                    </span>
+                    <div className="text-right">
+                      <div className="text-lg font-black text-[#0F522B] dark:text-emerald-400 leading-none">
+                        {money(viewOrderModal.totalAmount)}
+                      </div>
+                      <div className="text-xs font-bold text-[#0F522B] dark:text-emerald-400 mt-1">
+                        ({moneyRiel(viewOrderModal.totalAmount)})
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

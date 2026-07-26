@@ -22,6 +22,8 @@ import {
   ShieldAlert,
   History,
   SendHorizontal,
+  ChevronLeft,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -195,6 +197,8 @@ export default function SettingsPage() {
   useAutoDismiss(message, setMessage);
   useAutoDismiss(error, setError);
 
+  const [activeTab, setActiveTab] = useState<"general" | "billing" | "printers" | "integrations" | "security">("general");
+
   // Telegram & Audit Logs state
   const [telegramConfig, setTelegramConfigState] = useState<TelegramConfig>({
     botToken: "",
@@ -210,6 +214,9 @@ export default function SettingsPage() {
   const [auditSearch, setAuditSearch] = useState("");
   const [auditStatusFilter, setAuditStatusFilter] = useState("all");
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditTotalPages, setAuditTotalPages] = useState(1);
 
   useEffect(() => {
     const savedLocal = localStorage.getItem("pos_telegram_config");
@@ -232,11 +239,24 @@ export default function SettingsPage() {
     loadAuditLogs();
   }, []);
 
-  const loadAuditLogs = async (search = auditSearch, status = auditStatusFilter) => {
+  const loadAuditLogs = async (
+    search = auditSearch,
+    status = auditStatusFilter,
+    page = auditPage
+  ) => {
     setAuditLoading(true);
     try {
-      const res = await getAuditLogs({ search, status: status === "all" ? undefined : status });
-      if (res?.items) setAuditLogs(res.items);
+      const res = await getAuditLogs({
+        search,
+        status: status === "all" ? undefined : status,
+        page,
+        limit: 8,
+      });
+      if (res) {
+        setAuditLogs(res.items || []);
+        setAuditTotal(res.total || 0);
+        setAuditTotalPages(res.totalPages || 1);
+      }
     } catch {
       // ignore
     } finally {
@@ -579,9 +599,88 @@ export default function SettingsPage() {
           dark={dark}
         />
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="mx-auto w-full">
-            <form onSubmit={submit}>
+        {/* Executive Settings Navigation Tabs */}
+        <div className={`px-4 pt-4 lg:px-0 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+          <div className="mx-auto w-full max-w-4xl flex items-end justify-between gap-4">
+            <div className="flex gap-6 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setActiveTab("general")}
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
+                  activeTab === "general"
+                    ? "border-[#696cff] text-[#696cff] font-bold"
+                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
+                }`}
+              >
+                <span className="flex items-center gap-2"><Building2 size={16} /> {language === "km" ? "ទូទៅ (General)" : "General"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("billing")}
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
+                  activeTab === "billing"
+                    ? "border-[#696cff] text-[#696cff] font-bold"
+                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
+                }`}
+              >
+                <span className="flex items-center gap-2"><ReceiptText size={16} /> {language === "km" ? "វិក្កយបត្រ (Billing)" : "Billing & Receipt"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("printers")}
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
+                  activeTab === "printers"
+                    ? "border-[#696cff] text-[#696cff] font-bold"
+                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
+                }`}
+              >
+                <span className="flex items-center gap-2"><CreditCard size={16} /> {language === "km" ? "ម៉ាស៊ីនបោះពុម្ព (Printers)" : "Hardware & Printers"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("integrations")}
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
+                  activeTab === "integrations"
+                    ? "border-[#696cff] text-[#696cff] font-bold"
+                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
+                }`}
+              >
+                <span className="flex items-center gap-2"><SendHorizontal size={16} /> {language === "km" ? "ភ្ជាប់ប្រព័ន្ធ (Integrations)" : "Integrations"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("security")}
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
+                  activeTab === "security"
+                    ? "border-[#696cff] text-[#696cff] font-bold"
+                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
+                }`}
+              >
+                <span className="flex items-center gap-2"><ShieldAlert size={16} /> {language === "km" ? "ប្រព័ន្ធ (System & Backups)" : "System & Backups"}</span>
+              </button>
+            </div>
+
+            <div className="pb-3">
+              <button
+                type="submit"
+                form="settingsForm"
+                disabled={saving}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                {language === "km" ? "រក្សាទុកការប្រែប្រួល" : "Save All Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-8 lg:px-0 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          <div className="mx-auto w-full max-w-4xl">
+            <form id="settingsForm" onSubmit={submit}>
 
 
               {error && (
@@ -596,525 +695,632 @@ export default function SettingsPage() {
                 </div>
               )}
 
-          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-            <div className="space-y-5">
-              <Panel
-                Icon={Building2}
-                title="Restaurant Profile"
-                subtitle=""
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              >
-                <div className="mb-4 flex flex-col gap-4 rounded border border-dashed border-slate-200 p-4 sm:flex-row sm:items-center">
-                  <div className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded ${softSurface}`}>
-                    {settings.restaurantImageUrl ? (
-                      <img
-                        src={resolveImageUrl(settings.restaurantImageUrl)}
-                        alt={settings.restaurantName || "Restaurant"}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Building2 size={26} className={textSecondary} />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-sm font-black ${textPrimary}`}>Restaurant Image</div>
-                  </div>
-
-                  <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/10">
-                    {uploadingImage ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
-                    {uploadingImage ? "Uploading" : "Upload Image"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={uploadingImage}
-                      onChange={(event) => {
-                        void uploadRestaurantProfileImage(event.target.files?.[0]);
-                        event.target.value = "";
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Restaurant Name">
-                    <input
-                      value={settings.restaurantName}
-                      onChange={(event) => update("restaurantName", event.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field label="Contact Email">
-                    <input
-                      type="email"
-                      value={settings.restaurantEmail}
-                      onChange={(event) => update("restaurantEmail", event.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field label="Phone">
-                    <input
-                      value={settings.restaurantPhone}
-                      onChange={(event) => update("restaurantPhone", event.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field label="Address">
-                    <input
-                      value={settings.address}
-                      onChange={(event) => update("address", event.target.value)}
-                      className={inputClass}
-                    />
-                  </Field>
-                </div>
-              </Panel>
 
 
-
-              <Panel
-                Icon={SlidersHorizontal}
-                title="Operations"
-                subtitle=""
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              >
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <ToggleRow
-                    title="Auto Accept QR Orders"
-                    note=""
-                    checked={settings.autoAcceptQrOrders}
-                    onChange={(checked) => update("autoAcceptQrOrders", checked)}
-                    softSurface={softSurface}
+              {/* TAB 1: GENERAL SETTINGS */}
+              {activeTab === "general" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+                  <Panel
+                    Icon={Building2}
+                    title={language === "km" ? "ព័ត៌មានទូទៅនៃហាង" : "General Information"}
+                    subtitle={language === "km" ? "កំណត់ឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងហាងរបស់អ្នក" : "Set your restaurant name, contact, and address."}
+                    surface={surface}
+                    borderCol={borderCol}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
-                  />
-                  <Field label="Kitchen Display Mode">
-                    <div className={`grid grid-cols-2 rounded p-1 ${softSurface}`}>
-                      {(["compact", "comfortable"] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => update("kitchenDisplayMode", mode)}
-                          className={`rounded-lg px-3 py-2 text-xs font-bold capitalize transition ${
-                            settings.kitchenDisplayMode === mode
-                              ? "bg-[#696cff] text-white shadow-sm"
-                              : `${textSecondary} hover:bg-white/60`
-                          }`}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                </div>
-              </Panel>
+                  >
+                    <div className="mb-4 flex flex-col gap-4 rounded-xl border border-dashed border-slate-200 dark:border-[#4e4f6e] p-4 sm:flex-row sm:items-center">
+                      <div className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl ${softSurface}`}>
+                        {settings.restaurantImageUrl ? (
+                          <img
+                            src={resolveImageUrl(settings.restaurantImageUrl)}
+                            alt={settings.restaurantName || "Restaurant"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Building2 size={26} className={textSecondary} />
+                        )}
+                      </div>
 
-              <Panel
-                Icon={SlidersHorizontal}
-                title="Hardware & Terminals"
-                subtitle=""
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              >
-                {/* Real Printer/Device Boxes */}
-                <div className="grid gap-4 sm:grid-cols-2 mb-4">
-                  {printers.map((printer) => (
-                    <div 
-                      key={printer.id}
-                      onClick={() => openEditPrinterModal(printer)}
-                      className={`flex items-center justify-between rounded border p-4 cursor-pointer hover:border-[#696cff] transition-all group ${
-                        dark ? "border-[#4e4f6e] bg-[#232333]" : "border-slate-200 bg-[#f8fafc]"
-                      }`}
+                      <div className="min-w-0 flex-1">
+                        <div className={`text-sm font-black ${textPrimary}`}>Restaurant Logo / Image</div>
+                        <div className={`text-xs ${textSecondary}`}>Recommended square PNG/JPG logo.</div>
+                      </div>
+
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/10">
+                        {uploadingImage ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
+                        {uploadingImage ? "Uploading" : "Upload Image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingImage}
+                          onChange={(event) => {
+                            void uploadRestaurantProfileImage(event.target.files?.[0]);
+                            event.target.value = "";
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="space-y-4 max-w-2xl">
+                      <Field label="Restaurant Name">
+                        <input
+                          value={settings.restaurantName}
+                          onChange={(event) => update("restaurantName", event.target.value)}
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field label="Contact Email">
+                        <input
+                          type="email"
+                          value={settings.restaurantEmail}
+                          onChange={(event) => update("restaurantEmail", event.target.value)}
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field label="Phone">
+                        <input
+                          value={settings.restaurantPhone}
+                          onChange={(event) => update("restaurantPhone", event.target.value)}
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field label="Address">
+                        <input
+                          value={settings.address}
+                          onChange={(event) => update("address", event.target.value)}
+                          className={inputClass}
+                        />
+                      </Field>
+                    </div>
+                  </Panel>
+                </div>
+              )}
+
+              {/* TAB 2: BILLING & RECEIPT */}
+              {activeTab === "billing" && (
+                <div className="grid gap-8 md:grid-cols-[1fr_360px] animate-[printerFadeIn_200ms_ease-out]">
+                  <div className="space-y-6">
+                    <Panel
+                      Icon={ReceiptText}
+                      title={language === "km" ? "ការទូទាត់ និងវិក្កយបត្រ" : "Financial & Receipt Rates"}
+                      subtitle={language === "km" ? "កំណត់អត្រាពន្ធ និងលុយ Service Charge" : "Manage your currency, tax, and service charge rates."}
+                      surface={surface}
+                      borderCol={borderCol}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded ${
-                          printer.type === "receipt" ? "bg-[#e7e7ff] text-[#696cff]" : "bg-[#fff2e2] text-[#ff9f43]"
-                        }`}>
-                          <SlidersHorizontal size={18} />
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <Field label="Currency">
+                          <select
+                            value={settings.currency}
+                            onChange={(event) => update("currency", event.target.value)}
+                            className={inputClass}
+                          >
+                            <option value="USD">USD ($)</option>
+                            <option value="KHR">KHR (៛)</option>
+                            <option value="THB">THB (฿)</option>
+                          </select>
+                        </Field>
+                        <Field label="Tax Rate (%)">
+                          <input
+                            type="number"
+                            value={settings.taxRate}
+                            onChange={(event) => update("taxRate", Number(event.target.value))}
+                            className={inputClass}
+                          />
+                        </Field>
+                        <Field label="Service Charge (%)">
+                          <input
+                            type="number"
+                            value={settings.serviceChargeRate}
+                            onChange={(event) => update("serviceChargeRate", Number(event.target.value))}
+                            className={inputClass}
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#4e4f6e]/50">
+                        <Field label="Receipt Footer Note">
+                          <textarea
+                            value={settings.receiptFooter}
+                            onChange={(event) => update("receiptFooter", event.target.value)}
+                            rows={3}
+                            placeholder="e.g. Thank you for dining with us."
+                            className={`${inputClass} resize-none`}
+                          />
+                        </Field>
+                      </div>
+                    </Panel>
+                  </div>
+
+                  <aside className="space-y-6">
+                    <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+                      <div className="mb-4 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
+                          <ReceiptText size={19} />
                         </div>
                         <div>
-                          <div className={`text-sm font-bold ${textPrimary} group-hover:text-[#696cff] transition-colors`}>{printer.name}</div>
-                          <div className="text-[11px] text-[#a1acb8]">
-                            IP: {printer.ipAddress} · {printer.type === "receipt" ? "Receipt Printer" : printer.type === "kitchen" ? "Kitchen Printer" : "Bar Printer"}
-                          </div>
+                          <h2 className={`text-sm font-black ${textPrimary}`}>Receipt Preview</h2>
                         </div>
                       </div>
-                      <span className={`rounded px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
-                        printer.status === "connected" ? "bg-[#e8fadf] text-[#71dd37]" : "bg-slate-200 text-slate-500"
-                      }`}>
-                        {printer.status}
-                      </span>
-                    </div>
-                  ))}
+
+                      <div className={`rounded-xl border p-4 ${borderCol} ${softSurface} border-dashed`}>
+                        <div className={`text-center text-sm font-black ${textPrimary}`}>
+                          {settings.restaurantName || "Restaurant"}
+                        </div>
+                        <div className={`mt-0.5 text-center text-xs ${textSecondary}`}>
+                          {settings.address}
+                        </div>
+
+                        <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
+
+                        <div className="space-y-1.5 text-xs">
+                          {previewRows.map(([label, value]) => (
+                            <div key={label} className="flex items-center justify-between">
+                              <span className={textSecondary}>{label}</span>
+                              <span className={`font-bold ${textPrimary}`}>{value}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
+
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${textPrimary}`}>Total</span>
+                          <span className="text-base font-black text-[#696cff]">
+                            {currency(
+                              42 +
+                                42 * (Number(settings.taxRate || 0) / 100) +
+                                42 * (Number(settings.serviceChargeRate || 0) / 100),
+                              settings.currency
+                            )}
+                          </span>
+                        </div>
+
+                        <div className={`mt-4 text-center text-[11px] font-medium ${textSecondary}`}>
+                          {settings.receiptFooter}
+                        </div>
+                      </div>
+                    </section>
+                  </aside>
                 </div>
+              )}
 
-                {/* Add New Peripheral button */}
-                <button
-                  type="button"
-                  onClick={openAddPrinterModal}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-[#d9dee3] dark:border-[#4e4f6e] p-3 text-xs font-semibold text-[#8592a3] hover:bg-[#f5f5f9] dark:hover:bg-[#232333] transition-all"
-                >
-                  <Plus size={14} />
-                  Add New Peripheral
-                </button>
-              </Panel>
-
-              {/* Telegram Bot Integration Panel */}
-              <Panel
-                Icon={SendHorizontal}
-                title={language === "km" ? "ការភ្ជាប់ជាមួយ Telegram Bot Alert" : "Telegram Bot Integration"}
-                subtitle={language === "km" ? "ទទួលការជូនដំណឹងរហ័ស ពេលបុគ្គលិក Login, Password ខុស ឬ មាន Order ថ្មី" : "Receive instant alerts on Telegram for staff logins, failed attempts, and orders."}
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              >
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Telegram Bot Token">
-                      <input
-                        type="text"
-                        value={telegramConfig.botToken}
-                        onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, botToken: e.target.value }))}
-                        placeholder="e.g. 7123456789:AAE... (from @BotFather)"
-                        className={inputClass}
-                      />
-                    </Field>
-
-                    <Field label="Telegram Chat ID">
-                      <input
-                        type="text"
-                        value={telegramConfig.chatId}
-                        onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, chatId: e.target.value }))}
-                        placeholder="e.g. -100123456789 or User ID"
-                        className={inputClass}
-                      />
-                    </Field>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200/80 dark:border-[#4e4f6e] bg-slate-50/50 dark:bg-[#232333] p-4 space-y-3">
-                    <div className="text-xs font-black text-slate-800 dark:text-slate-100">
-                      {language === "km" ? "ជម្រើសការជូនដំណឹងតាម Telegram (Alert Toggles)" : "Telegram Alert Options"}
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <label className="flex items-center gap-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={telegramConfig.alertLogin}
-                          onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertLogin: e.target.checked }))}
-                          className="h-4 w-4 rounded border-slate-300 text-[#696cff] focus:ring-[#696cff]"
-                        />
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                          {language === "km" ? "🔐 ជូនដំណឹង ពេល Staff Login" : "🔐 Staff Login Alert"}
-                        </span>
-                      </label>
-
-                      <label className="flex items-center gap-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={telegramConfig.alertFailedLogin}
-                          onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertFailedLogin: e.target.checked }))}
-                          className="h-4 w-4 rounded border-slate-300 text-red-500 focus:ring-red-500"
-                        />
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                          {language === "km" ? "⚠️ ជូនដំណឹង ពេល Password ខុស" : "⚠️ Failed Login Warning"}
-                        </span>
-                      </label>
-
-                      <label className="flex items-center gap-2.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={telegramConfig.alertNewOrder}
-                          onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertNewOrder: e.target.checked }))}
-                          className="h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
-                        />
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                          {language === "km" ? "🛍️ ជូនដំណឹង ពេលមាន Order ថ្មី" : "🛍️ New Order Alert"}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleTestTelegram}
-                      disabled={testingTelegram}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#696cff] bg-[#696cff]/10 px-4 text-xs font-bold text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all disabled:opacity-50"
-                    >
-                      {testingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                      {language === "km" ? "សាកល្បងផ្ញើសារ Telegram" : "Test Telegram Connection"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleSaveTelegram}
-                      disabled={savingTelegram}
-                      className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] transition-all shadow-sm shadow-[#696cff]/20 disabled:opacity-50"
-                    >
-                      {savingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                      {language === "km" ? "រក្សាទុក Telegram Settings" : "Save Telegram Settings"}
-                    </button>
-                  </div>
-                </div>
-              </Panel>
-
-              {/* Login Audit Logs Table Panel */}
-              <Panel
-                Icon={History}
-                title={language === "km" ? "កំណត់ត្រាប្រវត្តិ Login បុគ្គលិក (Login Audit Logs)" : "Staff Login Audit Logs"}
-                subtitle={language === "km" ? "តាមដានរាល់សកម្មភាពចូលប្រើប្រាស់ប្រព័ន្ធ (Login History, IP Address, Device)" : "Track staff authentication history, devices, IP addresses, and login status."}
-                surface={surface}
-                borderCol={borderCol}
-                textPrimary={textPrimary}
-                textSecondary={textSecondary}
-              >
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={auditSearch}
-                        onChange={(e) => {
-                          setAuditSearch(e.target.value);
-                          loadAuditLogs(e.target.value, auditStatusFilter);
-                        }}
-                        placeholder={language === "km" ? "ស្វែងរកតាមឈ្មោះ, តួនាទី, IP..." : "Search user, role, IP..."}
-                        className={`${inputClass} w-60`}
-                      />
-                      <select
-                        value={auditStatusFilter}
-                        onChange={(e) => {
-                          setAuditStatusFilter(e.target.value);
-                          loadAuditLogs(auditSearch, e.target.value);
-                        }}
-                        className={`${inputClass} w-36`}
+              {/* TAB 3: HARDWARE & PRINTERS */}
+              {activeTab === "printers" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+                  <Panel
+                    Icon={CreditCard}
+                    title={language === "km" ? "ឧបករណ៍ និងម៉ាស៊ីនបោះពុម្ព" : "Hardware & Printers"}
+                    subtitle={language === "km" ? "គ្រប់គ្រងម៉ាស៊ីនបោះពុម្ពវិក្កយបត្រ និងនៅផ្ទះបាយ" : "Manage receipt and kitchen printers."}
+                    surface={surface}
+                    borderCol={borderCol}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                  >
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={openAddPrinterModal}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                       >
-                        <option value="all">{language === "km" ? "គ្រប់ស្ថានភាព" : "All Status"}</option>
-                        <option value="SUCCESS">SUCCESS</option>
-                        <option value="FAILED">FAILED</option>
-                      </select>
+                        <Plus size={15} />
+                        {language === "km" ? "បន្ថែម Printer ថ្មី" : "Add Printer"}
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => loadAuditLogs(auditSearch, auditStatusFilter)}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-[#4e4f6e] px-3 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
-                    >
-                      <Loader2 className={auditLoading ? "animate-spin" : ""} size={14} />
-                      {language === "km" ? "Refresh Audit Logs" : "Refresh"}
-                    </button>
-                  </div>
-
-                  <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#4e4f6e]">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-slate-100/60 dark:bg-[#232333] dark:border-[#4e4f6e] font-black text-slate-600 dark:text-slate-300">
-                        <tr>
-                          <th className="px-4 py-3">Staff Name</th>
-                          <th className="px-4 py-3">Role</th>
-                          <th className="px-4 py-3">Action</th>
-                          <th className="px-4 py-3">IP / Device</th>
-                          <th className="px-4 py-3">Status</th>
-                          <th className="px-4 py-3">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200/60 dark:divide-[#4e4f6e]">
-                        {auditLogs.length > 0 ? (
-                          auditLogs.map((log) => (
-                            <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                              <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100">{log.userName}</td>
-                              <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium">{log.userRole}</td>
-                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-300">{log.action}</td>
-                              <td className="px-4 py-2.5 text-slate-500 text-[11px]">{log.ipAddress || "Localhost"}</td>
-                              <td className="px-4 py-2.5">
-                                <span
-                                  className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
-                                    log.status === "SUCCESS"
-                                      ? "bg-[#e8fadf] text-[#71dd37]"
-                                      : "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
-                                  }`}
-                                >
-                                  {log.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-500 text-[11px]">
-                                {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#4e4f6e]">
+                      <table className="w-full text-left text-xs">
+                        <thead className="border-b bg-slate-100/60 dark:bg-[#232333] dark:border-[#4e4f6e] font-black text-slate-600 dark:text-slate-300">
+                          <tr>
+                            <th className="px-4 py-3">Printer Name</th>
+                            <th className="px-4 py-3">IP Address</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3 w-[100px]">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200/60 dark:divide-[#4e4f6e]">
+                          {printers.length > 0 ? (
+                            printers.map((printer) => (
+                              <tr key={printer.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100">{printer.name}</td>
+                                <td className="px-4 py-2.5 font-mono text-slate-500">{printer.ipAddress}</td>
+                                <td className="px-4 py-2.5">
+                                  <span className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase bg-[#696cff]/10 text-[#696cff]`}>
+                                    {printer.type}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <span
+                                    className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
+                                      printer.status === "connected"
+                                        ? "bg-[#e8fadf] text-[#71dd37]"
+                                        : "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {printer.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditPrinterModal(printer)}
+                                    className="text-[#696cff] hover:opacity-80"
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="px-4 py-6 text-center text-slate-400 font-medium">
+                                No printers added yet.
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-6 text-center text-slate-400 font-medium">
-                              {language === "km" ? "មិនទាន់មានកំណត់ត្រា Login ឡើយ" : "No audit logs found."}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Panel>
                 </div>
-              </Panel>
-            </div>
+              )}
 
-            <aside className="space-y-5">
-              <section className={`rounded-xl border p-5 shadow-sm ${surface} ${borderCol}`}>
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
-                    <Database size={19} />
-                  </div>
-                  <div>
-                    <h2 className={`text-sm font-black ${textPrimary}`}>Backup & Restore</h2>
-                  </div>
-                </div>
+              {/* TAB 4: INTEGRATIONS */}
+              {activeTab === "integrations" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+                  <Panel
+                    Icon={SendHorizontal}
+                    title={language === "km" ? "ការភ្ជាប់ជាមួយ Telegram Bot Alert" : "Telegram Bot Integration"}
+                    subtitle={language === "km" ? "ទទួលការជូនដំណឹងរហ័ស ពេលបុគ្គលិក Login, Password ខុស ឬ មាន Order ថ្មី" : "Receive instant alerts on Telegram for staff logins, failed attempts, and orders."}
+                    surface={surface}
+                    borderCol={borderCol}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                  >
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <Field label="Telegram Bot Token">
+                          <input
+                            type="text"
+                            value={telegramConfig.botToken}
+                            onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, botToken: e.target.value }))}
+                            placeholder="e.g. 7123456789:AAE... (from @BotFather)"
+                            className={inputClass}
+                          />
+                        </Field>
 
-                {!isSuperAdmin ? (
-                  <div className={`rounded-xl border p-4 text-xs font-medium ${borderCol} ${softSurface} ${textSecondary}`}>
-                    Login as Admin or Super Admin to manage backups.
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={createAndDownloadBackup}
-                      disabled={Boolean(backupBusy)}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                      Create Backup
-                    </button>
+                        <Field label="Telegram Chat ID">
+                          <input
+                            type="text"
+                            value={telegramConfig.chatId}
+                            onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, chatId: e.target.value }))}
+                            placeholder="e.g. 1511785587 (from @userinfobot)"
+                            className={inputClass}
+                          />
+                        </Field>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={downloadLatestBackup}
-                      disabled={Boolean(backupBusy) || backupFiles.length === 0}
-                      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                      {backupBusy === "latest" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                      Download Latest
-                    </button>
-
-                    <label
-                      className={`inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800`}
-                    >
-                      {backupBusy === "preview" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                      Choose Restore File
-                      <input
-                        type="file"
-                        accept="application/json,.json"
-                        disabled={Boolean(backupBusy)}
-                        onChange={selectRestoreFile}
-                        className="hidden"
-                      />
-                    </label>
-
-                    {restorePreview && (
-                      <div className={`rounded-xl border p-3.5 ${borderCol} ${softSurface}`}>
-                        <div className={`truncate text-xs font-extrabold ${textPrimary}`}>{restoreFileName}</div>
-                        <div className={`mt-1 text-[11px] font-medium ${textSecondary}`}>
-                          {backupTotal(restorePreview)} records · {formatDate(restorePreview.createdAt)}
+                      <div className="rounded-xl border border-slate-200/80 dark:border-[#4e4f6e] bg-slate-50/50 dark:bg-[#232333] p-4 space-y-3">
+                        <div className="text-xs font-black text-slate-800 dark:text-slate-100">
+                          {language === "km" ? "ជម្រើសការជូនដំណឹងតាម Telegram (Alert Toggles)" : "Telegram Alert Options"}
                         </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={telegramConfig.alertLogin}
+                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertLogin: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-[#696cff] focus:ring-[#696cff]"
+                            />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                              {language === "km" ? "🔐 ជូនដំណឹង ពេល Staff Login" : "🔐 Staff Login Alert"}
+                            </span>
+                          </label>
+
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={telegramConfig.alertFailedLogin}
+                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertFailedLogin: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-red-500 focus:ring-red-500"
+                            />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                              {language === "km" ? "⚠️ ជូនដំណឹង ពេល Password ខុស" : "⚠️ Failed Login Warning"}
+                            </span>
+                          </label>
+
+                          <label className="flex items-center gap-2.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={telegramConfig.alertNewOrder}
+                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertNewOrder: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
+                            />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                              {language === "km" ? "🛍️ ជូនដំណឹង ពេលមាន Order ថ្មី" : "🛍️ New Order Alert"}
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                         <button
                           type="button"
-                          onClick={restoreSelectedBackup}
-                          disabled={Boolean(backupBusy)}
-                          className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={handleTestTelegram}
+                          disabled={testingTelegram}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#696cff] bg-[#696cff]/10 px-4 text-xs font-bold text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all disabled:opacity-50"
                         >
-                          {backupBusy === "restore" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                          Restore Backup
+                          {testingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                          {language === "km" ? "សាកល្បងផ្ញើសារ Telegram" : "Test Telegram Connection"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveTelegram}
+                          disabled={savingTelegram}
+                          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] transition-all shadow-sm shadow-[#696cff]/20 disabled:opacity-50"
+                        >
+                          {savingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                          {language === "km" ? "រក្សាទុក Telegram Settings" : "Save Telegram Settings"}
                         </button>
                       </div>
-                    )}
-
-                    <div className={`rounded-xl border p-3.5 ${borderCol} ${softSurface}`}>
-                      <div className={`text-[10px] font-extrabold uppercase tracking-wider text-slate-400`}>Latest Saved</div>
-                      {backupFiles[0] ? (
-                        <>
-                          <div className={`mt-1.5 truncate text-xs font-bold ${textPrimary}`}>{backupFiles[0].filename}</div>
-                          <div className={`mt-0.5 text-[11px] font-medium ${textSecondary}`}>
-                            {formatFileSize(backupFiles[0].size)} · {formatDate(backupFiles[0].updatedAt)}
-                          </div>
-                        </>
-                      ) : (
-                        <div className={`mt-1.5 text-xs ${textSecondary}`}>No saved backups yet.</div>
-                      )}
                     </div>
-                  </div>
-                )}
-              </section>
-
-              <section className={`rounded-xl border p-5 shadow-sm ${surface} ${borderCol}`}>
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
-                    <ReceiptText size={19} />
-                  </div>
-                  <div>
-                    <h2 className={`text-sm font-black ${textPrimary}`}>Receipt Preview</h2>
-                  </div>
+                  </Panel>
                 </div>
+              )}
 
-                <div className={`rounded-xl border p-4 ${borderCol} ${softSurface} border-dashed`}>
-                  <div className={`text-center text-sm font-black ${textPrimary}`}>
-                    {settings.restaurantName || "Restaurant"}
-                  </div>
-                  <div className={`mt-0.5 text-center text-xs ${textSecondary}`}>
-                    {settings.address}
-                  </div>
+              {/* TAB 5: SYSTEM & SECURITY */}
+              {activeTab === "security" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out] space-y-8 max-w-5xl">
+                  <div className="space-y-6">
+                  <Panel
+                    Icon={History}
+                    title={language === "km" ? "កំណត់ត្រាប្រវត្តិ Login បុគ្គលិក (Login Audit Logs)" : "Staff Login Audit Logs"}
+                    subtitle={language === "km" ? "តាមដានរាល់សកម្មភាពចូលប្រើប្រាស់ប្រព័ន្ធ (Login History, IP Address, Device)" : "Track staff authentication history, devices, IP addresses, and login status."}
+                    surface={surface}
+                    borderCol={borderCol}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                  >
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={auditSearch}
+                            onChange={(e) => {
+                              setAuditSearch(e.target.value);
+                              loadAuditLogs(e.target.value, auditStatusFilter, 1);
+                            }}
+                            placeholder={language === "km" ? "ស្វែងរកតាមឈ្មោះ, តួនាទី, IP..." : "Search user, role, IP..."}
+                            className={`${inputClass} w-60`}
+                          />
+                          <select
+                            value={auditStatusFilter}
+                            onChange={(e) => {
+                              setAuditStatusFilter(e.target.value);
+                              loadAuditLogs(auditSearch, e.target.value, 1);
+                            }}
+                            className={`${inputClass} w-36`}
+                          >
+                            <option value="all">{language === "km" ? "គ្រប់ស្ថានភាព" : "All Status"}</option>
+                            <option value="SUCCESS">SUCCESS</option>
+                            <option value="FAILED">FAILED</option>
+                          </select>
+                        </div>
 
-                  <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
-
-                  <div className="space-y-1.5 text-xs">
-                    {previewRows.map(([label, value]) => (
-                      <div key={label} className="flex items-center justify-between">
-                        <span className={textSecondary}>{label}</span>
-                        <span className={`font-bold ${textPrimary}`}>{value}</span>
+                        <button
+                          type="button"
+                          onClick={() => loadAuditLogs(auditSearch, auditStatusFilter, auditPage)}
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-[#4e4f6e] px-3 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
+                        >
+                          <Loader2 className={auditLoading ? "animate-spin" : ""} size={14} />
+                          {language === "km" ? "Refresh Audit Logs" : "Refresh"}
+                        </button>
                       </div>
-                    ))}
+
+                      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#4e4f6e]">
+                        <table className="w-full text-left text-xs">
+                          <thead className="border-b bg-slate-100/60 dark:bg-[#232333] dark:border-[#4e4f6e] font-black text-slate-600 dark:text-slate-300">
+                            <tr>
+                              <th className="px-4 py-3">Staff Name</th>
+                              <th className="px-4 py-3">Role</th>
+                              <th className="px-4 py-3">Action</th>
+                              <th className="px-4 py-3">IP / Device</th>
+                              <th className="px-4 py-3">Status</th>
+                              <th className="px-4 py-3">Time</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200/60 dark:divide-[#4e4f6e]">
+                            {auditLogs.length > 0 ? (
+                              auditLogs.map((log) => (
+                                <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                  <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100">{log.userName}</td>
+                                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium">{log.userRole}</td>
+                                  <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-300">{log.action}</td>
+                                  <td className="px-4 py-2.5 text-slate-500 text-[11px]">{log.ipAddress || "Localhost"}</td>
+                                  <td className="px-4 py-2.5">
+                                    <span
+                                      className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
+                                        log.status === "SUCCESS"
+                                          ? "bg-[#e8fadf] text-[#71dd37]"
+                                          : "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                                      }`}
+                                    >
+                                      {log.status}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-slate-500 text-[11px]">
+                                    {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 font-medium">
+                                  {language === "km" ? "មិនទាន់មានកំណត់ត្រា Login ឡើយ" : "No audit logs found."}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          {language === "km"
+                            ? `បង្ហាញ ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} ដល់ ${Math.min(auditPage * 8, auditTotal)} នៃ ${auditTotal} កំណត់ត្រា`
+                            : `Showing ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} to ${Math.min(auditPage * 8, auditTotal)} of ${auditTotal} entries`}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const prev = Math.max(1, auditPage - 1);
+                              setAuditPage(prev);
+                              loadAuditLogs(auditSearch, auditStatusFilter, prev);
+                            }}
+                            disabled={auditPage <= 1}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-400 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+
+                          {Array.from({ length: auditTotalPages }, (_, i) => i + 1).map((pNum) => (
+                            <button
+                              key={pNum}
+                              type="button"
+                              onClick={() => {
+                                setAuditPage(pNum);
+                                loadAuditLogs(auditSearch, auditStatusFilter, pNum);
+                              }}
+                              className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
+                                auditPage === pNum
+                                  ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/30"
+                                  : "border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
+                              }`}
+                            >
+                              {pNum}
+                            </button>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = Math.min(auditTotalPages, auditPage + 1);
+                              setAuditPage(next);
+                              loadAuditLogs(auditSearch, auditStatusFilter, next);
+                            }}
+                            disabled={auditPage >= auditTotalPages}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-400 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </Panel>
                   </div>
 
-                  <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
+                  <div className="space-y-6">
+                  <Panel
+                    Icon={Database}
+                    title="Backup & Restore"
+                    subtitle="Manage system backups, automatic exports, and disaster recovery."
+                    surface={surface}
+                    borderCol={borderCol}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                  >
+                    {!isSuperAdmin ? (
+                      <div className={`rounded-xl border p-4 text-xs font-medium ${borderCol} ${softSurface} ${textSecondary}`}>
+                        Login as Admin or Super Admin to manage backups.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <button
+                            type="button"
+                            onClick={createAndDownloadBackup}
+                            disabled={Boolean(backupBusy)}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
+                            Create Backup
+                          </button>
 
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-black ${textPrimary}`}>Total</span>
-                    <span className="text-base font-black text-[#696cff]">
-                      {currency(
-                        42 +
-                          42 * (Number(settings.taxRate || 0) / 100) +
-                          42 * (Number(settings.serviceChargeRate || 0) / 100),
-                        settings.currency
-                      )}
-                    </span>
-                  </div>
+                          <button
+                            type="button"
+                            onClick={downloadLatestBackup}
+                            disabled={Boolean(backupBusy) || backupFiles.length === 0}
+                            className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
+                          >
+                            {backupBusy === "latest" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
+                            Download Latest
+                          </button>
 
-                  <div className={`mt-4 text-center text-[11px] font-medium ${textSecondary}`}>
-                    {settings.receiptFooter}
-                  </div>
+                          <label
+                            className={`inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800`}
+                          >
+                            {backupBusy === "preview" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
+                            Choose Restore File
+                            <input
+                              type="file"
+                              accept="application/json,.json"
+                              disabled={Boolean(backupBusy)}
+                              onChange={selectRestoreFile}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        {restorePreview && (
+                          <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
+                            <div className={`truncate text-xs font-extrabold ${textPrimary}`}>{restoreFileName}</div>
+                            <div className={`mt-1 text-[11px] font-medium ${textSecondary}`}>
+                              {backupTotal(restorePreview)} records · {formatDate(restorePreview.createdAt)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={restoreSelectedBackup}
+                              disabled={Boolean(backupBusy)}
+                              className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {backupBusy === "restore" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
+                              Restore Backup
+                            </button>
+                          </div>
+                        )}
+
+                        <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
+                          <div className={`text-[10px] font-extrabold uppercase tracking-wider text-slate-400`}>Latest Saved Safety Backup</div>
+                          {backupFiles[0] ? (
+                            <>
+                              <div className={`mt-1.5 truncate text-xs font-bold ${textPrimary}`}>{backupFiles[0].filename}</div>
+                              <div className={`mt-0.5 text-[11px] font-medium ${textSecondary}`}>
+                                {formatFileSize(backupFiles[0].size)} · {formatDate(backupFiles[0].updatedAt)}
+                              </div>
+                            </>
+                          ) : (
+                            <div className={`mt-1.5 text-xs ${textSecondary}`}>No saved backups yet.</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Panel>
                 </div>
-              </section>
-
-              <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
-                <Field label="Receipt Footer">
-                  <textarea
-                    value={settings.receiptFooter}
-                    onChange={(event) => update("receiptFooter", event.target.value)}
-                    rows={5}
-                    className={`${inputClass} resize-none`}
-                  />
-                </Field>
-              </section>
-            </aside>
+                </div>
+              )}
+            </form>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
 
     {/* Sticky Floating Save Toast Bar (When settings modified) */}
     {isDirty && (
@@ -1134,7 +1340,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => {
-              const form = document.querySelector("form");
+              const form = document.getElementById("settingsForm") as HTMLFormElement;
               if (form) form.requestSubmit();
             }}
             disabled={saving}

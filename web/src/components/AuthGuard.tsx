@@ -72,7 +72,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const user = await getMe();
+        let user;
+        if (typeof window !== "undefined" && !navigator.onLine) {
+          const storedUser = localStorage.getItem("pos_user");
+          if (storedUser) {
+            user = JSON.parse(storedUser);
+          } else {
+            throw new Error("Offline and no user found");
+          }
+        } else {
+          user = await getMe();
+        }
+        
         const settings = await getSettings().catch(() => null);
         const staffPermissions = permissionsForUser(user.id, settings?.staffPermissions);
 

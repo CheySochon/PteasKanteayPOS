@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   Bell,
@@ -172,6 +173,28 @@ export default function TopBar({
   }, []);
 
   const unreadCount = notifications.length;
+
+  const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const prevNotificationsCount = useRef(notifications.length);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (notifications.length > prevNotificationsCount.current) {
+      const newNotif = notifications[0]; 
+      if (newNotif) {
+        setToastNotification(newNotif);
+        const timer = setTimeout(() => setToastNotification(null), 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevNotificationsCount.current = notifications.length;
+  }, [notifications]);
+
+  const bgCard = dark ? "bg-[#2b2c40]" : "bg-white";
   const surface = isDark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
   const dropdownSurface = isDark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
   const menuHover = isDark ? "hover:bg-white/10" : "hover:bg-slate-100";
@@ -197,7 +220,7 @@ export default function TopBar({
             <Menu size={18} />
           </button>
 
-          <div className="hidden min-w-0 border-l border-slate-200 pl-3 2xl:block">
+          <div className="hidden min-w-0 border-l border-slate-200 dark:border-[#4e4f6e] pl-3 sm:block">
             <div className={`truncate text-xs font-black ${textPrimary} ${kmClass}`}>
               {title}
             </div>
@@ -214,7 +237,7 @@ export default function TopBar({
                 value={searchQuery ?? ""}
                 onChange={(e) => onSearchChange?.(e.target.value)}
                 placeholder={searchPlaceholder ?? "Search..."}
-                className={`h-8.5 w-60 rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-[#a1acb8] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
+                className={`h-8.5 w-60 rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-[#a1acb8] focus:border-[#0F522B] focus:ring-4 focus:ring-[#0F522B]/10 ${
                   isDark
                     ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
                     : "border-slate-200/80 bg-[#f5f5f9] text-[#2c3e50]"
@@ -295,7 +318,7 @@ export default function TopBar({
                 ? document.exitFullscreen()
                 : document.documentElement.requestFullscreen()
             }
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
+            className={`hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
             title={t.fullscreen}
           >
             <Maximize size={16} />
@@ -412,7 +435,6 @@ export default function TopBar({
             <ProfileAvatar user={user} />
             <span className={`max-w-24 truncate text-sm ${kmClass}`}>{user.name}</span>
           </Link>
-
           <Link
             href="/admin/settings"
             className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
@@ -424,25 +446,29 @@ export default function TopBar({
       </div>
 
       {/* Quick Order Items Preview Modal */}
-      {selectedNotification && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
+      {selectedNotification && mounted && createPortal(
+        <div 
+          onClick={() => setSelectedNotification(null)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[2px] animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]"
+        >
           <div
+            onClick={(e) => e.stopPropagation()}
             className={`w-full max-w-md overflow-hidden rounded-2xl border shadow-2xl transition-all ${
               isDark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-800"
             }`}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b px-5 py-4 border-slate-200/80 dark:border-[#4e4f6e] bg-[#696cff]/5">
+            <div className={`flex items-center justify-between border-b px-5 py-4 ${isDark ? "border-[#4e4f6e] bg-[#2b2c40]/60" : "border-slate-100 bg-slate-50/80"}`}>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff] text-white shadow-sm shadow-[#696cff]/30">
-                  <Utensils size={18} />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff] text-white shadow-md shadow-[#696cff]/20">
+                  <Bell size={18} />
                 </div>
                 <div>
-                  <h3 className={`text-base font-black tracking-tight ${kmClass}`}>
-                    {language === "km" ? "ព័ត៌មានមុខម្ហូបក្នុង Order" : "Order Dishes Preview"}
+                  <h3 className={`text-base font-bold tracking-tight ${kmClass}`}>
+                    {language === "km" ? "ព័ត៌មានលម្អិតនៃការជូនដំណឹង" : "Notification Details"}
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    {selectedNotification.orderNumber || selectedNotification.title}
+                    {selectedNotification.orderNumber ? `Order #${selectedNotification.orderNumber}` : selectedNotification.title}
                     {selectedNotification.tableNo ? ` • Table ${selectedNotification.tableNo}` : ""}
                   </p>
                 </div>
@@ -450,86 +476,115 @@ export default function TopBar({
               <button
                 type="button"
                 onClick={() => setSelectedNotification(null)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Modal Content / Dishes List */}
-            <div className="max-h-[360px] overflow-y-auto p-5 space-y-3">
+            {/* Modal Content */}
+            <div className="max-h-[380px] overflow-y-auto p-5 space-y-3">
               {selectedNotification.items && selectedNotification.items.length > 0 ? (
-                selectedNotification.items.map((dish, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-center justify-between rounded-xl p-3 border transition-all ${
-                      isDark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-slate-50 border-slate-200/60 hover:bg-slate-100/60"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {dish.image ? (
-                        <img src={dish.image} alt={dish.name} className="h-10 w-10 rounded-lg object-cover" />
-                      ) : (
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
-                          <ShoppingBag size={18} />
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <div className="truncate text-xs font-black text-slate-800 dark:text-slate-100">{dish.name}</div>
-                        {dish.notes && (
-                          <div className="truncate text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                            Note: {dish.notes}
+                <div>
+                  <div className="mb-2.5 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    {language === "km" ? "បញ្ជីមុខម្ហូបក្នុង Order" : "Ordered Items"}
+                  </div>
+                  <div className="space-y-2.5">
+                    {selectedNotification.items.map((dish, index) => (
+                      <div
+                        key={index}
+                        className={`flex items-center justify-between rounded-xl p-3 border transition-all ${
+                          isDark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-slate-50 border-slate-200/60 hover:bg-slate-100/60"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {dish.image ? (
+                            <img src={dish.image} alt={dish.name} className="h-10 w-10 rounded-lg object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
+                              <ShoppingBag size={18} />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">{dish.name}</div>
+                            {dish.notes && (
+                              <div className="truncate text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                                Note: {dish.notes}
+                              </div>
+                            )}
+                            {dish.price ? (
+                              <div className="text-[11px] text-slate-500 font-medium">${dish.price.toFixed(2)} / item</div>
+                            ) : null}
                           </div>
-                        )}
-                        {dish.price ? (
-                          <div className="text-[11px] text-slate-500 font-medium">${dish.price.toFixed(2)} / item</div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="inline-block rounded-md bg-[#696cff] px-2.5 py-1 text-xs font-black text-white">
-                        x{dish.quantity}
-                      </span>
-                      {dish.price ? (
-                        <div className="mt-1 text-xs font-black text-slate-800 dark:text-slate-100">
-                          ${(dish.price * dish.quantity).toFixed(2)}
                         </div>
-                      ) : null}
+
+                        <div className="text-right shrink-0">
+                          <span className="inline-block rounded-md bg-[#696cff] px-2.5 py-1 text-xs font-bold text-white">
+                            x{dish.quantity}
+                          </span>
+                          {dish.price ? (
+                            <div className="mt-1 text-xs font-bold text-slate-800 dark:text-slate-100">
+                              ${(dish.price * dish.quantity).toFixed(2)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={`rounded-xl border p-4 space-y-3 ${isDark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/70 bg-slate-50/80"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
+                      <ShoppingBag size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {selectedNotification.title}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {selectedNotification.detail}
+                      </p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="rounded-xl border border-slate-200/60 bg-slate-50 p-4 text-center dark:bg-[#2b2c40] dark:border-[#4e4f6e]">
-                  <div className="flex justify-center mb-2 text-[#696cff]">
-                    <ShoppingBag size={24} />
+
+                  {/* Summary Info Cards */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {selectedNotification.tableNo && (
+                      <div className={`rounded-lg p-2.5 border text-xs ${isDark ? "bg-[#232333] border-[#4e4f6e]" : "bg-white border-slate-200/60"}`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === "km" ? "លេខតុ" : "Table"}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Table {selectedNotification.tableNo}</span>
+                      </div>
+                    )}
+                    {selectedNotification.orderNumber && (
+                      <div className={`rounded-lg p-2.5 border text-xs ${isDark ? "bg-[#232333] border-[#4e4f6e]" : "bg-white border-slate-200/60"}`}>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{language === "km" ? "លេខ Order" : "Order No."}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">#{selectedNotification.orderNumber}</span>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                    {selectedNotification.title}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {selectedNotification.detail}
-                  </p>
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between border-t px-5 py-3.5 border-slate-200/80 dark:border-[#4e4f6e] bg-slate-50/50 dark:bg-[#2b2c40]">
+            <div className={`flex items-center justify-between border-t px-5 py-3.5 ${isDark ? "border-[#4e4f6e] bg-[#2b2c40]/40" : "border-slate-100 bg-slate-50/50"}`}>
               <div>
                 {selectedNotification.totalAmount ? (
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Amount</span>
-                    <div className="text-base font-black text-[#71dd37]">${selectedNotification.totalAmount.toFixed(2)}</div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {language === "km" ? "សរុបទឹកប្រាក់" : "Total Amount"}
+                    </span>
+                    <div className="text-base font-black text-emerald-500">${selectedNotification.totalAmount.toFixed(2)}</div>
                   </div>
                 ) : null}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 ml-auto">
                 <Link
                   href="/admin/orders"
                   onClick={() => setSelectedNotification(null)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] transition-all shadow-sm shadow-[#696cff]/20"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
                 >
                   <Eye size={14} />
                   <span>{language === "km" ? "មើលក្នុង Orders" : "View in Orders"}</span>
@@ -537,12 +592,48 @@ export default function TopBar({
                 <button
                   type="button"
                   onClick={() => setSelectedNotification(null)}
-                  className="h-9 rounded-lg border border-slate-200 px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-[#4e4f6e] dark:text-slate-300 dark:hover:bg-white/10"
+                  className="h-9 rounded-xl border border-slate-200 px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-[#4e4f6e] dark:text-slate-300 dark:hover:bg-white/10 transition-colors"
                 >
                   {language === "km" ? "បិទ" : "Close"}
                 </button>
               </div>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Toast Popup */}
+      {toastNotification && (
+        <div className={`fixed bottom-6 right-6 z-[9999] w-full max-w-sm rounded-lg p-4 shadow-xl ring-1 animate-[dashboardPageIn_0.3s_ease-out] ${bgCard} ${dark ? 'ring-white/10' : 'ring-black/5'}`}>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#696cff]/10 text-[#696cff]">
+              <Bell size={20} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-bold ${textPrimary}`}>{toastNotification.title}</p>
+              <p className={`mt-1 text-sm line-clamp-2 ${textSecondary}`}>{toastNotification.detail}</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedNotification(toastNotification);
+                    setToastNotification(null);
+                  }}
+                  className="text-sm font-semibold text-[#696cff] hover:text-[#5f61e6]"
+                >
+                  {t.notifications || "View"}
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setToastNotification(null)}
+              className={`flex-shrink-0 ml-4 ${textSecondary} hover:${textPrimary}`}
+            >
+              <span className="sr-only">Close</span>
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

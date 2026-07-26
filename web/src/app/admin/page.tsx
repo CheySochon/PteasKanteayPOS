@@ -721,8 +721,8 @@ export default function DashboardPage() {
             ))}
           </section>
 
-          <section className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
-            <div className={`min-w-0 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
+          <section className="mb-4 grid gap-4 grid-cols-1 xl:grid-cols-12">
+            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className={`text-lg font-bold ${textPrimary}`}>
@@ -769,7 +769,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className={`min-w-0 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
+            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
               <div className="mb-4">
                 <h2 className={`text-lg font-bold ${textPrimary}`}>
                   {t.orderStatus}
@@ -787,8 +787,8 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,420px)] items-stretch">
-            <div className={`min-w-0 overflow-hidden ${cardClass}`}>
+          <section className="grid gap-4 grid-cols-1 xl:grid-cols-12 items-stretch">
+            <div className={`min-w-0 xl:col-span-8 overflow-hidden ${cardClass}`}>
               <div className="flex items-center justify-between p-5">
                 <div>
                   <h2 className={`text-base font-black ${textPrimary}`}>
@@ -901,7 +901,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 xl:col-span-4">
               <div className={`${cardClass} p-5 h-full flex flex-col`}>
                 <div className="mb-4">
                   <h2 className={`text-base font-bold ${textPrimary}`}>

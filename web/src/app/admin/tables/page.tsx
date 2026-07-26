@@ -18,6 +18,10 @@ import {
   X,
   Store,
   Loader2,
+  Copy,
+  ExternalLink,
+  Sparkles,
+  Wifi,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
@@ -414,13 +418,13 @@ export default function TablesPage() {
                       onClick={() => setSelectedZone(tab.id as "all" | TableZone)}
                       className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-150 ${
                         isActive
-                          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
+                          ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/20"
                           : dark
                             ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
                             : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                       }`}
                     >
-                      <Icon size={14} className={isActive ? "text-white" : tab.id === "vip" ? "text-amber-500" : "text-[#696cff]"} />
+                      <Icon size={14} className={isActive ? "text-white" : tab.id === "vip" ? "text-amber-500" : "text-[#0F522B]"} />
                       <span>{tab.label}</span>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${isActive ? "bg-white/20 text-white" : dark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
                         {tab.count}
@@ -434,7 +438,7 @@ export default function TablesPage() {
                 <button
                   type="button"
                   onClick={openCreateTableModal}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
                 >
                   <Plus size={14} />
                   {language === "km" ? "បន្ថែមតុថ្មី" : "Add Table"}
@@ -445,7 +449,7 @@ export default function TablesPage() {
                   <button
                     type="button"
                     onClick={load}
-                    className="flex h-7 w-7 items-center justify-center rounded bg-[#696cff] text-white active:scale-90 transition-all shadow-sm"
+                    className="flex h-7 w-7 items-center justify-center rounded bg-[#0F522B] hover:bg-[#0A3E20] text-white active:scale-90 transition-all shadow-sm"
                     title="Refresh tables"
                   >
                     <RefreshCw size={13} />
@@ -472,7 +476,7 @@ export default function TablesPage() {
 
             {loading ? (
               <div className={`rounded border p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
-                <Loader2 className="mx-auto mb-3 animate-spin text-[#696cff]" size={28} />
+                <Loader2 className="mx-auto mb-3 animate-spin text-[#0F522B]" size={28} />
                 Loading live floor plan...
               </div>
             ) : filteredTableCards.length === 0 ? (
@@ -642,12 +646,12 @@ export default function TablesPage() {
 
       {/* CREATE / EDIT TABLE MODAL */}
       {isTableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close table dialog"
             onClick={closeTableModal}
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm animate-[tableModalBackdrop_180ms_ease-out]"
+            className="absolute inset-0 cursor-default"
           />
 
           <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded border p-5 shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
@@ -732,7 +736,7 @@ export default function TablesPage() {
                   type="checkbox"
                   checked={tableForm.isActive}
                   onChange={(event) => setTableForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-4.5 w-4.5 accent-[#696cff] cursor-pointer"
+                  className="h-4.5 w-4.5 accent-[#0F522B] cursor-pointer"
                 />
               </label>
 
@@ -748,7 +752,7 @@ export default function TablesPage() {
                 >
                   Cancel
                 </button>
-                <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all">
+                <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all">
                   {tableForm.id ? <Save size={14} /> : <Plus size={14} />}
                   {tableForm.id ? "Update Setup" : "Save Table"}
                 </button>
@@ -758,14 +762,14 @@ export default function TablesPage() {
         </div>
       )}
 
-      {/* QR CODE PREVIEW DIALOG */}
+      {/* ORIGINAL SIMPLE CARD QR CODE PREVIEW DIALOG */}
       {qrTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close QR dialog"
             onClick={() => setQrTable(null)}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-[tableModalBackdrop_180ms_ease-out]"
+            className="absolute inset-0 cursor-default"
           />
 
           <div className={`relative w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl border animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
@@ -778,9 +782,6 @@ export default function TablesPage() {
               <X size={15} />
             </button>
 
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shadow-sm">
-              <QrCode size={24} />
-            </div>
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">Table QR Demo</p>
             <h2 className={`mt-1 text-xl font-bold ${textPrimary}`}>{qrTable.name}</h2>
             <p className={`mt-1 text-xs leading-relaxed ${textSecondary}`}>Scan or open this QR code to test tableside mobile ordering.</p>
@@ -826,7 +827,7 @@ export default function TablesPage() {
                 href={`/qr/${qrTable.qrToken}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#696cff] px-4 text-xs font-bold text-white shadow-md shadow-[#696cff]/25 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#0F522B] px-4 text-xs font-bold text-white shadow-md shadow-[#0F522B]/25 hover:bg-[#0A3E20] active:scale-95 transition-all"
               >
                 Open Demo
               </a>
@@ -838,7 +839,7 @@ export default function TablesPage() {
       {deleteConfirmTable && (
           <div
             onClick={() => setDeleteConfirmTable(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
           >
             <div
               onClick={(e) => e.stopPropagation()}

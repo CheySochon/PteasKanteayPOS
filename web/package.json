@@ -11,6 +11,7 @@
   "dependencies": {
     "bakong-khqr": "^1.0.20",
     "chart.js": "^4.5.1",
+    "idb": "^8.0.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.18.0",

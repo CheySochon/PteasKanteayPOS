@@ -72,6 +72,51 @@ export default function LoginPage() {
       .catch(() => undefined);
   }, []);
 
+  async function sendClientTelegramAlert(isSuccess: boolean, userNameStr: string, userRoleStr: string, errorMsg?: string) {
+    try {
+      const savedConfig = localStorage.getItem("pos_telegram_config");
+      if (!savedConfig) return;
+      const config = JSON.parse(savedConfig);
+      const token = (config.botToken || "").trim();
+      const chatId = (config.chatId || "").trim();
+      if (!token || !chatId) return;
+
+      const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Phnom_Penh" });
+
+      let message = "";
+      if (isSuccess && config.alertLogin !== false) {
+        message =
+          `🔐 <b>STAFF LOGIN ALERT</b>\n\n` +
+          `👤 <b>Staff:</b> ${userNameStr} (${userRoleStr})\n` +
+          `⏰ <b>Time:</b> ${nowStr}\n` +
+          `🌐 <b>Device:</b> Web Browser\n` +
+          `✅ <b>Status:</b> Successful Login`;
+      } else if (!isSuccess && config.alertFailedLogin !== false) {
+        message =
+          `⚠️ <b>SECURITY WARNING: FAILED LOGIN ATTEMPT!</b>\n\n` +
+          `👤 <b>Target User:</b> ${userNameStr}\n` +
+          `⏰ <b>Time:</b> ${nowStr}\n` +
+          `🌐 <b>Device:</b> Web Browser\n` +
+          `❌ <b>Reason:</b> ${errorMsg || "Invalid Credentials"}\n` +
+          `⚠️ <b>Status:</b> Login Failed`;
+      }
+
+      if (message) {
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: message,
+            parse_mode: "HTML",
+          }),
+        }).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -90,6 +135,9 @@ export default function LoginPage() {
       const r = result.user?.role;
       const role = typeof r === "object" && r ? r.name : r;
 
+      // Trigger Telegram Alert
+      sendClientTelegramAlert(true, result.user?.name || email, String(role || "Staff"));
+
       if (!targetPath) {
         let userPerms = null;
         const savedPermsRaw = localStorage.getItem("pos_staff_permissions");
@@ -102,7 +150,10 @@ export default function LoginPage() {
       }
       router.replace(targetPath);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const errText = err instanceof Error ? err.message : "Login failed";
+      setError(errText);
+      // Trigger Telegram Security Warning Alert on Failed Login
+      sendClientTelegramAlert(false, email || "Unknown User", "Guest", errText);
     } finally {
       setLoading(false);
     }
@@ -130,11 +181,11 @@ export default function LoginPage() {
               }}
             />
           ) : (
-            <div className="h-14 w-14 rounded-2xl bg-[#696cff] flex items-center justify-center font-black text-2xl text-white shadow-md shadow-[#696cff]/20">T</div>
+            <div className="h-14 w-14 rounded-2xl bg-[#0F522B] flex items-center justify-center font-black text-2xl text-white shadow-md shadow-[#0F522B]/20">T</div>
           )}
           <div>
-            <h2 className="text-xl font-black tracking-wide leading-none">{posName}</h2>
-            <span className="text-[10px] text-white/60 font-bold uppercase tracking-wider mt-1 block">Live Terminal Station</span>
+            <h2 className="font-khmer text-xl font-bold tracking-normal leading-tight">{posName}</h2>
+            <span className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mt-1 block">Live Terminal Station</span>
           </div>
         </div>
 
@@ -148,7 +199,7 @@ export default function LoginPage() {
             {time || "00:00:00"}
           </div>
           <div className="flex items-center gap-2 text-white/80 text-sm font-semibold">
-            <Calendar size={14} className="text-[#696cff]" />
+            <Calendar size={14} className="text-[#0F522B]" />
             <span>{date || "Loading calendar..."}</span>
           </div>
         </div>
@@ -183,11 +234,11 @@ export default function LoginPage() {
                   }}
                 />
               ) : (
-                <div className="h-12 w-12 rounded-xl bg-[#696cff] flex items-center justify-center font-black text-white shadow-md shadow-[#696cff]/20">T</div>
+                <div className="h-12 w-12 rounded-xl bg-[#0F522B] flex items-center justify-center font-black text-white shadow-md shadow-[#0F522B]/20">T</div>
               )}
               <div>
-                <h2 className={`text-lg font-black tracking-wide leading-none ${dark ? "text-white" : "text-[#2c3e50]"}`}>{posName}</h2>
-                <span className="text-[10px] text-[#8592a3] font-bold uppercase tracking-wider mt-1 block">Live Terminal Station</span>
+                <h2 className={`font-khmer text-lg font-bold tracking-normal leading-tight ${dark ? "text-white" : "text-[#2c3e50]"}`}>{posName}</h2>
+                <span className="text-[10px] text-[#0F522B] font-black uppercase tracking-widest mt-1 block">Live Terminal Station</span>
               </div>
             </div>
             
@@ -222,8 +273,8 @@ export default function LoginPage() {
                   placeholder="name@restaurant.com"
                   className={`w-full h-11 rounded-lg border pl-11 pr-4 text-sm font-semibold outline-none transition-all duration-200 ${
                     dark 
-                      ? "border-slate-700 bg-[#232333] focus:border-[#696cff] focus:ring-2 focus:ring-[#696cff]/10" 
-                      : "border-slate-200 bg-slate-50/50 focus:border-[#696cff] focus:ring-2 focus:ring-[#696cff]/5"
+                      ? "border-slate-700 bg-[#232333] focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10" 
+                      : "border-slate-200 bg-slate-50/50 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10"
                   } ${dark ? "text-white" : "text-slate-800"}`}
                   required
                 />
@@ -244,8 +295,8 @@ export default function LoginPage() {
                   placeholder="••••••••••••"
                   className={`w-full h-11 rounded-lg border pl-11 pr-11 text-sm font-semibold outline-none transition-all duration-200 ${
                     dark 
-                      ? "border-slate-700 bg-[#232333] focus:border-[#696cff] focus:ring-2 focus:ring-[#696cff]/10" 
-                      : "border-slate-200 bg-slate-50/50 focus:border-[#696cff] focus:ring-2 focus:ring-[#696cff]/5"
+                      ? "border-slate-700 bg-[#232333] focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10" 
+                      : "border-slate-200 bg-slate-50/50 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10"
                   } ${dark ? "text-white" : "text-slate-800"}`}
                   required
                 />
@@ -262,7 +313,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-11 rounded-lg bg-[#696cff] hover:bg-[#5f61e6] active:scale-[0.99] transition-all text-sm font-bold text-white shadow-md shadow-[#696cff]/10 flex items-center justify-center gap-2 mt-6 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full h-11 rounded-lg bg-[#0F522B] hover:bg-[#0A3E20] active:scale-[0.99] transition-all text-sm font-bold text-white shadow-md shadow-[#0F522B]/20 flex items-center justify-center gap-2 mt-6 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="animate-spin" size={15} /> : null}
               {loading ? "Verifying Station..." : "Sign In to Station"}
@@ -271,7 +322,7 @@ export default function LoginPage() {
 
           {/* Footer security message */}
           <div className="border-t border-slate-100 dark:border-slate-800/80 pt-5 flex items-center gap-2.5 text-[9px] text-[#a1acb8] font-bold leading-normal uppercase">
-            <Server size={12} className="text-[#696cff] shrink-0" />
+            <Server size={12} className="text-[#0F522B] shrink-0" />
             <span>Authorized Personnel Only. Connections are encrypted and audited.</span>
           </div>
 

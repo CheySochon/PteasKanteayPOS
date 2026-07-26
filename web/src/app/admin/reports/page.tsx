@@ -91,8 +91,10 @@ const TEXT = {
     today: "today",
     liveEstimate: "Live estimate",
     revenueTrend: "Revenue Trend",
-    revenueTrendDesc: "Daily revenue performance for",
+    revenueTrendDesc: "Revenue performance for",
     daily: "Daily",
+    hourly: "Hourly",
+    monthly: "Monthly",
     topCategories: "Top Categories",
     categoryDistribution: "Revenue distribution by category",
     sales: "Sales",
@@ -146,8 +148,10 @@ const TEXT = {
     today: "ថ្ងៃនេះ",
     liveEstimate: "ប៉ាន់ស្មានផ្ទាល់",
     revenueTrend: "និន្នាការចំណូល",
-    revenueTrendDesc: "ប្រតិបត្តិការចំណូលប្រចាំថ្ងៃសម្រាប់",
+    revenueTrendDesc: "ប្រតិបត្តិការចំណូលសម្រាប់",
     daily: "ប្រចាំថ្ងៃ",
+    hourly: "ប្រចាំម៉ោង",
+    monthly: "ប្រចាំខែ",
     topCategories: "ប្រភេទលក់ដាច់",
     categoryDistribution: "ការបែងចែកចំណូលតាមប្រភេទ",
     sales: "ការលក់",
@@ -423,6 +427,7 @@ export default function ReportsPage() {
   const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [showCalendar, setShowCalendar] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showTrendDropdown, setShowTrendDropdown] = useState(false);
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -547,6 +552,7 @@ export default function ReportsPage() {
           : "",
       height: Math.max(18, (Number(row.total || 0) / max) * 100),
       peak: Number(row.total || 0) === max,
+      total: Number(row.total || 0),
     }));
   }, [dateLocale, monthly]);
 
@@ -648,7 +654,204 @@ export default function ReportsPage() {
         dark={dark}
       />
       
-      <div className="flex-1 overflow-y-auto px-6 py-5 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+      {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
+      <div className={`px-4 pt-4 lg:px-6 flex border-b shrink-0 print:hidden ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+        <div className="mx-auto w-full max-w-[1400px] flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Left Side: Live Badge & Last Updated */}
+          <div className="flex items-center gap-2.5">
+            <span className="rounded bg-[#e8fadf] px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
+              {t.live}
+            </span>
+            <span className={`text-xs ${textSecondary} font-medium`}>
+              {lastUpdated
+                ? `${t.updated} ${lastUpdated.toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}`
+                : t.loadingReports}
+            </span>
+          </div>
+
+          {/* Right Side: Calendar & Export Dropdown */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowCalendar((value) => !value)}
+                className={`flex h-9 w-full items-center justify-between gap-3 px-3 text-xs font-semibold sm:w-[260px] ${inputClass}`}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <CalendarDays size={14} className={textSecondary} />
+                  <span className="truncate">{dateRange}</span>
+                </span>
+                <ChevronDown size={13} className={textSecondary} />
+              </button>
+
+              {showCalendar && (
+                <div
+                  className={`absolute right-0 top-12 z-30 w-full rounded border p-4 shadow-lg sm:w-[320px] ${surface} ${borderCol}`}
+                >
+                  <label
+                    className={`mb-2 block text-[11px] font-bold uppercase tracking-wide ${textSecondary}`}
+                  >
+                    {t.reportRange}
+                  </label>
+
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    {(["day", "month", "year"] as ReportPeriod[]).map((period) => (
+                      <button
+                        key={period}
+                        type="button"
+                        onClick={() => setSelectedPeriod(period)}
+                        className={`h-9 rounded text-xs font-semibold capitalize transition-all ${
+                          selectedPeriod === period
+                            ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/20"
+                            : dark
+                              ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                              : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#0F522B]"
+                        }`}
+                      >
+                        {t[period]}
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedPeriod === "day" && (
+                    <input
+                      type="date"
+                      value={selectedDay}
+                      onChange={(event) => setSelectedDay(event.target.value)}
+                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
+                      aria-label={t.selectDay}
+                    />
+                  )}
+
+                  {selectedPeriod === "month" && (
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(event) => setSelectedMonth(event.target.value)}
+                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
+                      aria-label={t.selectMonth}
+                    />
+                  )}
+
+                  {selectedPeriod === "year" && (
+                    <input
+                      type="number"
+                      min="2000"
+                      max="2100"
+                      value={selectedYear}
+                      onChange={(event) => setSelectedYear(event.target.value)}
+                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
+                      aria-label={t.selectYear}
+                    />
+                  )}
+
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDay(dayInputValue(new Date()));
+                        setSelectedMonth(monthInputValue(new Date()));
+                        setSelectedYear(String(new Date().getFullYear()));
+                        setSelectedPeriod("day");
+                        setShowCalendar(false);
+                      }}
+                      className="h-9 rounded bg-[#0F522B] px-3 text-xs font-semibold text-white hover:bg-[#0A3E20]"
+                    >
+                      {t.current}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendar(false)}
+                      className={`h-9 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${textSecondary} hover:bg-[#f5f5f9] transition-all`}
+                    >
+                      {t.close}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Export Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowExport((value) => !value)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20"
+              >
+                <Download size={14} />
+                <span>{t.export}</span>
+                <ChevronDown size={13} />
+              </button>
+
+              {showExport && (
+                <div
+                  className={`absolute right-0 top-11 z-30 w-56 overflow-hidden rounded-lg border py-1.5 shadow-xl ${surface} ${borderCol}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExport(false);
+                      void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message));
+                    }}
+                    className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                      dark ? "hover:bg-[#232333]" : ""
+                    } ${textPrimary}`}
+                  >
+                    <Download size={14} className="text-[#696cff]" />
+                    <span>{t.downloadCsv}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExport(false);
+                      exportPdfDirect({
+                        restaurantName: "POS RESTAURANT",
+                        dateRange,
+                        totalRevenue,
+                        totalOrders,
+                        averageTicket,
+                        topProducts,
+                        filename: `orders-report-${selectedPeriod}-${selectedDate}.pdf`,
+                      });
+                    }}
+                    className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                      dark ? "hover:bg-[#232333]" : ""
+                    } ${textPrimary}`}
+                  >
+                    <FileText size={14} className="text-emerald-500" />
+                    <span>{language === "km" ? "ទាញយកជា PDF (.pdf)" : "Download PDF (.pdf)"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExport(false);
+                      setShowCalendar(false);
+                      setTimeout(() => {
+                        window.print();
+                      }, 100);
+                    }}
+                    className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                      dark ? "hover:bg-[#232333]" : ""
+                    } ${textPrimary}`}
+                  >
+                    <Printer size={14} className="text-amber-500" />
+                    <span>{language === "km" ? "រក្សាទុកជា PDF / បោះពុម្ព (Print)" : "Print / Browser PDF"}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
         <div className="mx-auto w-full max-w-[1400px]" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
@@ -667,199 +870,6 @@ export default function ReportsPage() {
             </h2>
             <div className="text-xs text-slate-500 font-medium">
               {language === "km" ? "ចន្លោះពេល:" : "Period:"} <span className="font-bold text-slate-800">{dateRange}</span> &nbsp;|&nbsp; {language === "km" ? "ថ្ងៃបោះពុម្ព:" : "Printed:"} <span className="font-bold text-slate-800">{new Date().toLocaleDateString(dateLocale)} {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-            </div>
-          </div>
-
-          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4 border-slate-200/80 dark:border-[#4e4f6e] print:hidden">
-              {/* Left Side: Live Badge & Last Updated */}
-              <div className="flex items-center gap-2.5">
-                <span className="rounded bg-[#e8fadf] px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
-                  {t.live}
-                </span>
-                <span className={`text-xs ${textSecondary} font-medium`}>
-                  {lastUpdated
-                    ? `${t.updated} ${lastUpdated.toLocaleTimeString([], {
-                        hour: "numeric",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}`
-                    : t.loadingReports}
-                </span>
-              </div>
-
-              {/* Right Side: Calendar & Export Dropdown */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowCalendar((value) => !value)}
-                    className={`flex h-9 w-full items-center justify-between gap-3 px-3 text-xs font-semibold sm:w-[260px] ${inputClass}`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <CalendarDays size={14} className={textSecondary} />
-                      <span className="truncate">{dateRange}</span>
-                    </span>
-                    <ChevronDown size={13} className={textSecondary} />
-                  </button>
-
-                  {showCalendar && (
-                    <div
-                      className={`absolute right-0 top-12 z-30 w-full rounded border p-4 shadow-lg sm:w-[320px] ${surface} ${borderCol}`}
-                    >
-                      <label
-                        className={`mb-2 block text-[11px] font-bold uppercase tracking-wide ${textSecondary}`}
-                      >
-                        {t.reportRange}
-                      </label>
-
-                      <div className="mb-3 grid grid-cols-3 gap-2">
-                        {(["day", "month", "year"] as ReportPeriod[]).map((period) => (
-                          <button
-                            key={period}
-                            type="button"
-                            onClick={() => setSelectedPeriod(period)}
-                            className={`h-9 rounded text-xs font-semibold capitalize transition-all ${
-                              selectedPeriod === period
-                                ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
-                                : dark
-                                  ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                                  : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#696cff]"
-                            }`}
-                          >
-                            {t[period]}
-                          </button>
-                        ))}
-                      </div>
-
-                      {selectedPeriod === "day" && (
-                        <input
-                          type="date"
-                          value={selectedDay}
-                          onChange={(event) => setSelectedDay(event.target.value)}
-                          className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                          aria-label={t.selectDay}
-                        />
-                      )}
-
-                      {selectedPeriod === "month" && (
-                        <input
-                          type="month"
-                          value={selectedMonth}
-                          onChange={(event) => setSelectedMonth(event.target.value)}
-                          className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                          aria-label={t.selectMonth}
-                        />
-                      )}
-
-                      {selectedPeriod === "year" && (
-                        <input
-                          type="number"
-                          min="2000"
-                          max="2100"
-                          value={selectedYear}
-                          onChange={(event) => setSelectedYear(event.target.value)}
-                          className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                          aria-label={t.selectYear}
-                        />
-                      )}
-
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedDay(dayInputValue());
-                            setSelectedMonth(monthInputValue());
-                            setSelectedYear(String(new Date().getFullYear()));
-                            setShowCalendar(false);
-                          }}
-                          className="h-9 rounded bg-[#696cff] px-3 text-xs font-semibold text-white hover:bg-[#5f61e6]"
-                        >
-                          {t.current}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setShowCalendar(false)}
-                          className={`h-9 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${textSecondary} hover:bg-[#f5f5f9] transition-all`}
-                        >
-                          {t.close}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Export Dropdown */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowExport((value) => !value)}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
-                  >
-                    <Download size={14} />
-                    <span>{t.export}</span>
-                    <ChevronDown size={13} />
-                  </button>
-
-                  {showExport && (
-                    <div
-                      className={`absolute right-0 top-11 z-30 w-56 overflow-hidden rounded-lg border py-1.5 shadow-xl ${surface} ${borderCol}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExport(false);
-                          void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message));
-                        }}
-                        className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
-                          dark ? "hover:bg-[#232333]" : ""
-                        } ${textPrimary}`}
-                      >
-                        <Download size={14} className="text-[#696cff]" />
-                        <span>{t.downloadCsv}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExport(false);
-                          exportPdfDirect({
-                            restaurantName: "POS RESTAURANT",
-                            dateRange,
-                            totalRevenue,
-                            totalOrders,
-                            averageTicket,
-                            topProducts,
-                            filename: `orders-report-${selectedPeriod}-${selectedDate}.pdf`,
-                          });
-                        }}
-                        className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
-                          dark ? "hover:bg-[#232333]" : ""
-                        } ${textPrimary}`}
-                      >
-                        <FileText size={14} className="text-emerald-500" />
-                        <span>{language === "km" ? "ទាញយកជា PDF (.pdf)" : "Download PDF (.pdf)"}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowExport(false);
-                          setShowCalendar(false);
-                          setTimeout(() => {
-                            window.print();
-                          }, 100);
-                        }}
-                        className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
-                          dark ? "hover:bg-[#232333]" : ""
-                        } ${textPrimary}`}
-                      >
-                        <Printer size={14} className="text-amber-500" />
-                        <span>{language === "km" ? "រក្សាទុកជា PDF / បោះពុម្ព (Print)" : "Print / Browser PDF"}</span>
-                      </button>
-                    </div>
-                  )}
-              </div>
             </div>
           </div>
 
@@ -905,45 +915,77 @@ export default function ReportsPage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  className={`flex h-9 items-center gap-6 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${softSurface} ${textPrimary} hover:bg-[#f5f5f9] transition-all`}
-                >
-                  {t.daily}
-                  <ChevronDown size={14} />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowTrendDropdown(!showTrendDropdown)}
+                    className={`flex h-9 items-center gap-6 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${softSurface} ${textPrimary} hover:bg-[#f5f5f9] transition-all`}
+                  >
+                    {selectedPeriod === "day" ? t.hourly : selectedPeriod === "year" ? t.monthly : t.daily}
+                    <ChevronDown size={14} />
+                  </button>
+
+                  {showTrendDropdown && (
+                    <div className={`absolute right-0 top-11 z-30 w-36 overflow-hidden rounded-lg border py-1.5 shadow-xl ${surface} ${borderCol}`}>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPeriod("day"); setShowTrendDropdown(false); }}
+                        className={`block w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${textPrimary}`}
+                      >
+                        {t.hourly}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPeriod("month"); setShowTrendDropdown(false); }}
+                        className={`block w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${textPrimary}`}
+                      >
+                        {t.daily}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPeriod("year"); setShowTrendDropdown(false); }}
+                        className={`block w-full px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${textPrimary}`}
+                      >
+                        {t.monthly}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div
-                className={`relative h-[240px] rounded border p-3 ${borderCol} ${softSurface}`}
+                className={`relative h-[220px] rounded-lg border ${borderCol} ${softSurface}`}
               >
                 <div
-                  className={`absolute inset-x-3 top-1/3 border-t ${borderCol}`}
+                  className={`absolute inset-x-0 top-1/3 border-t ${borderCol}`}
                 />
                 <div
-                  className={`absolute inset-x-3 top-2/3 border-t ${borderCol}`}
+                  className={`absolute inset-x-0 top-2/3 border-t ${borderCol}`}
                 />
 
-                <div className="absolute inset-x-3 bottom-9 top-3 flex items-end gap-2">
+                <div className="absolute inset-x-2 bottom-7 top-4 flex items-end justify-between gap-1 sm:gap-2">
                   {trendRows.map((bar, index) => (
-                    <div key={index} className="flex h-full flex-1 flex-col justify-end">
+                    <div key={index} className="flex h-full flex-1 flex-col justify-end group relative">
                       <div
-                        className={`rounded-t-sm ${
+                        className={`rounded-t-md mx-auto w-full max-w-[36px] transition-all duration-300 group-hover:opacity-80 ${
                           bar.peak
-                            ? "bg-[#696cff]"
+                            ? "bg-[#696cff] shadow-[0_-4px_12px_rgba(105,108,255,0.3)]"
                             : dark
-                              ? "bg-[#696cff]/40"
-                              : "bg-[#696cff]/20"
+                              ? "bg-[#696cff]/40 hover:bg-[#696cff]/60"
+                              : "bg-[#696cff]/20 hover:bg-[#696cff]/40"
                         }`}
                         style={{ height: `${bar.height}%` }}
                       />
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-lg">
+                        {money(bar.total)}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="absolute inset-x-3 bottom-3 flex justify-between text-[10px] font-bold uppercase text-[#a1acb8]">
+                <div className="absolute inset-x-2 bottom-1 flex justify-between text-[10px] font-bold uppercase text-[#a1acb8] px-2 sm:px-4">
                   {trendRows.map((bar, index) => (
-                    <span key={index}>{bar.label}</span>
+                    <span key={index} className="flex-1 text-center truncate">{bar.label}</span>
                   ))}
                 </div>
               </div>

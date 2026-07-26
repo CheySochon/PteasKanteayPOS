@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AuthGuard from "../components/AuthGuard";
+import SwRegister from "../components/SwRegister";
 import "./globals.css";
 
 const geistSans = { variable: "--font-geist-sans" };
@@ -28,6 +29,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Kantumruy:wght@300;400;700&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Noto+Sans+Khmer:wght@100..900&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-full flex flex-col">
+        <SwRegister />
         <AuthGuard>{children}</AuthGuard>
       </body>
     </html>

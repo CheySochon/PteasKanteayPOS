@@ -56,15 +56,19 @@ export const login = async (
     res.cookie("access_token", token, cookieOptions);
 
     // Record Successful Login Audit Log
-    createAuditLog({
-      userId: user.id,
-      userName: user.name,
-      userRole: typeof user.role === "string" ? user.role : (user.role as any)?.name || "Staff",
-      action: "LOGIN",
-      status: "SUCCESS",
-      ipAddress,
-      userAgent,
-    }).catch(() => {});
+    try {
+      await createAuditLog({
+        userId: user.id,
+        userName: user.name,
+        userRole: typeof user.role === "string" ? user.role : (user.role as any)?.name || "Staff",
+        action: "LOGIN",
+        status: "SUCCESS",
+        ipAddress,
+        userAgent,
+      });
+    } catch (_auditErr) {
+      // ignore
+    }
 
     res.json({
       success: true,
@@ -75,15 +79,19 @@ export const login = async (
     const message = err instanceof Error ? err.message : "Login failed";
 
     // Record Failed Login Audit Log & Telegram Warning Alert
-    createAuditLog({
-      userName: req.body.email || "Unknown User",
-      userRole: "Guest",
-      action: "FAILED_LOGIN",
-      status: "FAILED",
-      ipAddress,
-      userAgent,
-      details: message,
-    }).catch(() => {});
+    try {
+      await createAuditLog({
+        userName: req.body.email || "Unknown User",
+        userRole: "Guest",
+        action: "FAILED_LOGIN",
+        status: "FAILED",
+        ipAddress,
+        userAgent,
+        details: message,
+      });
+    } catch (_auditErr) {
+      // ignore
+    }
 
     res.status(401).json({
       success: false,

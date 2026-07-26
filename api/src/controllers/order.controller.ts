@@ -8,6 +8,7 @@ import {
   deleteOrder,
   addOrderItem,
   splitBill,
+  getActiveOrdersByQrToken,
 } from "../services/order.service.js";
 import {
   CreateOrderBody,
@@ -100,3 +101,11 @@ export const splitBillHandler = asyncHandler(
     res.json({ success: true, message: "Split bill calculated", data });
   },
 );
+
+export const getActiveOrdersByQr = asyncHandler(
+  async (req: Request<{ qrToken: string }>, res: Response) => {
+    const data = await getActiveOrdersByQrToken(req.params.qrToken);
+    res.json({ success: true, message: "Active orders fetched", data });
+  },
+);
+

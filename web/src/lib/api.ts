@@ -19,6 +19,7 @@ import type {
   TopProductReport,
   User,
 } from "./types";
+import { saveToCache, getFromCache, addOfflineOrder } from "./db";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
 const API_ORIGIN = API_URL.replace(/\/api$/, "");
@@ -104,13 +105,49 @@ export const apiOrigin = API_ORIGIN;
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
 export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
-export const getMe = () => request<User>("/auth/me");
-export const getCategories = () => request<Category[]>("/categories");
+export const getMe = async () => {
+  try {
+    const data = await request<User>("/auth/me");
+    if (typeof window !== "undefined") saveToCache("me", data).catch(console.error);
+    return data;
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const cached = await getFromCache("me");
+      if (cached) return cached;
+    }
+    throw err;
+  }
+};
+export const getCategories = async () => {
+  try {
+    const data = await request<Category[]>("/categories");
+    if (typeof window !== "undefined") saveToCache("categories", data).catch(console.error);
+    return data;
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const cached = await getFromCache("categories");
+      if (cached) return cached;
+    }
+    throw err;
+  }
+};
 export const createCategory = (body: Partial<Category>) => request<Category>("/categories", { method: "POST", body });
 export const updateCategory = (id: number, body: Partial<Category>) => request<Category>(`/categories/${id}`, { method: "PUT", body });
 export const deleteCategory = (id: number) => request<void>(`/categories/${id}`, { method: "DELETE" });
 
-export const getProducts = () => request<Product[]>("/products");
+export const getProducts = async () => {
+  try {
+    const data = await request<Product[]>("/products");
+    if (typeof window !== "undefined") saveToCache("products", data).catch(console.error);
+    return data;
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const cached = await getFromCache("products");
+      if (cached) return cached;
+    }
+    throw err;
+  }
+};
 export const getProduct = (id: number) => request<Product>(`/products/${id}`);
 export const createProduct = (body: Partial<Product>) => request<Product>("/products", { method: "POST", body });
 export const updateProduct = (id: number, body: Partial<Product>) => request<Product>(`/products/${id}`, { method: "PUT", body });
@@ -163,7 +200,19 @@ export async function uploadRestaurantImage(file: File) {
   return (payload as ApiResponse<{ imageUrl: string }>).data as { imageUrl: string };
 }
 
-export const getTables = () => request<DiningTable[]>("/tables");
+export const getTables = async () => {
+  try {
+    const data = await request<DiningTable[]>("/tables");
+    if (typeof window !== "undefined") saveToCache("tables", data).catch(console.error);
+    return data;
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const cached = await getFromCache("tables");
+      if (cached) return cached;
+    }
+    throw err;
+  }
+};
 export const createTable = (body: { name: string; capacity: number; zone: TableZone; qrToken?: string }) => request<DiningTable>("/tables", { method: "POST", body });
 export const updateTable = (id: number, body: Partial<DiningTable>) => request<DiningTable>(`/tables/${id}`, { method: "PUT", body });
 export const deleteTable = (id: number) => request<void>(`/tables/${id}`, { method: "DELETE" });
@@ -171,7 +220,22 @@ export const getQrMenu = (tableToken: string) => request<QrMenu>(`/tables/${tabl
 
 export const getOrders = (status?: string) => request<Order[]>(status ? `/orders?status=${status}` : "/orders");
 export const getOrder = (id: number) => request<Order>(`/orders/${id}`);
-export const createOrder = (body: CreateOrderInput) => request<Order>("/orders", { method: "POST", body });
+export const createOrder = async (body: CreateOrderInput) => {
+  try {
+    return await request<Order>("/orders", { method: "POST", body });
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const order = await addOfflineOrder(body);
+      return {
+        id: Date.now(),
+        orderNumber: `OFF-${order.id.slice(-4).toUpperCase()}`,
+        status: "pending",
+        totalAmount: 0, 
+      } as any;
+    }
+    throw err;
+  }
+};
 export const updateOrderStatus = (id: number, status: Order["status"]) => request<Order>(`/orders/${id}/status`, { method: "PUT", body: { status } });
 export const addOrderItem = (id: number, body: CreateOrderInput["items"] extends Array<infer Item> ? Item : never) => request<Order>(`/orders/${id}/items`, { method: "POST", body });
 export const splitBill = (id: number, splits: { label: string; amount: number }[]) => request<{ orderId: number; totalAmount: number; splits: { label: string; amount: number }[] }>(`/orders/${id}/split-bill`, { method: "POST", body: { splits } });
@@ -194,7 +258,19 @@ export const getRoles = () => request<Role[]>("/users/roles");
 export const createUser = (body: { name: string; email: string; password: string; roleName: string; isActive: boolean }) => request<User>("/users", { method: "POST", body });
 export const updateUser = (id: number, body: { name?: string; email?: string; password?: string; roleName?: string; isActive?: boolean }) => request<User>(`/users/${id}`, { method: "PUT", body });
 export const deleteUser = (id: number) => request<void>(`/users/${id}`, { method: "DELETE" });
-export const getSettings = () => request<AppSettings>("/settings");
+export const getSettings = async () => {
+  try {
+    const data = await request<AppSettings>("/settings");
+    if (typeof window !== "undefined") saveToCache("settings", data).catch(console.error);
+    return data;
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const cached = await getFromCache("settings");
+      if (cached) return cached;
+    }
+    throw err;
+  }
+};
 export const updateSettings = (body: Partial<AppSettings>) => request<AppSettings>("/settings", { method: "PUT", body });
 export const getBackupFiles = () => request<BackupFile[]>("/backups");
 export const previewBackup = (body: unknown) => request<BackupSummary>("/backups/preview", { method: "POST", body });
