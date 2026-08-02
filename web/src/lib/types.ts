@@ -51,6 +51,7 @@ export type User = {
   name: string;
   email: string;
   role?: Role | string;
+  roleName?: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

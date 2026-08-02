@@ -32,7 +32,7 @@ async function main() {
   }
 
   await prisma.user.upsert({
-    where: { email: "admin@pos.local" },
+    where: { email: "cheychon258@gmail.com" },
     update: {
       name: "Admin",
       password: await bcrypt.hash("password123", 10),
@@ -42,7 +42,7 @@ async function main() {
     },
     create: {
       name: "Admin",
-      email: "admin@pos.local",
+      email: "cheychon258@gmail.com",
       password: await bcrypt.hash("password123", 10),
       roleId: roles.Admin.id,
       isActive: true,

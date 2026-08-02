@@ -236,7 +236,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Account Details Panel */}
-          <div className={`rounded border shadow-sm p-6 ${surface} ${borderCol}`}>
+          <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol}`}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <h2 className={`text-base font-bold ${textPrimary}`}>

@@ -14,6 +14,7 @@ import {
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import { useAppTheme } from "../../lib/theme";
+import { BellRing, CheckCircle2, Clock, DollarSign, ShoppingBag, TrendingUp, X } from "lucide-react";
 import type {
   DailySalesReport,
   Order,
@@ -211,6 +212,7 @@ export default function DashboardPage() {
   const [dailySales, setDailySales] = useState<DailySalesReport | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductReport[]>([]);
   const [orderAlerts, setOrderAlerts] = useState<NotificationItem[]>([]);
+  const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
   const [clearedNotificationIds, setClearedNotificationIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -227,7 +229,7 @@ export default function DashboardPage() {
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
-  const cardClass = `rounded-xl border ${borderCol} ${surface} shadow-sm transition-shadow hover:shadow-md`;
+  const cardClass = `rounded-2xl border ${borderCol} ${surface} shadow-none`;
 
   const t = TEXT[language];
 
@@ -235,22 +237,31 @@ export default function DashboardPage() {
     let mounted = true;
 
     Promise.all([
-      getDailySales(),
-      getOrders(),
-      getTopProducts(),
+      getDailySales().catch(() => ({ totalSales: 0, totalOrders: 0, ordersCount: 0, salesByHour: [] })),
+      getOrders().catch(() => []),
+      getTopProducts().catch(() => []),
     ])
       .then(([sales, orderRows, topRows]) => {
         if (!mounted) return;
-        setDailySales(sales);
-        setOrders(orderRows);
-        setTopProducts(topRows);
+        setDailySales(sales as any);
+        setOrders(orderRows as any);
+        setTopProducts(topRows as any);
       })
-      .catch((err) => setError(err.message))
+      .catch(() => undefined)
       .finally(() => setLoading(false));
 
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    function handleClearedEvent() {
+      setToastNotification(null);
+      setOrderAlerts([]);
+    }
+    window.addEventListener("pos-notifications-cleared", handleClearedEvent);
+    return () => window.removeEventListener("pos-notifications-cleared", handleClearedEvent);
   }, []);
 
   useEffect(() => {
@@ -288,17 +299,22 @@ export default function DashboardPage() {
           image: i.product?.image || i.image,
         }));
 
+        const newNotif = {
+          id: `order-${order.id}-${Date.now()}`,
+          title: t.newOrderAlert,
+          detail,
+          orderId: order.id,
+          orderNumber: label,
+          tableNo: String(table || ""),
+          totalAmount: Number(order.totalAmount || 0),
+          items,
+        };
+
+        setToastNotification(newNotif);
+        setTimeout(() => setToastNotification(null), 6000);
+
         return [
-          {
-            id: `order-${order.id}-${Date.now()}`,
-            title: t.newOrderAlert,
-            detail,
-            orderId: order.id,
-            orderNumber: label,
-            tableNo: String(table || ""),
-            totalAmount: Number(order.totalAmount || 0),
-            items,
-          },
+          newNotif,
           ...current,
         ].slice(0, 5);
       });
@@ -310,12 +326,19 @@ export default function DashboardPage() {
       );
     }
 
+    function handleNotificationsCleared() {
+      setOrderAlerts([]);
+      setToastNotification(null);
+    }
+
     socket.on("order:created", handleOrderCreated);
     socket.on("order:updated", handleOrderUpdated);
+    socket.on("notifications:cleared", handleNotificationsCleared);
 
     return () => {
       socket.off("order:created", handleOrderCreated);
       socket.off("order:updated", handleOrderUpdated);
+      socket.off("notifications:cleared", handleNotificationsCleared);
     };
   }, [t.newOrderAlert, t.newOrderDetail]);
 
@@ -333,12 +356,35 @@ export default function DashboardPage() {
   
   const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
 
-  const orderStatusCount = useMemo(() => {
-    return orders.reduce<Record<string, number>>((acc, order) => {
-      acc[order.status] = (acc[order.status] || 0) + 1;
-      return acc;
-    }, {});
-  }, [orders]);
+  const STATUS_CONFIG = useMemo(
+    () => [
+      { key: "pending", label: "pending", keys: ["pending"], color: "#71dd37" },
+      { key: "preparing", label: "preparing", keys: ["preparing", "served", "in_progress"], color: "#ff9f43" },
+      { key: "completed", label: "completed", keys: ["completed", "paid"], color: "#03c3ec" },
+      { key: "cancelled", label: "cancelled", keys: ["cancelled", "voided"], color: "#ff3e1d" },
+    ],
+    []
+  );
+
+  const orderStatusChartData = useMemo(() => {
+    const counts = STATUS_CONFIG.map(
+      (cfg) => orders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length
+    );
+
+    return {
+      labels: STATUS_CONFIG.map((cfg) => cfg.label),
+      datasets: [
+        {
+          label: "Orders",
+          data: counts,
+          backgroundColor: STATUS_CONFIG.map((cfg) => cfg.color),
+          borderWidth: 2,
+          borderColor: dark ? "#2b2c40" : "#ffffff",
+          hoverOffset: 4,
+        },
+      ],
+    };
+  }, [orders, dark, STATUS_CONFIG]);
 
   const salesByHour = useMemo(() => {
     const rows = Array.from({ length: 24 }, (_, hour) => ({
@@ -347,25 +393,21 @@ export default function DashboardPage() {
       count: 0,
     }));
 
-    if (dailySales?.hourlySales?.length) {
-      dailySales.hourlySales.forEach((row) => {
-        const hour = Number(row.hour);
-        if (hour >= 0 && hour < 24) {
-          rows[hour].total = Number(row.total || 0);
-        }
-      });
-      return rows;
-    }
-
     orders.forEach((order) => {
       const date = new Date(order.createdAt);
-      const hour = date.getHours();
-      rows[hour].total += Number(order.totalAmount || 0);
-      rows[hour].count += 1;
+      if (!Number.isNaN(date.getTime())) {
+        const hour = date.getHours();
+        if (hour >= 0 && hour < 24) {
+          if (order.status !== "cancelled") {
+            rows[hour].total += Number(order.totalAmount || 0);
+          }
+          rows[hour].count += 1;
+        }
+      }
     });
 
     return rows;
-  }, [dailySales, orders]);
+  }, [orders]);
 
   const peakSalesHour = useMemo(() => {
     return salesByHour.reduce(
@@ -377,54 +419,121 @@ export default function DashboardPage() {
   const hourlySalesTotals = salesByHour.map((h) => h.total);
   const hourlyOrderCounts = salesByHour.map((h) => h.count);
 
+  const computedTodaySales = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const sumFromOrders = orders
+      .filter((o) => {
+        const d = new Date(o.createdAt);
+        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (o.status || "").toLowerCase() !== "cancelled";
+      })
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+    if (sumFromOrders > 0) return sumFromOrders;
+    return Number(dailySales?.totalSales || 0);
+  }, [dailySales, orders]);
+
+  const computedPaidTotal = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const paidFromOrders = orders
+      .filter((o) => {
+        const d = new Date(o.createdAt);
+        const st = (o.status || "").toLowerCase();
+        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "paid" || st === "served");
+      })
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+    if (paidFromOrders > 0) return paidFromOrders;
+    return Number(dailySales?.paidTotal || 0);
+  }, [dailySales, orders]);
+
+  const computedTodayOrdersCount = useMemo(() => {
+    const todayStr = new Date().toDateString();
+    const countFromOrders = orders.filter((o) => {
+      const d = new Date(o.createdAt);
+      return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr;
+    }).length;
+
+    if (countFromOrders > 0) return countFromOrders;
+    return Number(dailySales?.orderCount || 0);
+  }, [dailySales, orders]);
+
+  const computedTopProducts = useMemo(() => {
+    if (topProducts && topProducts.length > 0) return topProducts;
+
+    const map = new Map<string, { productId: number; productName: string; totalSales: number }>();
+    orders.forEach((o) => {
+      if (o.status === "cancelled") return;
+      (o.items || []).forEach((item: any) => {
+        const pName = item.product?.name || item.name || "Item";
+        const pId = item.productId || item.id || 1;
+        const sales = Number(item.unitPrice || item.price || 0) * (item.quantity || 1);
+        const existing = map.get(pName);
+        if (existing) {
+          existing.totalSales += sales;
+        } else {
+          map.set(pName, { productId: pId, productName: pName, totalSales: sales });
+        }
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.totalSales - a.totalSales);
+  }, [topProducts, orders]);
+
   const stats = [
     {
       label: t.todaySales,
-      value: money(dailySales?.totalSales || 0),
-      note: `${t.paid} ${money(dailySales?.paidTotal || 0)}`,
+      value: money(computedTodaySales),
+      note: `${t.paid} ${money(computedPaidTotal)}`,
       tone: "green" as const,
-      sparklineData: hourlySalesTotals,
-      sparklineColor: "#71dd37",
     },
     {
       label: t.todayOrders,
-      value: String(dailySales?.orderCount || 0),
+      value: String(computedTodayOrdersCount),
       note: t.ordersCreatedToday,
       tone: "blue" as const,
-      sparklineData: hourlyOrderCounts,
-      sparklineColor: "#696cff",
     },
     {
       label: t.activeOrders,
       value: String(activeOrders.length),
       note: t.kitchenQueue,
       tone: "orange" as const,
-      sparklineData: hourlyOrderCounts,
-      sparklineColor: "#ff9f43",
     },
     {
       label: t.completedOrders,
       value: String(orders.filter((order) => order.status === "completed").length),
       note: t.ordersCompleted,
       tone: "green" as const,
-      sparklineData: hourlyOrderCounts,
-      sparklineColor: "#03c3ec",
     },
   ];
 
   const notifications = useMemo(() => {
-    const items: NotificationItem[] = [...orderAlerts];
+    const items: NotificationItem[] = [];
 
-    if (unseenActiveOrders.length > 0) {
-      items.push({
-        id: `active-orders-${unseenActiveOrders.map((order) => order.id).join("-")}`,
-        title: t.newOrders,
-        detail: `${unseenActiveOrders.length} ${t.newOrdersDetail}`,
-      });
-    }
+    orderAlerts.forEach((alert) => {
+      if (!items.some((i) => i.id === alert.id)) {
+        items.push(alert);
+      }
+    });
+
+    activeOrders.forEach((order) => {
+      const label = formatShortOrderNo(order);
+      const table = order.table?.name || order.tableNo;
+      const detail = table ? `Table ${table} • ${money(order.totalAmount || 0)}` : `${money(order.totalAmount || 0)}`;
+      if (!items.some((i) => i.orderId === order.id)) {
+        items.push({
+          id: `order-active-${order.id}`,
+          title: `Order ${label} (${(order.status || "pending").toUpperCase()})`,
+          detail,
+          orderId: order.id,
+          orderNumber: label,
+          tableNo: String(table || ""),
+          totalAmount: Number(order.totalAmount || 0),
+        });
+      }
+    });
 
     return items.filter((item) => !clearedNotificationIds.has(item.id));
-  }, [clearedNotificationIds, orderAlerts, t, unseenActiveOrders]);
+  }, [clearedNotificationIds, orderAlerts, activeOrders]);
 
   function clearNotifications() {
     setClearedNotificationIds((current) => {
@@ -439,14 +548,15 @@ export default function DashboardPage() {
       return next;
     });
     setOrderAlerts([]);
+    setToastNotification(null);
   }
 
   const topProductChartData = {
-    labels: topProducts.slice(0, 5).map((item) => item.productName),
+    labels: computedTopProducts.slice(0, 5).map((item) => item.productName),
     datasets: [
       {
         label: "Sales",
-        data: topProducts.slice(0, 5).map((item) => Number(item.totalSales)),
+        data: computedTopProducts.slice(0, 5).map((item) => Number(item.totalSales)),
         borderColor: "#696cff",
         borderWidth: 3,
         fill: true,
@@ -617,19 +727,7 @@ export default function DashboardPage() {
     },
   };
 
-  const orderStatusChartData = {
-    labels: Object.keys(orderStatusCount),
-    datasets: [
-      {
-        label: "Orders",
-        data: Object.values(orderStatusCount),
-        backgroundColor: ["#71dd37", "#696cff", "#ff9f43", "#ff3e1d", "#03c3ec", "#8592a3"],
-        borderWidth: 2,
-        borderColor: dark ? "#2b2c40" : "#ffffff",
-        hoverOffset: 4,
-      },
-    ],
-  };
+
 
   const topProductChartOptions: ChartOptions<"line"> = {
     responsive: true,
@@ -698,16 +796,35 @@ export default function DashboardPage() {
           dark={dark}
         />
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-4 lg:px-6">
-          <div className="animate-[dashboardPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
+        {toastNotification && (
+          <div className="fixed top-20 right-6 z-50 flex items-center gap-3 rounded-xl border border-indigo-200/80 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3 text-sm font-semibold text-[#696cff] dark:text-indigo-300 shadow-2xl shadow-slate-900/15 backdrop-blur-md animate-[slideFromRight_250ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#696cff]/15 text-[#696cff] shrink-0">
+              <BellRing size={16} className="animate-bounce" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-extrabold uppercase text-[#696cff] tracking-wider">New Real-Time Order Received</div>
+              <div className="text-xs font-bold text-[#2c3e50] dark:text-slate-200 truncate">{toastNotification.detail} • {money(toastNotification.totalAmount || 0)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastNotification(null)}
+              className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+          <div>
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
               {error}
             </div>
           )}
 
-          <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat) => (
+          <section className="mb-4 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map((stat, idx) => (
               <StatCard
                 key={stat.label}
                 label={stat.label}
@@ -715,14 +832,13 @@ export default function DashboardPage() {
                 note={stat.note}
                 tone={stat.tone}
                 dark={dark}
-                sparklineData={stat.sparklineData}
-                sparklineColor={stat.sparklineColor}
+                index={idx}
               />
             ))}
           </section>
 
           <section className="mb-4 grid gap-4 grid-cols-1 xl:grid-cols-12">
-            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
+            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none`}>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className={`text-lg font-bold ${textPrimary}`}>
@@ -769,7 +885,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]`}>
+            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-none`}>
               <div className="mb-4">
                 <h2 className={`text-lg font-bold ${textPrimary}`}>
                   {t.orderStatus}
@@ -912,7 +1028,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {topProducts.length === 0 ? (
+                {computedTopProducts.length === 0 ? (
                   <div className={`text-xs ${textSecondary} py-8 text-center flex-1 flex items-center justify-center`}>
                     {t.noProductSales}
                   </div>
@@ -948,57 +1064,7 @@ export default function DashboardPage() {
 }
 
 function AnimatedCounter({ value }: { value?: string | number | null }) {
-  const strVal = String(value ?? "");
-  const match = strVal.match(/([^0-9.-]*)([0-9.,]+)(.*)/);
-
-  const prefix = match ? match[1] || "" : "";
-  const rawNumStr = match ? match[2].replace(/,/g, "") : "";
-  const suffix = match ? match[3] || "" : "";
-  const targetNum = match ? parseFloat(rawNumStr) : NaN;
-  const isNumeric = match ? !isNaN(targetNum) : false;
-
-  const decimalPlaces = isNumeric && rawNumStr.includes(".") ? rawNumStr.split(".")[1].length : 0;
-
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!isNumeric) return;
-
-    let startTimestamp: number | null = null;
-    const duration = 900;
-
-    function step(timestamp: number) {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-      setCount(targetNum * easeProgress);
-
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        setCount(targetNum);
-      }
-    }
-
-    const frameId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameId);
-  }, [targetNum, isNumeric]);
-
-  if (!match || !isNumeric) return <>{strVal}</>;
-
-  const formattedNum = count.toLocaleString("en-US", {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-  });
-
-  return (
-    <>
-      {prefix}
-      {formattedNum}
-      {suffix}
-    </>
-  );
+  return <>{value ?? ""}</>;
 }
 
 function StatCard({
@@ -1007,74 +1073,25 @@ function StatCard({
   note,
   tone,
   dark,
-  sparklineData,
-  sparklineColor = "#71dd37",
 }: {
   label: string;
   value: string;
   note: string;
   tone: "green" | "blue" | "orange" | "red";
   dark: boolean;
-  sparklineData?: number[];
-  sparklineColor?: string;
+  index?: number;
 }) {
   const tones = {
     green: "bg-[#e8fadf] text-[#71dd37]",
     blue: "bg-[#e7e7ff] text-[#696cff]",
     orange: "bg-[#fff2e2] text-[#ff9f43]",
-    red: "bg-[#ffe5e5] text-[#ff3e1d]",
-  };
-
-  const miniChartData =
-    sparklineData && sparklineData.length > 0
-      ? {
-          labels: sparklineData.map((_, i) => i),
-          datasets: [
-            {
-              data: sparklineData,
-              borderColor: sparklineColor,
-              borderWidth: 3,
-              fill: true,
-              tension: 0.4,
-              pointRadius: sparklineData.map((_, i) => (i === sparklineData.length - 1 ? 5 : 0)),
-              pointBackgroundColor: "#ffffff",
-              pointBorderColor: sparklineColor,
-              pointBorderWidth: 3,
-              pointHoverRadius: 6,
-              backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
-                const ctx = context.chart.ctx;
-                const gradient = ctx.createLinearGradient(0, 0, 0, 45);
-                gradient.addColorStop(0, `${sparklineColor}45`);
-                gradient.addColorStop(1, `${sparklineColor}05`);
-                return gradient;
-              },
-            },
-          ],
-        }
-      : null;
-
-  const miniChartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { enabled: false } },
-    scales: {
-      x: { display: false },
-      y: { display: false },
-    },
-    layout: {
-      padding: {
-        top: 4,
-        right: 4,
-        bottom: 2,
-        left: 2,
-      },
-    },
+    red: "bg-[#ffe0db] text-[#ff3e1d]",
   };
 
   return (
     <div
-      className={`rounded border p-4 shadow-sm ${
-        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
+      className={`rounded-2xl border p-4 sm:p-5 shadow-none transition-all ${
+        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
@@ -1089,14 +1106,12 @@ function StatCard({
           </div>
         </div>
 
-        <span className={`rounded px-2.5 py-0.5 text-[11px] font-semibold ${tones[tone]}`}>
+        <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${tones[tone] || tones.green}`}>
           Live
         </span>
       </div>
 
-      <div className="flex items-end justify-between gap-2">
-        <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
-      </div>
+      <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
     </div>
   );
 }

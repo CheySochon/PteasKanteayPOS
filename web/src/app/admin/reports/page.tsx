@@ -436,7 +436,7 @@ export default function ReportsPage() {
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
-  const cardClass = `rounded border ${borderCol} ${surface} shadow-sm`;
+  const cardClass = `rounded-2xl border ${borderCol} ${surface} shadow-none`;
   const inputClass = `rounded border ${borderCol} ${softSurface} ${textPrimary} focus-within:border-[#696cff] transition-all`;
 
   const selectedDate =
@@ -655,8 +655,8 @@ export default function ReportsPage() {
       />
       
       {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
-      <div className={`px-4 pt-4 lg:px-6 flex border-b shrink-0 print:hidden ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
-        <div className="mx-auto w-full max-w-[1400px] flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className={`px-4 pt-4 lg:px-8 flex border-b shrink-0 print:hidden ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+        <div className="mx-auto w-full max-w-[1600px] flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Left Side: Live Badge & Last Updated */}
           <div className="flex items-center gap-2.5">
             <span className="rounded bg-[#e8fadf] px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
@@ -851,8 +851,8 @@ export default function ReportsPage() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-        <div className="mx-auto w-full max-w-[1400px]" id="report-printable-area">
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1600px]" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
               {error}
@@ -1039,7 +1039,7 @@ export default function ReportsPage() {
 
 
 
-          <section className={`overflow-hidden rounded border shadow-sm ${surface} ${borderCol}`}>
+          <section className={`overflow-hidden rounded-2xl border shadow-none ${surface} ${borderCol}`}>
             <div className="flex h-14 items-center justify-between border-b border-[#f0f2f5] px-4">
               <div>
                 <h2 className={`text-base font-bold ${textPrimary}`}>{t.itemPerformance}</h2>
@@ -1148,57 +1148,7 @@ export default function ReportsPage() {
 }
 
 function AnimatedCounter({ value }: { value?: string | number | null }) {
-  const strVal = String(value ?? "");
-  const match = strVal.match(/([^0-9.-]*)([0-9.,]+)(.*)/);
-
-  const prefix = match ? match[1] || "" : "";
-  const rawNumStr = match ? match[2].replace(/,/g, "") : "";
-  const suffix = match ? match[3] || "" : "";
-  const targetNum = match ? parseFloat(rawNumStr) : NaN;
-  const isNumeric = match ? !isNaN(targetNum) : false;
-
-  const decimalPlaces = isNumeric && rawNumStr.includes(".") ? rawNumStr.split(".")[1].length : 0;
-
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!isNumeric) return;
-
-    let startTimestamp: number | null = null;
-    const duration = 900;
-
-    function step(timestamp: number) {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-      setCount(targetNum * easeProgress);
-
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        setCount(targetNum);
-      }
-    }
-
-    const frameId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frameId);
-  }, [targetNum, isNumeric]);
-
-  if (!match || !isNumeric) return <>{strVal}</>;
-
-  const formattedNum = count.toLocaleString("en-US", {
-    minimumFractionDigits: decimalPlaces,
-    maximumFractionDigits: decimalPlaces,
-  });
-
-  return (
-    <>
-      {prefix}
-      {formattedNum}
-      {suffix}
-    </>
-  );
+  return <>{value ?? ""}</>;
 }
 
 function MetricCard({
@@ -1227,8 +1177,8 @@ function MetricCard({
 
   return (
     <div
-      className={`rounded border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-[#e5e7eb] bg-white"
+      className={`rounded-2xl border p-5 shadow-none transition-all duration-200 ${
+        dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">

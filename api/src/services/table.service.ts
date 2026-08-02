@@ -88,18 +88,21 @@ export const getQrMenu = async (qrToken: string) => {
       },
       orderBy: { name: "asc" },
     }),
-    prisma.systemSetting.findFirst({
+    prisma.appSetting.findFirst({
+      where: { key: "general" },
       orderBy: { updatedAt: "desc" },
     }),
   ]);
+
+  const settingValue = setting?.value as any;
 
   return {
     table,
     categories,
     products,
     restaurant: {
-      name: setting?.restaurantName || "ភោជនីយដ្ឋាន ផ្ទះកន្ធាយ ផ្លូវ៦០",
-      logoUrl: setting?.restaurantImageUrl || "",
+      name: settingValue?.restaurantName || "ផ្ទះកន្ត្រក ផ្លូវ១០",
+      logoUrl: settingValue?.restaurantImageUrl || "",
     },
   };
 };

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown,
   ChevronUp,
@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Armchair,
   UsersRound,
+  Settings,
   Settings2,
   ShieldCheck,
   LogOut,
@@ -23,6 +24,10 @@ import {
   Tags,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  Printer,
+  SendHorizontal,
+  ShieldAlert,
 } from "lucide-react";
 import { apiOrigin, getSettings, logoutApi } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -56,6 +61,14 @@ const NAV_MANAGEMENT = [
 const MENU_CHILDREN = [
   { key: "list", label: "Menu List", href: "/admin/menu", icon: ListFilter },
   { key: "categories", label: "Categories", href: "/admin/menu?view=categories", icon: Tags },
+];
+
+const SETTINGS_CHILDREN = [
+  { key: "general", label: "General Info", href: "/admin/settings?tab=general", icon: Building2 },
+  { key: "billing", label: "Billing & Receipt", href: "/admin/settings?tab=billing", icon: ReceiptText },
+  { key: "printers", label: "Hardware & Printers", href: "/admin/settings?tab=printers", icon: Printer },
+  { key: "integrations", label: "Integrations", href: "/admin/settings?tab=integrations", icon: SendHorizontal },
+  { key: "security", label: "System & Backups", href: "/admin/settings?tab=security", icon: ShieldAlert },
 ];
 
 const NAV_SYSTEM = [
@@ -161,6 +174,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const prevPathnameRef = useRef(pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getSavedSidebarCollapsed(collapsed));
   const [contentMounted, setContentMounted] = useState(() => !getSavedSidebarCollapsed(collapsed));
@@ -168,6 +182,9 @@ export default function Sidebar({
   const [menuView, setMenuView] = useState("list");
   const [menuOpen, setMenuOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/menu"),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(
+    () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/settings"),
   );
   const restaurantName = useSyncExternalStore(
     subscribeToSettingsChanges,
@@ -208,27 +225,35 @@ export default function Sidebar({
   );
 
   const dark = theme === "dark";
-  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-[#F8FAF9] border-r border-[#E2E9E4]";
-  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
+  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-slate-200/80";
+  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#696cff]/10 hover:text-[#696cff]";
   const navActive = dark 
     ? "bg-[#0F522B] text-white font-extrabold shadow-md shadow-[#0F522B]/40 ring-1 ring-emerald-400/30" 
     : "bg-[#0F522B] text-white font-extrabold shadow-sm border-l-4 border-[#09391D]";
-  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#E2E9E4]";
-  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#E2E9E4]";
-  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#0F522B]/60 font-bold";
-  const brandNameClass = dark ? "text-white font-black" : "text-[#0F522B] font-black";
-  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#0F522B]/70 font-semibold";
-  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#334155] hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
+  const headerBorder = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-slate-200/80";
+  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#8592a3] font-bold";
+  const brandNameClass = dark ? "text-white font-black" : "text-[#2c3e50] font-black";
+  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#8592a3] font-semibold";
+  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]";
   const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#E2E9E4]";
   const t = TEXT[language];
   const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
+  const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
   const activeMenuChild = menuView === "categories" ? "categories" : "list";
 
   const widthClass = sidebarCollapsed ? "w-16 min-w-[64px]" : "w-[220px] min-w-[220px]";
   const contentMotionClass = "";
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  useEffect(() => {
+    const handleConfirmLogout = () => setShowLogoutModal(true);
+    window.addEventListener("pos-confirm-logout", handleConfirmLogout);
+    return () => window.removeEventListener("pos-confirm-logout", handleConfirmLogout);
+  }, []);
 
   function setSidebarState(next: boolean) {
     sidebarCollapsedRef.current = next;
@@ -325,7 +350,7 @@ export default function Sidebar({
     };
   }, [currentUser.id]);
 
-  function logout() {
+  function performLogout() {
     void logoutApi().catch(() => null);
     localStorage.removeItem("pos_logged_in");
     localStorage.removeItem("pos_token");
@@ -533,61 +558,165 @@ export default function Sidebar({
           </div>
         )}
 
-        {allowedSystem.map((item) => (
-          <SideNavItem
-            key={item.label}
-            {...item}
-            label={t.nav[item.label as keyof typeof t.nav] || item.label}
-            active={isNavItemActive(item.label, item.href)}
-            collapsed={!contentMounted}
-            navActive={navActive}
-            navHover={navHover}
-            dark={dark}
-            isKhmer={language === "km"}
-            contentClass={contentMotionClass}
-            onClick={() => setActiveNav(item.label)}
-            icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
-          />
-        ))}
+        {allowedSystem.map((item) => {
+          const isSettings = item.label === "Settings";
+          const active = isNavItemActive(item.label, item.href) || (isSettings && activeNav === "Settings");
+
+          return (
+            <div key={item.label}>
+              <SideNavItem
+                {...item}
+                label={t.nav[item.label as keyof typeof t.nav] || item.label}
+                active={active}
+                collapsed={!contentMounted}
+                navActive={navActive}
+                navHover={navHover}
+                dark={dark}
+                isKhmer={language === "km"}
+                contentClass={contentMotionClass}
+                onClick={() => {
+                  setActiveNav(item.label);
+                  if (isSettings) {
+                    setSettingsOpen((open) => !open);
+                  }
+                }}
+                icon={<item.icon active={active} />}
+                trailing={
+                  isSettings && contentMounted ? (
+                    settingsExpanded ? (
+                      <ChevronUp size={13} strokeWidth={2.2} />
+                    ) : (
+                      <ChevronDown size={13} strokeWidth={2.2} />
+                    )
+                  ) : undefined
+                }
+              />
+
+              {isSettings && (
+                <div
+                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
+                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
+                  }`}
+                  style={{
+                    maxHeight: settingsExpanded ? "260px" : "0px",
+                    opacity: settingsExpanded ? 1 : 0,
+                    marginTop: settingsExpanded ? "4px" : "0px",
+                    marginBottom: settingsExpanded ? "8px" : "0px",
+                  }}
+                >
+                  <div className="space-y-1 py-1">
+                    {SETTINGS_CHILDREN.map((child) => {
+                      const currentTab = searchParams.get("tab") || "general";
+                      const isChildActive = pathname === "/admin/settings" && currentTab === child.key;
+                      return (
+                        <MenuSubNavItem
+                          key={child.key}
+                          href={child.href}
+                          label={child.label}
+                          active={isChildActive}
+                          dark={dark}
+                          isKhmer={language === "km"}
+                          icon={<child.icon size={14} strokeWidth={1.9} />}
+                          onClick={() => {
+                            setActiveNav("Settings");
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer Section */}
-      <div className={`mt-auto border-t ${footerBorderClass} ${sidebarCollapsed ? "p-[12px_8px]" : "p-[14px_14px_14px]"}`}>
-        {contentMounted && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
-            <SidebarProfileCard user={currentUser} dark={dark} isKhmer={language === "km"} />
-          </div>
-        )}
-
-        {hasToken ? (
+      <div className={`mt-auto border-t ${footerBorderClass} ${sidebarCollapsed ? "p-2 flex justify-center" : "p-3"}`}>
+        {sidebarCollapsed ? (
           <button
-            onClick={logout}
-            className={`w-full flex items-center justify-center gap-[10px] rounded-lg p-2.5 text-center transition-all duration-150 ${
-              dark 
-                ? "bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20" 
-                : "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200/80"
-            } font-bold shadow-sm ${language === "km" ? "text-[14px]" : "text-[13px]"}`}
+            type="button"
+            onClick={() => setShowLogoutModal(true)}
+            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+              dark
+                ? "text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                : "text-slate-500 hover:text-red-600 hover:bg-red-500/10"
+            }`}
+            title={t.logout}
           >
-            <LogOut size={16} strokeWidth={2.2} />
-            {contentMounted && !sidebarCollapsed && <span className={`transition-all duration-[260ms] ease-out ${contentMotionClass}`}>{t.logout}</span>}
+            <LogOut size={18} strokeWidth={2} />
           </button>
         ) : (
-          <SideNavItem
-            label={t.login}
-            href="/login"
-            active={activeNav === "Login"}
-            collapsed={!contentMounted}
-            navActive={navActive}
-            navHover={navHover}
-            dark={dark}
-            isKhmer={language === "km"}
-            contentClass={contentMotionClass}
-            onClick={() => setActiveNav("Login")}
-            icon={<LogoutIcon active={activeNav === "Login"} />}
-          />
+          contentMounted && (
+            <SidebarProfileCard
+              user={currentUser}
+              dark={dark}
+              isKhmer={language === "km"}
+              onLogoutClick={() => setShowLogoutModal(true)}
+            />
+          )
         )}
       </div>
     </aside>
+
+    {/* CONFIRM LOGOUT MODAL - SUBTLE & SMOOTH LOW ANIMATION */}
+    {showLogoutModal && (
+      <div
+        onClick={() => setShowLogoutModal(false)}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[0.5px] p-4 transition-opacity duration-150 ease-out cursor-pointer"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`w-full max-w-[370px] overflow-hidden rounded-2xl border p-5 shadow-lg cursor-default transition-all duration-150 ease-out ${
+            dark
+              ? "bg-[#181920] border-slate-800 text-slate-100"
+              : "bg-white border-slate-200/90 text-slate-800"
+          }`}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+              <LogOut size={19} strokeWidth={2} />
+            </div>
+            <div className="space-y-1 min-w-0 pt-0.5">
+              <h3 className={`text-base font-bold text-slate-900 dark:text-white ${language === "km" ? "font-khmer text-sm" : ""}`}>
+                {language === "km" ? "បញ្ជាក់ការចាកចេញ" : "Confirm Logout"}
+              </h3>
+              <p className={`text-xs text-slate-500 dark:text-slate-400 font-normal leading-normal ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+                {language === "km"
+                  ? "តើអ្នកពិតជាចង់ចាកចេញពីប្រព័ន្ធមែនទេ?"
+                  : "Are you sure you want to logout from the system?"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(false)}
+              className={`h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors duration-150 ${
+                language === "km" ? "font-khmer" : ""
+              }`}
+            >
+              {language === "km" ? "បោះបង់" : "Cancel"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowLogoutModal(false);
+                performLogout();
+              }}
+              className={`h-9 flex items-center gap-1.5 rounded-xl bg-[#0F522B] hover:bg-[#09391D] px-4 text-xs font-semibold text-white transition-colors duration-150 ${
+                language === "km" ? "font-khmer" : ""
+              }`}
+            >
+              <LogOut size={14} strokeWidth={2} />
+              <span>{language === "km" ? "ចាកចេញ" : "Logout"}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
     </>
   );
@@ -598,8 +727,6 @@ function SideNavItem({
   href,
   active,
   collapsed,
-  navActive,
-  navHover,
   onClick,
   icon,
   trailing,
@@ -607,32 +734,36 @@ function SideNavItem({
   dark = false,
   isKhmer = false,
 }: SideNavItemProps) {
-  const [hover, setHover] = useState(false);
-
   return (
     <Link
       href={href}
       onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className={`w-full flex items-center gap-3 rounded border-none cursor-pointer mb-[2px] transition-all duration-150 relative text-left 
-        ${collapsed ? "justify-center p-[10px]" : "justify-start p-[9px_12px]"}
-        ${active ? navActive : hover ? navHover : "bg-transparent"}
+      className={`group w-full flex items-center gap-3 rounded-xl border-none cursor-pointer mb-1 transition-all duration-150 relative text-left 
+        ${collapsed ? "justify-center p-[10px]" : "justify-start px-3 py-2.5"}
+        ${
+          active
+            ? dark
+              ? "bg-[#696cff] text-white font-extrabold shadow-md shadow-[#696cff]/40"
+              : "bg-[#696cff] text-white font-extrabold shadow-md shadow-[#696cff]/30"
+            : dark
+              ? "text-slate-300 hover:bg-[#696cff]/20 hover:text-[#696cff]"
+              : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]"
+        }
         ${isKhmer ? "font-bold text-[14.5px] leading-relaxed" : active ? "font-semibold text-[14px]" : "font-medium text-[14px]"}
       `}
     >
-      <span className={`shrink-0 ${active ? "text-white" : dark ? "text-emerald-300/80 group-hover:text-white" : "text-[#0F522B]/75 group-hover:text-[#0F522B]"}`}>
+      <span className={`shrink-0 transition-colors ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#566a7f] group-hover:text-[#696cff]"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white font-bold" : dark ? "text-slate-200 font-medium" : "text-[#334155] font-semibold"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}>
+        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white font-bold" : dark ? "text-slate-200 group-hover:text-[#696cff] font-medium" : "text-[#566a7f] group-hover:text-[#696cff] font-semibold"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}>
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white" : dark ? "text-emerald-400/70" : "text-[#0F522B]/60"}`}>{trailing}</span>
+        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#8592a3] group-hover:text-[#696cff]"}`}>{trailing}</span>
       )}
     </Link>
   );
@@ -654,21 +785,21 @@ function MenuSubNavItem({
   onClick: () => void;
   dark?: boolean;
   isKhmer?: boolean;
- }) {
+}) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className={`flex h-9 items-center gap-2 rounded px-3 transition ${
+      className={`group flex h-9 items-center gap-2 rounded px-3 transition ${
         active
-          ? "bg-[#0F522B] border-l-2 border-[#09391D] font-bold text-white shadow-sm"
+          ? "bg-[#696cff] font-bold text-white shadow-sm shadow-[#696cff]/30"
           : dark 
-            ? "text-slate-300 hover:bg-white/[0.07] hover:text-white"
-            : "text-[#334155] hover:bg-[#0F522B]/10 hover:text-[#0F522B]"
+            ? "text-slate-300 hover:bg-[#696cff]/20 hover:text-[#696cff]"
+            : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]"
       } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={active ? "text-white" : dark ? "text-emerald-400/60" : "text-[#0F522B]/60"}>{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className={active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#8592a3] group-hover:text-[#696cff]"}>{icon}</span>
+      <span className="truncate group-hover:text-[#696cff]">{label}</span>
     </Link>
   );
 }
@@ -677,68 +808,73 @@ function SidebarProfileCard({
   user,
   dark = false,
   isKhmer = false,
+  onLogoutClick,
 }: {
   user: { id?: number; name: string; email?: string; role: string; isActive?: boolean };
   dark?: boolean;
   isKhmer?: boolean;
+  onLogoutClick?: () => void;
 }) {
   const image = getProfileImage(user);
 
   return (
-    <Link
-      href="/admin/profile"
-      className={`block mb-3 rounded-xl border p-2.5 group transition-all duration-200 ${
+    <div
+      className={`block mb-1.5 rounded-xl border p-2.5 group transition-all duration-200 ${
         dark 
-          ? "border-[#4e4f6e] bg-[#232333]/60 hover:bg-[#232333] hover:border-[#696cff]/40"
-          : "border-[#E2E9E4] bg-white hover:border-[#0F522B]/40 hover:shadow-sm"
+          ? "border-slate-700/60 bg-[#232333]/60 hover:bg-[#232333]"
+          : "border-slate-200/80 bg-white hover:border-[#0F522B]/30 hover:shadow-sm"
       }`}
     >
-      <div className="grid grid-cols-[42px_minmax(0,1fr)_24px] items-center gap-2.5">
-        {image ? (
-          <img
-            src={image}
-            alt={user.name}
-            className={`h-[42px] w-[42px] rounded-lg object-cover ring-1 ${dark ? "ring-[#4e4f6e]" : "ring-[#0F522B]/20"}`}
-          />
-        ) : (
-          <div
-            className={`flex h-[42px] w-[42px] items-center justify-center rounded-lg ${dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"} text-sm font-black shadow-sm ring-1 ring-[#0F522B]/20`}
-          >
-            {initials(user.name)}
-          </div>
-        )}
-
-        <div className="min-w-0 flex-1">
-          <div className={`truncate leading-4 font-bold ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13.5px]" : "text-[13px]"}`}>
-            {user.name}
-          </div>
-          <div className="mt-1 flex items-center gap-1.5">
-            <span
-              className={`max-w-[76px] truncate rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"
-              }`}
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/admin/profile" className="flex items-center gap-2.5 min-w-0 flex-1">
+          {image ? (
+            <img
+              src={image}
+              alt={user.name}
+              className={`h-[38px] w-[38px] rounded-lg object-cover ring-1 ${dark ? "ring-[#4e4f6e]" : "ring-[#0F522B]/20"}`}
+            />
+          ) : (
+            <div
+              className={`flex h-[38px] w-[38px] items-center justify-center rounded-lg ${dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"} text-xs font-black shadow-sm ring-1 ring-[#0F522B]/20`}
             >
-              {user.role}
-            </span>
-            <span className={`flex min-w-0 items-center gap-1 text-[10px] font-semibold ${dark ? "text-[#71dd37]" : "text-[#0F522B]"}`}>
-              <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#71dd37]" />
-              </span>
-              Active
-            </span>
-          </div>
-        </div>
+              {initials(user.name)}
+            </div>
+          )}
 
-        <div
-          className={`inline-flex h-6 w-6 items-center justify-center self-start rounded-md transition-colors ${
-            dark ? "text-slate-400 group-hover:bg-[#4e4f6e]/40 group-hover:text-white" : "text-[#0F522B]/60 group-hover:bg-[#0F522B]/10 group-hover:text-[#0F522B]"
-          }`}
-          title="Profile options"
-        >
-          <MoreHorizontal size={15} />
-        </div>
+          <div className="min-w-0 flex-1">
+            <div className={`truncate leading-4 font-bold ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13px]" : "text-[12.5px]"}`}>
+              {user.name}
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span
+                className={`max-w-[70px] truncate rounded px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wider ${
+                  dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"
+                }`}
+              >
+                {user.role}
+              </span>
+              <span className={`flex min-w-0 items-center gap-1 text-[9.5px] font-semibold ${dark ? "text-[#71dd37]" : "text-[#0F522B]"}`}>
+                <span className="relative flex h-2 w-2 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/20">
+                  <span className="h-1 w-1 rounded-full bg-[#71dd37]" />
+                </span>
+                Active
+              </span>
+            </div>
+          </div>
+        </Link>
+
+        {onLogoutClick && (
+          <button
+            type="button"
+            onClick={onLogoutClick}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition-all outline-none"
+            title="Logout"
+          >
+            <LogOut size={15} strokeWidth={2} />
+          </button>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -902,7 +1038,7 @@ function PermissionsIcon({ active = false }: IconProps) {
 }
 
 function SettingsIcon({ active = false }: IconProps) {
-  return <Settings2 size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <Settings size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
 }
 
 function LogoutIcon({ active = false }: IconProps) {

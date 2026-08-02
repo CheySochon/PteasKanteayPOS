@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  CheckCircle2,
   Edit3,
   Loader2,
   Plus,
@@ -30,6 +31,7 @@ import {
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
+import { getSocket } from "../../../lib/socket";
 import {
   createUser,
   deleteUser,
@@ -53,6 +55,7 @@ type UserForm = {
   name: string;
   email: string;
   password: string;
+  pin: string;
   roleName: string;
   isActive: boolean;
 };
@@ -61,7 +64,8 @@ const EMPTY_FORM: UserForm = {
   name: "",
   email: "",
   password: "",
-  roleName: "Staff",
+  pin: "1234",
+  roleName: "Cashier",
   isActive: true,
 };
 
@@ -122,17 +126,33 @@ export default function UsersPage() {
         setUsers(userRows);
         setRoles(roleRows);
       })
-      .catch((err) => {
-        if (!mounted) return;
-        setError(
-          err instanceof Error
-            ? `${err.message}. Login as Admin to manage users.`
-            : "Unable to load users",
-        );
-      })
       .finally(() => {
         if (mounted) setLoading(false);
       });
+
+    const socket = getSocket();
+    if (socket) {
+      function handleUserCreated(user: User) {
+        setUsers((current) => [user, ...current.filter((u) => u.id !== user.id)]);
+      }
+      function handleUserUpdated(user: User) {
+        setUsers((current) => current.map((u) => (u.id === user.id ? { ...u, ...user } : u)));
+      }
+      function handleUserDeleted(data: { id: number }) {
+        setUsers((current) => current.filter((u) => u.id !== data.id));
+      }
+
+      socket.on("user:created", handleUserCreated);
+      socket.on("user:updated", handleUserUpdated);
+      socket.on("user:deleted", handleUserDeleted);
+
+      return () => {
+        mounted = false;
+        socket.off("user:created", handleUserCreated);
+        socket.off("user:updated", handleUserUpdated);
+        socket.off("user:deleted", handleUserDeleted);
+      };
+    }
 
     return () => {
       mounted = false;
@@ -153,8 +173,25 @@ export default function UsersPage() {
   );
 
   const roleOptions = useMemo(() => {
-    if (roles.some((role) => role.name === form.roleName)) return roles;
-    return [{ id: 0, name: form.roleName }, ...roles].filter((role) => role.name);
+    let customRoles: Array<{ id: number; name: string }> = [];
+    try {
+      customRoles = JSON.parse(localStorage.getItem("pos_custom_roles_list") || "[]");
+    } catch {
+      customRoles = [];
+    }
+
+    const combined = [...roles];
+    customRoles.forEach((cr) => {
+      if (cr.name && !combined.some((r) => r.name.toLowerCase() === cr.name.toLowerCase())) {
+        combined.push({ id: cr.id, name: cr.name });
+      }
+    });
+
+    if (form.roleName && !combined.some((role) => role.name === form.roleName)) {
+      combined.unshift({ id: 0, name: form.roleName });
+    }
+
+    return combined.filter((role) => role.name);
   }, [form.roleName, roles]);
 
   // Apply filters
@@ -193,32 +230,43 @@ export default function UsersPage() {
     setError("");
 
     try {
+      const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
+
       if (form.id) {
         const body = {
           name: form.name,
-          email: form.email,
+          email: userEmail,
           roleName: form.roleName,
           isActive: form.isActive,
+          pin: form.pin || "1234",
           ...(form.password ? { password: form.password } : {}),
         };
 
-        const updated = await updateUser(form.id, body);
+        const updated = await updateUser(form.id, body as any);
 
         setUsers((current) =>
           current.map((user) => (user.id === updated.id ? updated : user)),
         );
 
+        const socket = getSocket();
+        if (socket) socket.emit("user:updated", updated);
+
         setMessage("User updated successfully.");
       } else {
         const created = await createUser({
           name: form.name,
-          email: form.email,
-          password: form.password,
+          email: userEmail,
+          password: form.password || "password123",
           roleName: form.roleName,
           isActive: form.isActive,
-        });
+          pin: form.pin || "1234",
+        } as any);
 
         setUsers((current) => [created, ...current]);
+
+        const socket = getSocket();
+        if (socket) socket.emit("user:created", created);
+
         setMessage("User created successfully.");
       }
 
@@ -256,6 +304,10 @@ export default function UsersPage() {
       await deleteUser(user.id);
       setUsers((current) => current.filter((entry) => entry.id !== user.id));
       if (form.id === user.id) closeUserModal();
+
+      const socket = getSocket();
+      if (socket) socket.emit("user:deleted", { id: user.id });
+
       setMessage("User deleted successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete user");
@@ -272,6 +324,9 @@ export default function UsersPage() {
       setUsers((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry)),
       );
+
+      const socket = getSocket();
+      if (socket) socket.emit("user:updated", updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update user");
     }
@@ -283,7 +338,8 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       password: "",
-      roleName: roleName(user) || "Staff",
+      pin: (user as any).pin || (user.email.includes("cashier") ? "1234" : user.email.includes("staff") ? "5678" : "0000"),
+      roleName: roleName(user) || "Cashier",
       isActive: user.isActive,
     });
 
@@ -309,6 +365,8 @@ export default function UsersPage() {
 
   return (
     <>
+
+
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
         <TopBar
           title={language === "km" ? "បុគ្គលិក និងសិទ្ធិ" : "Staff & Roles"}
@@ -320,40 +378,47 @@ export default function UsersPage() {
         />
 
         {/* Shared Tabs for Staff & Roles */}
-        <div className={`px-4 pt-4 lg:px-6 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
-          <div className="mx-auto w-full max-w-[1400px] flex gap-6">
-            <Link 
-              href="/admin/users" 
-              className={`pb-3 font-bold text-[14px] border-b-[3px] transition-colors border-[#0F522B] text-[#0F522B]`}
-            >
-              <span className="flex items-center gap-2"><UserRound size={16} /> {language === "km" ? "បញ្ជីបុគ្គលិក" : "User List"}</span>
-            </Link>
-            <Link 
-              href="/admin/permissions" 
-              className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"}`}
-            >
-              <span className="flex items-center gap-2"><ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}</span>
-            </Link>
+        <div className={`px-4 pt-4 lg:px-8 flex items-center justify-between border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
+          <div className="mx-auto w-full max-w-[1600px] flex items-center justify-between">
+            <div className="flex gap-6">
+              <Link 
+                href="/admin/users" 
+                className={`pb-3 font-bold text-[14px] border-b-[3px] transition-colors border-[#0F522B] text-[#0F522B]`}
+              >
+                <span className="flex items-center gap-2"><UserRound size={16} /> {language === "km" ? "បញ្ជីបុគ្គលិក" : "User List"}</span>
+              </Link>
+              <Link 
+                href="/admin/permissions" 
+                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"}`}
+              >
+                <span className="flex items-center gap-2"><ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}</span>
+              </Link>
+            </div>
+
+            {/* SUCCESS TOAST ALERT (Positioned inside Tab Bar on the right side with #696cff color) */}
+            {message && (
+              <div className="relative overflow-hidden flex items-center gap-2.5 px-4 py-1.5 mb-2 rounded-xl bg-[#696cff] text-white text-xs font-bold shadow-md shadow-[#696cff]/25 backdrop-blur-md border border-white/20 animate-[slideFromRight_350ms_cubic-bezier(0.16,1,0.3,1)]">
+                <CheckCircle2 size={15} className="text-white shrink-0" />
+                <span>{message}</span>
+                {/* 3s Countdown Progress Bar */}
+                <div className="absolute bottom-0 left-0 h-[2px] bg-white/70 animate-[toastProgress_3000ms_linear_forwards]" />
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="mx-auto w-full max-w-[1400px]">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1600px]">
 
-            {/* Error and Success Alerts */}
+            {/* Error Alert */}
             {error && (
               <div className="mb-6 rounded border border-red-150 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
                 {error}
               </div>
             )}
-            {message && (
-              <div className="mb-6 rounded border border-emerald-150 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                {message}
-              </div>
-            )}
 
             {/* Table & Table Controls Container */}
-            <section className={`rounded shadow-sm overflow-hidden ${surface} border ${borderCol}`}>
+            <section className={`rounded-2xl shadow-none overflow-hidden ${surface} border ${borderCol}`}>
               {/* Unified Controls & Filters Bar */}
               <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between border-b border-slate-100 dark:border-[#4e4f6e]/50">
                 {/* Left Side: Limit, Search & Dropdown Filters */}
@@ -391,8 +456,8 @@ export default function UsersPage() {
                     }`}
                   >
                     <option value="">All Roles</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.name}>
+                    {roles.map((role, idx) => (
+                      <option key={`filter-role-${role.name}-${idx}`} value={role.name}>
                         {role.name}
                       </option>
                     ))}
@@ -625,8 +690,8 @@ export default function UsersPage() {
                 </h2>
                 <p className={`mt-1 text-xs text-[#a1acb8]`}>
                   {form.id
-                    ? "Leave password empty to keep it unchanged."
-                    : "Password is required for new users."}
+                    ? "Update user account information."
+                    : "Enter details to create a new user account."}
                 </p>
               </div>
 
@@ -664,7 +729,7 @@ export default function UsersPage() {
                   Email
                 </label>
                 <input
-                  required
+                  required={["Admin", "Super Admin", "Manager"].includes(form.roleName)}
                   type="email"
                   value={form.email}
                   onChange={(event) =>
@@ -673,40 +738,69 @@ export default function UsersPage() {
                       email: event.target.value,
                     }))
                   }
+                  placeholder="user@pos.local"
                   className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
                     dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                   }`}
                 />
               </div>
 
+              {/* Show Password field ONLY for Admin / Manager roles */}
+              {["Admin", "Super Admin", "Manager"].includes(form.roleName) && (
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
+                    Admin Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      required={!form.id}
+                      type={showModalPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          password: event.target.value,
+                        }))
+                      }
+                      placeholder={form.id ? "•••••••• (Leave blank to keep current)" : "••••••••"}
+                      className={`w-full rounded border pl-3.5 pr-10 py-2 text-sm outline-none focus:border-[#696cff] ${
+                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowModalPassword((prev) => !prev)}
+                      className="absolute right-3 top-2.5 text-[#8592a3] hover:text-[#696cff] transition-colors p-0.5"
+                      title={showModalPassword ? "Hide Password" : "Show Password"}
+                    >
+                      {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                  Password
+                  POS 4-Digit PIN Code
                 </label>
                 <div className="relative">
                   <input
-                    required={!form.id}
-                    type={showModalPassword ? "text" : "password"}
-                    value={form.password}
-                    onChange={(event) =>
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={form.pin}
+                    onChange={(event) => {
+                      const clean = event.target.value.replace(/\D/g, "").slice(0, 4);
                       setForm((current) => ({
                         ...current,
-                        password: event.target.value,
-                      }))
-                    }
-                    placeholder={form.id ? "•••••••• (Leave blank to keep current)" : "••••••••"}
-                    className={`w-full rounded border pl-3.5 pr-10 py-2 text-sm outline-none focus:border-[#696cff] ${
+                        pin: clean,
+                      }));
+                    }}
+                    placeholder="1234"
+                    className={`w-full rounded border px-3.5 py-2 text-sm font-mono font-bold tracking-widest outline-none focus:border-[#696cff] ${
                       dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
                     }`}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowModalPassword((prev) => !prev)}
-                    className="absolute right-3 top-2.5 text-[#8592a3] hover:text-[#696cff] transition-colors p-0.5"
-                    title={showModalPassword ? "Hide Password" : "Show Password"}
-                  >
-                    {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
                 </div>
               </div>
 
@@ -729,8 +823,8 @@ export default function UsersPage() {
                   {(roleOptions.length
                     ? roleOptions
                     : [{ id: 0, name: "Staff" }]
-                  ).map((role) => (
-                    <option key={role.id || role.name} value={role.name}>
+                  ).map((role, idx) => (
+                    <option key={`form-role-${role.name}-${idx}`} value={role.name}>
                       {role.name}
                     </option>
                   ))}
@@ -851,6 +945,14 @@ export default function UsersPage() {
             transform: translateY(0);
           }
         }
+        @keyframes slideFromRight {
+          0% { transform: translateX(100%); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes toastProgress {
+          0% { width: 100%; }
+          100% { width: 0%; }
+        }
       `}</style>
     </>
   );
@@ -885,7 +987,7 @@ function SneatSummaryCard({
   textSecondary: string;
 }) {
   return (
-    <div className={`rounded p-5 shadow-sm border ${surface} ${borderCol} flex justify-between items-start`}>
+    <div className={`rounded-2xl p-5 shadow-none border ${surface} ${borderCol} flex justify-between items-start`}>
       <div className="space-y-1.5">
         <span className={`text-[13px] font-semibold ${textPrimary}`}>{label}</span>
         <div className="flex items-baseline gap-2">

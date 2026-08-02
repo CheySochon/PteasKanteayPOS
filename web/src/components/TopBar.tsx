@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Search,
@@ -22,7 +23,12 @@ import {
   Eye,
   X,
   ChefHat,
+  LayoutDashboard,
+  TrendingUp,
+  UsersRound,
 } from "lucide-react";
+import { getOrders, getProducts, getTables } from "../lib/api";
+import { getSocket } from "../lib/socket";
 import { setAppLanguage } from "../lib/language";
 import { useAppTheme } from "../lib/theme";
 import { canSeeHref, normalizeStaffPermissions } from "../lib/permissions";
@@ -155,9 +161,58 @@ export default function TopBar({
   const [appTheme, setAppTheme] = useAppTheme();
   const isDark = appTheme === "dark";
 
+  const router = useRouter();
+  const [internalQuery, setInternalQuery] = useState(searchQuery ?? "");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbOrders, setDbOrders] = useState<any[]>([]);
+  const [dbTables, setDbTables] = useState<any[]>([]);
+
+  // Fetch live search data on search open / focus
+  useEffect(() => {
+    if (!searchOpen) return;
+    let mounted = true;
+    Promise.all([
+      getProducts().catch(() => []),
+      getOrders().catch(() => []),
+      getTables().catch(() => []),
+    ]).then(([prods, ords, tbls]) => {
+      if (!mounted) return;
+      setDbProducts(prods || []);
+      setDbOrders(ords || []);
+      setDbTables(tbls || []);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [searchOpen]);
+
+  // Keyboard hotkey Cmd+K / Ctrl+K / Esc
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+        if (!searchOpen) searchInputRef.current?.focus();
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchOpen]);
+
+  // Handle outside click for search overlay
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
+
+      if (searchRef.current && !searchRef.current.contains(target)) {
+        setSearchOpen(false);
+      }
 
       if (languageRef.current && !languageRef.current.contains(target)) {
         setLanguageOpen(false);
@@ -172,7 +227,164 @@ export default function TopBar({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
-  const unreadCount = notifications.length;
+  const navRoutes = [
+    { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { label: "Orders Management", href: "/admin/orders", icon: ReceiptText },
+    { label: "Dining Tables Plan", href: "/admin/tables", icon: Grid2X2 },
+    { label: "Menu List & Categories", href: "/admin/menu", icon: ShoppingBag },
+    { label: "Analytics & Reports", href: "/admin/reports", icon: TrendingUp },
+    { label: "Staff & Permissions", href: "/admin/users", icon: UsersRound },
+    { label: "System Settings", href: "/admin/settings", icon: Settings },
+    { label: "POS Terminal", href: "/pos", icon: Utensils },
+    { label: "Kitchen Display (KDS)", href: "/kds", icon: ChefHat },
+  ];
+
+  const q = internalQuery.trim().toLowerCase();
+
+  const matchingRoutes = useMemo(() => {
+    if (!q) return [];
+    return navRoutes.filter((r) => r.label.toLowerCase().includes(q));
+  }, [q]);
+
+  const matchingOrders = useMemo(() => {
+    if (!q) return [];
+    return dbOrders
+      .filter((o) => {
+        const no = (o.orderNumber || o.orderId || `#${o.id}`).toLowerCase();
+        const status = (o.status || "").toLowerCase();
+        const table = (o.tableNo || o.table?.name || "").toLowerCase();
+        return no.includes(q) || status.includes(q) || table.includes(q);
+      })
+      .slice(0, 4);
+  }, [q, dbOrders]);
+
+  const matchingProducts = useMemo(() => {
+    if (!q) return [];
+    return dbProducts
+      .filter((p) => (p.name || "").toLowerCase().includes(q) || (p.category?.name || "").toLowerCase().includes(q))
+      .slice(0, 4);
+  }, [q, dbProducts]);
+
+  const matchingTables = useMemo(() => {
+    if (!q) return [];
+    return dbTables
+      .filter((t) => (t.name || "").toLowerCase().includes(q) || (t.zone || "").toLowerCase().includes(q))
+      .slice(0, 4);
+  }, [q, dbTables]);
+
+  const totalResults = matchingRoutes.length + matchingOrders.length + matchingProducts.length + matchingTables.length;
+
+  const [internalNotifications, setInternalNotifications] = useState<NotificationItem[]>([]);
+  const [clearedKeys, setClearedKeys] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem("pos_cleared_notification_keys");
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  useEffect(() => {
+    function handleClearedEvent() {
+      try {
+        const raw = localStorage.getItem("pos_cleared_notification_keys");
+        if (raw) setClearedKeys(new Set(JSON.parse(raw)));
+      } catch {}
+      setInternalNotifications([]);
+      setToastNotification(null);
+    }
+    window.addEventListener("pos-notifications-cleared", handleClearedEvent);
+    return () => window.removeEventListener("pos-notifications-cleared", handleClearedEvent);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchNotifications() {
+      try {
+        const orders = await getOrders();
+        if (!mounted || !Array.isArray(orders)) return;
+        const active = orders.filter((o) => !["completed", "cancelled"].includes(o.status));
+        const items: NotificationItem[] = active.map((o) => {
+          const label = o.orderNumber || o.orderId || `#${o.id}`;
+          const table = o.table?.name || o.tableNo;
+          const detail = table ? `Table ${table} • $${Number(o.totalAmount || 0).toFixed(2)}` : `$${Number(o.totalAmount || 0).toFixed(2)}`;
+          return {
+            id: `topbar-order-${o.id}`,
+            title: `Order ${label} (${(o.status || "pending").toUpperCase()})`,
+            detail,
+            orderId: o.id,
+            orderNumber: label,
+            tableNo: String(table || ""),
+            totalAmount: Number(o.totalAmount || 0),
+          };
+        });
+        setInternalNotifications(items);
+      } catch {}
+    }
+
+    fetchNotifications();
+
+    const socket = getSocket();
+    if (socket) {
+      function handleNewOrder(order: any) {
+        if (order && order.id) {
+          setClearedKeys((prev) => {
+            const next = new Set(prev);
+            next.delete(String(order.id));
+            try {
+              localStorage.setItem("pos_cleared_notification_keys", JSON.stringify([...next]));
+            } catch {}
+            return next;
+          });
+        }
+        const label = order.orderNumber || order.orderId || `#${order.id}`;
+        const table = order.table?.name || order.tableNo;
+        const detail = table ? `Table ${table} • $${Number(order.totalAmount || 0).toFixed(2)}` : `$${Number(order.totalAmount || 0).toFixed(2)}`;
+        const newNotif: NotificationItem = {
+          id: `topbar-order-${order.id}-${Date.now()}`,
+          title: `New Order ${label}`,
+          detail,
+          orderId: order.id,
+          orderNumber: label,
+          tableNo: String(table || ""),
+          totalAmount: Number(order.totalAmount || 0),
+        };
+        setInternalNotifications((prev) => [newNotif, ...prev.filter((i) => i.orderId !== order.id)]);
+      }
+
+      function handleNotificationsCleared() {
+        setInternalNotifications([]);
+        setToastNotification(null);
+      }
+
+      socket.on("order:created", handleNewOrder);
+      socket.on("order:updated", handleNewOrder);
+      socket.on("notifications:cleared", handleNotificationsCleared);
+
+      return () => {
+        mounted = false;
+        socket.off("order:created", handleNewOrder);
+        socket.off("order:updated", handleNewOrder);
+        socket.off("notifications:cleared", handleNotificationsCleared);
+      };
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const activeNotifications = useMemo(() => {
+    const rawList = notifications && notifications.length > 0 ? notifications : internalNotifications;
+    return rawList.filter((item) => {
+      const oId = item.orderId ? String(item.orderId) : "";
+      return !clearedKeys.has(item.id) && (!oId || !clearedKeys.has(oId));
+    });
+  }, [notifications, internalNotifications, clearedKeys]);
+
+  const unreadCount = activeNotifications.length;
 
   const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -207,6 +419,7 @@ export default function TopBar({
   return (
     <header className={`sticky top-0 z-20 border-b px-3 shadow-sm ${surface}`}>
       <div className="flex h-[52px] items-center justify-between gap-3">
+        {/* Left Section: Menu Toggle + Title */}
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -228,112 +441,285 @@ export default function TopBar({
               {subtitle}
             </div>
           </div>
-
-          <div className="hidden items-center gap-2 md:flex">
-            <div className="relative flex items-center">
-              <Search size={15} className="absolute left-3 text-[#a1acb8]" />
-              <input
-                type="text"
-                value={searchQuery ?? ""}
-                onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder={searchPlaceholder ?? "Search..."}
-                className={`h-8.5 w-60 rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-[#a1acb8] focus:border-[#0F522B] focus:ring-4 focus:ring-[#0F522B]/10 ${
-                  isDark
-                    ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
-                    : "border-slate-200/80 bg-[#f5f5f9] text-[#2c3e50]"
-                }`}
-              />
-            </div>
-          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          {/* Sleek Easy & Clean POS / KDS Quick Switcher */}
-          <div className="hidden items-center gap-1.5 sm:flex mr-1 border-r border-slate-200/80 dark:border-[#4e4f6e] pr-2.5">
-            <Link
-              href="/pos"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#696cff]/10 px-2.5 text-xs font-black text-[#696cff] hover:bg-[#696cff] hover:text-white active:scale-95 transition-all shadow-sm"
-              title="Open POS Terminal"
-            >
-              <Utensils size={14} />
-              <span className="hidden md:inline font-bold">POS</span>
-            </Link>
-
-            <Link
-              href="/kds"
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 text-xs font-black text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white active:scale-95 transition-all shadow-sm"
-              title="Open Kitchen Display (KDS)"
-            >
-              <ChefHat size={14} />
-              <span className="hidden md:inline font-bold">KDS</span>
-            </Link>
-          </div>
-
-          <div ref={languageRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setLanguageOpen((value) => !value)}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
-              title="Language"
-            >
-              <Languages size={16} />
-            </button>
-
-            {languageOpen && (
-              <div className={`absolute right-0 z-40 mt-2 w-40 overflow-hidden rounded-sm border shadow-lg ${dropdownSurface}`}>
+        {/* Right Section: Global Search + Quick Launch + Utilities */}
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Global Search Bar (Right Grouped with Dynamic Live Search Overlay) */}
+          <div ref={searchRef} className="relative hidden items-center md:flex border-r border-slate-200/80 dark:border-slate-700/80 pr-2.5">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-3 text-slate-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={internalQuery}
+                onFocus={() => setSearchOpen(true)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setInternalQuery(val);
+                  onSearchChange?.(val);
+                  setSearchOpen(true);
+                }}
+                placeholder={searchPlaceholder ?? "Search orders, products, tables..."}
+                className={`h-8.5 w-52 sm:w-64 rounded-xl border pl-9 pr-10 text-xs font-medium outline-none transition placeholder:text-slate-400 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10 ${
+                  isDark
+                    ? "border-slate-700/80 bg-[#232333] text-slate-100"
+                    : "border-slate-200 bg-slate-50 text-slate-800"
+                }`}
+              />
+              {internalQuery ? (
                 <button
                   type="button"
                   onClick={() => {
-                    setAppLanguage("en");
-                    onLanguageChange("en");
-                    setLanguageOpen(false);
+                    setInternalQuery("");
+                    onSearchChange?.("");
                   }}
-                  className={`block w-full px-4 py-2.5 text-left text-sm ${
-                    language === "en" ? "bg-[#4b5578] text-white" : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
-                  {t.english}
+                  <X size={13} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppLanguage("km");
-                    onLanguageChange("km");
-                    setLanguageOpen(false);
-                  }}
-                  className={`block w-full px-4 py-2.5 text-left text-sm font-khmer ${
-                    language === "km" ? "bg-[#4b5578] text-white" : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {t.khmer}
-                </button>
+              ) : (
+                <span className="absolute right-2.5 hidden sm:inline-block rounded border border-slate-200/80 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-400">
+                  ⌘K
+                </span>
+              )}
+            </div>
+
+            {/* DYNAMIC LIVE SEARCH OVERLAY DROPDOWN (ONLY WHEN TYPING) */}
+            {searchOpen && q.length > 0 && (
+              <div
+                className={`absolute right-2.5 top-11 z-50 w-80 sm:w-96 overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-md animate-[usersPageIn_180ms_ease-out] ${
+                  isDark ? "border-slate-700/90 bg-[#1a1c27]/95 text-slate-100" : "border-slate-200 bg-white/95 text-slate-800"
+                }`}
+              >
+                <div className="max-h-96 overflow-y-auto space-y-3 p-1">
+                  {/* Category 1: Navigation Routes */}
+                  {matchingRoutes.length > 0 && (
+                    <div>
+                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {language === "km" ? "ទំព័រប្រព័ន្ធ" : "Pages & Navigation"}
+                      </div>
+                      <div className="space-y-0.5">
+                        {matchingRoutes.map((route) => {
+                          const Icon = route.icon;
+                          return (
+                            <Link
+                              key={route.href}
+                              href={route.href}
+                              onClick={() => setSearchOpen(false)}
+                              className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
+                                isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0F522B]/10 text-[#0F522B] dark:text-emerald-400 shrink-0">
+                                <Icon size={14} />
+                              </div>
+                              <span className="flex-1 truncate">{route.label}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">Go →</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category 2: Matching Orders */}
+                  {matchingOrders.length > 0 && (
+                    <div>
+                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {language === "km" ? "ការបញ្ជាទិញ" : "Orders"} ({matchingOrders.length})
+                      </div>
+                      <div className="space-y-0.5">
+                        {matchingOrders.map((order) => (
+                          <Link
+                            key={order.id}
+                            href="/admin/orders"
+                            onClick={() => setSearchOpen(false)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
+                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-extrabold text-[#0F522B] dark:text-emerald-400">
+                                #{order.orderNumber || order.orderId || order.id}
+                              </span>
+                              <span className="text-[10px] text-slate-400 capitalize">
+                                • {order.tableNo || order.table?.name || "Takeout"}
+                              </span>
+                            </div>
+                            <span className="font-black text-xs text-slate-800 dark:text-slate-100">
+                              ${Number(order.totalAmount || 0).toFixed(2)}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category 3: Matching Products */}
+                  {matchingProducts.length > 0 && (
+                    <div>
+                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {language === "km" ? "មុខម្ហូប/ភេសជ្ជៈ" : "Menu Products"} ({matchingProducts.length})
+                      </div>
+                      <div className="space-y-0.5">
+                        {matchingProducts.map((product) => (
+                          <Link
+                            key={product.id}
+                            href="/admin/menu"
+                            onClick={() => setSearchOpen(false)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
+                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ShoppingBag size={14} className="text-amber-500 shrink-0" />
+                              <span className="truncate">{product.name}</span>
+                            </div>
+                            <span className="font-bold text-[#0F522B] dark:text-emerald-400">
+                              ${Number(product.price || 0).toFixed(2)}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category 4: Matching Tables */}
+                  {matchingTables.length > 0 && (
+                    <div>
+                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {language === "km" ? "តុអាហារ" : "Dining Tables"} ({matchingTables.length})
+                      </div>
+                      <div className="space-y-0.5">
+                        {matchingTables.map((table) => (
+                          <Link
+                            key={table.id}
+                            href="/admin/tables"
+                            onClick={() => setSearchOpen(false)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
+                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Grid2X2 size={14} className="text-blue-500 shrink-0" />
+                              <span className="font-bold">{table.name}</span>
+                              <span className="text-[10px] text-slate-400 capitalize">({table.zone})</span>
+                            </div>
+                            <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                              {table.capacity} guests
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {totalResults === 0 && (
+                    <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                      No matching orders, products, or tables found for "{internalQuery}".
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              document.fullscreenElement
-                ? document.exitFullscreen()
-                : document.documentElement.requestFullscreen()
-            }
-            className={`hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
-            title={t.fullscreen}
-          >
-            <Maximize size={16} />
-          </button>
+          {/* Quick Launch Switcher: POS & KDS */}
+          <div className="hidden items-center gap-1.5 sm:flex border-r border-slate-200/80 dark:border-slate-700/80 pr-2.5">
+            <Link
+              href="/pos"
+              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#0F522B]/10 px-3 text-xs font-bold text-[#0F522B] dark:text-emerald-400 hover:bg-[#0F522B] hover:text-white active:scale-95 transition-all border border-[#0F522B]/20 shadow-sm"
+              title="Open POS Terminal"
+            >
+              <Utensils size={14} />
+              <span className="font-bold">POS</span>
+            </Link>
 
-          <button
-            type="button"
-            onClick={() => setAppTheme(isDark ? "light" : "dark")}
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover} transition-all duration-300 active:scale-75`}
-            title={isDark ? "Light Mode" : "Dark Mode"}
+            <Link
+              href="/kds"
+              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-teal-500/10 px-3 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-600 hover:text-white active:scale-95 transition-all border border-teal-500/20 shadow-sm"
+              title="Open Kitchen Display (KDS)"
+            >
+              <ChefHat size={14} />
+              <span className="font-bold">KDS</span>
+            </Link>
+          </div>
+
+          {/* Grouped Utility Actions Pill */}
+          <div
+            className={`flex items-center gap-0.5 rounded-xl border p-0.5 transition-colors ${
+              isDark
+                ? "border-slate-700/80 bg-[#232333]/90 text-slate-100"
+                : "border-slate-200/80 bg-slate-50/80 text-slate-700"
+            }`}
           >
-            <span className="transition-transform duration-500 ease-out transform hover:rotate-[360deg] inline-flex">
-              {isDark ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} />}
-            </span>
-          </button>
+            <div ref={languageRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setLanguageOpen((value) => !value)}
+                className={`inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-colors`}
+                title="Language"
+              >
+                <Languages size={15} />
+              </button>
+
+              {languageOpen && (
+                <div className={`absolute right-0 z-40 mt-2 w-40 overflow-hidden rounded-xl border shadow-xl ${dropdownSurface}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppLanguage("en");
+                      onLanguageChange("en");
+                      setLanguageOpen(false);
+                    }}
+                    className={`block w-full px-4 py-2.5 text-left text-xs font-semibold ${
+                      language === "en" ? "bg-[#0F522B] text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    {t.english}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppLanguage("km");
+                      onLanguageChange("km");
+                      setLanguageOpen(false);
+                    }}
+                    className={`block w-full px-4 py-2.5 text-left text-xs font-semibold font-khmer ${
+                      language === "km" ? "bg-[#0F522B] text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
+                    }`}
+                  >
+                    {t.khmer}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : document.documentElement.requestFullscreen()
+              }
+              className={`hidden sm:inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-colors`}
+              title={t.fullscreen}
+            >
+              <Maximize size={15} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAppTheme(isDark ? "light" : "dark")}
+              className={`inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-all active:scale-75`}
+              title={isDark ? "Light Mode" : "Dark Mode"}
+            >
+              <span className="inline-flex transition-transform duration-300 transform hover:rotate-45">
+                {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}
+              </span>
+            </button>
+          </div>
 
           <div ref={notificationsRef} className="relative">
             <button
@@ -354,10 +740,25 @@ export default function TopBar({
               <div className={`absolute right-0 z-40 mt-2 w-80 rounded-xl border p-3 shadow-xl ${dropdownSurface}`}>
                 <div className={`mb-2 flex items-center justify-between text-sm font-black ${textPrimary} ${kmClass}`}>
                   <span>{t.notifications}</span>
-                  {notifications.length > 0 ? (
+                  {activeNotifications.length > 0 ? (
                     <button
                       type="button"
-                      onClick={onClearNotifications}
+                      onClick={() => {
+                        const newKeys = new Set(clearedKeys);
+                        activeNotifications.forEach((item) => {
+                          newKeys.add(item.id);
+                          if (item.orderId) newKeys.add(String(item.orderId));
+                        });
+                        setClearedKeys(newKeys);
+                        try {
+                          localStorage.setItem("pos_cleared_notification_keys", JSON.stringify([...newKeys]));
+                        } catch {}
+                        window.dispatchEvent(new Event("pos-notifications-cleared"));
+                        setInternalNotifications([]);
+                        onClearNotifications?.();
+                        const socket = getSocket();
+                        if (socket) socket.emit("notifications:cleared");
+                      }}
                       className={`rounded-md px-2 py-1 text-[11px] font-bold ${textSecondary} ${menuHover}`}
                     >
                       {t.clear}
@@ -367,13 +768,13 @@ export default function TopBar({
                   )}
                 </div>
 
-                {notifications.length === 0 ? (
+                {activeNotifications.length === 0 ? (
                   <div className={`rounded-lg bg-slate-50 p-4 text-center text-xs ${textSecondary} ${kmClass}`}>
                     {t.noNotifications}
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {notifications.slice(0, 5).map((item) => (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {activeNotifications.map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -604,7 +1005,7 @@ export default function TopBar({
       )}
 
       {/* Toast Popup */}
-      {toastNotification && (
+      {toastNotification && !clearedKeys.has(toastNotification.id) && (!toastNotification.orderId || !clearedKeys.has(String(toastNotification.orderId))) && (
         <div className={`fixed bottom-6 right-6 z-[9999] w-full max-w-sm rounded-lg p-4 shadow-xl ring-1 animate-[dashboardPageIn_0.3s_ease-out] ${bgCard} ${dark ? 'ring-white/10' : 'ring-black/5'}`}>
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#696cff]/10 text-[#696cff]">
@@ -626,7 +1027,18 @@ export default function TopBar({
               </div>
             </div>
             <button
-              onClick={() => setToastNotification(null)}
+              onClick={() => {
+                if (toastNotification) {
+                  const newKeys = new Set(clearedKeys);
+                  newKeys.add(toastNotification.id);
+                  if (toastNotification.orderId) newKeys.add(String(toastNotification.orderId));
+                  setClearedKeys(newKeys);
+                  try {
+                    localStorage.setItem("pos_cleared_notification_keys", JSON.stringify([...newKeys]));
+                  } catch {}
+                }
+                setToastNotification(null);
+              }}
               className={`flex-shrink-0 ml-4 ${textSecondary} hover:${textPrimary}`}
             >
               <span className="sr-only">Close</span>

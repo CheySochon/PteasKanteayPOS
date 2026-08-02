@@ -21,6 +21,7 @@ import {
   Wifi,
   WifiOff,
   X,
+  LogOut,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import {
@@ -70,6 +71,28 @@ export default function PosPage() {
   const [posName, setPosName] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_POS_NAME;
     return localStorage.getItem("pos_restaurant_name") || DEFAULT_POS_NAME;
+  });
+  const [currentUserRole, setCurrentUserRole] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = localStorage.getItem("pos_user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        return String(u.role || u.roleName || "").trim().toLowerCase();
+      }
+    } catch {}
+    return "";
+  });
+  const [currentUserName, setCurrentUserName] = useState(() => {
+    if (typeof window === "undefined") return "Chon (Cashier)";
+    try {
+      const raw = localStorage.getItem("pos_user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        return String(u.name || u.userName || "Chon (Cashier)").trim();
+      }
+    } catch {}
+    return "Chon (Cashier)";
   });
   const [restaurantImageUrl, setRestaurantImageUrl] = useState("");
   const [serviceRate, setServiceRate] = useState(SERVICE_RATE);
@@ -197,16 +220,47 @@ export default function PosPage() {
   }, []);
 
   useEffect(() => {
-    function syncPosName() {
+    function syncAuthUser() {
+      if (typeof window === "undefined") return;
       setPosName(localStorage.getItem("pos_restaurant_name") || DEFAULT_POS_NAME);
+      try {
+        const raw = localStorage.getItem("pos_user");
+        if (raw) {
+          const u = JSON.parse(raw);
+          const r = typeof u.role === "string" ? u.role : u.role?.name || u.roleName || "";
+          setCurrentUserRole(String(r).trim().toLowerCase());
+          return;
+        }
+      } catch {}
+      setCurrentUserRole("");
     }
 
-    window.addEventListener("storage", syncPosName);
-    window.addEventListener("pos-settings-change", syncPosName);
+    function reloadMenuData() {
+      Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
+        .then(([categoryRows, productRows, tableRows, appSettings]) => {
+          setCategories(categoryRows);
+          setProducts(productRows);
+          setTables(tableRows.filter((table: DiningTable) => table.isActive));
+          const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
+          setPosName(nextName);
+          setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
+          setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
+          setVatRate(Number(appSettings.taxRate || 0) / 100);
+        })
+        .catch(() => undefined);
+    }
+
+    syncAuthUser();
+    window.addEventListener("storage", syncAuthUser);
+    window.addEventListener("pos-settings-change", syncAuthUser);
+    window.addEventListener("pos-auth-change", syncAuthUser);
+    window.addEventListener("pos-menu-change", reloadMenuData);
 
     return () => {
-      window.removeEventListener("storage", syncPosName);
-      window.removeEventListener("pos-settings-change", syncPosName);
+      window.removeEventListener("storage", syncAuthUser);
+      window.removeEventListener("pos-settings-change", syncAuthUser);
+      window.removeEventListener("pos-auth-change", syncAuthUser);
+      window.removeEventListener("pos-menu-change", reloadMenuData);
     };
   }, []);
 
@@ -268,6 +322,8 @@ export default function PosPage() {
         tableId,
         discountAmount,
         taxAmount: serviceFee + vat,
+        userName: currentUserName,
+        createdBy: { name: currentUserName },
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -386,20 +442,36 @@ export default function PosPage() {
                 <span>{isOnline ? (syncing ? "Syncing..." : "Online") : "Offline"}</span>
               </div>
 
-              {/* Admin navigation shortcut link */}
-              <Link
-                href="/admin"
-                className="inline-flex h-9 shrink-0 items-center gap-2 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
-                title="Switch to admin dashboard"
-              >
-                <LayoutDashboard size={15} />
-                <span className="hidden sm:inline">Admin Dashboard</span>
-              </Link>
-
               {/* Divider */}
               <div className="hidden h-5 w-px bg-[#d9dee3] sm:block"></div>
 
               <div className="hidden items-center gap-1 sm:flex">
+                {/* Current Logged-in Staff Profile Chip */}
+                <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 pl-1.5 pr-3 py-1">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#696cff] text-[10px] font-bold text-white uppercase shadow-xs">
+                    {(currentUserRole ? currentUserRole[0] : "C").toUpperCase()}
+                  </div>
+                  <div className="flex flex-col text-left leading-none">
+                    <span className="text-[11px] font-bold text-slate-700 capitalize">
+                      {currentUserRole || "Cashier"}
+                    </span>
+                    <span className="text-[8.5px] font-semibold text-slate-400">Active Shift</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("pos_logged_in");
+                      localStorage.removeItem("pos_token");
+                      localStorage.removeItem("pos_user");
+                      window.location.href = "/login";
+                    }}
+                    className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
+                    title="Switch User / Logout"
+                  >
+                    <LogOut size={13} />
+                  </button>
+                </div>
+
                 <div className="relative" ref={notificationsRef}>
                   <IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
                     <div className="relative">
@@ -435,12 +507,6 @@ export default function PosPage() {
                     </div>
                   )}
                 </div>
-
-                <Link href="/admin/settings">
-                  <IconButton label="Settings">
-                    <Settings size={18} className="text-[#566a7f]" />
-                  </IconButton>
-                </Link>
               </div>
             </div>
           </header>
@@ -595,38 +661,40 @@ export default function PosPage() {
           <div className="border-t border-[#eceef1] px-6 py-5 bg-[#f5f5f9]/40 space-y-3">
             <SummaryRow label="Subtotal" value={money(subtotal)} />
 
-            {/* Split Bill Direct Input Row */}
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <div className="flex items-center gap-2">
-                <span className="text-[#a1acb8]">Split Bill (Guests)</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSplitCount((value) => Math.max(1, value - 1))}
-                    className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
-                  >
-                    <Minus size={11} />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    value={splitCount}
-                    onChange={(event) => setSplitCount(Math.max(1, Number(event.target.value || 1)))}
-                    className="h-6 w-10 rounded border border-[#d9dee3] bg-white text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setSplitCount((value) => value + 1)}
-                    className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
-                  >
-                    <Plus size={11} />
-                  </button>
+            {/* Split Bill Row (Only shown when cart has items) */}
+            {cart.length > 0 && (
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#a1acb8]">Split Bill (Guests)</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSplitCount((value) => Math.max(1, value - 1))}
+                      className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={splitCount}
+                      onChange={(event) => setSplitCount(Math.max(1, Number(event.target.value || 1)))}
+                      className="h-6 w-10 rounded border border-[#d9dee3] bg-white text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSplitCount((value) => value + 1)}
+                      className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
+                    >
+                      <Plus size={11} />
+                    </button>
+                  </div>
                 </div>
+                <span className="text-[#566a7f] font-bold">
+                  {splitCount > 1 ? `${money(splitAmount)} each` : money(total)}
+                </span>
               </div>
-              <span className="text-[#566a7f] font-bold">
-                {splitCount > 1 ? `${money(splitAmount)} each` : money(total)}
-              </span>
-            </div>
+            )}
 
             {/* Discount Direct Input Row */}
             <div className="flex items-center justify-between text-xs font-semibold">
@@ -887,53 +955,68 @@ export default function PosPage() {
 function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }) {
   const imageUrl = resolveImageUrl(product.imageUrl);
   const unavailable = !product.isAvailable;
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const rielPrice = Math.round(Number(product.basePrice || 0) * 4100).toLocaleString();
 
   return (
     <button
       type="button"
       onClick={onAdd}
       disabled={unavailable}
-      className="group overflow-hidden rounded border border-[#e5e7eb] bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white text-left shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between"
     >
-      <div className="w-full aspect-[1.38] bg-slate-50 dark:bg-[#232333] relative overflow-hidden shrink-0">
-        {imageUrl ? (
+      {/* Food Photo Cover */}
+      <div className="w-full aspect-[1.35] bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden shrink-0 border-b border-slate-100">
+        {imageUrl && !imgFailed ? (
           <img
             src={imageUrl}
             alt={product.name}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+            onError={() => setImgFailed(true)}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-300">
-            <ChefHat size={30} />
+          <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
+            <Utensils size={32} className="text-slate-300 mb-1" />
+            <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-widest">No Photo</span>
+          </div>
+        )}
+
+        {/* Unavailable overlay badge */}
+        {unavailable && (
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="rounded-full bg-red-600 px-3 py-1 text-[10px] font-extrabold text-white uppercase tracking-wider shadow-md">
+              Sold Out
+            </span>
           </div>
         )}
       </div>
 
-      <div className="p-3 flex-1 flex flex-col justify-between w-full">
+      {/* Card Content Body */}
+      <div className="p-3.5 flex-1 flex flex-col justify-between w-full">
         <div>
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="line-clamp-2 min-w-0 text-xs font-bold leading-snug text-[#566a7f] group-hover:text-[#696cff] transition-colors">
-              {product.name}
-            </h3>
-            <span className="shrink-0 text-xs font-bold text-[#696cff]">
+          <h3 className="line-clamp-1 text-xs font-bold text-slate-800 group-hover:text-[#696cff] transition-colors leading-tight">
+            {product.name}
+          </h3>
+
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="text-xs font-black text-emerald-600">
               {money(product.basePrice)}
             </span>
+            <span className="text-[10px] font-bold text-slate-400">
+              {rielPrice} ៛
+            </span>
           </div>
-
-          <p className="mt-1 line-clamp-2 min-h-[28px] text-[10px] font-medium leading-normal text-[#a1acb8]">
-            {product.description || product.category?.name || "Fresh chef selection."}
-          </p>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 border-[#f5f5f9]">
-          <span className={`min-w-0 truncate rounded px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-wider ${
-            unavailable ? "bg-[#ffe5e5] text-[#ff3e1d]" : "bg-[#e8fadf] text-[#71dd37]"
-          }`}>
-            {unavailable ? "Out of stock" : product.category?.name || "Ready"}
+        {/* Bottom Actions */}
+        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 border-slate-100">
+          <span className="text-[10px] font-semibold text-slate-400 truncate max-w-[100px]">
+            {product.category?.name || "Menu"}
           </span>
           
-          <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-[#e7e7ff] text-[#696cff] group-hover:bg-[#696cff] group-hover:text-white transition-all">
-            <Plus size={14} />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] group-hover:bg-[#696cff] group-hover:text-white group-hover:scale-105 active:scale-90 transition-all duration-150 shadow-xs">
+            <Plus size={14} className="stroke-[3]" />
           </span>
         </div>
       </div>
@@ -953,7 +1036,7 @@ function TicketItem({
   onDecrement: () => void;
 }) {
   return (
-    <div className="flex gap-3 items-center border-b pb-3 border-[#eceef1]/50 last:border-none last:pb-0">
+    <div className="flex gap-3 items-center border-b pb-3 border-[#eceef1]/50 last:border-none last:pb-0 animate-[usersPageIn_150ms_ease-out]">
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50 border">
         {imageUrl ? (
           <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
@@ -1013,7 +1096,7 @@ function CategoryTab({
     <button
       type="button"
       onClick={onClick}
-      className={`h-9 shrink-0 rounded px-4 text-xs font-bold transition-all ${
+      className={`h-9 shrink-0 rounded px-4 text-xs font-bold active:scale-95 transition-all duration-150 ${
         active
           ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
           : "text-[#8592a3] hover:text-[#696cff] hover:bg-[#eceef1]/60"

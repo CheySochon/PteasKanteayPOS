@@ -1,29 +1,40 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
+  AlertCircle,
   Bell,
   Building2,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Database,
   Download,
+  Globe,
+  History,
   ImagePlus,
+  LayoutGrid,
   Loader2,
   Plus,
+  Printer,
   ReceiptText,
   Save,
-  Settings2,
-  SlidersHorizontal,
-  Upload,
-  Trash2,
-  X,
   Send,
-  ShieldAlert,
-  History,
   SendHorizontal,
-  ChevronLeft,
-  ChevronRight,
+  Settings,
+  Settings2,
+  Shield,
+  ShieldAlert,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
+  User,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -197,7 +208,17 @@ export default function SettingsPage() {
   useAutoDismiss(message, setMessage);
   useAutoDismiss(error, setError);
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+
   const [activeTab, setActiveTab] = useState<"general" | "billing" | "printers" | "integrations" | "security">("general");
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(true);
+
+  useEffect(() => {
+    if (tabParam && ["general", "billing", "printers", "integrations", "security"].includes(tabParam)) {
+      setActiveTab(tabParam as "general" | "billing" | "printers" | "integrations" | "security");
+    }
+  }, [tabParam]);
 
   // Telegram & Audit Logs state
   const [telegramConfig, setTelegramConfigState] = useState<TelegramConfig>({
@@ -237,6 +258,16 @@ export default function SettingsPage() {
       .catch(() => {});
 
     loadAuditLogs();
+
+    function handleAuditUpdate() {
+      loadAuditLogs();
+    }
+
+    window.addEventListener("pos-audit-logs-updated", handleAuditUpdate);
+
+    return () => {
+      window.removeEventListener("pos-audit-logs-updated", handleAuditUpdate);
+    };
   }, []);
 
   const loadAuditLogs = async (
@@ -599,99 +630,74 @@ export default function SettingsPage() {
           dark={dark}
         />
 
-        {/* Executive Settings Navigation Tabs */}
-        <div className={`px-4 pt-4 lg:px-0 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
-          <div className="mx-auto w-full max-w-4xl flex items-end justify-between gap-4">
-            <div className="flex gap-6 overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setActiveTab("general")}
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
-                  activeTab === "general"
-                    ? "border-[#696cff] text-[#696cff] font-bold"
-                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
-                }`}
-              >
-                <span className="flex items-center gap-2"><Building2 size={16} /> {language === "km" ? "ទូទៅ (General)" : "General"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("billing")}
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
-                  activeTab === "billing"
-                    ? "border-[#696cff] text-[#696cff] font-bold"
-                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
-                }`}
-              >
-                <span className="flex items-center gap-2"><ReceiptText size={16} /> {language === "km" ? "វិក្កយបត្រ (Billing)" : "Billing & Receipt"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("printers")}
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
-                  activeTab === "printers"
-                    ? "border-[#696cff] text-[#696cff] font-bold"
-                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
-                }`}
-              >
-                <span className="flex items-center gap-2"><CreditCard size={16} /> {language === "km" ? "ម៉ាស៊ីនបោះពុម្ព (Printers)" : "Hardware & Printers"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("integrations")}
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
-                  activeTab === "integrations"
-                    ? "border-[#696cff] text-[#696cff] font-bold"
-                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
-                }`}
-              >
-                <span className="flex items-center gap-2"><SendHorizontal size={16} /> {language === "km" ? "ភ្ជាប់ប្រព័ន្ធ (Integrations)" : "Integrations"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("security")}
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors ${
-                  activeTab === "security"
-                    ? "border-[#696cff] text-[#696cff] font-bold"
-                    : `border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"}`
-                }`}
-              >
-                <span className="flex items-center gap-2"><ShieldAlert size={16} /> {language === "km" ? "ប្រព័ន្ធ (System & Backups)" : "System & Backups"}</span>
-              </button>
-            </div>
-
-            <div className="pb-3">
-              <button
-                type="submit"
-                form="settingsForm"
-                disabled={saving}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm shadow-emerald-600/20 disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                {language === "km" ? "រក្សាទុកការប្រែប្រួល" : "Save All Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-8 lg:px-0 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="mx-auto w-full max-w-4xl">
-            <form id="settingsForm" onSubmit={submit}>
-
-
-              {error && (
-                <div className="mb-5 rounded border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
-                  {error}
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1600px] space-y-4">
+            <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-[#4e4f6e]">
+                <div>
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>
+                    {activeTab === "general" && (language === "km" ? "ព័ត៌មានទូទៅនៃហាង" : "General Information")}
+                    {activeTab === "billing" && (language === "km" ? "ការកំណត់វិក្កយបត្រ" : "Billing & Receipt Setup")}
+                    {activeTab === "printers" && (language === "km" ? "ម៉ាស៊ីនបោះពុម្ព & ឧបករណ៍" : "Hardware & Printers")}
+                    {activeTab === "integrations" && (language === "km" ? "ភ្ជាប់ Telegram & APIs" : "Integrations & Telegram")}
+                    {activeTab === "security" && (language === "km" ? "ប្រព័ន្ធ & ផ្ទុកទិន្នន័យ" : "System & Data Backups")}
+                  </h2>
                 </div>
-              )}
 
-              {message && (
-                <div className="mb-5 rounded border border-[#71dd37]/35 bg-[#e8fadf] px-4 py-3 text-sm font-bold text-[#71dd37]">
-                  {message}
+                <button
+                  type="submit"
+                  form="settingsForm"
+                  disabled={saving}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0F522B] px-4 text-xs font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  {language === "km" ? "រក្សាទុកការប្រែប្រួល" : "Save All Changes"}
+                </button>
+              </div>
+
+              <form id="settingsForm" onSubmit={submit}>
+
+              {/* FLOATING POPUP TOAST NOTIFICATIONS */}
+              {(message || error) && (
+                <div className="fixed top-20 right-6 z-[9999] flex max-w-md items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3.5 shadow-2xl shadow-slate-900/15 backdrop-blur-md animate-[slideFromRight_250ms_cubic-bezier(0.16,1,0.3,1)]">
+                  {message ? (
+                    <>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/15 text-[#71dd37]">
+                        <CheckCircle2 size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-[#71dd37]">
+                          {language === "km" ? "ជោគជ័យ" : "Success"}
+                        </div>
+                        <div className={`text-xs font-bold ${textPrimary} truncate`}>{message}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMessage("")}
+                        className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500/15 text-rose-500">
+                        <AlertCircle size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-rose-500">
+                          {language === "km" ? "កំហុស" : "Error"}
+                        </div>
+                        <div className={`text-xs font-bold ${textPrimary} truncate`}>{error}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setError("")}
+                        className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -836,7 +842,7 @@ export default function SettingsPage() {
                   </div>
 
                   <aside className="space-y-6">
-                    <section className={`rounded-2xl border p-5 shadow-sm ${surface} ${borderCol}`}>
+                    <section className={`rounded-2xl border p-5 shadow-none ${surface} ${borderCol}`}>
                       <div className="mb-4 flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
                           <ReceiptText size={19} />
@@ -1519,7 +1525,7 @@ function Panel({
   textSecondary: string;
 }) {
   return (
-    <section className={`rounded border p-5 shadow-sm ${surface} ${borderCol}`}>
+    <section className={`rounded-2xl border p-5 shadow-none ${surface} ${borderCol}`}>
       <div className="mb-5 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[#696cff]/10 text-[#696cff]">
           <Icon size={19} />

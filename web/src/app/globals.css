@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Kantumruy:wght@300;400;700&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Noto+Sans+Khmer:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@300;400;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -6,7 +6,7 @@
   --foreground: #171717;
   --font-geist-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --font-khmer: "Kantumruy Pro", "Kantumruy", "Noto Sans Khmer", "Khmer OS Battambang", sans-serif;
+  --font-khmer: "Kantumruy Pro", "Battambang", "Noto Sans Khmer", "Khmer OS Battambang", sans-serif;
   --font-brand: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
 }
 
@@ -36,7 +36,11 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-khmer), var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+input, textarea, select, button {
+  font-family: var(--font-khmer), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 .dark body {

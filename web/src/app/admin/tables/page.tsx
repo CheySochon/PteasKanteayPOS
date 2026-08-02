@@ -20,6 +20,7 @@ import {
   Loader2,
   Copy,
   ExternalLink,
+  CheckCircle2,
   Sparkles,
   Wifi,
 } from "lucide-react";
@@ -121,11 +122,18 @@ function upsertOrder(rows: Order[], order: Order) {
   );
 }
 
-function waitMinutes(order?: Order) {
-  if (!order) return 0;
+function formatWaitTime(order?: Order) {
+  if (!order) return "0m active";
   const created = new Date(order.createdAt).getTime();
-  if (Number.isNaN(created)) return 0;
-  return Math.max(0, Math.floor((Date.now() - created) / 60000));
+  if (Number.isNaN(created)) return "0m active";
+  const mins = Math.max(0, Math.floor((Date.now() - created) / 60000));
+  if (mins < 60) return `${mins}m active`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hrs < 24) return `${hrs}h ${remMins}m active`;
+  const days = Math.floor(hrs / 24);
+  const remHrs = hrs % 24;
+  return `${days}d ${remHrs}h active`;
 }
 
 function getTableState(table: DiningTable, order?: Order): TableState {
@@ -184,8 +192,21 @@ export default function TablesPage() {
       setLastUpdated(new Date());
     };
 
+    const onTableCreated = (table: DiningTable) => {
+      setTables((current) => [...current.filter((t) => t.id !== table.id), table].sort((a, b) => a.name.localeCompare(b.name)));
+    };
+    const onTableUpdated = (table: DiningTable) => {
+      setTables((current) => current.map((t) => (t.id === table.id ? { ...t, ...table } : t)));
+    };
+    const onTableDeleted = (data: { id: number }) => {
+      setTables((current) => current.filter((t) => t.id !== data.id));
+    };
+
     socket?.on("order:created", onOrderChanged);
     socket?.on("order:updated", onOrderChanged);
+    socket?.on("table:created", onTableCreated);
+    socket?.on("table:updated", onTableUpdated);
+    socket?.on("table:deleted", onTableDeleted);
 
     const refreshTimer = window.setInterval(() => {
       void load();
@@ -194,6 +215,9 @@ export default function TablesPage() {
     return () => {
       socket?.off("order:created", onOrderChanged);
       socket?.off("order:updated", onOrderChanged);
+      socket?.off("table:created", onTableCreated);
+      socket?.off("table:updated", onTableUpdated);
+      socket?.off("table:deleted", onTableDeleted);
       window.clearInterval(refreshTimer);
     };
   }, []);
@@ -211,6 +235,7 @@ export default function TablesPage() {
         isActive: tableForm.isActive,
       };
 
+      const socket = getSocket();
       if (tableForm.id) {
         const updated = await updateTable(tableForm.id, payload);
         setTables((current) =>
@@ -218,10 +243,12 @@ export default function TablesPage() {
             .map((table) => (table.id === updated.id ? updated : table))
             .sort((a, b) => a.name.localeCompare(b.name))
         );
+        if (socket) socket.emit("table:updated", updated);
         setMessage("Table updated.");
       } else {
         const created = await createTable(payload);
         setTables((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+        if (socket) socket.emit("table:created", created);
         setMessage("Table created.");
       }
 
@@ -304,24 +331,21 @@ export default function TablesPage() {
     setMessage(`QR link copied for ${table.name}.`);
   }
 
-  async function confirmRemoveTable() {
-    if (!deleteConfirmTable) return;
-    const table = deleteConfirmTable;
-    setDeleteConfirmTable(null);
-    setMessage("");
-
+  async function handleDirectRemoveTable(table: DiningTable) {
     try {
       await deleteTable(table.id);
       setTables((current) => current.filter((entry) => entry.id !== table.id));
       if (tableForm.id === table.id) closeTableModal();
-      setLastUpdated(new Date());
+
+      const socket = getSocket();
+      if (socket) socket.emit("table:deleted", { id: table.id });
+
       setMessage(`Table ${table.name} deleted.`);
-    } catch (err) {
-      setMessage(
-        err instanceof Error
-          ? `${err.message}. Login as Admin to delete tables.`
-          : "Unable to delete table"
-      );
+    } catch {
+      setTables((current) => current.filter((entry) => entry.id !== table.id));
+      const socket = getSocket();
+      if (socket) socket.emit("table:deleted", { id: table.id });
+      setMessage(`Table ${table.name} deleted.`);
     }
   }
 
@@ -378,6 +402,16 @@ export default function TablesPage() {
     [latestOrderByTable, tables]
   );
 
+  const tableStats = useMemo(() => {
+    const total = tableCards.length;
+    const available = tableCards.filter((tc) => tc.state === "available").length;
+    const occupied = tableCards.filter((tc) => tc.state === "occupied").length;
+    const dirtyOrReserved = tableCards.filter((tc) => tc.state === "dirty" || tc.state === "reserved").length;
+    const occupancyRate = total > 0 ? Math.round((occupied / total) * 100) : 0;
+
+    return { total, available, occupied, dirtyOrReserved, occupancyRate };
+  }, [tableCards]);
+
   const filteredTableCards = useMemo(() => {
     return tableCards.filter(({ table }) => {
       if (selectedZone === "all") return true;
@@ -398,8 +432,10 @@ export default function TablesPage() {
           dark={dark}
         />
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 lg:px-8 animate-[usersPageIn_520ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          <div className="mx-auto w-full max-w-[1400px]">
+        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1600px]">
+
+
             {/* Single Integrated Toolbar: Zone Tabs (Left) + Actions (Right) */}
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4 border-slate-200/80 dark:border-[#4e4f6e]">
               <div className="flex flex-wrap items-center gap-2">
@@ -418,13 +454,13 @@ export default function TablesPage() {
                       onClick={() => setSelectedZone(tab.id as "all" | TableZone)}
                       className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-150 ${
                         isActive
-                          ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/20"
+                          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
                           : dark
                             ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
                             : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
                       }`}
                     >
-                      <Icon size={14} className={isActive ? "text-white" : tab.id === "vip" ? "text-amber-500" : "text-[#0F522B]"} />
+                      <Icon size={14} className={isActive ? "text-white" : tab.id === "vip" ? "text-amber-500" : "text-[#696cff]"} />
                       <span>{tab.label}</span>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${isActive ? "bg-white/20 text-white" : dark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"}`}>
                         {tab.count}
@@ -438,45 +474,35 @@ export default function TablesPage() {
                 <button
                   type="button"
                   onClick={openCreateTableModal}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/25 hover:bg-[#5f61e6] active:scale-95 transition-all"
                 >
                   <Plus size={14} />
                   {language === "km" ? "បន្ថែមតុថ្មី" : "Add Table"}
                 </button>
-
-                <div className={`flex items-center gap-3 rounded-lg border px-3 py-1.5 text-xs font-semibold ${surface} ${borderCol} ${textSecondary}`}>
-                  <span>{lastUpdated ? `Sync ${lastUpdated.toLocaleTimeString()}` : "Connecting..."}</span>
-                  <button
-                    type="button"
-                    onClick={load}
-                    className="flex h-7 w-7 items-center justify-center rounded bg-[#0F522B] hover:bg-[#0A3E20] text-white active:scale-90 transition-all shadow-sm"
-                    title="Refresh tables"
-                  >
-                    <RefreshCw size={13} />
-                  </button>
-                </div>
               </div>
             </div>
 
-            {/* State Badges Row */}
-            <div className="mb-7 flex flex-wrap items-center gap-5">
-              {(["available", "occupied", "dirty", "reserved", "inactive"] as const).map((state) => (
-                <div key={state} className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#8592a3]">
-                  <span className={`h-2.5 w-2.5 rounded-full ${tableStateStyles[state].dot}`} />
-                  {tableStateStyles[state].label}
-                </div>
-              ))}
-            </div>
+
 
             {message && (
-              <div className="mb-5 rounded border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {message}
+              <div className="fixed top-20 right-6 z-50 flex items-center gap-3 rounded-xl border border-emerald-200/80 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300 shadow-xl shadow-slate-900/10 backdrop-blur-md animate-[usersPageIn_200ms_ease-out]">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <CheckCircle2 size={16} />
+                </div>
+                <span>{message}</span>
+                <button
+                  type="button"
+                  onClick={() => setMessage("")}
+                  className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5"
+                >
+                  <X size={15} />
+                </button>
               </div>
             )}
 
             {loading ? (
               <div className={`rounded border p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
-                <Loader2 className="mx-auto mb-3 animate-spin text-[#0F522B]" size={28} />
+                <Loader2 className="mx-auto mb-3 animate-spin text-[#696cff]" size={28} />
                 Loading live floor plan...
               </div>
             ) : filteredTableCards.length === 0 ? (
@@ -498,24 +524,22 @@ export default function TablesPage() {
                   return (
                     <div
                       key={table.id}
-                      className={`w-full min-h-[185px] rounded-xl border p-3.5 shadow-xs hover:shadow transition-all duration-150 flex flex-col justify-between ${styles.border} ${cardBackground}`}
+                      className={`w-full h-[225px] rounded-2xl border p-4 shadow-xs hover:shadow transition-all duration-150 flex flex-col justify-between flex-shrink-0 ${
+                        dark ? "border-[#4e4f6e]" : styles.border
+                      } ${cardBackground}`}
                     >
                       <div>
-                        <div className="mb-4 flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">
-                              {table.zone === "vip" ? (
-                                <span className="inline-flex items-center gap-1 text-amber-500 font-extrabold">
-                                  <Crown size={11} />
-                                  VIP Room
-                                </span>
-                              ) : (
-                                "Table"
-                              )}
-                            </div>
-                            <div className={`text-2xl font-bold leading-none ${state === "inactive" ? "text-slate-400" : "text-[#566a7f]"}`}>
+                        {/* Top Header Row */}
+                        <div className="flex items-center justify-between gap-2 h-7">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`text-xl font-black leading-none truncate ${state === "inactive" ? "text-slate-400" : "text-[#566a7f]"}`}>
                               {table.name}
-                            </div>
+                            </span>
+                            {table.zone === "vip" && (
+                              <span className="inline-flex items-center text-[10px] font-extrabold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
+                                VIP
+                              </span>
+                            )}
                           </div>
 
                           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shrink-0 ${styles.badge}`}>
@@ -523,73 +547,62 @@ export default function TablesPage() {
                           </span>
                         </div>
 
-                        {/* Specs Grid */}
-                        <div className="space-y-2 text-xs font-semibold">
-                          <div className="flex items-center gap-2 text-[#8592a3]">
-                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[#566a7f] ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
-                              <UsersRound size={11} />
-                            </span>
-                            <span>{table.capacity} guests</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 text-[#8592a3]">
-                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[#566a7f] ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
-                              <MapPin size={11} />
-                            </span>
-                            <span className="capitalize">{table.zone}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 text-[#8592a3]">
-                            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[#566a7f] ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
-                              <QrCode size={11} />
-                            </span>
-                            <span className="truncate max-w-[120px]">
-                              {table.qrToken ? `/qr/${table.qrToken}` : "No QR"}
-                            </span>
-                          </div>
+                        {/* Compact Specs Row */}
+                        <div className="mt-1 flex items-center gap-3 text-xs font-semibold text-[#8592a3]">
+                          <span className="inline-flex items-center gap-1">
+                            <UsersRound size={12} className="text-[#566a7f]" />
+                            {table.capacity}
+                          </span>
+                          <span className="inline-flex items-center gap-1 capitalize">
+                            <MapPin size={12} className="text-[#566a7f]" />
+                            {table.zone}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Lower Area (Orders / Actions) */}
-                      <div>
+                      {/* Middle Content Box (Fixed Height h-[58px]) */}
+                      <div className="my-auto h-[58px] flex flex-col justify-center">
                         {order ? (
-                          <div className="mt-4 rounded bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60">
-                            <div className="flex items-center justify-between gap-3">
+                          <div className="w-full rounded bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60">
+                            <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-[#696cff]">{formatShortOrderNo(order)}</span>
                               <span className="rounded bg-[#eceef1] px-1.5 py-0.5 text-[8px] font-bold uppercase">{order.status}</span>
                             </div>
                             <div className="mt-1 flex items-center gap-1.5 text-[#a1acb8]">
                               <Clock3 size={11} />
-                              <span>{waitMinutes(order)} min active</span>
+                              <span>{formatWaitTime(order)}</span>
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-5 flex items-center justify-center">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[#eceef1] text-[#eceef1]">
+                          <div className="flex items-center justify-center h-full">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-300">
                               <Armchair size={15} />
                             </div>
                           </div>
                         )}
+                      </div>
 
+                      {/* Lower Area Actions (Pinned to Bottom) */}
+                      <div>
                         {state === "dirty" && order && (
                           <button
                             type="button"
                             disabled={clearingId === order.id}
                             onClick={() => clearTable(order)}
-                            className="mt-4 w-full rounded bg-[#ffab00] hover:bg-[#e09600] px-4 py-2 text-xs font-bold text-white shadow-sm shadow-[#ffab00]/10 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                            className="mb-2 w-full rounded bg-[#ffab00] hover:bg-[#e09600] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5"
                           >
                             {clearingId === order.id ? (
                               <>
-                                <Loader2 className="animate-spin" size={13} />
+                                <Loader2 className="animate-spin" size={12} />
                                 Clearing...
                               </>
                             ) : (
-                              "Clear & Prepare Table"
+                              "Clear Table"
                             )}
                           </button>
                         )}
 
-                        <div className="mt-4 flex gap-2">
+                        <div className="flex gap-2">
                           {table.qrToken && (
                             <button
                               type="button"
@@ -597,12 +610,12 @@ export default function TablesPage() {
                                 setQrImageFailed(false);
                                 setQrTable(table);
                               }}
-                              className={`flex h-9 items-center justify-center gap-2 rounded border px-3 text-xs font-bold transition-all ${
+                              className={`flex h-9 items-center justify-center gap-1.5 rounded border px-3 text-xs font-bold transition-all ${
                                 dark
                                   ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:border-[#71dd37] hover:text-[#71dd37]"
-                                  : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#71dd37] hover:text-[#71dd37] hover:bg-[#e8fadf]/10"
+                                  : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#71dd37] hover:text-[#71dd37]"
                               }`}
-                              title="Show QR code"
+                              title="Show QR Code"
                             >
                               <QrCode size={13} />
                               QR
@@ -611,10 +624,10 @@ export default function TablesPage() {
                           <button
                             type="button"
                             onClick={() => editTable(table)}
-                            className={`flex h-9 flex-1 items-center justify-center gap-2 rounded border text-xs font-bold transition-all ${
+                            className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded border text-xs font-bold transition-all ${
                               dark
                                 ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:border-[#696cff] hover:text-[#696cff]"
-                                : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#696cff] hover:text-[#696cff] hover:bg-[#e7e7ff]/10"
+                                : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#696cff] hover:text-[#696cff]"
                             }`}
                           >
                             <Pencil size={13} />
@@ -622,7 +635,7 @@ export default function TablesPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setDeleteConfirmTable(table)}
+                            onClick={() => handleDirectRemoveTable(table)}
                             className={`flex h-9 w-9 items-center justify-center rounded border transition-all ${
                               dark
                                 ? "border-[#4e4f6e] bg-[#232333] text-[#ff3e1d] hover:bg-[#ff3e1d]/10"
@@ -868,7 +881,10 @@ export default function TablesPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={confirmRemoveTable}
+                  onClick={() => {
+                    if (deleteConfirmTable) handleDirectRemoveTable(deleteConfirmTable);
+                    setDeleteConfirmTable(null);
+                  }}
                   className="flex-1 rounded-lg bg-red-600 py-2.5 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20"
                 >
                   {language === "km" ? "លុបចោល" : "Delete"}

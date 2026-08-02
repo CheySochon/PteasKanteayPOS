@@ -19,7 +19,7 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   reports: false,
   users: false,
   settings: false,
-  pos: false,
+  pos: true,
   kds: true,
 };
 
@@ -51,9 +51,12 @@ const routeRoles: { prefix: string; roles: AppRole[]; staffKey?: string }[] = [
   { prefix: "/kds", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "kds" },
 ];
 
-export function roleName(user: UserLike | null | undefined): string {
-  const role = user?.role;
-  return typeof role === "string" ? role : role?.name || "Member";
+export function roleName(user: UserLike | Record<string, any> | null | undefined): string {
+  if (!user) return "Member";
+  const r = (user as any).roleName || user.role;
+  if (typeof r === "string") return r;
+  if (r && typeof r === "object" && (r as any).name) return (r as any).name;
+  return "Member";
 }
 
 export function parseStoredUser(snapshot: string | null): { id?: number; name: string; email?: string; role: string; isActive?: boolean } {
@@ -129,7 +132,10 @@ export function permissionsForUser(
 }
 
 export function canAccessPath(pathname: string, role: string, staffPermissions?: StaffPermissions | null) {
-  if (role === "Super Admin" || role === "Admin") return true;
+  const normalizedRole = (role || "").trim().toLowerCase();
+  if (["super admin", "admin", "administrator"].includes(normalizedRole)) return true;
+  if (normalizedRole === "cashier" && (pathname === "/pos" || pathname.startsWith("/pos/"))) return true;
+  if ((normalizedRole === "staff" || normalizedRole === "kitchen") && (pathname === "/kds" || pathname.startsWith("/kds/"))) return true;
 
   const rule = routeRoles
     .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
@@ -137,12 +143,12 @@ export function canAccessPath(pathname: string, role: string, staffPermissions?:
 
   if (!rule) return true;
 
-  if (["Cashier", "Staff", "Member"].includes(role) && rule.staffKey) {
+  if (rule.staffKey) {
     const perms = normalizeStaffPermissions(staffPermissions);
     return Boolean(perms[rule.staffKey]);
   }
 
-  return rule.roles.includes(role as AppRole);
+  return rule.roles.some((r) => r.toLowerCase() === normalizedRole);
 }
 
 export function canSeeHref(href: string, role: string, staffPermissions?: StaffPermissions | null) {
@@ -150,19 +156,20 @@ export function canSeeHref(href: string, role: string, staffPermissions?: StaffP
 }
 
 export function fallbackPathForRole(role: string, staffPermissions?: StaffPermissions | null) {
-  if (["Super Admin", "Admin"].includes(role)) return "/admin";
+  const normalizedRole = (role || "").trim().toLowerCase();
+  if (["super admin", "admin", "administrator"].includes(normalizedRole)) return "/admin";
   return firstAllowedPathForRole(role, staffPermissions);
 }
 
 export function firstAllowedPathForRole(role: string, staffPermissions?: StaffPermissions | null) {
-  if (["Super Admin", "Admin"].includes(role)) return "/admin";
+  const normalizedRole = (role || "").trim().toLowerCase();
+  if (normalizedRole === "cashier") return "/pos";
+  if (normalizedRole === "staff" || normalizedRole === "kitchen") return "/kds";
+  if (["super admin", "admin", "administrator"].includes(normalizedRole)) return "/admin";
 
   const perms = normalizeStaffPermissions(staffPermissions);
   const allowedPage = STAFF_PERMISSION_PAGES.find((page) => perms[page.key] && canAccessPath(page.href, role, perms));
 
   if (allowedPage) return allowedPage.href;
-  if (role === "Cashier") return "/pos";
-  if (role === "Staff") return "/kds";
-
-  return "/login";
+  return "/pos";
 }

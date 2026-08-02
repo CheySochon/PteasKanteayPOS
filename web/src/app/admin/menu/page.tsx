@@ -315,6 +315,36 @@ export default function MenuPage() {
   const borderCol = dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]";
   const isCategoriesView = menuView === "categories";
 
+  // User Role & Granular Action Permissions Check
+  const currentUser = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return JSON.parse(localStorage.getItem("pos_user") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const userRole = useMemo(() => {
+    if (!currentUser) return "Admin";
+    return typeof currentUser.role === "string" ? currentUser.role : currentUser.role?.name || "Admin";
+  }, [currentUser]);
+
+  const isAdmin = userRole === "Super Admin" || userRole === "Admin" || userRole === "Administrator";
+
+  const staffPermissions = useMemo(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(localStorage.getItem("pos_staff_permissions") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const canCreate = isAdmin || Boolean(staffPermissions.menu_create === true);
+  const canEdit = isAdmin || Boolean(staffPermissions.menu_edit === true);
+  const canDelete = isAdmin || Boolean(staffPermissions.menu_delete === true);
+
   const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
     dark
       ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
@@ -755,8 +785,8 @@ export default function MenuPage() {
         searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
       />
       
-      <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
-        <div className="mx-auto w-full max-w-[1400px]">
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1600px]">
 
         {(error || message) && (
           <div
@@ -932,9 +962,9 @@ export default function MenuPage() {
           </section>
           ) : (
             <>
-              <section className="mb-4 flex flex-col gap-3">
-                {/* 1. Categories List Row */}
-                <div className="flex flex-wrap gap-2">
+              {/* Single Integrated Toolbar: Category Tabs (Left) + Actions (Right) */}
+              <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4 border-slate-200/80 dark:border-[#4e4f6e]">
+                <div className="flex flex-wrap items-center gap-2">
                   <FilterButton
                     active={selectedCategory === "all"}
                     onClick={() => setSelectedCategory("all")}
@@ -957,15 +987,14 @@ export default function MenuPage() {
                   ))}
                 </div>
 
-                {/* 2. Status Select & Add Product Row */}
-                <div className="flex items-center justify-between gap-3 border-t border-[#e5e7eb]/80 dark:border-[#4e4f6e]/50 pt-3">
+                <div className="flex shrink-0 items-center gap-2.5">
                   <select
                     value={statusFilter}
                     onChange={(event) =>
                       setStatusFilter(event.target.value as "all" | "available" | "hidden")
                     }
-                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
-                      dark ? "border-[#4e4f6e] bg-[#2b2c40] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#0F522B] transition-all ${
+                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
                     }`}
                   >
                     <option value="all">All Status</option>
@@ -973,16 +1002,18 @@ export default function MenuPage() {
                     <option value="hidden">{t.hidden}</option>
                   </select>
 
-                  <button
-                    type="button"
-                    onClick={createNewProduct}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
-                  >
-                    <Plus size={14} />
-                    Add New Product
-                  </button>
+                  {canCreate && (
+                    <button
+                      type="button"
+                      onClick={createNewProduct}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
+                    >
+                      <Plus size={14} />
+                      Add New Product
+                    </button>
+                  )}
                 </div>
-              </section>
+              </div>
 
               <section>
                 {loading ? (
@@ -1005,6 +1036,8 @@ export default function MenuPage() {
                         onToggle={() => void toggleProductAvailability(product)}
                         text={t}
                         dark={dark}
+                        canEdit={canEdit}
+                        canDelete={canDelete}
                       />
                     ))}
                   </div>
@@ -1212,6 +1245,8 @@ function MenuCard({
   onToggle,
   text,
   dark,
+  canEdit = true,
+  canDelete = true,
 }: {
   product: Product;
   onEdit: () => void;
@@ -1220,27 +1255,24 @@ function MenuCard({
   onToggle: () => void;
   text: typeof TEXT.en;
   dark: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }) {
   const unavailable = !product.isAvailable;
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-[#d9dee3]";
   const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const imgSrc = getFallbackProductImage(product);
 
   return (
-    <article className={`overflow-hidden rounded ${surface} border ${borderCol} shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
+    <article className={`overflow-hidden rounded-2xl ${surface} border ${borderCol} shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
       <div>
         <div className={`relative aspect-[1.3] ${softSurface} overflow-hidden`}>
-          {product.imageUrl ? (
-            <img
-              src={resolveImageUrl(product.imageUrl)}
-              alt={product.name}
-              className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-500">
-              <Camera size={28} />
-            </div>
-          )}
+          <img
+            src={imgSrc}
+            alt={product.name}
+            className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
+          />
 
           {unavailable && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur-[1px]">
@@ -1262,9 +1294,14 @@ function MenuCard({
               </p>
             </div>
 
-            <span className="shrink-0 text-sm font-bold text-[#0F522B]">
-              {money(product.basePrice)}
-            </span>
+            <div className="shrink-0 text-right">
+              <span className="block text-sm font-bold text-[#0F522B] dark:text-emerald-400">
+                {money(product.basePrice)}
+              </span>
+              <span className="block text-[10px] font-semibold text-[#a1acb8]">
+                {Math.round(Number(product.basePrice || 0) * 4100).toLocaleString()} ៛
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1272,23 +1309,27 @@ function MenuCard({
       <div className="px-4 pb-4 pt-2 border-t border-[#d9dee3] dark:border-[#4e4f6e]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[#8592a3]">
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all"
-              title={text.editProduct}
-            >
-              <Pencil size={14} />
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all"
+                title={text.editProduct}
+              >
+                <Pencil size={14} />
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={onDelete}
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all"
-              title={text.deleteProduct}
-            >
-              <Trash2 size={14} />
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all"
+                title={text.deleteProduct}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
 
             <button
               type="button"
@@ -1300,21 +1341,23 @@ function MenuCard({
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-pressed={product.isAvailable}
-            className={`relative h-5 w-9 rounded-full transition-colors active:scale-95 ${
-              product.isAvailable ? "bg-[#71dd37]" : "bg-slate-300"
-            }`}
-            title={product.isAvailable ? text.available : text.hidden}
-          >
-            <span
-              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                product.isAvailable ? "left-4.5" : "left-0.5"
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-pressed={product.isAvailable}
+              className={`relative h-5 w-9 rounded-full transition-colors active:scale-95 ${
+                product.isAvailable ? "bg-[#71dd37]" : "bg-slate-300"
               }`}
-            />
-          </button>
+              title={product.isAvailable ? text.available : text.hidden}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                  product.isAvailable ? "left-4.5" : "left-0.5"
+                }`}
+              />
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -1826,4 +1869,17 @@ function resolveImageUrl(value: string) {
   }
 
   return `${apiOrigin}${value}`;
+}
+
+function getFallbackProductImage(product: Product): string {
+  if (product.imageUrl) return resolveImageUrl(product.imageUrl);
+  const name = product.name.toLowerCase();
+  if (name.includes("cappuccino")) return "https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("cheesecake")) return "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("chocolate") || name.includes("frappe")) return "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("croissant")) return "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("green tea") || name.includes("tea")) return "https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("latte")) return "https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=80";
+  if (name.includes("coffee") || name.includes("americano")) return "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80";
+  return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80";
 }

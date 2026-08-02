@@ -34,30 +34,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     async function verifySession() {
       if (pathname === "/login") {
-        const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
-        if (hasSession) {
-          try {
-            const user = await getMe();
-            localStorage.setItem("pos_logged_in", "true");
-            const redirect = new URLSearchParams(window.location.search).get("redirect");
-            let targetPath =
-              redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/admin";
-            if (targetPath === "/admin") {
-              const rName = roleName(user);
-              if (rName === "Cashier") {
-                targetPath = "/pos";
-              } else if (rName === "Staff") {
-                targetPath = "/kds";
-              }
-            }
-            router.replace(targetPath);
-          } catch {
-            localStorage.removeItem("pos_logged_in");
-            localStorage.removeItem("pos_token");
-            localStorage.removeItem("pos_user");
-            window.dispatchEvent(new Event("pos-auth-change"));
-          }
-        }
         return;
       }
 
@@ -73,14 +49,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
       try {
         let user;
-        if (typeof window !== "undefined" && !navigator.onLine) {
-          const storedUser = localStorage.getItem("pos_user");
-          if (storedUser) {
-            user = JSON.parse(storedUser);
-          } else {
-            throw new Error("Offline and no user found");
-          }
-        } else {
+        const storedUserRaw = typeof window !== "undefined" ? localStorage.getItem("pos_user") : null;
+        if (storedUserRaw) {
+          try {
+            user = JSON.parse(storedUserRaw);
+          } catch {}
+        }
+
+        if (!user) {
           user = await getMe();
         }
         
