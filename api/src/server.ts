@@ -25,6 +25,18 @@ io.on("connection", (socket: Socket) => {
   socket.on("order:update", (order: unknown) => {
     io.emit("order:updated", order);
   });
+
+  socket.on("user:created", (user: unknown) => {
+    io.emit("user:created", user);
+  });
+
+  socket.on("user:updated", (user: unknown) => {
+    io.emit("user:updated", user);
+  });
+
+  socket.on("user:deleted", (data: unknown) => {
+    io.emit("user:deleted", data);
+  });
 });
 
 httpServer.listen(PORT, HOST, () => {

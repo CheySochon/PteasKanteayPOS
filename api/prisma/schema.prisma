@@ -48,11 +48,13 @@ enum NotificationType {
 }
 
 model Role {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  permissions Json?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model User {
@@ -66,7 +68,12 @@ model User {
   ordersCreated         Order[]         @relation("OrderCreatedBy")
   paymentsCreated       Payment[]       @relation("PaymentCreatedBy")
   auditLogs             AuditLog[]
+  stockTransactions     StockTransaction[]
   isActive              Boolean         @default(true)
+  failedLoginAttempts   Int             @default(0)
+  lockedUntil           DateTime?
+  pin                   String?
+  imageUrl              String?
   deletedAt             DateTime?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -110,12 +117,16 @@ model Product {
   slug         String               @unique
   description  String?
   imageUrl     String?
-  basePrice    Decimal              @db.Decimal(10, 2)
-  isAvailable  Boolean              @default(true)
-  orderItems   OrderItem[]
-  deletedAt    DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  basePrice         Decimal              @db.Decimal(10, 2)
+  isAvailable       Boolean              @default(true)
+  unit              String               @default("pc")
+  trackStock        Boolean              @default(false)
+  inventory         Inventory?
+  orderItems        OrderItem[]
+  stockTransactions StockTransaction[]
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   @@index([categoryId])
   @@index([isAvailable])
@@ -263,4 +274,32 @@ model AuditLog {
   @@index([status])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model Inventory {
+  id        Int      @id @default(autoincrement())
+  productId Int      @unique
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Decimal  @default(0) @db.Decimal(10, 4)
+  minStock  Decimal  @default(0) @db.Decimal(10, 4)
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model StockTransaction {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type        String   // "restock", "sale", "damage", "adjustment", "return", "expired"
+  quantity    Decimal  @db.Decimal(10, 4)
+  referenceId String?
+  notes       String?
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([userId])
+  @@index([createdAt])
 }

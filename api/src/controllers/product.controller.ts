@@ -27,6 +27,10 @@ export const get = asyncHandler(
 export const create = asyncHandler(
   async (req: Request<object, object, CreateProductBody>, res: Response) => {
     const data = await createProduct(req.body);
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
+    if (io) {
+      io.emit("inventory:updated", data);
+    }
     res.status(201).json({ success: true, message: "Product created", data });
   },
 );
@@ -37,6 +41,10 @@ export const update = asyncHandler(
     res: Response,
   ) => {
     const data = await updateProduct(Number(req.params.id), req.body);
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
+    if (io) {
+      io.emit("inventory:updated", data);
+    }
     res.json({ success: true, message: "Product updated", data });
   },
 );
@@ -44,6 +52,10 @@ export const update = asyncHandler(
 export const remove = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
     await deleteProduct(Number(req.params.id));
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
+    if (io) {
+      io.emit("inventory:updated", { id: Number(req.params.id), deleted: true });
+    }
     res.json({ success: true, message: "Product deleted" });
   },
 );

@@ -12,6 +12,7 @@ function slugify(value: string): string {
 
 const productInclude = {
   category: true,
+  inventory: true,
 };
 
 async function uniqueProductSlug(value: string, excludeId?: number): Promise<string> {
@@ -64,6 +65,8 @@ export const createProduct = async (data: {
   imageUrl?: string;
   basePrice: number;
   isAvailable?: boolean;
+  unit?: string;
+  trackStock?: boolean;
 }) => {
   const slug = await uniqueProductSlug(data.slug ?? data.name);
 
@@ -76,6 +79,14 @@ export const createProduct = async (data: {
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable ?? true,
+      unit: data.unit ?? "pc",
+      trackStock: data.trackStock ?? false,
+      inventory: {
+        create: {
+          quantity: 0,
+          minStock: 0,
+        },
+      },
     },
     include: productInclude,
   });
@@ -91,6 +102,8 @@ export const updateProduct = async (
     imageUrl?: string | null;
     basePrice?: number;
     isAvailable?: boolean;
+    unit?: string;
+    trackStock?: boolean;
   },
 ) => {
   const slug =
@@ -108,6 +121,8 @@ export const updateProduct = async (
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable,
+      unit: data.unit,
+      trackStock: data.trackStock,
     },
     include: productInclude,
   });

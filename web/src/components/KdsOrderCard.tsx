@@ -12,8 +12,8 @@ const statusConfig: Record<
     label: "Pending",
     bg: "bg-[#ff9f43]/10 text-[#ff9f43]",
     text: "text-[#ff9f43]",
-    actionLabel: "Accept Order",
-    nextStatus: "accepted",
+    actionLabel: "Start Preparing 🍳",
+    nextStatus: "preparing",
     icon: Clock,
   },
   accepted: {
@@ -28,8 +28,8 @@ const statusConfig: Record<
     label: "Preparing",
     bg: "bg-[#03c3ec]/10 text-[#03c3ec]",
     text: "text-[#03c3ec]",
-    actionLabel: "Mark Ready 🔔",
-    nextStatus: "ready",
+    actionLabel: "Complete Order ✅",
+    nextStatus: "completed",
     icon: ChefHat,
   },
   ready: {
@@ -37,7 +37,7 @@ const statusConfig: Record<
     bg: "bg-[#71dd37]/10 text-[#71dd37]",
     text: "text-[#71dd37]",
     actionLabel: "Complete Order ✅",
-    nextStatus: "served",
+    nextStatus: "completed",
     icon: CheckCircle2,
   },
   served: {

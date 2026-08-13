@@ -20,7 +20,7 @@ import type { Order, OrderStatus } from "../../lib/types";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 
-const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing", "ready"];
+const visibleStatuses: OrderStatus[] = ["pending", "preparing"];
 
 let globalAudioCtx: AudioContext | null = null;
 
@@ -226,9 +226,7 @@ export default function KdsPage() {
   }, [orders, statusFilter]);
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
-  const acceptedCount = orders.filter((o) => o.status === "accepted").length;
   const preparingCount = orders.filter((o) => o.status === "preparing").length;
-  const readyCount = orders.filter((o) => o.status === "ready").length;
 
   async function changeStatus(id: number, status: OrderStatus) {
     try {
@@ -330,18 +328,6 @@ export default function KdsPage() {
               Preparing ({preparingCount})
             </button>
 
-            <button
-              type="button"
-              onClick={() => setStatusFilter("ready")}
-              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                statusFilter === "ready"
-                  ? "bg-[#71dd37] text-white shadow-sm shadow-[#71dd37]/20"
-                  : "bg-[#71dd37]/10 text-[#71dd37] hover:bg-[#71dd37]/20"
-              }`}
-            >
-              <CheckCircle2 size={13} />
-              Ready ({readyCount})
-            </button>
           </div>
 
           {/* Action Control Icons */}

@@ -44,6 +44,9 @@ export const register = async (data: {
   return { user, token };
 };
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
 export const login = async (emailOrUsername: string, password: string) => {
   const user = await prisma.user.findFirst({
     where: {
@@ -56,14 +59,57 @@ export const login = async (emailOrUsername: string, password: string) => {
     include: { role: true },
   });
 
-  if (!user || !user.isActive) {
+  if (!user) {
     throw new Error("Invalid credentials");
+  }
+
+  // ── Check lockout from Database ──────────────────────────────────────
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    const remainingMs = user.lockedUntil.getTime() - Date.now();
+    const remainingMins = Math.ceil(remainingMs / (60 * 1000));
+    throw new Error(
+      `ACCOUNT_LOCKED:${remainingMins}`
+    );
+  }
+
+  if (!user.isActive) {
+    throw new Error("Account is disabled");
   }
 
   const isValid = await comparePassword(password, user.password);
 
   if (!isValid) {
-    throw new Error("Invalid credentials");
+    // ── Record failed attempt in Database ──────────────────────────────
+    const newAttempts = (user.failedLoginAttempts ?? 0) + 1;
+    const shouldLock = newAttempts >= MAX_ATTEMPTS;
+    const lockedUntil = shouldLock
+      ? new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000)
+      : null;
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: newAttempts,
+        ...(shouldLock ? { lockedUntil } : {}),
+      },
+    });
+
+    if (shouldLock) {
+      throw new Error(`ACCOUNT_LOCKED:${LOCKOUT_MINUTES}`);
+    }
+
+    const attemptsLeft = MAX_ATTEMPTS - newAttempts;
+    throw new Error(
+      `Invalid credentials. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining before lockout.`
+    );
+  }
+
+  // ── Login success — reset counter ─────────────────────────────────────
+  if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginAttempts: 0, lockedUntil: null },
+    });
   }
 
   const token = signToken({
@@ -73,6 +119,7 @@ export const login = async (emailOrUsername: string, password: string) => {
 
   return { user, token };
 };
+
 
 export const updatePassword = async (
   userId: number,
@@ -120,4 +167,56 @@ export const updatePassword = async (
   return {
     user: updatedUser,
   };
+};
+
+export const resetUserPasswordWithoutCurrent = async (
+  email: string,
+  newPassword: string,
+) => {
+  const user = await prisma.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const newPasswordHash = await hashPassword(newPassword);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: newPasswordHash,
+      updatedAt: new Date(),
+    },
+  });
+
+  return {
+    user: updatedUser,
+  };
+};
+
+export const loginWithPin = async (pin: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      pin: pin.trim(),
+      deletedAt: null,
+    },
+    include: { role: true },
+  });
+
+  if (!user) {
+    throw new Error("Invalid PIN");
+  }
+
+  if (!user.isActive) {
+    throw new Error("Account is disabled");
+  }
+
+  const token = signToken({
+    userId: user.id,
+    role: user.role.name,
+  });
+
+  return { user, token };
 };

@@ -422,17 +422,17 @@ export default function TablesPage() {
 
   return (
     <>
-      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
         <TopBar
           title={language === "km" ? "តុអាហារ" : "Floor Dining Tables"}
-          subtitle={language === "km" ? "គ្រប់គ្រង និងតាមដានស្ថានភាពតុអាហារ" : "Manage floor plan, table status, and QR codes."}
+          subtitle=""
           language={language}
           onLanguageChange={setAppLanguage}
           notifications={[]}
           dark={dark}
         />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
           <div className="mx-auto w-full max-w-[1600px]">
 
 
@@ -659,7 +659,7 @@ export default function TablesPage() {
 
       {/* CREATE / EDIT TABLE MODAL */}
       {isTableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[1px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close table dialog"
@@ -667,107 +667,103 @@ export default function TablesPage() {
             className="absolute inset-0 cursor-default"
           />
 
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded border p-5 shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#a1acb8]">
-                  {tableForm.id ? "Edit Configuration" : "Create Table"}
-                </p>
-                <h2 className={`mt-0.5 text-lg font-bold ${textPrimary}`}>
-                  {tableForm.id ? tableForm.name : "Add New Table"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeTableModal}
-                className={`flex h-8 w-8 items-center justify-center rounded border transition-all ${
-                  dark
-                    ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
-                    : "border-[#d9dee3] bg-white text-[#8592a3] hover:bg-[#f5f5f9]"
-                }`}
-                title="Close"
-              >
-                <X size={15} />
-              </button>
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[500px] overflow-y-auto rounded-[24px] p-8 shadow-2xl border-none animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e202f]`}>
+            <div className="mb-6">
+              <h2 className={`text-xl font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+                {tableForm.id ? (language === "km" ? "កែសម្រួលតុ" : "Edit Table") : (language === "km" ? "បន្ថែមតុថ្មី" : "Add New Table")}
+              </h2>
             </div>
 
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} className="space-y-5">
+              {/* Row 1: Title */}
+              <label className="block">
+                <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះតុ" : "Title"}
+                </span>
+                <input
+                  required
+                  value={tableForm.name}
+                  onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder={language === "km" ? "បញ្ចូលឈ្មោះតុ" : "Enter Table Title"}
+                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </label>
+
+              {/* Row 2: Floor and Seating Capacity */}
               <div className="grid gap-4 grid-cols-2">
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Table Name</span>
-                  <input
-                    required
-                    value={tableForm.name}
-                    onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))}
-                    placeholder="T-5"
-                    className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
-                  />
+                <label className="block">
+                  <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "ជាន់ / តំបន់" : "Floor"}
+                  </span>
+                  <select
+                    value={tableForm.zone}
+                    onChange={(event) =>
+                      setTableForm((current) => ({ ...current, zone: event.target.value as TableZone }))
+                    }
+                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                  >
+                    <option value="indoor">{language === "km" ? "សាលខាងក្នុង (Indoor)" : "Indoor"}</option>
+                    <option value="outdoor">{language === "km" ? "យ៉រខាងក្រៅ (Outdoor)" : "Outdoor"}</option>
+                    <option value="vip">{language === "km" ? "បន្ទប់ VIP (VIP)" : "VIP Area"}</option>
+                  </select>
                 </label>
 
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Capacity</span>
+                <label className="block">
+                  <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "ចំនួនកៅអី" : "Seating Capacity"}
+                  </span>
                   <input
                     type="number"
                     min={1}
                     value={tableForm.capacity}
                     onChange={(event) => setTableForm((current) => ({ ...current, capacity: event.target.value }))}
-                    placeholder="2"
-                    className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
+                    placeholder={language === "km" ? "បញ្ចូលចំនួនកៅអី" : "Enter Seating Capacity"}
+                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
                   />
                 </label>
               </div>
 
-              <label className="space-y-1 block">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">Zone</span>
-                <select
-                  value={tableForm.zone}
-                  onChange={(event) =>
-                    setTableForm((current) => ({ ...current, zone: event.target.value as TableZone }))
-                  }
-                  className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
-                >
-                  <option value="indoor">Indoor</option>
-                  <option value="outdoor">Outdoor</option>
-                  <option value="vip">VIP Area</option>
-                </select>
-              </label>
-
-              <label className="space-y-1 block">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">QR Token</span>
+              {/* Row 3: QR Token (Optional) */}
+              <label className="block">
+                <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "កូដ QR Token (មិនតម្រូវ)" : "QR Token (Optional)"}
+                </span>
                 <input
                   value={tableForm.qrToken}
                   onChange={(event) => setTableForm((current) => ({ ...current, qrToken: event.target.value }))}
-                  placeholder="Optional, e.g. table-t5"
-                  className={`w-full rounded border px-3 py-2 text-sm outline-none border-[#d9dee3] focus:border-[#696cff] transition-all ${surface} ${textPrimary}`}
+                  placeholder={language === "km" ? "ឧ. table-t5" : "Optional, e.g. table-t5"}
+                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
                 />
               </label>
 
-              <label className="flex items-center justify-between rounded border border-[#e5e7eb] bg-[#f5f5f9]/60 px-3 py-2 text-xs font-semibold text-[#8592a3]">
-                <span>Enable Guest Ordering</span>
+              {/* Row 4: Enable Guest Ordering */}
+              <label className="flex items-center justify-between rounded-xl bg-[#f4f5f7]/60 dark:bg-[#2b2c40]/60 px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-transparent">
+                <span className={language === "km" ? "font-khmer" : ""}>
+                  {language === "km" ? "អនុញ្ញាតឱ្យភ្ញៀវកម្ម៉ង់ផ្ទាល់ខ្លួន" : "Enable Guest Ordering"}
+                </span>
                 <input
                   type="checkbox"
                   checked={tableForm.isActive}
                   onChange={(event) => setTableForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-4.5 w-4.5 accent-[#0F522B] cursor-pointer"
+                  className="h-4.5 w-4.5 accent-[#6bbd75] cursor-pointer"
                 />
               </label>
 
-              <div className="flex gap-3 pt-2">
+              {/* Row 5: Action Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={closeTableModal}
-                  className={`h-10 flex-1 rounded border px-4 text-xs font-semibold transition-all ${
-                    dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
-                      : "border-[#d9dee3] bg-white text-[#8592a3] hover:bg-[#f5f5f9]"
-                  }`}
+                  className="rounded-2xl border border-slate-100 dark:border-slate-850 bg-[#f4f5f7] dark:bg-[#232333] px-6 py-2.5 font-bold text-sm text-slate-600 dark:text-slate-350 hover:bg-[#e9ebed] dark:hover:bg-[#2b2c40] transition-all cursor-pointer"
                 >
-                  Cancel
+                  {language === "km" ? "បិទ" : "Close"}
                 </button>
-                <button className="flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all">
+                 <button
+                  type="submit"
+                  className="rounded-2xl bg-[#6bbd75] hover:bg-[#5aaf64] px-6 py-2.5 font-bold text-sm text-white shadow-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
+                >
                   {tableForm.id ? <Save size={14} /> : <Plus size={14} />}
-                  {tableForm.id ? "Update Setup" : "Save Table"}
+                  <span>{tableForm.id ? (language === "km" ? "ធ្វើបច្ចុប្បន្នភាព" : "Update") : (language === "km" ? "រក្សាទុក" : "Save")}</span>
                 </button>
               </div>
             </form>
@@ -777,7 +773,7 @@ export default function TablesPage() {
 
       {/* ORIGINAL SIMPLE CARD QR CODE PREVIEW DIALOG */}
       {qrTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[1px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close QR dialog"
@@ -852,7 +848,7 @@ export default function TablesPage() {
       {deleteConfirmTable && (
           <div
             onClick={() => setDeleteConfirmTable(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px] p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
           >
             <div
               onClick={(e) => e.stopPropagation()}

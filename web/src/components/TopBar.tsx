@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   Search,
@@ -26,8 +26,16 @@ import {
   LayoutDashboard,
   TrendingUp,
   UsersRound,
+  ChevronDown,
+  ChevronRight,
+  User,
+  Laptop,
+  HelpCircle,
+  LogOut,
+  LifeBuoy,
+  MonitorSmartphone,
 } from "lucide-react";
-import { getOrders, getProducts, getTables } from "../lib/api";
+import { getOrders, getProducts, getTables, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { setAppLanguage } from "../lib/language";
 import { useAppTheme } from "../lib/theme";
@@ -80,7 +88,7 @@ type TopBarProps = {
 const quickLinks = [
   { label: "Orders History", href: "/admin/orders", Icon: Clock3 },
   { label: "Hold Orders", href: "/admin/orders", Icon: ReceiptText },
-  { label: "POS", href: "/pos", Icon: Utensils },
+  { label: "POS", href: "/admin/pos", Icon: Utensils },
   { label: "Table", href: "/admin/tables", Icon: Grid2X2 },
 ];
 
@@ -140,6 +148,9 @@ export default function TopBar({
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
   const languageRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
   const user = parseUserSnapshot(
     useSyncExternalStore(
       subscribeToUserChanges,
@@ -174,6 +185,7 @@ export default function TopBar({
   // Fetch live search data on search open / focus
   useEffect(() => {
     if (!searchOpen) return;
+    setInternalQuery("");
     let mounted = true;
     Promise.all([
       getProducts().catch(() => []),
@@ -221,6 +233,10 @@ export default function TopBar({
       if (notificationsRef.current && !notificationsRef.current.contains(target)) {
         setNotificationsOpen(false);
       }
+
+      if (userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setUserMenuOpen(false);
+      }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -229,14 +245,14 @@ export default function TopBar({
 
   const navRoutes = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { label: "Orders Management", href: "/admin/orders", icon: ReceiptText },
-    { label: "Dining Tables Plan", href: "/admin/tables", icon: Grid2X2 },
-    { label: "Menu List & Categories", href: "/admin/menu", icon: ShoppingBag },
-    { label: "Analytics & Reports", href: "/admin/reports", icon: TrendingUp },
-    { label: "Staff & Permissions", href: "/admin/users", icon: UsersRound },
-    { label: "System Settings", href: "/admin/settings", icon: Settings },
-    { label: "POS Terminal", href: "/pos", icon: Utensils },
-    { label: "Kitchen Display (KDS)", href: "/kds", icon: ChefHat },
+    { label: "Orders", href: "/admin/orders", icon: Utensils },
+    { label: "Reservations", href: "/admin/tables", icon: Grid2X2 },
+    { label: "Menu", href: "/admin/menu", icon: ShoppingBag },
+    { label: "Reports", href: "/admin/reports", icon: TrendingUp },
+    { label: "Staff & Roles", href: "/admin/users", icon: UsersRound },
+    { label: "Settings", href: "/admin/settings", icon: Settings },
+    { label: "POS - Point of Sale", href: "/admin/pos", icon: MonitorSmartphone },
+    { label: "Kitchen", href: "/kds", icon: ChefHat },
   ];
 
   const q = internalQuery.trim().toLowerCase();
@@ -417,322 +433,271 @@ export default function TopBar({
   const allowedQuickLinks = quickLinks.filter(({ href }) => canSeeHref(href, user.role, staffPermissions));
 
   return (
-    <header className={`sticky top-0 z-20 border-b px-3 shadow-sm ${surface}`}>
-      <div className="flex h-[52px] items-center justify-between gap-3">
-        {/* Left Section: Menu Toggle + Title */}
-        <div className="flex min-w-0 items-center gap-2">
+    <header className={`sticky top-0 z-20 border-b border-slate-200/60 px-5 backdrop-blur-md ${isDark ? "bg-[#171a23]/80" : "bg-white/80"}`}>
+      <div className="flex h-[62px] items-center justify-between gap-3">
+        {/* Left Section: Search Bar */}
+        <div className="flex flex-1 items-center gap-3">
           <button
             type="button"
             onClick={() => {
               onMenuToggle?.();
               window.dispatchEvent(new Event("pos-sidebar-toggle"));
             }}
-            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
+            className={`md:hidden inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${textPrimary} ${menuHover}`}
             title={t.toggleMenu}
           >
             <Menu size={18} />
           </button>
 
-          <div className="hidden min-w-0 border-l border-slate-200 dark:border-[#4e4f6e] pl-3 sm:block">
-            <div className={`truncate text-xs font-black ${textPrimary} ${kmClass}`}>
-              {title}
+          {/* Global Search Bar Trigger */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="relative flex items-center flex-1 max-w-[260px] text-left cursor-pointer border-none bg-transparent"
+          >
+            <Search size={18} className={`absolute left-4.5 ${isDark ? "text-slate-400" : "text-slate-550"}`} />
+            <div
+              className={`h-11 w-full rounded-full border pl-12 pr-4 text-sm font-normal flex items-center select-none ${
+                isDark
+                  ? "border-slate-700/80 bg-[#232333] text-slate-400"
+                  : "border-slate-200/50 bg-[#eef2ee] text-slate-550"
+              }`}
+            >
+              Search
             </div>
-            <div className={`truncate text-[10px] ${textSecondary} ${kmClass}`}>
-              {subtitle}
-            </div>
-          </div>
+          </button>
         </div>
 
-        {/* Right Section: Global Search + Quick Launch + Utilities */}
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Global Search Bar (Right Grouped with Dynamic Live Search Overlay) */}
-          <div ref={searchRef} className="relative hidden items-center md:flex border-r border-slate-200/80 dark:border-slate-700/80 pr-2.5">
-            <div className="relative flex items-center">
-              <Search size={14} className="absolute left-3 text-slate-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={internalQuery}
-                onFocus={() => setSearchOpen(true)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setInternalQuery(val);
-                  onSearchChange?.(val);
-                  setSearchOpen(true);
-                }}
-                placeholder={searchPlaceholder ?? "Search orders, products, tables..."}
-                className={`h-8.5 w-52 sm:w-64 rounded-xl border pl-9 pr-10 text-xs font-medium outline-none transition placeholder:text-slate-400 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10 ${
-                  isDark
-                    ? "border-slate-700/80 bg-[#232333] text-slate-100"
-                    : "border-slate-200 bg-slate-50 text-slate-800"
-                }`}
-              />
-              {internalQuery ? (
+        {/* COMMAND PALETTE SEARCH MODAL OVERLAY */}
+        {searchOpen && mounted && createPortal(
+          <div 
+            onClick={() => setSearchOpen(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1.5px] animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`relative w-full max-w-md h-[440px] overflow-hidden rounded-[24px] border shadow-2xl transition-all ${
+                isDark ? "border-[#4e4f6e] bg-[#1a1b26] text-slate-100" : "border-slate-100 bg-white text-slate-800"
+              }`}
+            >
+              {/* Floating Header: Input + Close Button */}
+              <div className={`absolute top-6 left-6 right-6 z-25 flex items-center gap-3 pb-2 ${isDark ? "bg-[#1a1b26]" : "bg-white"}`}>
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    ref={searchInputRef}
+                    autoFocus
+                    type="text"
+                    value={internalQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInternalQuery(val);
+                      onSearchChange?.(val);
+                    }}
+                    placeholder="Search"
+                    className={`h-11 w-full rounded-xl border pl-11 pr-4 text-sm font-semibold outline-none transition placeholder:text-slate-400 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10 ${
+                      isDark
+                        ? "border-slate-700/80 bg-[#232333] text-slate-100"
+                        : "border-slate-200 bg-slate-50 text-slate-850"
+                    }`}
+                  />
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setInternalQuery("");
-                    onSearchChange?.("");
-                  }}
-                  className="absolute right-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  onClick={() => setSearchOpen(false)}
+                  className={`h-11 w-11 flex items-center justify-center rounded-full transition-colors cursor-pointer border-none shrink-0 ${
+                    isDark
+                      ? "bg-white/10 hover:bg-white/20 text-slate-300"
+                      : "bg-slate-100 hover:bg-slate-200/80 text-slate-500"
+                  }`}
                 >
-                  <X size={13} />
+                  <X size={18} />
                 </button>
-              ) : (
-                <span className="absolute right-2.5 hidden sm:inline-block rounded border border-slate-200/80 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-400">
-                  ⌘K
-                </span>
-              )}
-            </div>
-
-            {/* DYNAMIC LIVE SEARCH OVERLAY DROPDOWN (ONLY WHEN TYPING) */}
-            {searchOpen && q.length > 0 && (
-              <div
-                className={`absolute right-2.5 top-11 z-50 w-80 sm:w-96 overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-md animate-[usersPageIn_180ms_ease-out] ${
-                  isDark ? "border-slate-700/90 bg-[#1a1c27]/95 text-slate-100" : "border-slate-200 bg-white/95 text-slate-800"
-                }`}
-              >
-                <div className="max-h-96 overflow-y-auto space-y-3 p-1">
-                  {/* Category 1: Navigation Routes */}
-                  {matchingRoutes.length > 0 && (
-                    <div>
-                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        {language === "km" ? "ទំព័រប្រព័ន្ធ" : "Pages & Navigation"}
-                      </div>
-                      <div className="space-y-0.5">
-                        {matchingRoutes.map((route) => {
-                          const Icon = route.icon;
-                          return (
-                            <Link
-                              key={route.href}
-                              href={route.href}
-                              onClick={() => setSearchOpen(false)}
-                              className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
-                                isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0F522B]/10 text-[#0F522B] dark:text-emerald-400 shrink-0">
-                                <Icon size={14} />
-                              </div>
-                              <span className="flex-1 truncate">{route.label}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">Go →</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Category 2: Matching Orders */}
-                  {matchingOrders.length > 0 && (
-                    <div>
-                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        {language === "km" ? "ការបញ្ជាទិញ" : "Orders"} ({matchingOrders.length})
-                      </div>
-                      <div className="space-y-0.5">
-                        {matchingOrders.map((order) => (
-                          <Link
-                            key={order.id}
-                            href="/admin/orders"
-                            onClick={() => setSearchOpen(false)}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
-                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-extrabold text-[#0F522B] dark:text-emerald-400">
-                                #{order.orderNumber || order.orderId || order.id}
-                              </span>
-                              <span className="text-[10px] text-slate-400 capitalize">
-                                • {order.tableNo || order.table?.name || "Takeout"}
-                              </span>
-                            </div>
-                            <span className="font-black text-xs text-slate-800 dark:text-slate-100">
-                              ${Number(order.totalAmount || 0).toFixed(2)}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Category 3: Matching Products */}
-                  {matchingProducts.length > 0 && (
-                    <div>
-                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        {language === "km" ? "មុខម្ហូប/ភេសជ្ជៈ" : "Menu Products"} ({matchingProducts.length})
-                      </div>
-                      <div className="space-y-0.5">
-                        {matchingProducts.map((product) => (
-                          <Link
-                            key={product.id}
-                            href="/admin/menu"
-                            onClick={() => setSearchOpen(false)}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
-                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <ShoppingBag size={14} className="text-amber-500 shrink-0" />
-                              <span className="truncate">{product.name}</span>
-                            </div>
-                            <span className="font-bold text-[#0F522B] dark:text-emerald-400">
-                              ${Number(product.price || 0).toFixed(2)}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Category 4: Matching Tables */}
-                  {matchingTables.length > 0 && (
-                    <div>
-                      <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                        {language === "km" ? "តុអាហារ" : "Dining Tables"} ({matchingTables.length})
-                      </div>
-                      <div className="space-y-0.5">
-                        {matchingTables.map((table) => (
-                          <Link
-                            key={table.id}
-                            href="/admin/tables"
-                            onClick={() => setSearchOpen(false)}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all ${
-                              isDark ? "hover:bg-white/10 text-slate-200" : "hover:bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Grid2X2 size={14} className="text-blue-500 shrink-0" />
-                              <span className="font-bold">{table.name}</span>
-                              <span className="text-[10px] text-slate-400 capitalize">({table.zone})</span>
-                            </div>
-                            <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                              {table.capacity} guests
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {totalResults === 0 && (
-                    <div className="py-6 text-center text-xs text-slate-400 font-medium">
-                      No matching orders, products, or tables found for "{internalQuery}".
-                    </div>
-                  )}
-                </div>
               </div>
-            )}
-          </div>
 
-          {/* Quick Launch Switcher: POS & KDS */}
-          <div className="hidden items-center gap-1.5 sm:flex border-r border-slate-200/80 dark:border-slate-700/80 pr-2.5">
-            <Link
-              href="/pos"
-              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-[#0F522B]/10 px-3 text-xs font-bold text-[#0F522B] dark:text-emerald-400 hover:bg-[#0F522B] hover:text-white active:scale-95 transition-all border border-[#0F522B]/20 shadow-sm"
-              title="Open POS Terminal"
-            >
-              <Utensils size={14} />
-              <span className="font-bold">POS</span>
-            </Link>
+              {/* Scrollable Body: Results / Navigation List */}
+              <div className="h-full overflow-y-auto pt-[86px] pb-6 px-6 space-y-1 scrollbar-thin">
+                {internalQuery.trim().length === 0 ? (
+                  /* Default popular pages navigation list */
+                  <div className="space-y-1">
+                    {/* 1. Dashboard */}
+                    <Link
+                      href="/admin"
+                      onClick={() => setSearchOpen(false)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                        isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <LayoutDashboard size={18} strokeWidth={1.7} className="text-slate-550" />
+                        <span className="text-[13.5px] font-semibold">Dashboard</span>
+                      </div>
+                      <ChevronRight size={15} className="text-slate-400" />
+                    </Link>
 
-            <Link
-              href="/kds"
-              className="inline-flex h-8.5 items-center gap-1.5 rounded-xl bg-teal-500/10 px-3 text-xs font-bold text-teal-600 dark:text-teal-400 hover:bg-teal-600 hover:text-white active:scale-95 transition-all border border-teal-500/20 shadow-sm"
-              title="Open Kitchen Display (KDS)"
-            >
-              <ChefHat size={14} />
-              <span className="font-bold">KDS</span>
-            </Link>
-          </div>
+                    {/* 2. POS */}
+                    <Link
+                      href="/admin/pos"
+                      onClick={() => setSearchOpen(false)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                        isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <MonitorSmartphone size={18} strokeWidth={1.7} className="text-slate-550" />
+                        <span className="text-[13.5px] font-semibold">POS - Point of Sale</span>
+                      </div>
+                      <ChevronRight size={15} className="text-slate-400" />
+                    </Link>
 
-          {/* Grouped Utility Actions Pill */}
-          <div
-            className={`flex items-center gap-0.5 rounded-xl border p-0.5 transition-colors ${
-              isDark
-                ? "border-slate-700/80 bg-[#232333]/90 text-slate-100"
-                : "border-slate-200/80 bg-slate-50/80 text-slate-700"
-            }`}
-          >
-            <div ref={languageRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setLanguageOpen((value) => !value)}
-                className={`inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-colors`}
-                title="Language"
-              >
-                <Languages size={15} />
-              </button>
+                    {/* 3. Kitchen */}
+                    <Link
+                      href="/kds"
+                      onClick={() => setSearchOpen(false)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                        isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <ChefHat size={18} strokeWidth={1.7} className="text-slate-550" />
+                        <span className="text-[13.5px] font-semibold">Kitchen</span>
+                      </div>
+                      <ChevronRight size={15} className="text-slate-400" />
+                    </Link>
 
-              {languageOpen && (
-                <div className={`absolute right-0 z-40 mt-2 w-40 overflow-hidden rounded-xl border shadow-xl ${dropdownSurface}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAppLanguage("en");
-                      onLanguageChange("en");
-                      setLanguageOpen(false);
-                    }}
-                    className={`block w-full px-4 py-2.5 text-left text-xs font-semibold ${
-                      language === "en" ? "bg-[#0F522B] text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
-                    }`}
-                  >
-                    {t.english}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAppLanguage("km");
-                      onLanguageChange("km");
-                      setLanguageOpen(false);
-                    }}
-                    className={`block w-full px-4 py-2.5 text-left text-xs font-semibold font-khmer ${
-                      language === "km" ? "bg-[#0F522B] text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
-                    }`}
-                  >
-                    {t.khmer}
-                  </button>
-                </div>
-              )}
+                    {/* 4. Orders */}
+                    <Link
+                      href="/admin/orders"
+                      onClick={() => setSearchOpen(false)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                        isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Utensils size={18} strokeWidth={1.7} className="text-slate-555" />
+                        <span className="text-[13.5px] font-semibold">Orders</span>
+                      </div>
+                      <ChevronRight size={15} className="text-slate-400" />
+                    </Link>
+
+                    {/* 5. Reservations (Dining Tables) */}
+                    <Link
+                      href="/admin/tables"
+                      onClick={() => setSearchOpen(false)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                        isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Grid2X2 size={18} strokeWidth={1.7} className="text-slate-550" />
+                        <span className="text-[13.5px] font-semibold">Reservations</span>
+                      </div>
+                      <ChevronRight size={15} className="text-slate-400" />
+                    </Link>
+                  </div>
+                ) : (
+                  /* Dynamic filtered results list */
+                  <div className="space-y-1">
+                    {/* Matching Pages */}
+                    {matchingRoutes.map((route) => {
+                      const Icon = route.icon;
+                      return (
+                        <Link
+                          key={route.href}
+                          href={route.href}
+                          onClick={() => setSearchOpen(false)}
+                          className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                            isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <Icon size={18} strokeWidth={1.7} className="text-slate-550" />
+                            <span className="text-[13.5px] font-semibold">{route.label}</span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400" />
+                        </Link>
+                      );
+                    })}
+
+                    {/* Matching Orders */}
+                    {matchingOrders.map((order) => (
+                      <Link
+                        key={order.id}
+                        href="/admin/orders"
+                        onClick={() => setSearchOpen(false)}
+                        className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                          isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <ReceiptText size={18} strokeWidth={1.7} className="text-slate-550" />
+                          <span className="text-[13.5px] font-semibold">Order #{order.orderNumber || order.id} ({order.table?.name || "Takeaway"})</span>
+                        </div>
+                        <ChevronRight size={15} className="text-slate-400" />
+                      </Link>
+                    ))}
+
+                    {/* Matching Products */}
+                    {matchingProducts.map((product) => (
+                      <Link
+                        key={product.id}
+                        href="/admin/menu"
+                        onClick={() => setSearchOpen(false)}
+                        className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                          isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <ShoppingBag size={18} strokeWidth={1.7} className="text-slate-550" />
+                          <span className="text-[13.5px] font-semibold">{product.name} (${Number(product.price).toFixed(2)})</span>
+                        </div>
+                        <ChevronRight size={15} className="text-slate-400" />
+                      </Link>
+                    ))}
+
+                    {/* Matching Tables */}
+                    {matchingTables.map((table) => (
+                      <Link
+                        key={table.id}
+                        href="/admin/tables"
+                        onClick={() => setSearchOpen(false)}
+                        className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
+                          isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <Grid2X2 size={18} strokeWidth={1.7} className="text-slate-550" />
+                          <span className="text-[13.5px] font-semibold">{table.name} ({table.zone})</span>
+                        </div>
+                        <ChevronRight size={15} className="text-slate-400" />
+                      </Link>
+                    ))}
+
+                    {totalResults === 0 && (
+                      <div className="py-10 text-center text-xs text-slate-400 font-medium">
+                        No matching results found for "{internalQuery}".
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                document.fullscreenElement
-                  ? document.exitFullscreen()
-                  : document.documentElement.requestFullscreen()
-              }
-              className={`hidden sm:inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-colors`}
-              title={t.fullscreen}
-            >
-              <Maximize size={15} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAppTheme(isDark ? "light" : "dark")}
-              className={`inline-flex h-7.5 w-7.5 items-center justify-center rounded-lg ${textPrimary} ${menuHover} transition-all active:scale-75`}
-              title={isDark ? "Light Mode" : "Dark Mode"}
-            >
-              <span className="inline-flex transition-transform duration-300 transform hover:rotate-45">
-                {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}
-              </span>
-            </button>
           </div>
+        , document.body)}
 
-          <div ref={notificationsRef} className="relative">
+        {/* Right Section: Notification Bell + User Menu Pill */}
+        <div className="flex shrink-0 items-center gap-3">
+          {/* Notification Bell */}
+          <div ref={notificationsRef} className="relative flex items-center">
             <button
               type="button"
               onClick={() => setNotificationsOpen((value) => !value)}
-              className={`relative inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
+              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-white/10 ${textPrimary}`}
               title={t.notifications}
             >
-              <Bell size={17} />
+              <Bell size={16} />
               {unreadCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">
-                  {unreadCount}
-                </span>
+                <span className="absolute right-1.5 top-1.5 flex h-2 w-2 rounded-full bg-red-500" />
               )}
             </button>
 
@@ -807,18 +772,6 @@ export default function TopBar({
                           <div className={`mt-0.5 truncate text-xs ${textSecondary} ${kmClass}`}>
                             {item.detail}
                           </div>
-                          {item.items && item.items.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {item.items.slice(0, 2).map((dish, dIdx) => (
-                                <span key={dIdx} className="rounded bg-slate-200/60 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-white/10 dark:text-slate-300">
-                                  {dish.quantity}x {dish.name}
-                                </span>
-                              ))}
-                              {item.items.length > 2 && (
-                                <span className="text-[10px] text-slate-400 font-bold">+{item.items.length - 2} more</span>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </button>
                     ))}
@@ -828,21 +781,90 @@ export default function TopBar({
             )}
           </div>
 
-          <Link
-            href="/admin/profile"
-            className={`hidden h-8 items-center gap-2 rounded-md px-2 sm:flex ${textPrimary} ${menuHover}`}
-            title="Profile"
-          >
-            <ProfileAvatar user={user} />
-            <span className={`max-w-24 truncate text-sm ${kmClass}`}>{user.name}</span>
-          </Link>
-          <Link
-            href="/admin/settings"
-            className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${textPrimary} ${menuHover}`}
-            title={t.settings}
-          >
-            <Settings size={17} />
-          </Link>
+          {/* User Menu Pill Container */}
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className={`h-11 rounded-full flex items-center gap-2.5 pl-1 pr-3.5 border border-transparent hover:border-slate-200/55 transition-all ${
+                isDark ? "bg-[#232333] text-slate-100" : "bg-[#eef2ee] text-slate-800"
+              } cursor-pointer`}
+            >
+              <ProfileAvatar user={user} />
+              <span className="text-sm font-extrabold tracking-tight hidden sm:inline-block">{user.name}</span>
+              <ChevronDown size={15} className="text-slate-500 shrink-0" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {userMenuOpen && (
+              <div className={`absolute right-0 z-50 mt-2.5 w-52 overflow-hidden rounded-[18px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1a1b26] p-1.5 shadow-xl animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
+                <div className="space-y-0.5">
+                  {/* Admin Panel Link (Only for admins/managers) */}
+                  {user && user.role && ["super admin", "admin", "administrator", "manager", "superadmin"].includes(user.role.toLowerCase()) && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5"
+                    >
+                      <LayoutDashboard size={18} strokeWidth={1.7} className="text-slate-700 dark:text-slate-350" />
+                      <span>Admin Panel</span>
+                    </Link>
+                  )}
+
+                  {/* 1. Profile Link */}
+                  <Link
+                    href="/admin/profile"
+                    onClick={() => setUserMenuOpen(false)}
+                    className={`flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      pathname === "/admin/profile" ? "bg-[#0F522B] text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    <User size={18} strokeWidth={1.7} className={pathname === "/admin/profile" ? "text-white" : "text-slate-700 dark:text-slate-350"} />
+                    <span>Profile</span>
+                  </Link>
+
+                  {/* 3. Language */}
+                  <Link
+                    href="/admin/language"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-left transition-colors border-none bg-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer no-underline"
+                  >
+                    <Languages size={18} strokeWidth={1.7} className="text-slate-700 dark:text-slate-350" />
+                    <span>Language</span>
+                  </Link>
+
+                  {/* 5. Dark Mode */}
+                  <button
+                    type="button"
+                    onClick={() => setAppTheme(isDark ? "light" : "dark")}
+                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-left transition-colors border-none bg-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                  >
+                    {isDark ? <Sun size={18} strokeWidth={1.7} className="text-amber-500" /> : <Moon size={18} strokeWidth={1.7} className="text-slate-700 dark:text-slate-350" />}
+                    <span>Dark Mode</span>
+                  </button>
+
+                  {/* 6. Logout */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logoutApi().catch(() => {});
+                      localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
+                      localStorage.removeItem("pos_logged_in");
+                      localStorage.removeItem("pos_token");
+                      localStorage.removeItem("pos_user");
+                      window.dispatchEvent(new Event("pos-auth-change"));
+                      router.replace("/login");
+                    }}
+                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-left transition-colors border-none bg-transparent cursor-pointer w-full"
+                  >
+                    <LogOut size={18} strokeWidth={1.7} className="text-rose-500" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1049,6 +1071,7 @@ export default function TopBar({
           </div>
         </div>
       )}
+
     </header>
   );
 }
@@ -1111,18 +1134,18 @@ function ProfileAvatar({ user }: { user: ReturnType<typeof parseUserSnapshot> })
       <img
         src={image}
         alt={user.name}
-        className="h-7 w-7 rounded-full object-cover ring-1 ring-slate-200"
+        className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200/80"
       />
     );
   }
 
   return (
     <span
-      className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-black text-white ${profileAvatarClass(
+      className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black text-white ${profileAvatarClass(
         user.role,
       )}`}
     >
-      {user.name ? initials(user.name) : <UserRound size={15} />}
+      {user.name ? initials(user.name) : <UserRound size={16} />}
     </span>
   );
 }

@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma.js";
 import { OrderStatus } from "../prisma/client.js";
+import { adjustStock } from "./inventory.service.js";
 
 const ALLOWED_STATUSES = [
   "pending",
@@ -106,6 +107,23 @@ export const createOrder = async (
 ) => {
   const rawItems = payload.items || [];
   
+  // Check stock availability first
+  for (const item of rawItems) {
+    const product = await prisma.product.findUnique({
+      where: { id: Number(item.productId) },
+    });
+    if (product?.trackStock) {
+      const inventory = await prisma.inventory.findUnique({
+        where: { productId: product.id },
+      });
+      const qty = Math.max(1, Number(item.quantity || 1));
+      const available = Number(inventory?.quantity ?? 0);
+      if (available < qty) {
+        throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+      }
+    }
+  }
+  
   let calculatedSubtotal = 0;
   const itemsToCreate = [];
 
@@ -152,13 +170,80 @@ export const createOrder = async (
     include: buildOrderInclude(),
   });
 
+  // Deduct stock for items where trackStock is enabled
+  for (const item of created.items) {
+    if (item.product?.trackStock) {
+      await adjustStock(
+        item.productId,
+        -item.quantity,
+        "sale",
+        created.orderNumber,
+        null,
+        userId
+      );
+    }
+  }
+
   return formatOrder(created);
 };
 
-export const updateOrderStatus = async (id: number, status: string) => {
+export const updateOrderStatus = async (id: number, status: string, userId?: number) => {
+  const currentOrder = await prisma.order.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!currentOrder) throw new Error("Order not found");
+
+  const newStatus = normalizeStatus(status);
+
+  // If transitioning to cancelled
+  if (newStatus === "cancelled" && currentOrder.status !== "cancelled") {
+    for (const item of currentOrder.items) {
+      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      if (product?.trackStock) {
+        await adjustStock(
+          item.productId,
+          item.quantity,
+          "return",
+          currentOrder.orderNumber,
+          "Order cancelled",
+          userId
+        );
+      }
+    }
+  }
+  // If transitioning FROM cancelled back to something else (e.g. pending/accepted)
+  else if (currentOrder.status === "cancelled" && newStatus !== "cancelled") {
+    // Check stock availability first
+    for (const item of currentOrder.items) {
+      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      if (product?.trackStock) {
+        const inventory = await prisma.inventory.findUnique({ where: { productId: item.productId } });
+        const available = Number(inventory?.quantity ?? 0);
+        if (available < item.quantity) {
+          throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+        }
+      }
+    }
+    // Deduct stock again
+    for (const item of currentOrder.items) {
+      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      if (product?.trackStock) {
+        await adjustStock(
+          item.productId,
+          -item.quantity,
+          "sale",
+          currentOrder.orderNumber,
+          "Order restored",
+          userId
+        );
+      }
+    }
+  }
+
   const order = await prisma.order.update({
     where: { id },
-    data: { status: normalizeStatus(status) as OrderStatus },
+    data: { status: newStatus as OrderStatus },
     include: buildOrderInclude(),
   });
 
@@ -166,6 +251,26 @@ export const updateOrderStatus = async (id: number, status: string) => {
 };
 
 export const deleteOrder = async (id: number) => {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (order && order.status !== "cancelled") {
+    for (const item of order.items) {
+      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      if (product?.trackStock) {
+        await adjustStock(
+          item.productId,
+          item.quantity,
+          "return",
+          order.orderNumber,
+          "Order deleted",
+          null
+        );
+      }
+    }
+  }
+
   return prisma.order.update({
     where: { id },
     data: { deletedAt: new Date() },
@@ -191,6 +296,25 @@ export const addOrderItem = async (
   if (!product) throw new Error(`Product not found: ${payload.productId}`);
 
   const quantity = Number(payload.quantity ?? 1);
+
+  if (product.trackStock) {
+    const inventory = await prisma.inventory.findUnique({ where: { productId: product.id } });
+    const available = Number(inventory?.quantity ?? 0);
+    if (available < quantity) {
+      throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+    }
+    
+    // Deduct stock
+    await adjustStock(
+      product.id,
+      -quantity,
+      "sale",
+      order.orderNumber,
+      "Item added to order",
+      null
+    );
+  }
+
   const unitPrice = toNum(product.basePrice);
   const totalPrice = unitPrice * quantity;
 

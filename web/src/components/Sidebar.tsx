@@ -28,6 +28,8 @@ import {
   Printer,
   SendHorizontal,
   ShieldAlert,
+  UserRound,
+  Boxes,
 } from "lucide-react";
 import { apiOrigin, getSettings, logoutApi } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -49,12 +51,14 @@ type IconProps = {
 
 const NAV_MAIN = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
+  { label: "POS", href: "/admin/pos", icon: PosIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
 ];
 
 const NAV_MANAGEMENT = [
   { label: "Menu", href: "/admin/menu", icon: MenuIcon, badge: undefined },
+  { label: "Inventory", href: "/admin/inventory", icon: InventoryIcon, badge: undefined },
   { label: "Reports", href: "/admin/reports", icon: ReportsIcon, badge: undefined },
 ];
 
@@ -120,6 +124,7 @@ const TEXT = {
     collapse: "បង្រួមម៉ឺនុយ",
     nav: {
       Dashboard: "ផ្ទាំងគ្រប់គ្រង",
+      POS: "លក់ (POS)",
       Orders: "ការបញ្ជាទិញ",
       Menu: "មុខម្ហូប",
       Inventory: "ស្តុក",
@@ -225,18 +230,18 @@ export default function Sidebar({
   );
 
   const dark = theme === "dark";
-  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-slate-200/80";
-  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#696cff]/10 hover:text-[#696cff]";
+  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-[#eef5ee] border-r border-[#d4e8d4]/80";
+  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#dcecdb] hover:text-[#09391D]";
   const navActive = dark 
-    ? "bg-[#0F522B] text-white font-extrabold shadow-md shadow-[#0F522B]/40 ring-1 ring-emerald-400/30" 
-    : "bg-[#0F522B] text-white font-extrabold shadow-sm border-l-4 border-[#09391D]";
-  const headerBorder = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
-  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-slate-200/80";
-  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#8592a3] font-bold";
-  const brandNameClass = dark ? "text-white font-black" : "text-[#2c3e50] font-black";
-  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#8592a3] font-semibold";
-  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]";
-  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#E2E9E4]";
+    ? "bg-[#0F522B] text-white font-extrabold shadow-sm" 
+    : "bg-[#dcecdb] text-[#09391D] font-bold";
+  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#cde4cd]/80";
+  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#cde4cd]/80";
+  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#5a7a5a] font-bold";
+  const brandNameClass = dark ? "text-white font-black" : "text-[#1a3a1a] font-black";
+  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#5a7a5a] font-semibold";
+  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#4a6a4a] hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
+  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#cde4cd]/80";
   const t = TEXT[language];
   const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
@@ -245,7 +250,7 @@ export default function Sidebar({
   const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
   const activeMenuChild = menuView === "categories" ? "categories" : "list";
 
-  const widthClass = sidebarCollapsed ? "w-16 min-w-[64px]" : "w-[220px] min-w-[220px]";
+  const widthClass = sidebarCollapsed ? "w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px]";
   const contentMotionClass = "";
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -325,7 +330,7 @@ export default function Sidebar({
       setActiveNav("Permissions");
     } else if (pathname.startsWith("/admin/settings")) {
       setActiveNav("Settings");
-    } else if (pathname.startsWith("/pos")) {
+    } else if (pathname.startsWith("/pos") || pathname.startsWith("/admin/pos")) {
       setActiveNav("POS");
     }
   }, [pathname, setActiveNav]);
@@ -355,6 +360,7 @@ export default function Sidebar({
     localStorage.removeItem("pos_logged_in");
     localStorage.removeItem("pos_token");
     localStorage.removeItem("pos_user");
+    localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
     window.dispatchEvent(new Event("pos-auth-change"));
     router.push("/login");
   }
@@ -381,12 +387,12 @@ export default function Sidebar({
     )}
     <aside
       className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-all duration-[300ms] ease-in-out ${
-        sidebarCollapsed ? "max-md:-translate-x-full w-16 min-w-[64px]" : "w-[230px] min-w-[230px] shadow-2xl md:shadow-none"
+        sidebarCollapsed ? "max-md:-translate-x-full w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px] shadow-none"
       }`}
     >
       {/* Logo */}
       <div
-        className={`flex items-center min-h-[64px] border-b ${headerBorder} ${
+        className={`flex items-center min-h-[64px] ${
           sidebarCollapsed ? "justify-center py-[18px]" : "justify-start p-[18px_16px]"
         }`}
       >
@@ -421,28 +427,46 @@ export default function Sidebar({
 
       </div>
 
+      {/* User Profile Card under POS Header */}
+      {!sidebarCollapsed && contentMounted && (
+        <div className="px-5 pt-3.5 pb-2 flex items-center gap-3">
+          {getProfileImage(currentUser) ? (
+            <img
+              src={getProfileImage(currentUser)!}
+              alt={currentUser.name}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#0F522B]/20 shadow-xs shrink-0"
+            />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0F522B]/15 text-[#0F522B] text-xs font-black shadow-xs">
+              {initials(currentUser.name)}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className={`truncate text-sm font-normal ${dark ? "text-white" : "text-[#1a3a1a]"} ${language === "km" ? "font-khmer text-xs" : ""}`}>
+              {currentUser.name}
+            </div>
+            <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-[#5a7a5a]/80"}`}>
+              {currentUser.role}
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={toggleSidebar}
-        className="absolute -right-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100/85 text-slate-500 shadow-sm ring-1 ring-slate-300/60 backdrop-blur-sm transition-colors duration-300 hover:bg-white hover:text-slate-800"
+        className="absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-slate-800 hover:scale-105 cursor-pointer"
         title={sidebarCollapsed ? t.expand : t.collapse}
       >
-        {sidebarCollapsed ? <ChevronRight size={9} strokeWidth={2.6} /> : <ChevronLeft size={9} strokeWidth={2.6} />}
+        {sidebarCollapsed ? <ChevronRight size={12} strokeWidth={2.8} /> : <ChevronLeft size={12} strokeWidth={2.8} />}
       </button>
 
       {/* Nav */}
       <div
         className={`flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-          sidebarCollapsed ? "p-[12px_8px]" : "p-[12px_10px]"
+          sidebarCollapsed ? "p-[12px_14px]" : "p-[12px_10px]"
         }`}
       >
-        {/* MAIN */}
-        {contentMounted && allowedMain.length > 0 && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[12px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
-            {t.main}
-          </div>
-        )}
-
         {allowedMain.map((item) => (
           <SideNavItem
             key={item.label}
@@ -459,15 +483,6 @@ export default function Sidebar({
             icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
           />
         ))}
-
-        <div className={`h-px ${dividerClass} ${sidebarCollapsed ? "m-[12px_0]" : "m-[12px_8px]"}`} />
-
-        {/* MANAGEMENT */}
-        {contentMounted && allowedManagement.length > 0 && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
-            {t.management}
-          </div>
-        )}
 
         {allowedManagement.map((item) => {
           const isMenu = item.label === "Menu";
@@ -549,18 +564,8 @@ export default function Sidebar({
           );
         })}
 
-        <div className={`h-px ${dividerClass} ${sidebarCollapsed ? "m-[12px_0]" : "m-[12px_8px]"}`} />
-
-        {/* SYSTEM */}
-        {contentMounted && allowedSystem.length > 0 && (
-          <div className={`transition-all duration-[260ms] ease-out ${contentMotionClass} font-semibold ${sectionTextClass} tracking-[0.1em] uppercase p-[4px_8px_8px] ${language === "km" ? "text-[11.5px] font-bold" : "text-[10px]"}`}>
-            {t.system}
-          </div>
-        )}
-
         {allowedSystem.map((item) => {
-          const isSettings = item.label === "Settings";
-          const active = isNavItemActive(item.label, item.href) || (isSettings && activeNav === "Settings");
+          const active = isNavItemActive(item.label, item.href);
 
           return (
             <div key={item.label}>
@@ -576,87 +581,15 @@ export default function Sidebar({
                 contentClass={contentMotionClass}
                 onClick={() => {
                   setActiveNav(item.label);
-                  if (isSettings) {
-                    setSettingsOpen((open) => !open);
-                  }
                 }}
                 icon={<item.icon active={active} />}
-                trailing={
-                  isSettings && contentMounted ? (
-                    settingsExpanded ? (
-                      <ChevronUp size={13} strokeWidth={2.2} />
-                    ) : (
-                      <ChevronDown size={13} strokeWidth={2.2} />
-                    )
-                  ) : undefined
-                }
               />
-
-              {isSettings && (
-                <div
-                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
-                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
-                  }`}
-                  style={{
-                    maxHeight: settingsExpanded ? "260px" : "0px",
-                    opacity: settingsExpanded ? 1 : 0,
-                    marginTop: settingsExpanded ? "4px" : "0px",
-                    marginBottom: settingsExpanded ? "8px" : "0px",
-                  }}
-                >
-                  <div className="space-y-1 py-1">
-                    {SETTINGS_CHILDREN.map((child) => {
-                      const currentTab = searchParams.get("tab") || "general";
-                      const isChildActive = pathname === "/admin/settings" && currentTab === child.key;
-                      return (
-                        <MenuSubNavItem
-                          key={child.key}
-                          href={child.href}
-                          label={child.label}
-                          active={isChildActive}
-                          dark={dark}
-                          isKhmer={language === "km"}
-                          icon={<child.icon size={14} strokeWidth={1.9} />}
-                          onClick={() => {
-                            setActiveNav("Settings");
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* Footer Section */}
-      <div className={`mt-auto border-t ${footerBorderClass} ${sidebarCollapsed ? "p-2 flex justify-center" : "p-3"}`}>
-        {sidebarCollapsed ? (
-          <button
-            type="button"
-            onClick={() => setShowLogoutModal(true)}
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
-              dark
-                ? "text-slate-400 hover:text-red-400 hover:bg-red-500/10"
-                : "text-slate-500 hover:text-red-600 hover:bg-red-500/10"
-            }`}
-            title={t.logout}
-          >
-            <LogOut size={18} strokeWidth={2} />
-          </button>
-        ) : (
-          contentMounted && (
-            <SidebarProfileCard
-              user={currentUser}
-              dark={dark}
-              isKhmer={language === "km"}
-              onLogoutClick={() => setShowLogoutModal(true)}
-            />
-          )
-        )}
-      </div>
+
     </aside>
 
     {/* CONFIRM LOGOUT MODAL - SUBTLE & SMOOTH LOW ANIMATION */}
@@ -738,32 +671,32 @@ function SideNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group w-full flex items-center gap-3 rounded-xl border-none cursor-pointer mb-1 transition-all duration-150 relative text-left 
-        ${collapsed ? "justify-center p-[10px]" : "justify-start px-3 py-2.5"}
+      className={`group w-full flex items-center gap-3.5 rounded-full border-none cursor-pointer mb-1.5 transition-all duration-200 relative text-left 
+        ${collapsed ? "justify-center p-3.5" : "justify-start px-4.5 py-3"}
         ${
           active
             ? dark
-              ? "bg-[#696cff] text-white font-extrabold shadow-md shadow-[#696cff]/40"
-              : "bg-[#696cff] text-white font-extrabold shadow-md shadow-[#696cff]/30"
+              ? "bg-[#0F522B] text-white font-medium shadow-sm"
+              : "bg-[#dcecdb] text-[#09391D] font-medium"
             : dark
-              ? "text-slate-300 hover:bg-[#696cff]/20 hover:text-[#696cff]"
-              : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]"
+              ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-white"
+              : "text-[#2c3e50] hover:bg-[#dcecdb] hover:text-[#09391D]"
         }
-        ${isKhmer ? "font-bold text-[14.5px] leading-relaxed" : active ? "font-semibold text-[14px]" : "font-medium text-[14px]"}
+        ${isKhmer ? "font-medium text-[15px] leading-relaxed" : active ? "font-medium text-[15px]" : "font-normal text-[15px]"}
       `}
     >
-      <span className={`shrink-0 transition-colors ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#566a7f] group-hover:text-[#696cff]"}`}>
+      <span className={`shrink-0 transition-colors ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#2c3e50] group-hover:text-[#09391D]"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white font-bold" : dark ? "text-slate-200 group-hover:text-[#696cff] font-medium" : "text-[#566a7f] group-hover:text-[#696cff] font-semibold"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}>
+        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-medium" : "text-[#09391D] font-medium") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-[#2c3e50] group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15px]" : "text-[15px]"}`}>
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#8592a3] group-hover:text-[#696cff]"}`}>{trailing}</span>
+        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#8592a3] group-hover:text-[#09391D]"}`}>{trailing}</span>
       )}
     </Link>
   );
@@ -790,16 +723,18 @@ function MenuSubNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group flex h-9 items-center gap-2 rounded px-3 transition ${
+      className={`group flex h-9 items-center gap-2 rounded-lg px-3 transition duration-200 ${
         active
-          ? "bg-[#696cff] font-bold text-white shadow-sm shadow-[#696cff]/30"
+          ? dark
+            ? "bg-[#0F522B]/20 font-bold text-emerald-400 border border-[#0F522B]/30"
+            : "bg-[#dcecdb] font-bold text-[#09391D] border border-[#09391D]/15"
           : dark 
-            ? "text-slate-300 hover:bg-[#696cff]/20 hover:text-[#696cff]"
-            : "text-[#566a7f] hover:bg-[#696cff]/10 hover:text-[#696cff]"
+            ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-emerald-400 font-normal"
+            : "text-[#566a7f] hover:bg-[#dcecdb] hover:text-[#09391D] font-normal"
       } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={active ? "text-white" : dark ? "text-slate-400 group-hover:text-[#696cff]" : "text-[#8592a3] group-hover:text-[#696cff]"}>{icon}</span>
-      <span className="truncate group-hover:text-[#696cff]">{label}</span>
+      <span className={active ? "text-[#09391D] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-[#8592a3] group-hover:text-[#09391D]"}>{icon}</span>
+      <span className={`truncate ${active ? "text-[#09391D] dark:text-emerald-400" : "group-hover:text-[#09391D]"}`}>{label}</span>
     </Link>
   );
 }
@@ -815,18 +750,38 @@ function SidebarProfileCard({
   isKhmer?: boolean;
   onLogoutClick?: () => void;
 }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const image = getProfileImage(user);
 
   return (
     <div
-      className={`block mb-1.5 rounded-xl border p-2.5 group transition-all duration-200 ${
-        dark 
-          ? "border-slate-700/60 bg-[#232333]/60 hover:bg-[#232333]"
-          : "border-slate-200/80 bg-white hover:border-[#0F522B]/30 hover:shadow-sm"
-      }`}
+      ref={dropdownRef}
+      className="relative w-full"
     >
-      <div className="flex items-center justify-between gap-2">
-        <Link href="/admin/profile" className="flex items-center gap-2.5 min-w-0 flex-1">
+      {/* Profile Card Container (acts as dropdown trigger) */}
+      <button
+        type="button"
+        onClick={() => setDropdownOpen((prev) => !prev)}
+        className={`w-full flex items-center justify-between gap-2 rounded-xl border p-2.5 group transition-all duration-200 text-left outline-none cursor-pointer ${
+          dark 
+            ? "border-slate-700/60 bg-[#232333]/60 hover:bg-[#232333]"
+            : "border-slate-200/80 bg-white hover:border-[#0F522B]/30 hover:shadow-xs"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {image ? (
             <img
               src={image}
@@ -861,19 +816,58 @@ function SidebarProfileCard({
               </span>
             </div>
           </div>
-        </Link>
+        </div>
 
-        {onLogoutClick && (
+        {/* Small Chevron to indicate dropdown */}
+        <ChevronUp 
+          size={14} 
+          className={`text-slate-400 dark:text-slate-500 transition-transform duration-200 ${
+            dropdownOpen ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {/* Popover Dropdown Menu */}
+      {dropdownOpen && (
+        <div
+          className={`absolute bottom-full left-0 mb-2 w-full rounded-xl border p-1 shadow-sm backdrop-blur-md transition-all duration-150 z-50 animate-[fadeIn_150ms_ease-out] ${
+            dark
+              ? "bg-[#1d1e27]/98 border-slate-800/80 text-slate-100 shadow-black/25"
+              : "bg-white/98 border-slate-100 text-slate-700 shadow-slate-200/40"
+          }`}
+        >
+          {/* Option 1: My Account */}
+          <Link
+            href="/admin/profile"
+            onClick={() => setDropdownOpen(false)}
+            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-200 ${
+              dark
+                ? "hover:bg-white/5 text-slate-200 hover:text-white"
+                : "hover:bg-slate-50 text-slate-600 hover:text-[#0F522B]"
+            }`}
+          >
+            <UserRound size={13.5} className="text-[#696cff] shrink-0" />
+            <span>{isKhmer ? "គណនីខ្ញុំ" : "My Account"}</span>
+          </Link>
+
+          {/* Option 2: Logout */}
           <button
             type="button"
-            onClick={onLogoutClick}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition-all outline-none"
-            title="Logout"
+            onClick={() => {
+              setDropdownOpen(false);
+              if (onLogoutClick) onLogoutClick();
+            }}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold text-left transition-all duration-200 ${
+              dark
+                ? "hover:bg-red-500/10 text-red-400 hover:text-red-300"
+                : "hover:bg-red-50/50 text-red-600 hover:text-red-700"
+            }`}
           >
-            <LogOut size={15} strokeWidth={2} />
+            <LogOut size={13.5} className="shrink-0" />
+            <span>{isKhmer ? "ចាកចេញ" : "Logout"}</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1002,45 +996,45 @@ function parseUserSnapshot(snapshot: string) {
 
 // Icons
 function DashboardIcon({ active = false }: IconProps) {
-  return <LayoutDashboard size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <LayoutDashboard size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function PosIcon({ active = false }: IconProps) {
-  return <Store size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <Store size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function OrdersIcon({ active = false }: IconProps) {
-  return <ReceiptText size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <ReceiptText size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function MenuIcon({ active = false }: IconProps) {
-  return <UtensilsCrossed size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <UtensilsCrossed size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function InventoryIcon({ active = false }: IconProps) {
-  return <Store size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <Boxes size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function ReportsIcon({ active = false }: IconProps) {
-  return <TrendingUp size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <TrendingUp size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function TablesIcon({ active = false }: IconProps) {
-  return <Armchair size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <Armchair size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function StaffIcon({ active = false }: IconProps) {
-  return <UsersRound size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <UsersRound size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function PermissionsIcon({ active = false }: IconProps) {
-  return <ShieldCheck size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <ShieldCheck size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function SettingsIcon({ active = false }: IconProps) {
-  return <Settings size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <Settings size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function LogoutIcon({ active = false }: IconProps) {
-  return <LogOut size={18} strokeWidth={1.75} color={active ? "#ffffff" : "currentColor"} />;
+  return <LogOut size={18} strokeWidth={1.75} color="currentColor" />;
 }

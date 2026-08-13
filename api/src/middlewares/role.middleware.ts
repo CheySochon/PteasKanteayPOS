@@ -16,6 +16,7 @@ export const roleMiddleware =
     const userRole = normalizeRole(req.user.role);
     const allowed = allowedRoles.map(normalizeRole);
 
+
     if (
       userRole !== "superadmin" &&
       userRole !== "admin" &&

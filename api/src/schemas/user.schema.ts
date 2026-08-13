@@ -16,6 +16,8 @@ export const createUserSchema = z.object({
   role: z.enum(ROLES).default("Staff").optional(),
   roleName: z.enum(ROLES).optional(),
   isActive: z.boolean().default(true).optional(),
+  pin: z.string().regex(/^\d{4}$/, { message: "PIN must be exactly 4 digits" }).optional(),
+  imageUrl: z.string().trim().optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -25,6 +27,8 @@ export const updateUserSchema = z.object({
   role: z.enum(ROLES).optional(),
   roleName: z.enum(ROLES).optional(),
   isActive: z.boolean().optional(),
+  pin: z.string().regex(/^\d{4}$/, { message: "PIN must be exactly 4 digits" }).optional(),
+  imageUrl: z.string().trim().optional(),
 });
 
 export type CreateUserBody = z.infer<typeof createUserSchema>;

@@ -5,9 +5,12 @@ import type { ReactNode } from "react";
 import {
   BadgeDollarSign,
   Bell,
+  Cake,
   Camera,
   CheckCircle2,
+  Coffee,
   Eye,
+  FolderOpen,
   ImagePlus,
   Loader2,
   Pencil,
@@ -19,6 +22,7 @@ import {
   Tags,
   Trash2,
   UploadCloud,
+  Utensils,
   X,
 } from "lucide-react";
 import { useAppLanguage } from "../../../lib/language";
@@ -254,12 +258,42 @@ function getCategoryBadgeStyle(name: string) {
     };
   }
   return {
-    bg: "bg-[#0F522B]/10 dark:bg-[#0F522B]/20",
-    text: "text-[#0F522B] dark:text-emerald-400",
-    border: "border-[#0F522B]/20 dark:border-[#0F522B]/30",
-    gradient: "from-[#0F522B] to-[#0A3E20]",
-    pill: "bg-[#0F522B]/10 text-[#0F522B] dark:bg-[#0F522B]/25 dark:text-emerald-300",
+    bg: "bg-indigo-500/10 dark:bg-indigo-500/20",
+    text: "text-indigo-600 dark:text-indigo-400",
+    border: "border-indigo-200 dark:border-indigo-800/50",
+    gradient: "from-indigo-500 to-blue-600",
+    pill: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
   };
+}
+
+function getCategoryIcon(name: string) {
+  const lower = name.toLowerCase();
+  if (lower.includes("drink") || lower.includes("beverage") || lower.includes("boba") || lower.includes("coffee") || lower.includes("tea") || lower.includes("តែ") || lower.includes("ទឹក")) {
+    return Coffee;
+  }
+  if (lower.includes("dessert") || lower.includes("sweet") || lower.includes("cake") || lower.includes("ice") || lower.includes("នំ")) {
+    return Cake;
+  }
+  if (
+    lower.includes("burger") ||
+    lower.includes("food") ||
+    lower.includes("main") ||
+    lower.includes("pizza") ||
+    lower.includes("meat") ||
+    lower.includes("rice") ||
+    lower.includes("noodle") ||
+    lower.includes("soup") ||
+    lower.includes("បាយ") ||
+    lower.includes("ម្ហូប") ||
+    lower.includes("សម្ល") ||
+    lower.includes("ឆា")
+  ) {
+    return Utensils;
+  }
+  if (lower.includes("snack") || lower.includes("side") || lower.includes("starter") || lower.includes("appetizer")) {
+    return FolderOpen;
+  }
+  return Tags;
 }
 
 export default function MenuPage() {
@@ -308,7 +342,7 @@ export default function MenuPage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const softSurface = dark ? "bg-[#232333]" : "bg-white";
   const textPrimary = dark ? "text-slate-100" : "text-[#566a7f]";
   const textSecondary = dark ? "text-slate-400" : "text-[#a1acb8]";
   const panelBg = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -769,10 +803,10 @@ export default function MenuPage() {
   }
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
       <TopBar
         title={isCategoriesView ? t.categories : t.title}
-        subtitle={t.subtitle}
+        subtitle=""
         language={language}
         onLanguageChange={(nextLanguage) => {
           localStorage.setItem("pos_language", nextLanguage);
@@ -785,7 +819,7 @@ export default function MenuPage() {
         searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
       />
       
-      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="mx-auto w-full max-w-[1600px]">
 
         {(error || message) && (
@@ -804,53 +838,79 @@ export default function MenuPage() {
           <section id="categories" className="space-y-5">
             {/* Top Stat Summary Cards */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
+              <div
+                className={`rounded-2xl border p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between ${
+                  dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+                }`}
+              >
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
-                    Total Categories
-                  </p>
-                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                  <div className="text-sm font-semibold text-[#a1acb8]">Total Categories</div>
+                  <div
+                    className={`mt-1 text-2xl font-bold tracking-tight ${
+                      dark ? "text-slate-100" : "text-[#566a7f]"
+                    }`}
+                  >
                     {categories.length}
-                  </p>
+                  </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#0F522B]/10 text-[#0F522B] shadow-sm">
+                <div className={`p-2.5 rounded-xl shrink-0 ${
+                  dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"
+                }`}>
                   <Tags size={20} />
                 </div>
               </div>
 
-              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
+              <div
+                className={`rounded-2xl border p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between ${
+                  dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+                }`}
+              >
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
-                    Total Products
-                  </p>
-                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                  <div className="text-sm font-semibold text-[#a1acb8]">Total Products</div>
+                  <div
+                    className={`mt-1 text-2xl font-bold tracking-tight ${
+                      dark ? "text-slate-100" : "text-[#566a7f]"
+                    }`}
+                  >
                     {products.length}
-                  </p>
+                  </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#03c3ec]/10 text-[#03c3ec] shadow-sm">
+                <div className={`p-2.5 rounded-xl shrink-0 ${
+                  dark ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600"
+                }`}>
                   <ShoppingBag size={20} />
                 </div>
               </div>
 
-              <div className={`rounded ${surface} p-5 border ${borderCol} shadow-sm flex items-center justify-between`}>
+              <div
+                className={`rounded-2xl border p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-between ${
+                  dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+                }`}
+              >
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#a1acb8]">
-                    Active Menu Items
-                  </p>
-                  <p className="mt-1.5 text-2xl font-extrabold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                  <div className="text-sm font-semibold text-[#a1acb8]">Active Menu Items</div>
+                  <div
+                    className={`mt-1 text-2xl font-bold tracking-tight ${
+                      dark ? "text-slate-100" : "text-[#566a7f]"
+                    }`}
+                  >
                     {products.filter((p) => p.isAvailable).length}
-                  </p>
+                  </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded bg-[#71dd37]/10 text-[#71dd37] shadow-sm">
+                <div className={`p-2.5 rounded-xl shrink-0 ${
+                  dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                }`}>
                   <CheckCircle2 size={20} />
                 </div>
               </div>
             </div>
 
             {/* Categories Data Table Container - Fits Sneat Design System 100% */}
-            <section className={`rounded shadow-sm overflow-hidden ${surface} border ${borderCol}`}>
+            <section className={`rounded-2xl overflow-hidden border shadow-none ${
+              dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+            }`}>
               {/* Controls Header */}
-              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between border-b border-[#f0f2f5] dark:border-[#4e4f6e]">
+              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 dark:border-[#4e4f6e]">
                 <div className="flex items-center gap-2.5">
                   <h3 className={`text-base font-semibold ${textPrimary}`}>
                     {language === "km" ? "បញ្ជីប្រភេទមុខម្ហូប" : "Categories List"}
@@ -863,7 +923,7 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={createNewCategory}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                 >
                   <Plus size={14} />
                   {t.createCategory}
@@ -901,53 +961,66 @@ export default function MenuPage() {
                       {filteredCategories.map((category) => {
                         const itemCount = categoryCount(category.id);
                         const style = getCategoryBadgeStyle(category.name);
+                        const CategoryIcon = getCategoryIcon(category.name);
 
                         return (
                           <tr
                             key={category.id}
-                            className={dark ? "hover:bg-[#34354f]" : "hover:bg-[#fcfcfd]"}
+                            className={`transition-colors duration-200 ${
+                              dark ? "hover:bg-[#34354f]" : "hover:bg-[#fcfcfd]"
+                            }`}
                           >
                             <td className="px-5 py-3">
                               <div className="flex items-center gap-3">
-                                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border ${style.bg} ${style.text} ${style.border}`}>
-                                  <Tags size={16} />
+                                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border transition-transform duration-300 hover:scale-105 ${style.bg} ${style.text} ${style.border}`}>
+                                  <CategoryIcon size={16} />
                                 </div>
                                 <span className={`text-sm font-semibold ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
                                   {category.name}
                                 </span>
                               </div>
                             </td>
-                            <td className={`px-5 py-3 text-sm max-w-xs truncate ${dark ? "text-slate-400" : "text-[#8592a3]"}`}>
-                              {category.description || "-"}
+                            <td className={`px-5 py-3 text-sm max-w-xs truncate ${
+                              category.description
+                                ? (dark ? "text-slate-400" : "text-[#8592a3]")
+                                : "text-slate-400/60 dark:text-slate-500/60 italic"
+                            }`}>
+                              {category.description || (language === "km" ? "គ្មានការពណ៌នា" : "No description")}
                             </td>
                             <td className="px-5 py-3">
-                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${style.pill}`}>
-                                {itemCount} {t.items}
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                itemCount === 0
+                                  ? "bg-slate-100 text-slate-500 border border-slate-200/60 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700/40"
+                                  : style.pill
+                              }`}>
+                                {language === "km"
+                                  ? `${itemCount} មុខ`
+                                  : `${itemCount} ${itemCount === 1 ? "item" : "items"}`}
                               </span>
                             </td>
                             <td className="px-5 py-3">
-                              <span className="inline-flex items-center gap-1.5 rounded bg-[#71dd37]/10 px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#71dd37]/10 px-2.5 py-0.5 text-xs font-semibold text-[#71dd37] border border-[#71dd37]/20">
                                 <span className="h-1.5 w-1.5 rounded-full bg-[#71dd37]" />
                                 {language === "km" ? "សកម្ម" : "Active"}
                               </span>
                             </td>
                             <td className="px-5 py-3 text-center">
-                              <div className="flex justify-center items-center gap-1">
+                              <div className="flex justify-center items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => editCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#0F522B]/10 hover:text-[#0F522B] transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all duration-200 hover:scale-105 active:scale-95"
                                   title={`Edit ${category.name}`}
                                 >
-                                  <Pencil size={15} />
+                                  <Pencil size={14} />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => removeCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded text-[#8592a3] hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-colors"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all duration-200 hover:scale-105 active:scale-95"
                                   title={`Delete ${category.name}`}
                                 >
-                                  <Trash2 size={15} />
+                                  <Trash2 size={14} />
                                 </button>
                               </div>
                             </td>
@@ -1006,7 +1079,7 @@ export default function MenuPage() {
                     <button
                       type="button"
                       onClick={createNewProduct}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
                     >
                       <Plus size={14} />
                       Add New Product
@@ -1148,38 +1221,46 @@ export default function MenuPage() {
           {/* Custom Confirmation Modal */}
           {confirmModal.isOpen && (
             <>
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-[1px] animate-[confirmFadeIn_180ms_ease-out]">
-                <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-sm overflow-hidden rounded-xl shadow-2xl border p-6 animate-[confirmScaleIn_200ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-500">
-                      <Trash2 size={20} />
+              <div
+                onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer animate-[confirmFadeIn_180ms_ease-out]"
+                style={{ background: "rgba(10,12,24,0.65)", backdropFilter: "blur(2px)" }}
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl animate-[confirmScaleIn_180ms_ease_both]"
+                  style={{
+                    background: "linear-gradient(160deg, #1c1e30 0%, #14161f 100%)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  {/* Header */}
+                  <div className="px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "#dc2626", boxShadow: "0 2px 8px rgba(220,38,38,0.25)" }}>
+                      <Trash2 size={20} className="text-white" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`text-base font-bold ${textPrimary}`}>
-                        {confirmModal.title}
-                      </h3>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        {confirmModal.message}
-                      </p>
-                    </div>
+                    <h3 className="text-[15px] font-bold text-white leading-snug">{confirmModal.title}</h3>
+                    <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {confirmModal.message}
+                    </p>
                   </div>
 
-                  <div className="mt-6 flex justify-end gap-3">
+                  {/* Actions */}
+                  <div className="flex gap-2.5 px-6 py-5">
                     <button
                       type="button"
                       onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
-                      className={`h-9.5 rounded px-4 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border ${
-                        dark ? "border-slate-700 text-slate-300" : "border-[#d9dee3] text-[#8592a3]"
-                      }`}
+                      className="flex-1 h-10 rounded-xl text-xs font-medium transition-colors duration-150 hover:bg-white/10"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.65)" }}
                     >
                       {language === "km" ? "បោះបង់" : "Cancel"}
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        void confirmModal.onConfirm();
-                      }}
-                      className="h-9.5 rounded bg-red-500 hover:bg-red-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors active:scale-95"
+                      onClick={() => { void confirmModal.onConfirm(); }}
+                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white transition-opacity duration-150 hover:opacity-90 active:opacity-75"
+                      style={{ background: "#dc2626", boxShadow: "0 2px 6px rgba(220,38,38,0.2)" }}
                     >
                       {language === "km" ? "លុប" : "Delete"}
                     </button>
@@ -1192,14 +1273,8 @@ export default function MenuPage() {
                   to { opacity: 1; }
                 }
                 @keyframes confirmScaleIn {
-                  from {
-                    opacity: 0;
-                    transform: scale(0.96) translateY(6px);
-                  }
-                  to {
-                    opacity: 1;
-                    transform: scale(1) translateY(0);
-                  }
+                  from { opacity: 0; transform: translateY(6px); }
+                  to { opacity: 1; transform: translateY(0); }
                 }
               `}</style>
             </>
@@ -1821,7 +1896,7 @@ function FilterButton({
       onClick={onClick}
       className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
-          ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/25"
+          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
           : dark
             ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
             : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"

@@ -15,10 +15,13 @@ import {
   UserRound,
   Users,
   X,
+  Crown,
+  CreditCard,
+  ChefHat,
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
 import Link from "next/link";
-import { getUsers } from "../../../lib/api";
+import { getUsers, getRoles, createRole as apiCreateRole, updateRole as apiUpdateRole, deleteRole as apiDeleteRole } from "../../../lib/api";
 import { setAppLanguage, useAppLanguage } from "../../../lib/language";
 import { useAppTheme } from "../../../lib/theme";
 import type { User } from "../../../lib/types";
@@ -76,6 +79,40 @@ const DEFAULT_MATRIX_ITEMS: MatrixItem[] = [
   { key: "settings", label: "Settings", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
 ];
 
+function getRoleBadge(roleName: string, dark: boolean) {
+  const name = roleName.toLowerCase();
+  if (name.includes("admin")) {
+    return {
+      icon: <Crown size={16} />,
+      colors: dark
+        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/10"
+        : "bg-indigo-50 text-indigo-600 border border-indigo-100",
+    };
+  }
+  if (name.includes("cashier")) {
+    return {
+      icon: <CreditCard size={16} />,
+      colors: dark
+        ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/10"
+        : "bg-cyan-50 text-cyan-600 border border-cyan-100",
+    };
+  }
+  if (name.includes("kitchen") || name.includes("chef") || name.includes("staff")) {
+    return {
+      icon: <ChefHat size={16} />,
+      colors: dark
+        ? "bg-amber-500/15 text-amber-400 border border-amber-500/10"
+        : "bg-amber-50 text-amber-600 border border-amber-100",
+    };
+  }
+  return {
+    icon: <Shield size={16} />,
+    colors: dark
+      ? "bg-purple-500/15 text-purple-400 border border-purple-500/10"
+      : "bg-purple-50 text-purple-600 border border-purple-100",
+  };
+}
+
 export default function PermissionsPage() {
   const language = useAppLanguage();
   const [theme] = useAppTheme();
@@ -92,16 +129,8 @@ export default function PermissionsPage() {
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
 
-  // Custom Roles state with localStorage persistence
-  const [roles, setRoles] = useState<CustomRoleItem[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_ROLES_LIST;
-    try {
-      const stored = localStorage.getItem("pos_custom_roles_list");
-      return stored ? JSON.parse(stored) : DEFAULT_ROLES_LIST;
-    } catch {
-      return DEFAULT_ROLES_LIST;
-    }
-  });
+  // Roles list loaded from database
+  const [roles, setRoles] = useState<CustomRoleItem[]>([]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -111,10 +140,29 @@ export default function PermissionsPage() {
   const [roleMatrix, setRoleMatrix] = useState<MatrixItem[]>(DEFAULT_MATRIX_ITEMS);
 
   useEffect(() => {
-    getUsers()
-      .then((data) => setUsers(data))
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    async function loadData() {
+      setLoading(true);
+      try {
+        const [usersData, rolesData] = await Promise.all([
+          getUsers(),
+          getRoles(),
+        ]);
+        setUsers(usersData);
+        const mapped = rolesData.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          description: r.description || "",
+          permissions: r.permissions || [],
+          matrix: Array.isArray(r.permissions) ? r.permissions : DEFAULT_MATRIX_ITEMS,
+        }));
+        setRoles(mapped);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load roles and users");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
   }, []);
 
   // Calculate user counts dynamically
@@ -169,16 +217,20 @@ export default function PermissionsPage() {
     setIsModalOpen(true);
   }
 
-  function deleteRole(roleId: number) {
-    setRoles((prev) => {
-      const updated = prev.filter((r) => r.id !== roleId);
-      localStorage.setItem("pos_custom_roles_list", JSON.stringify(updated));
-      return updated;
-    });
-    setMessage(language === "km" ? "លុប Role រួចរាល់" : "Role deleted");
+  async function deleteRole(roleId: number) {
+    try {
+      setLoading(true);
+      await apiDeleteRole(roleId);
+      setRoles((prev) => prev.filter((r) => r.id !== roleId));
+      setMessage(language === "km" ? "លុប Role រួចរាល់" : "Role deleted");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete role");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function saveRole() {
+  async function saveRole() {
     if (!roleNameInput.trim()) {
       setError(language === "km" ? "សូមបញ្ចូលឈ្មោះ Role" : "Please enter a role name");
       return;
@@ -186,55 +238,75 @@ export default function PermissionsPage() {
 
     const trimmedName = roleNameInput.trim();
     const currentMatrix = [...roleMatrix];
+    const desc = roleDescInput.trim();
 
-    setRoles((prev) => {
-      let updated: CustomRoleItem[];
+    try {
+      setLoading(true);
       if (editingRoleId !== null) {
-        updated = prev.map((r) =>
-          r.id === editingRoleId
-            ? { ...r, name: trimmedName, description: roleDescInput.trim(), matrix: currentMatrix }
-            : r
-        );
-      } else {
-        const newRole: CustomRoleItem = {
-          id: Date.now(),
+        const updated = await apiUpdateRole(editingRoleId, {
           name: trimmedName,
-          description: roleDescInput.trim() || "Custom staff access role",
-          userCount: 0,
-          matrix: currentMatrix,
-        };
-        updated = [...prev, newRole];
+          description: desc,
+          permissions: currentMatrix,
+        });
+        setRoles((prev) =>
+          prev.map((r) =>
+            r.id === editingRoleId
+              ? {
+                  id: updated.id,
+                  name: updated.name,
+                  description: updated.description || "",
+                  permissions: updated.permissions,
+                  matrix: Array.isArray(updated.permissions) ? updated.permissions : currentMatrix,
+                }
+              : r
+          )
+        );
+        setMessage(language === "km" ? `កែសម្រួល Role "${trimmedName}" រួចរាល់` : `Role "${trimmedName}" updated!`);
+      } else {
+        const created = await apiCreateRole({
+          name: trimmedName,
+          description: desc || "Custom staff access role",
+          permissions: currentMatrix,
+        });
+        setRoles((prev) => [
+          ...prev,
+          {
+            id: created.id,
+            name: created.name,
+            description: created.description || "",
+            permissions: created.permissions,
+            matrix: Array.isArray(created.permissions) ? created.permissions : currentMatrix,
+            userCount: 0,
+          },
+        ]);
+        setMessage(language === "km" ? `បង្កើត Role "${trimmedName}" រួចរាល់` : `Role "${trimmedName}" created!`);
       }
-      localStorage.setItem("pos_custom_roles_list", JSON.stringify(updated));
-      return updated;
-    });
 
-    // Save permissions map for system enforcement
-    const staffPermissions: Record<string, boolean> = {};
-    currentMatrix.forEach((item) => {
-      staffPermissions[item.key] = item.view;
-      staffPermissions[`${item.key}_create`] = item.create;
-      staffPermissions[`${item.key}_edit`] = item.edit;
-      staffPermissions[`${item.key}_delete`] = item.delete;
-    });
+      // Save permissions map to localStorage for session cache fallback
+      const staffPermissions: Record<string, boolean> = {};
+      currentMatrix.forEach((item) => {
+        staffPermissions[item.key] = item.view;
+        staffPermissions[`${item.key}_create`] = item.create;
+        staffPermissions[`${item.key}_edit`] = item.edit;
+        staffPermissions[`${item.key}_delete`] = item.delete;
+      });
+      localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
 
-    localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
-    window.dispatchEvent(new Event("pos-permissions-change"));
-    window.dispatchEvent(new Event("pos-roles-change"));
-
-    setMessage(
-      editingRoleId !== null
-        ? language === "km" ? `កែសម្រួល Role "${trimmedName}" រួចរាល់` : `Role "${trimmedName}" updated!`
-        : language === "km" ? `បង្កើត Role "${trimmedName}" រួចរាល់` : `Role "${trimmedName}" created!`
-    );
-    setIsModalOpen(false);
+      window.dispatchEvent(new Event("pos-permissions-change"));
+      window.dispatchEvent(new Event("pos-roles-change"));
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save role");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
       <TopBar
         title={language === "km" ? "គ្រប់គ្រងតួនាទី និងសិទ្ធិ" : "Role Management"}
-        subtitle={language === "km" ? "គ្រប់គ្រងសិទ្ធិប្រើប្រាស់របស់បុគ្គលិក" : "Manage staff access levels and screen permissions."}
+        subtitle=""
         language={language}
         onLanguageChange={setAppLanguage}
         notifications={[]}
@@ -247,7 +319,7 @@ export default function PermissionsPage() {
           <Link
             href="/admin/users"
             className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${
-              dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"
+              dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#696cff]"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -256,7 +328,7 @@ export default function PermissionsPage() {
           </Link>
           <Link
             href="/admin/permissions"
-            className="pb-3 font-bold text-[14px] border-b-[3px] border-[#0F522B] text-[#0F522B]"
+            className="pb-3 font-bold text-[14px] border-b-[3px] border-[#696cff] text-[#696cff]"
           >
             <span className="flex items-center gap-2">
               <ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}
@@ -265,7 +337,7 @@ export default function PermissionsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="mx-auto w-full max-w-[1600px] space-y-4">
           {/* Alerts */}
           {error && (
@@ -281,15 +353,17 @@ export default function PermissionsPage() {
 
           {/* Controls Bar: Search & Add Role */}
           <div className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${surface} ${borderCol}`}>
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
+            <div className="relative w-full sm:w-72 flex items-center">
+              <span className="absolute left-3.5 text-slate-400 dark:text-slate-500">
+                <Search size={14} />
+              </span>
               <input
                 type="text"
                 placeholder={language === "km" ? "ស្វែងរកតាមឈ្មោះ Role..." : "Search roles..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className={`h-9 w-full rounded-lg border pl-9 pr-4 text-xs font-semibold outline-none transition-colors placeholder:text-slate-400 focus:border-[#0F522B] ${
-                  dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-white text-slate-800"
+                className={`h-9.5 w-full rounded-xl border pl-11 pr-4 text-xs font-semibold outline-none transition-all placeholder:text-slate-400 focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
+                  dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200/80 bg-white text-slate-800"
                 }`}
               />
             </div>
@@ -297,7 +371,7 @@ export default function PermissionsPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] hover:bg-[#0A3E20] px-4 text-xs font-bold text-white transition-colors cursor-pointer"
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] hover:bg-[#5f61e6] shadow-sm shadow-[#696cff]/20 px-4 text-xs font-bold text-white transition-all cursor-pointer"
             >
               <Plus size={15} strokeWidth={2.5} />
               <span>{language === "km" ? "បន្ថែម Role" : "Add Role"}</span>
@@ -308,19 +382,23 @@ export default function PermissionsPage() {
           <div className={`rounded-xl border overflow-hidden ${surface} ${borderCol}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className={`border-b text-[11px] uppercase tracking-wider font-bold text-slate-400 ${dark ? "border-slate-800 bg-slate-800/40" : "border-slate-200/80 bg-slate-50"}`}>
+                <thead
+                  className={`text-[10px] font-black uppercase tracking-wider ${
+                    dark ? "bg-[#232333]/80 text-slate-400 border-b border-[#4e4f6e]/50" : "bg-[#f5f5f9] text-[#566a7f] border-b border-slate-100"
+                  }`}
+                >
+                  <tr>
                     <th className="px-5 py-3 w-16">NO.</th>
                     <th className="px-5 py-3 w-[45%]">ROLE NAME</th>
                     <th className="px-5 py-3 text-center w-[25%]">USERS</th>
                     <th className="px-5 py-3 text-right w-[20%]">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={4} className="px-5 py-8 text-center text-slate-400 font-semibold">
-                        <Loader2 className="animate-spin inline mr-2 text-[#0F522B]" size={16} />
+                        <Loader2 className="animate-spin inline mr-2 text-[#696cff]" size={16} />
                         Loading...
                       </td>
                     </tr>
@@ -332,46 +410,55 @@ export default function PermissionsPage() {
                     </tr>
                   ) : (
                     filteredRoles.map((role, idx) => (
-                      <tr key={role.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors h-14">
-                        <td className="px-5 py-3 font-bold text-slate-400">
+                      <tr key={role.id} className={`border-b last:border-b-0 ${dark ? "border-[#4e4f6e]/30 hover:bg-[#232333]/30" : "border-slate-100 hover:bg-slate-50/40"} transition-colors duration-200`}>
+                        <td className="px-5 py-4 font-semibold text-slate-400 dark:text-slate-500">
                           {String(idx + 1).padStart(2, "0")}
                         </td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                              <Shield size={16} />
-                            </div>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3.5">
+                            {(() => {
+                              const badge = getRoleBadge(role.name, dark);
+                              return (
+                                <div className={`flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl transition-all ${badge.colors}`}>
+                                  {badge.icon}
+                                </div>
+                              );
+                            })()}
                             <div className="min-w-0">
-                              <div className={`text-xs font-bold ${textPrimary}`}>{role.name}</div>
-                              <div className="text-[11px] text-slate-400 truncate max-w-xs font-medium">{role.description}</div>
+                              <div className={`text-[13px] font-extrabold tracking-tight ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>{role.name}</div>
+                              <div className="text-[11px] text-[#a1acb8] font-semibold mt-0.5 truncate max-w-xs">{role.description}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-center">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                            <Users size={12} className="text-slate-400" />
-                            {role.userCount} {role.userCount === 1 ? "User" : "Users"}
+                        <td className="px-5 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide border transition-all ${
+                            dark
+                              ? "bg-[#696cff]/10 text-[#8285ff] border-[#696cff]/20"
+                              : "bg-[#696cff]/10 text-[#696cff] border-[#696cff]/20"
+                          }`}>
+                            <Users size={11} />
+                            <span>{role.userCount} {role.userCount === 1 ? "User" : "Users"}</span>
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 text-[#8592a3]">
                             <button
                               type="button"
                               onClick={() => openEditModal(role)}
-                              className="inline-flex h-7 px-2.5 items-center gap-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all duration-200 hover:scale-105 active:scale-95"
+                              title={language === "km" ? "កែសម្រួល" : "Edit Role"}
                             >
-                              <Edit3 size={13} className="text-slate-500" />
-                              {language === "km" ? "កែសម្រួល" : "Edit"}
+                              <Edit3 size={14} />
                             </button>
 
                             {role.name !== "Administrator" && (
                               <button
                                 type="button"
                                 onClick={() => deleteRole(role.id)}
-                                className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                                title="Delete"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all duration-200 hover:scale-105 active:scale-95"
+                                title={language === "km" ? "លុប" : "Delete Role"}
                               >
-                                <Trash2 size={13} />
+                                <Trash2 size={14} />
                               </button>
                             )}
                           </div>
@@ -384,9 +471,11 @@ export default function PermissionsPage() {
             </div>
 
             {/* Simple Pagination Footer */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-xs font-bold text-slate-400">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-xs font-semibold text-[#a1acb8]">
               <div>
-                SHOWING 1 – {filteredRoles.length} OF {filteredRoles.length}
+                {language === "km"
+                  ? `បង្ហាញ ១ – ${filteredRoles.length} នៃ ${filteredRoles.length} តួនាទី`
+                  : `Showing 1 to ${filteredRoles.length} of ${filteredRoles.length} entries`}
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -396,7 +485,7 @@ export default function PermissionsPage() {
                 >
                   <ChevronLeft size={14} />
                 </button>
-                <span className="inline-flex h-7 px-2.5 items-center justify-center rounded bg-[#0F522B] text-white text-xs font-bold">
+                <span className="inline-flex h-7 px-2.5 items-center justify-center rounded bg-[#696cff] text-white text-xs font-bold shadow-sm shadow-[#696cff]/20">
                   1/1
                 </span>
                 <button
@@ -425,20 +514,17 @@ export default function PermissionsPage() {
             }`}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0F522B]/10 text-[#0F522B] dark:bg-emerald-500/15 dark:text-emerald-400">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] dark:bg-indigo-500/15 dark:text-indigo-400">
                   <Shield size={18} />
                 </div>
                 <div>
-                  <h3 className={`text-sm font-extrabold text-slate-900 dark:text-white ${language === "km" ? "font-khmer" : ""}`}>
+                  <h3 className={`text-[15px] font-bold text-[#566a7f] dark:text-slate-200 ${language === "km" ? "font-khmer" : ""}`}>
                     {editingRoleId !== null
                       ? language === "km" ? "កែសម្រួល Role" : "Edit Role"
                       : language === "km" ? "បន្ថែម Role ថ្មី" : "Add New Role"}
                   </h3>
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    Configure role name and granular screen permissions.
-                  </p>
                 </div>
               </div>
               <button
@@ -454,7 +540,7 @@ export default function PermissionsPage() {
             <div className="flex-1 overflow-y-auto space-y-4 py-3.5 pr-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">
                     ROLE NAME *
                   </label>
                   <input
@@ -462,13 +548,13 @@ export default function PermissionsPage() {
                     value={roleNameInput}
                     onChange={(e) => setRoleNameInput(e.target.value)}
                     placeholder="e.g. Cashier..."
-                    className={`h-9.5 w-full rounded-xl border px-3.5 text-xs font-bold outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:border-[#0F522B] ${
+                    className={`h-9.5 w-full rounded-lg border px-3.5 text-xs font-bold outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:border-[#696cff] ${
                       dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                     }`}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">
                     DESCRIPTION
                   </label>
                   <input
@@ -476,7 +562,7 @@ export default function PermissionsPage() {
                     value={roleDescInput}
                     onChange={(e) => setRoleDescInput(e.target.value)}
                     placeholder="Describe role..."
-                    className={`h-9.5 w-full rounded-xl border px-3.5 text-xs font-bold outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:border-[#0F522B] ${
+                    className={`h-9.5 w-full rounded-lg border px-3.5 text-xs font-bold outline-none transition-colors placeholder:text-slate-400 focus:bg-white focus:border-[#696cff] ${
                       dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                     }`}
                   />
@@ -485,7 +571,7 @@ export default function PermissionsPage() {
 
               {/* 1-Click Quick Preset Selector for Easy Use */}
               <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 pl-1">
+                <span className="text-[11px] font-bold text-[#8592a3] dark:text-slate-400 pl-1">
                   Quick Presets:
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -502,7 +588,7 @@ export default function PermissionsPage() {
                         }))
                       )
                     }
-                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 text-[10.5px] font-bold text-[#0F522B] dark:text-emerald-400 border border-slate-200/80 dark:border-slate-600 hover:bg-slate-100 transition-colors shadow-2xs"
+                    className="px-3 py-1.5 rounded-lg bg-[#696cff]/10 text-[10.5px] font-bold text-[#696cff] dark:text-[#8083ff] hover:bg-[#696cff]/20 transition-all cursor-pointer"
                   >
                     Full Access
                   </button>
@@ -519,7 +605,7 @@ export default function PermissionsPage() {
                         }))
                       )
                     }
-                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 text-[10.5px] font-bold text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-600 hover:bg-slate-100 transition-colors shadow-2xs"
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
                   >
                     View Only
                   </button>
@@ -536,7 +622,7 @@ export default function PermissionsPage() {
                         }))
                       )
                     }
-                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-700 text-[10.5px] font-bold text-red-600 dark:text-red-400 border border-slate-200/80 dark:border-slate-600 hover:bg-red-50 transition-colors shadow-2xs"
+                    className="px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/20 text-[10.5px] font-bold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all cursor-pointer"
                   >
                     Clear All
                   </button>
@@ -547,69 +633,21 @@ export default function PermissionsPage() {
               <div className={`rounded-xl border overflow-hidden ${dark ? "border-slate-800 bg-slate-900/30" : "border-slate-200 bg-white"}`}>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className={`border-b text-[10px] uppercase font-bold text-slate-400 ${dark ? "border-slate-800 bg-slate-800/50" : "border-slate-200 bg-slate-50"}`}>
+                    <tr className={`border-b text-[10px] uppercase font-bold tracking-wider text-[#a1acb8] ${dark ? "border-slate-800 bg-slate-800/50" : "border-slate-200 bg-slate-50"}`}>
                       <th className="px-3.5 py-2.5 w-[40%]">PAGE / MENU</th>
-                      <th className="px-2 py-2.5 text-center w-[15%]">
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setRoleMatrix((prev) => prev.map((r) => ({ ...r, view: checked })));
-                            }}
-                            className="h-3.5 w-3.5 accent-[#0F522B]"
-                          />
-                          VIEW
-                        </label>
-                      </th>
-                      <th className="px-2 py-2.5 text-center w-[15%]">
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setRoleMatrix((prev) => prev.map((r) => r.supportsCreate !== false ? { ...r, create: checked } : r));
-                            }}
-                            className="h-3.5 w-3.5 accent-[#0F522B]"
-                          />
-                          CREATE
-                        </label>
-                      </th>
-                      <th className="px-2 py-2.5 text-center w-[15%]">
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setRoleMatrix((prev) => prev.map((r) => r.supportsEdit !== false ? { ...r, edit: checked } : r));
-                            }}
-                            className="h-3.5 w-3.5 accent-[#0F522B]"
-                          />
-                          EDIT
-                        </label>
-                      </th>
-                      <th className="px-2 py-2.5 text-center w-[15%]">
-                        <label className="inline-flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setRoleMatrix((prev) => prev.map((r) => r.supportsDelete !== false ? { ...r, delete: checked } : r));
-                            }}
-                            className="h-3.5 w-3.5 accent-[#0F522B]"
-                          />
-                          DELETE
-                        </label>
-                      </th>
+                      <th className="px-2 py-2.5 text-center w-[15%]">VIEW</th>
+                      <th className="px-2 py-2.5 text-center w-[15%]">CREATE</th>
+                      <th className="px-2 py-2.5 text-center w-[15%]">EDIT</th>
+                      <th className="px-2 py-2.5 text-center w-[15%]">DELETE</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {roleMatrix.map((item) => (
-                      <tr key={item.key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="px-3.5 py-2.5 font-semibold text-slate-800 dark:text-slate-200">
+                      <tr key={item.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                        <td className="px-3.5 py-2 text-[12px] font-semibold text-[#566a7f] dark:text-slate-300">
                           {item.label}
                         </td>
-                        <td className="px-2 py-2.5 text-center">
+                        <td className="px-2 py-2 text-center">
                           <input
                             type="checkbox"
                             checked={item.view}
@@ -618,10 +656,10 @@ export default function PermissionsPage() {
                                 prev.map((r) => (r.key === item.key ? { ...r, view: !r.view } : r))
                               );
                             }}
-                            className="h-4 w-4 accent-[#0F522B] cursor-pointer"
+                            className="h-4 w-4 accent-[#696cff] cursor-pointer"
                           />
                         </td>
-                        <td className="px-2 py-2.5 text-center">
+                        <td className="px-2 py-2 text-center">
                           {item.supportsCreate !== false ? (
                             <input
                               type="checkbox"
@@ -631,13 +669,11 @@ export default function PermissionsPage() {
                                   prev.map((r) => (r.key === item.key ? { ...r, create: !r.create } : r))
                                 );
                               }}
-                              className="h-4 w-4 accent-[#0F522B] cursor-pointer"
+                              className="h-4 w-4 accent-[#696cff] cursor-pointer"
                             />
-                          ) : (
-                            <span className="text-slate-300 font-bold">—</span>
-                          )}
+                          ) : null}
                         </td>
-                        <td className="px-2 py-2.5 text-center">
+                        <td className="px-2 py-2 text-center">
                           {item.supportsEdit !== false ? (
                             <input
                               type="checkbox"
@@ -647,13 +683,11 @@ export default function PermissionsPage() {
                                   prev.map((r) => (r.key === item.key ? { ...r, edit: !r.edit } : r))
                                 );
                               }}
-                              className="h-4 w-4 accent-[#0F522B] cursor-pointer"
+                              className="h-4 w-4 accent-[#696cff] cursor-pointer"
                             />
-                          ) : (
-                            <span className="text-slate-300 font-bold">—</span>
-                          )}
+                          ) : null}
                         </td>
-                        <td className="px-2 py-2.5 text-center">
+                        <td className="px-2 py-2 text-center">
                           {item.supportsDelete !== false ? (
                             <input
                               type="checkbox"
@@ -663,11 +697,9 @@ export default function PermissionsPage() {
                                   prev.map((r) => (r.key === item.key ? { ...r, delete: !r.delete } : r))
                                 );
                               }}
-                              className="h-4 w-4 accent-[#0F522B] cursor-pointer"
+                              className="h-4 w-4 accent-[#696cff] cursor-pointer"
                             />
-                          ) : (
-                            <span className="text-slate-300 font-bold">—</span>
-                          )}
+                          ) : null}
                         </td>
                       </tr>
                     ))}
@@ -681,14 +713,14 @@ export default function PermissionsPage() {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors"
+                className="h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors"
               >
                 {language === "km" ? "បោះបង់" : "Cancel"}
               </button>
               <button
                 type="button"
                 onClick={saveRole}
-                className="h-9 flex items-center gap-1.5 rounded-xl bg-[#0F522B] hover:bg-[#0A3E20] px-6 text-xs font-bold text-white shadow-sm shadow-[#0F522B]/20 transition-colors"
+                className="h-9 flex items-center gap-1.5 rounded-lg bg-[#696cff] hover:bg-[#5f61e6] px-6 text-xs font-bold text-white shadow-sm shadow-[#696cff]/20 transition-colors"
               >
                 <Check size={15} />
                 <span>{language === "km" ? "រក្សាទុក" : "Save"}</span>

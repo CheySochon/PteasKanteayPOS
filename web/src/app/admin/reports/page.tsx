@@ -6,6 +6,8 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   Download,
   Languages,
@@ -16,6 +18,7 @@ import {
   Users,
   Printer,
   FileText,
+  RotateCw,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -463,6 +466,20 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, [selectedDate, selectedPeriod]);
 
+  const adjustDate = (direction: "prev" | "next") => {
+    const d = new Date(`${selectedDate}T00:00:00`);
+    if (selectedPeriod === "day") {
+      d.setDate(d.getDate() + (direction === "prev" ? -1 : 1));
+      setSelectedDay(dayInputValue(d));
+    } else if (selectedPeriod === "month") {
+      d.setMonth(d.getMonth() + (direction === "prev" ? -1 : 1));
+      setSelectedMonth(monthInputValue(d));
+    } else {
+      d.setFullYear(d.getFullYear() + (direction === "prev" ? -1 : 1));
+      setSelectedYear(String(d.getFullYear()));
+    }
+  };
+
   useEffect(() => {
     refreshReports();
 
@@ -503,8 +520,10 @@ export default function ReportsPage() {
     selectedRangeDate.getMonth() + 1,
     0,
   );
+  const yearStart = new Date(selectedRangeDate.getFullYear(), 0, 1);
+  const yearEnd = new Date(selectedRangeDate.getFullYear(), 11, 31);
 
-  const dateRange =
+  const startDateText =
     selectedPeriod === "day"
       ? new Intl.DateTimeFormat(dateLocale, {
           month: "short",
@@ -512,16 +531,37 @@ export default function ReportsPage() {
           year: "numeric",
         }).format(selectedRangeDate)
       : selectedPeriod === "year"
-        ? `${selectedRangeDate.getFullYear()}`
-        : `${new Intl.DateTimeFormat(dateLocale, {
+        ? new Intl.DateTimeFormat(dateLocale, {
             month: "short",
             day: "numeric",
             year: "numeric",
-          }).format(monthStart)} - ${new Intl.DateTimeFormat(dateLocale, {
+          }).format(yearStart)
+        : new Intl.DateTimeFormat(dateLocale, {
             month: "short",
             day: "numeric",
             year: "numeric",
-          }).format(monthEnd)}`;
+          }).format(monthStart);
+
+  const endDateText =
+    selectedPeriod === "day"
+      ? new Intl.DateTimeFormat(dateLocale, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }).format(selectedRangeDate)
+      : selectedPeriod === "year"
+        ? new Intl.DateTimeFormat(dateLocale, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }).format(yearEnd)
+        : new Intl.DateTimeFormat(dateLocale, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }).format(monthEnd);
+
+  const dateRange = `${startDateText} - ${endDateText}`;
 
   const monthTitle =
     selectedPeriod === "year"
@@ -641,10 +681,10 @@ export default function ReportsPage() {
       ];
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
       <TopBar
         title={t.title}
-        subtitle={t.subtitle}
+        subtitle=""
         language={language}
         onLanguageChange={(nextLanguage) => {
           localStorage.setItem("pos_language", nextLanguage);
@@ -657,122 +697,187 @@ export default function ReportsPage() {
       {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
       <div className={`px-4 pt-4 lg:px-8 flex border-b shrink-0 print:hidden ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
         <div className="mx-auto w-full max-w-[1600px] flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Left Side: Live Badge & Last Updated */}
-          <div className="flex items-center gap-2.5">
-            <span className="rounded bg-[#e8fadf] px-2.5 py-0.5 text-xs font-semibold text-[#71dd37]">
-              {t.live}
-            </span>
-            <span className={`text-xs ${textSecondary} font-medium`}>
-              {lastUpdated
-                ? `${t.updated} ${lastUpdated.toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}`
-                : t.loadingReports}
-            </span>
-          </div>
-
-          {/* Right Side: Calendar & Export Dropdown */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
+              {/* Funnel Filter Icon Button (Screenshot 1) */}
               <button
                 type="button"
                 onClick={() => setShowCalendar((value) => !value)}
-                className={`flex h-9 w-full items-center justify-between gap-3 px-3 text-xs font-semibold sm:w-[260px] ${inputClass}`}
+                className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all active:scale-95 ${
+                  dark
+                    ? "border-[#4e4f6e] bg-[#2b2c40] text-slate-300 hover:bg-[#34354f]"
+                    : "border-slate-200 bg-white text-slate-650 hover:bg-slate-50"
+                }`}
+                title="Filter Report"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <CalendarDays size={14} className={textSecondary} />
-                  <span className="truncate">{dateRange}</span>
-                </span>
-                <ChevronDown size={13} className={textSecondary} />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-slate-500"
+                >
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
               </button>
 
               {showCalendar && (
-                <div
-                  className={`absolute right-0 top-12 z-30 w-full rounded border p-4 shadow-lg sm:w-[320px] ${surface} ${borderCol}`}
-                >
-                  <label
-                    className={`mb-2 block text-[11px] font-bold uppercase tracking-wide ${textSecondary}`}
+                <>
+                  {/* Backdrop overlay */}
+                  <div
+                    className="fixed inset-0 z-[100] bg-slate-900/40 flex items-center justify-center p-4 animate-[fadeIn_200ms_ease-out]"
+                    onClick={() => setShowCalendar(false)}
                   >
-                    {t.reportRange}
-                  </label>
-
-                  <div className="mb-3 grid grid-cols-3 gap-2">
-                    {(["day", "month", "year"] as ReportPeriod[]).map((period) => (
-                      <button
-                        key={period}
-                        type="button"
-                        onClick={() => setSelectedPeriod(period)}
-                        className={`h-9 rounded text-xs font-semibold capitalize transition-all ${
-                          selectedPeriod === period
-                            ? "bg-[#0F522B] text-white shadow-sm shadow-[#0F522B]/20"
-                            : dark
-                              ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                              : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#f5f5f9] hover:text-[#0F522B]"
-                        }`}
-                      >
-                        {t[period]}
-                      </button>
-                    ))}
-                  </div>
-
-                  {selectedPeriod === "day" && (
-                    <input
-                      type="date"
-                      value={selectedDay}
-                      onChange={(event) => setSelectedDay(event.target.value)}
-                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                      aria-label={t.selectDay}
-                    />
-                  )}
-
-                  {selectedPeriod === "month" && (
-                    <input
-                      type="month"
-                      value={selectedMonth}
-                      onChange={(event) => setSelectedMonth(event.target.value)}
-                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                      aria-label={t.selectMonth}
-                    />
-                  )}
-
-                  {selectedPeriod === "year" && (
-                    <input
-                      type="number"
-                      min="2000"
-                      max="2100"
-                      value={selectedYear}
-                      onChange={(event) => setSelectedYear(event.target.value)}
-                      className={`h-10 w-full px-3 text-sm outline-none ${inputClass}`}
-                      aria-label={t.selectYear}
-                    />
-                  )}
-
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDay(dayInputValue(new Date()));
-                        setSelectedMonth(monthInputValue(new Date()));
-                        setSelectedYear(String(new Date().getFullYear()));
-                        setSelectedPeriod("day");
-                        setShowCalendar(false);
-                      }}
-                      className="h-9 rounded bg-[#0F522B] px-3 text-xs font-semibold text-white hover:bg-[#0A3E20]"
+                    {/* Modal container */}
+                    <div
+                      className={`relative w-full max-w-[500px] rounded-[24px] border ${borderCol} ${surface} p-5 shadow-2xl flex flex-col gap-4 animate-[scaleIn_200ms_ease-out]`}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {t.current}
-                    </button>
+                      {/* Modal Header */}
+                      <div className={`flex items-center gap-2 text-lg font-semibold ${textPrimary}`}>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-slate-550"
+                        >
+                          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                        </svg>
+                        <span>Filter</span>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowCalendar(false)}
-                      className={`h-9 rounded border px-3 text-xs font-semibold border-[#d9dee3] ${textSecondary} hover:bg-[#f5f5f9] transition-all`}
-                    >
-                      {t.close}
-                    </button>
+                      {/* Modal Body */}
+                      <div className="flex flex-col gap-4">
+                        {/* Period select dropdown */}
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-500">
+                            Filter
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={selectedPeriod}
+                              onChange={(event) => {
+                                const period = event.target.value as ReportPeriod;
+                                setSelectedPeriod(period);
+                                if (period === "day") {
+                                  setSelectedDay(dayInputValue(new Date()));
+                                } else if (period === "month") {
+                                  setSelectedMonth(monthInputValue(new Date()));
+                                } else {
+                                  setSelectedYear(String(new Date().getFullYear()));
+                                }
+                              }}
+                              className={`h-10 w-full rounded-lg border border-slate-200 px-3 pr-10 text-sm font-normal outline-none text-slate-700 bg-white focus:border-[#55a060] transition-all cursor-pointer appearance-none`}
+                            >
+                              <option value="day">Today</option>
+                              <option value="month">This Month</option>
+                              <option value="year">This Year</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                              <ChevronDown size={14} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* From & To inputs side-by-side */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-500">
+                              From
+                            </label>
+                            <input
+                              type="date"
+                              value={
+                                selectedPeriod === "day"
+                                  ? selectedDay
+                                  : selectedPeriod === "year"
+                                    ? `${selectedYear}-01-01`
+                                    : `${selectedMonth}-01`
+                              }
+                              onChange={(event) => {
+                                const val = event.target.value;
+                                if (!val) return;
+                                if (selectedPeriod === "day") {
+                                  setSelectedDay(val);
+                                } else if (selectedPeriod === "month") {
+                                  setSelectedMonth(val.substring(0, 7)); // YYYY-MM
+                                } else {
+                                  setSelectedYear(val.substring(0, 4)); // YYYY
+                                }
+                              }}
+                              className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal outline-none text-slate-700 bg-white focus:border-[#55a060] transition-all cursor-pointer"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-500">
+                              To
+                            </label>
+                            <input
+                              type="date"
+                              value={
+                                selectedPeriod === "day"
+                                  ? selectedDay
+                                  : selectedPeriod === "year"
+                                    ? `${selectedYear}-12-31`
+                                    : (() => {
+                                        const parts = selectedMonth.split("-");
+                                        const year = parseInt(parts[0], 10);
+                                        const month = parseInt(parts[1], 10);
+                                        const lastDay = new Date(year, month, 0).getDate();
+                                        return `${selectedMonth}-${String(lastDay).padStart(2, "0")}`;
+                                      })()
+                              }
+                              onChange={(event) => {
+                                const val = event.target.value;
+                                if (!val) return;
+                                if (selectedPeriod === "day") {
+                                  setSelectedDay(val);
+                                } else if (selectedPeriod === "month") {
+                                  setSelectedMonth(val.substring(0, 7)); // YYYY-MM
+                                } else {
+                                  setSelectedYear(val.substring(0, 4)); // YYYY
+                                }
+                              }}
+                              className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-normal outline-none text-slate-700 bg-white focus:border-[#55a060] transition-all cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Modal Footer */}
+                      <div className="flex items-center justify-end gap-2.5 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCalendar(false)}
+                          className="h-10 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-100/85 px-5 text-sm font-medium text-slate-600 transition-all cursor-pointer outline-none active:scale-[0.98]"
+                        >
+                          Close
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            refreshReports();
+                            setShowCalendar(false);
+                          }}
+                          className="h-10 rounded-lg bg-[#55a060] hover:bg-[#498c53] px-5 text-sm font-medium text-white transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98]"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
 
@@ -781,7 +886,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setShowExport((value) => !value)}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
               >
                 <Download size={14} />
                 <span>{t.export}</span>
@@ -847,11 +952,10 @@ export default function ReportsPage() {
                 </div>
               )}
             </div>
-          </div>
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="mx-auto w-full max-w-[1600px]" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
@@ -879,7 +983,6 @@ export default function ReportsPage() {
               tone="green"
               label={t.totalRevenue}
               value={loading ? "..." : money(totalRevenue)}
-              delta={`${money(todayRevenue)} ${t.today}`}
               dark={dark}
             />
 
@@ -888,7 +991,6 @@ export default function ReportsPage() {
               tone="blue"
               label={t.totalOrders}
               value={loading ? "..." : totalOrders.toLocaleString()}
-              delta={`${daily?.orderCount || 0} ${t.today}`}
               dark={dark}
             />
 
@@ -897,12 +999,8 @@ export default function ReportsPage() {
               tone="orange"
               label={t.averageTicket}
               value={money(averageTicket)}
-              delta="-2.4%"
-              muted
               dark={dark}
             />
-
-
           </section>
 
           <section className="mb-4 grid gap-4 xl:grid-cols-[1fr_340px]">
@@ -910,9 +1008,6 @@ export default function ReportsPage() {
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className={`text-lg font-bold ${textPrimary}`}>{t.revenueTrend}</h2>
-                  <p className={`mt-1 text-sm ${textSecondary}`}>
-                    {t.revenueTrendDesc} {monthTitle}
-                  </p>
                 </div>
 
                 <div className="relative">
@@ -993,9 +1088,6 @@ export default function ReportsPage() {
 
             <div className={`${cardClass} p-4`}>
               <h2 className={`text-lg font-bold ${textPrimary}`}>{t.topCategories}</h2>
-              <p className={`mt-1 text-sm ${textSecondary}`}>
-                {t.categoryDistribution}
-              </p>
 
               <div
                 className="mx-auto mt-5 grid h-[150px] w-[150px] place-items-center rounded-full"
@@ -1040,18 +1132,15 @@ export default function ReportsPage() {
 
 
           <section className={`overflow-hidden rounded-2xl border shadow-none ${surface} ${borderCol}`}>
-            <div className="flex h-14 items-center justify-between border-b border-[#f0f2f5] px-4">
+            <div className="flex h-14 items-center justify-between border-b border-slate-200/80 dark:border-[#4e4f6e] px-4">
               <div>
                 <h2 className={`text-base font-bold ${textPrimary}`}>{t.itemPerformance}</h2>
-                <p className={`hidden text-xs sm:block ${textSecondary}`}>
-                  {t.itemPerformanceDesc}
-                </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message))}
-                className="inline-flex items-center gap-2 rounded bg-[#696cff] px-4 py-2 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20 print:hidden"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#696cff]/10 px-4 py-2 text-xs font-bold text-[#696cff] hover:bg-[#696cff]/20 active:scale-95 transition-all print:hidden"
               >
                 <Download size={14} />
                 {t.exportCsv}
@@ -1061,15 +1150,17 @@ export default function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead
-                  className="text-[11px] uppercase tracking-wide bg-[#eceef1]/40 text-[#8592a3]"
+                  className={`text-[10px] font-black uppercase tracking-wider ${
+                    dark ? "bg-[#232333]/80 text-slate-400 border-b border-[#4e4f6e]/50" : "bg-[#f5f5f9] text-[#566a7f] border-b border-slate-100"
+                  }`}
                 >
                   <tr>
-                    <th className="px-4 py-3 font-bold">{t.itemName}</th>
-                    <th className="px-4 py-3 font-bold">{t.category}</th>
-                    <th className="px-4 py-3 text-center font-bold">{t.orders}</th>
-                    <th className="px-4 py-3 text-center font-bold">{t.revenue}</th>
-                    <th className="px-4 py-3 text-center font-bold">{t.avgRating}</th>
-                    <th className="px-4 py-3 text-center font-bold">{t.status}</th>
+                    <th className="px-4 py-3.5 font-bold">{t.itemName}</th>
+                    <th className="px-4 py-3.5 font-bold">{t.category}</th>
+                    <th className="px-4 py-3.5 text-center font-bold">{t.orders}</th>
+                    <th className="px-4 py-3.5 text-center font-bold">{t.revenue}</th>
+                    <th className="px-4 py-3.5 text-center font-bold">{t.avgRating}</th>
+                    <th className="px-4 py-3.5 text-center font-bold">{t.status}</th>
                   </tr>
                 </thead>
 
@@ -1077,10 +1168,10 @@ export default function ReportsPage() {
                   {visibleItemRows.map((item) => (
                     <tr
                       key={item.name}
-                      className={`border-t ${
+                      className={`border-b last:border-b-0 ${
                         dark
-                          ? "border-[#4e4f6e] hover:bg-[#232333]/60"
-                          : "border-[#f0f2f5] hover:bg-[#f5f5f9]"
+                          ? "border-[#4e4f6e]/50 hover:bg-[#232333]/40"
+                          : "border-slate-100 hover:bg-[#f5f5f9]/50"
                       } transition-all duration-150`}
                     >
                       <td className={`px-4 py-3 font-medium ${textPrimary}`}>
@@ -1142,6 +1233,14 @@ export default function ReportsPage() {
             transform: translateY(0);
           }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
       `}</style>
     </main>
   );
@@ -1156,60 +1255,40 @@ function MetricCard({
   tone,
   label,
   value,
-  delta,
-  muted = false,
   dark,
 }: {
   icon: ReactNode;
   tone: "green" | "blue" | "orange" | "purple";
   label: string;
   value: string;
-  delta: string;
-  muted?: boolean;
   dark: boolean;
 }) {
   const tones = {
-    green: "bg-[#e8fadf] text-[#71dd37]",
-    blue: "bg-[#e7e7ff] text-[#696cff]",
-    orange: "bg-[#fff2e2] text-[#ff9f43]",
-    purple: "bg-[#f2e7ff] text-[#8553f4]",
+    green: dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600",
+    blue: dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600",
+    orange: dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600",
+    purple: dark ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600",
   };
 
   return (
     <div
-      className={`rounded-2xl border p-5 shadow-none transition-all duration-200 ${
+      className={`rounded-2xl border p-4 sm:p-5 shadow-none transition-all flex items-center justify-between ${
         dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
       }`}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
-          <div
-            className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-[#566a7f]"
-            }`}
-          >
-            <AnimatedCounter value={value} />
-          </div>
-        </div>
-
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded ${tones[tone]}`}>
-          {icon}
+      <div>
+        <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
+        <div
+          className={`mt-1 text-2xl font-bold tracking-tight ${
+            dark ? "text-slate-100" : "text-[#566a7f]"
+          }`}
+        >
+          <AnimatedCounter value={value} />
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase ${
-            muted
-              ? dark
-                ? "bg-slate-800 text-slate-400"
-                : "bg-[#eceef1]/60 text-[#8592a3]"
-              : "bg-[#e8fadf] text-[#71dd37]"
-          }`}
-        >
-          {delta}
-        </span>
+      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tones[tone] || tones.blue}`}>
+        {icon}
       </div>
     </div>
   );

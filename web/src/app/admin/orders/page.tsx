@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  DollarSign,
   Download,
   Eye,
   Filter,
@@ -513,7 +515,7 @@ export default function OrdersPage() {
     <main className="flex-1 overflow-y-auto">
         <TopBar
           title={t.title}
-          subtitle={t.subtitle}
+          subtitle=""
           language={language}
           onLanguageChange={(nextLanguage) => {
             localStorage.setItem("pos_language", nextLanguage);
@@ -523,7 +525,7 @@ export default function OrdersPage() {
           dark={dark}
         />
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1600px] px-5 py-5">
           {message && (
             <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
               {message}
@@ -534,37 +536,33 @@ export default function OrdersPage() {
             <SummaryCard
               label={t.activeOrders}
               value={String(activeOrdersCount)}
-              note={`+${activeOrdersCount > 0 ? "5%" : "0%"} ${t.fromLastHour}`}
               tone="blue"
               dark={dark}
-              liveLabel={t.live}
+              Icon={Clock}
             />
 
             <SummaryCard
               label={t.completedToday}
               value={String(completedTodayCount)}
-              note={`~-2% ${t.fromYesterday}`}
               tone="green"
               dark={dark}
-              liveLabel={t.live}
+              Icon={CheckCircle2}
             />
 
             <SummaryCard
               label={t.cancelled}
               value={String(cancelledCount)}
-              note={`1% ${t.cancellationRate}`}
               tone="red"
               dark={dark}
-              liveLabel={t.live}
+              Icon={X}
             />
 
             <SummaryCard
               label={t.totalRevenue}
               value={money(totalRevenue)}
-              note={`+12% ${t.vsLastShift}`}
               tone="purple"
               dark={dark}
-              liveLabel={t.live}
+              Icon={DollarSign}
             />
           </section>
 
@@ -770,7 +768,7 @@ export default function OrdersPage() {
                               onMouseLeave={() => setHoveredOrder(null)}
                               className="text-left group cursor-default inline-block"
                             >
-                              <div className={`text-base font-extrabold tracking-tight group-hover:text-[#0F522B] transition-colors ${textPrimary}`}>
+                              <div className={`text-sm font-bold tracking-tight group-hover:text-[#0F522B] transition-colors ${textPrimary}`}>
                                 {formatShortOrderNo(order)}
                               </div>
                               <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -780,7 +778,9 @@ export default function OrdersPage() {
 
                             {/* FLOATING HOVER PREVIEW CARD (POPOVER) */}
                             {hoveredOrder?.id === order.id && (
-                              <div className="pointer-events-none absolute left-36 top-2 z-40 w-72 rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-[#1f2130] p-4 shadow-2xl animate-[printerScaleIn_150ms_ease-out]">
+                              <div className={`pointer-events-none absolute left-20 z-40 w-72 rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-[#1f2130] p-4 shadow-2xl animate-[printerScaleIn_150ms_ease-out] ${
+                                index > 2 ? "bottom-2" : "top-2"
+                              }`}>
                                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 mb-2.5">
                                   <div>
                                     <div className="font-black text-xs text-slate-900 dark:text-white">{order.orderNumber || order.orderId}</div>
@@ -1116,53 +1116,104 @@ export default function OrdersPage() {
 function SummaryCard({
   label,
   value,
-  note,
   tone,
   dark,
-  liveLabel,
+  Icon,
 }: {
   label: string;
   value: string;
-  note: string;
   tone: "blue" | "green" | "red" | "purple";
   dark: boolean;
-  liveLabel: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
 }) {
-  const tones = {
-    blue: "bg-[#e7e7ff] text-[#696cff]",
-    green: "bg-[#e8fadf] text-[#71dd37]",
-    red: "bg-[#ffe0db] text-[#ff3e1d]",
-    purple: "bg-[#f2e7ff] text-[#8553f4]",
+  const iconTones = {
+    blue: dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600",
+    green: dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600",
+    red: dark ? "bg-rose-500/10 text-rose-400" : "bg-rose-50 text-rose-600",
+    purple: dark ? "bg-purple-500/10 text-purple-400" : "bg-purple-50 text-purple-600",
   };
 
   return (
     <div
-      className={`rounded-2xl border p-4 sm:p-5 shadow-none transition-all ${
+      className={`rounded-2xl border p-4 sm:p-5 shadow-none transition-all flex items-center justify-between ${
         dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
       }`}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
-          <div
-            className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-[#566a7f]"
-            }`}
-          >
-            <AnimatedCounter value={value} />
-          </div>
+      <div>
+        <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
+        <div
+          className={`mt-1 text-2xl font-bold tracking-tight ${
+            dark ? "text-slate-100" : "text-[#566a7f]"
+          }`}
+        >
+          <AnimatedCounter value={value} />
         </div>
-
-        <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${tones[tone]}`}>
-          {liveLabel}
-        </span>
       </div>
 
-      <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
+      <div className={`p-2.5 rounded-xl shrink-0 ${iconTones[tone] || iconTones.blue}`}>
+        <Icon size={20} />
+      </div>
     </div>
   );
 }
 
 function AnimatedCounter({ value }: { value?: string | number | null }) {
-  return <>{value ?? ""}</>;
+  const [displayValue, setDisplayValue] = useState(value ?? "");
+
+  useEffect(() => {
+    if (value === null || value === undefined) {
+      setDisplayValue("");
+      return;
+    }
+
+    const strValue = String(value);
+    const match = strValue.match(/[\d.]+/);
+    if (!match) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const targetNum = parseFloat(match[0]);
+    if (Number.isNaN(targetNum)) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const prefix = strValue.slice(0, match.index);
+    const suffix = strValue.slice(match.index! + match[0].length);
+
+    const decimalParts = match[0].split(".");
+    const decimals = decimalParts.length > 1 ? decimalParts[1].length : 0;
+
+    const start = 0;
+    const duration = 800; // Animation duration in milliseconds
+    const startTime = performance.now();
+
+    let animationFrameId: number;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function: easeOutQuad
+      const easedProgress = progress * (2 - progress);
+      const currentNum = start + targetNum * easedProgress;
+
+      setDisplayValue(`${prefix}${currentNum.toFixed(decimals)}${suffix}`);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(strValue);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [value]);
+
+  return <>{displayValue}</>;
 }

@@ -59,9 +59,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         if (!user) {
           user = await getMe();
         }
-        
-        const settings = await getSettings().catch(() => null);
-        const staffPermissions = permissionsForUser(user.id, settings?.staffPermissions);
+
+        let staffPermissions: Record<string, boolean> = {};
+        if (user.role && typeof user.role === "object" && Array.isArray(user.role.permissions)) {
+          user.role.permissions.forEach((item: any) => {
+            staffPermissions[item.key] = item.view;
+            staffPermissions[`${item.key}_create`] = item.create;
+            staffPermissions[`${item.key}_edit`] = item.edit;
+            staffPermissions[`${item.key}_delete`] = item.delete;
+          });
+        } else {
+          const settings = await getSettings().catch(() => null);
+          staffPermissions = permissionsForUser(user.id, settings?.staffPermissions);
+        }
 
         localStorage.setItem("pos_logged_in", "true");
         localStorage.setItem("pos_user", JSON.stringify(user));
@@ -120,10 +130,38 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       setAuthorizedPath(pathname);
     }
 
+    function handleRolesUpdated() {
+      getMe().then((updatedUser) => {
+        let staffPermissions: Record<string, boolean> = {};
+        if (updatedUser.role && typeof updatedUser.role === "object" && Array.isArray(updatedUser.role.permissions)) {
+          updatedUser.role.permissions.forEach((item: any) => {
+            staffPermissions[item.key] = item.view;
+            staffPermissions[`${item.key}_create`] = item.create;
+            staffPermissions[`${item.key}_edit`] = item.edit;
+            staffPermissions[`${item.key}_delete`] = item.delete;
+          });
+        }
+        localStorage.setItem("pos_user", JSON.stringify(updatedUser));
+        localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
+        window.dispatchEvent(new Event("pos-auth-change"));
+        window.dispatchEvent(new Event("pos-permissions-change"));
+
+        if (!canAccessPath(pathname, roleName(updatedUser), staffPermissions)) {
+          setDenied(true);
+          router.replace(firstAllowedPathForRole(roleName(updatedUser), staffPermissions));
+        } else {
+          setDenied(false);
+          setAuthorizedPath(pathname);
+        }
+      }).catch(() => null);
+    }
+
     socket.on("permissions:updated", handlePermissionsUpdated);
+    socket.on("roles:updated", handleRolesUpdated);
 
     return () => {
       socket.off("permissions:updated", handlePermissionsUpdated);
+      socket.off("roles:updated", handleRolesUpdated);
     };
   }, [pathname, protectedRoute, router]);
 

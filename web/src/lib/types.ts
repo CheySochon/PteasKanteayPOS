@@ -24,6 +24,7 @@ export type AppSettings = {
   restaurantPhone: string;
   restaurantImageUrl?: string;
   address: string;
+  vatTin?: string;
   currency: string;
   taxRate: number;
   serviceChargeRate: number;
@@ -42,6 +43,8 @@ export type AppSettings = {
 export type Role = {
   id: number;
   name: string;
+  description?: string;
+  permissions?: any;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -53,6 +56,7 @@ export type User = {
   role?: Role | string;
   roleName?: string;
   isActive: boolean;
+  imageUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -87,6 +91,13 @@ export type Product = {
   imageUrl?: string | null;
   basePrice: Money;
   isAvailable: boolean;
+  unit?: string;
+  trackStock?: boolean;
+  inventory?: {
+    quantity: string | number;
+    minStock: string | number;
+    updatedAt?: string;
+  } | null;
   deletedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;

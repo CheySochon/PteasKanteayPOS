@@ -437,7 +437,7 @@ export default function TableQrPage({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t("Search for flavors...", "ស្វែងរកមុខម្ហូប...")}
-                className="font-khmer w-full rounded-xl border-none bg-[#F2F2F7] py-3 pl-11 pr-4 text-xs font-medium outline-none placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-[#0F522B]/20 transition-all text-slate-900"
+                className="font-khmer w-full rounded-2xl border border-transparent bg-[#F2F2F7] py-3 pl-11 pr-4 text-xs font-semibold outline-none placeholder:text-slate-400/80 focus:bg-white focus:border-[#0F522B]/30 focus:ring-4 focus:ring-[#0F522B]/5 transition-all text-slate-900 duration-200"
               />
             </div>
           </div>
@@ -491,19 +491,21 @@ export default function TableQrPage({
               return (
                 <div
                   key={product.id}
-                  className="relative flex flex-col rounded-2xl bg-white p-2.5 shadow-sm shadow-slate-200/50 border border-slate-100 hover:shadow-md transition-all"
+                  className="group relative flex flex-col rounded-2xl bg-white p-2.5 shadow-sm shadow-slate-200/50 border border-slate-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                 >
                   {/* Thumbnail Image Container */}
-                  <div className="relative mb-2.5 aspect-square w-full overflow-hidden rounded-xl bg-[#E8F5ED]">
+                  <div className="relative mb-2.5 aspect-square w-full overflow-hidden rounded-xl bg-gradient-to-br from-[#E8F5ED] to-[#d8ece0] flex items-center justify-center border border-[#0F522B]/5 shadow-inner">
                     {product.imageUrl ? (
                       <img
                         src={resolveImageUrl(product.imageUrl)}
                         alt={product.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[#0F522B]/40">
-                        <Utensils size={32} />
+                      <div className="flex flex-col items-center gap-1.5 text-[#0F522B]/35">
+                        <div className="p-2.5 rounded-full bg-white/60 shadow-xs backdrop-blur-xs flex items-center justify-center">
+                          <Utensils size={24} className="stroke-[1.5]" />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -519,35 +521,39 @@ export default function TableQrPage({
                       {formatPrice(Number(product.basePrice), locale)}
                     </span>
 
-                    <div
-                      className={`flex items-center justify-center rounded-full bg-[#E8F5ED] border border-[#0F522B]/10 overflow-hidden transition-all duration-300 ${
-                        hasQty ? "w-20 h-8" : "w-8 h-8"
-                      }`}
-                    >
-                      {hasQty && (
-                        <button
-                          type="button"
-                          disabled={isReadOnly}
-                          onClick={() => removeFromCart(product.id)}
-                          className="flex h-8 w-6 items-center justify-center text-sm font-bold text-[#0F522B] hover:bg-[#0F522B]/10 active:scale-90 transition-all disabled:opacity-50"
-                        >
-                          −
-                        </button>
-                      )}
-                      {hasQty && (
-                        <span className="flex-1 text-center text-xs font-bold text-[#0F522B]">
-                          {qty}
-                        </span>
-                      )}
+                    {!hasQty ? (
                       <button
                         type="button"
                         disabled={isReadOnly}
                         onClick={() => addToCart(product)}
-                        className="flex h-8 w-6 items-center justify-center text-sm font-bold text-[#0F522B] hover:bg-[#0F522B]/10 active:scale-90 transition-all disabled:opacity-50"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E8F5ED] hover:bg-[#0F522B] hover:text-white text-[#0F522B] border border-[#0F522B]/15 hover:border-transparent active:scale-90 transition-all duration-200 shadow-sm"
+                        title="Add to cart"
                       >
-                        +
+                        <Plus size={14} className="stroke-[2.5]" />
                       </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-between rounded-full bg-[#E8F5ED] border border-[#0F522B]/20 overflow-hidden h-8 w-[84px] shadow-xs transition-all duration-300">
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => removeFromCart(product.id)}
+                          className="flex h-full w-8 items-center justify-center text-xs font-bold text-[#0F522B] hover:bg-[#0F522B]/10 active:scale-90 transition-all disabled:opacity-40"
+                        >
+                          −
+                        </button>
+                        <span className="text-xs font-extrabold text-[#0F522B]">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isReadOnly}
+                          onClick={() => addToCart(product)}
+                          className="flex h-full w-8 items-center justify-center text-xs font-bold text-[#0F522B] hover:bg-[#0F522B]/10 active:scale-90 transition-all disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -890,7 +896,7 @@ export default function TableQrPage({
       )}
 
       {/* ── ENFORCED BOTTOM NAVIGATION BAR matching my-app ── */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-slate-100 flex justify-around py-2.5 z-30 shadow-lg">
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-around py-3 z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         {[
           { icon: Utensils, label: t("Menu", "ម៉ឺនុយ"), page: "menu" as PageTab },
           { icon: ShoppingBag, label: t("My Order", "ការកម្មង់"), page: "order" as PageTab },
@@ -907,13 +913,13 @@ export default function TableQrPage({
               disabled={!allowed}
               type="button"
               onClick={() => navigateToPage(nav.page)}
-              className={`flex flex-col items-center gap-1 transition-all ${
+              className={`flex flex-col items-center gap-1 transition-all active:scale-95 duration-200 ${
                 allowed ? "opacity-100 cursor-pointer" : "opacity-30 cursor-not-allowed"
               }`}
             >
               <Icon
                 size={20}
-                className={isActive ? "text-[#0F522B]" : "text-slate-400"}
+                className={`transition-all duration-200 ${isActive ? "text-[#0F522B] scale-105" : "text-slate-400"}`}
               />
               <span
                 className={`font-khmer text-[10.5px] ${

@@ -2,9 +2,11 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   AlertCircle,
+  ArrowUpRight,
   Bell,
   Building2,
   CheckCircle2,
@@ -14,11 +16,17 @@ import {
   CreditCard,
   Database,
   Download,
+  Grid2X2,
   Globe,
   History,
   ImagePlus,
+  Info,
+  BookOpen,
+  Armchair,
   LayoutGrid,
   Loader2,
+  Mail,
+  Phone,
   Plus,
   Printer,
   ReceiptText,
@@ -34,6 +42,8 @@ import {
   Trash2,
   Upload,
   User,
+  UsersRound,
+  ShoppingBag,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -211,12 +221,12 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
 
-  const [activeTab, setActiveTab] = useState<"general" | "billing" | "printers" | "integrations" | "security">("general");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "general" | "billing" | "printers" | "integrations" | "security">("general");
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(true);
 
   useEffect(() => {
     if (tabParam && ["general", "billing", "printers", "integrations", "security"].includes(tabParam)) {
-      setActiveTab(tabParam as "general" | "billing" | "printers" | "integrations" | "security");
+      setActiveTab(tabParam as "dashboard" | "general" | "billing" | "printers" | "integrations" | "security");
     }
   }, [tabParam]);
 
@@ -620,7 +630,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
         <TopBar
           title={language === "km" ? "ការកំណត់ប្រព័ន្ធ" : "System Settings"}
           subtitle={language === "km" ? "គ្រប់គ្រងព័ត៌មានហាង ម៉ាស៊ីនបោះពុម្ព និងទិន្នន័យចងក្រង" : "Manage restaurant profile, network hardware, and backup files."}
@@ -630,31 +640,86 @@ export default function SettingsPage() {
           dark={dark}
         />
 
-        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-[1600px] space-y-4">
-            <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-[#4e4f6e]">
-                <div>
-                  <h2 className={`text-lg font-bold ${textPrimary}`}>
-                    {activeTab === "general" && (language === "km" ? "ព័ត៌មានទូទៅនៃហាង" : "General Information")}
-                    {activeTab === "billing" && (language === "km" ? "ការកំណត់វិក្កយបត្រ" : "Billing & Receipt Setup")}
-                    {activeTab === "printers" && (language === "km" ? "ម៉ាស៊ីនបោះពុម្ព & ឧបករណ៍" : "Hardware & Printers")}
-                    {activeTab === "integrations" && (language === "km" ? "ភ្ជាប់ Telegram & APIs" : "Integrations & Telegram")}
-                    {activeTab === "security" && (language === "km" ? "ប្រព័ន្ធ & ផ្ទុកទិន្នន័យ" : "System & Data Backups")}
-                  </h2>
-                </div>
+        {/* Secondary Sub-Navigation Bar */}
+        <div className={`px-5 py-3 border-b border-slate-200/50 dark:border-[#4e4f6e]/30 flex flex-wrap items-center gap-2 text-xs font-semibold bg-white dark:bg-[#1a1c29] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0`}>
+          {/* 1. Store Details */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("general")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+              activeTab === "general"
+                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Info size={15} />
+            <span>{language === "km" ? "ព័ត៌មានហាង" : "Store Details"}</span>
+          </button>
 
-                <button
-                  type="submit"
-                  form="settingsForm"
-                  disabled={saving}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0F522B] px-4 text-xs font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  {language === "km" ? "រក្សាទុកការប្រែប្រួល" : "Save All Changes"}
-                </button>
-              </div>
+          {/* 2. Print Settings */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("printers")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+              activeTab === "printers"
+                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Printer size={15} />
+            <span>{language === "km" ? "ការកំណត់ការបោះពុម្ព" : "Print Settings"}</span>
+          </button>
 
-              <form id="settingsForm" onSubmit={submit}>
+          {/* Tax Setup */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("billing")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+              activeTab === "billing"
+                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <ReceiptText size={15} />
+            <span>{language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}</span>
+          </button>
+
+
+
+          {/* 8. Integrations */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("integrations")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+              activeTab === "integrations"
+                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <SendHorizontal size={15} />
+            <span>{language === "km" ? "ការភ្ជាប់ទំនាក់ទំនង" : "Integrations"}</span>
+          </button>
+
+          {/* 9. System & Backups */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("security")}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+              activeTab === "security"
+                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+            }`}
+          >
+            <Database size={15} />
+            <span>{language === "km" ? "ប្រព័ន្ធ & ការចម្លងទុក" : "System & Backups"}</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="w-full">
+
+
+                <form id="settingsForm" onSubmit={submit}>
 
               {/* FLOATING POPUP TOAST NOTIFICATIONS */}
               {(message || error) && (
@@ -706,36 +771,36 @@ export default function SettingsPage() {
               {/* TAB 1: GENERAL SETTINGS */}
               {activeTab === "general" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
-                  <Panel
-                    Icon={Building2}
-                    title={language === "km" ? "ព័ត៌មានទូទៅនៃហាង" : "General Information"}
-                    subtitle={language === "km" ? "កំណត់ឈ្មោះ លេខទូរស័ព្ទ និងទីតាំងហាងរបស់អ្នក" : "Set your restaurant name, contact, and address."}
-                    surface={surface}
-                    borderCol={borderCol}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                  >
-                    <div className="mb-4 flex flex-col gap-4 rounded-xl border border-dashed border-slate-200 dark:border-[#4e4f6e] p-4 sm:flex-row sm:items-center">
-                      <div className={`flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl ${softSurface}`}>
-                        {settings.restaurantImageUrl ? (
-                          <img
-                            src={resolveImageUrl(settings.restaurantImageUrl)}
-                            alt={settings.restaurantName || "Restaurant"}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <Building2 size={26} className={textSecondary} />
-                        )}
-                      </div>
+                  {/* Page heading */}
+                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>Store Details</h2>
 
-                      <div className="min-w-0 flex-1">
-                        <div className={`text-sm font-black ${textPrimary}`}>Restaurant Logo / Image</div>
-                        <div className={`text-xs ${textSecondary}`}>Recommended square PNG/JPG logo.</div>
-                      </div>
+                  <div className="flex flex-col lg:flex-row gap-6">
+                    {/* LEFT: Store Image Card */}
+                    <div className={`shrink-0 w-full lg:w-56 rounded-2xl border ${borderCol} ${surface} p-5 flex flex-col items-center gap-3`}>
+                      <span className={`text-xs font-semibold ${textSecondary}`}>Store Image</span>
 
-                      <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/10">
-                        {uploadingImage ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
-                        {uploadingImage ? "Uploading" : "Upload Image"}
+                      {/* Upload zone */}
+                      <label className="cursor-pointer w-full">
+                        <div className={`relative w-full aspect-square rounded-xl border-2 border-dashed border-[#4caf50]/60 flex flex-col items-center justify-center gap-2 overflow-hidden transition-colors hover:border-[#4caf50] ${softSurface}`}>
+                          {settings.restaurantImageUrl ? (
+                            <img
+                              src={resolveImageUrl(settings.restaurantImageUrl)}
+                              alt={settings.restaurantName || "Restaurant"}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <>
+                              {uploadingImage ? (
+                                <Loader2 className="animate-spin text-[#4caf50]" size={24} />
+                              ) : (
+                                <Upload size={22} className="text-[#4caf50]" />
+                              )}
+                              <span className={`text-xs ${textSecondary}`}>
+                                {uploadingImage ? "Uploading…" : "No image"}
+                              </span>
+                            </>
+                          )}
+                        </div>
                         <input
                           type="file"
                           accept="image/*"
@@ -747,507 +812,659 @@ export default function SettingsPage() {
                           className="hidden"
                         />
                       </label>
+
+                      <div className="text-center">
+                        <div className={`text-[11px] ${textSecondary}`}>Recommended size</div>
+                        <div className={`text-[11px] font-semibold ${textSecondary}`}>500 × 500 px</div>
+                        <div className={`text-[11px] ${textSecondary}`}>JPG or PNG</div>
+                      </div>
                     </div>
 
-                    <div className="space-y-4 max-w-2xl">
-                      <Field label="Restaurant Name">
+                    {/* RIGHT: Form fields */}
+                    <div className={`flex-1 rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
+                      {/* Store Name */}
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>Store Name</label>
                         <input
                           value={settings.restaurantName}
                           onChange={(event) => update("restaurantName", event.target.value)}
-                          className={inputClass}
+                          placeholder="e.g. Park Fast Food"
+                          className={`${inputClass} w-full`}
                         />
-                      </Field>
-                      <Field label="Contact Email">
-                        <input
-                          type="email"
-                          value={settings.restaurantEmail}
-                          onChange={(event) => update("restaurantEmail", event.target.value)}
-                          className={inputClass}
-                        />
-                      </Field>
-                      <Field label="Phone">
-                        <input
-                          value={settings.restaurantPhone}
-                          onChange={(event) => update("restaurantPhone", event.target.value)}
-                          className={inputClass}
-                        />
-                      </Field>
-                      <Field label="Address">
-                        <input
+                      </div>
+
+                      {/* Address */}
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>Address</label>
+                        <textarea
                           value={settings.address}
                           onChange={(event) => update("address", event.target.value)}
-                          className={inputClass}
+                          rows={3}
+                          placeholder="e.g. 123 Main St, City, Country"
+                          className={`${inputClass} w-full resize-none`}
                         />
-                      </Field>
+                      </div>
+
+                      {/* Email + Phone side by side */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>Email</label>
+                          <div className="relative">
+                            <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4caf50]" />
+                            <input
+                              type="email"
+                              value={settings.restaurantEmail}
+                              onChange={(event) => update("restaurantEmail", event.target.value)}
+                              placeholder="contact@restaurant.com"
+                              className={`${inputClass} w-full pl-9`}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>Phone</label>
+                          <div className="relative">
+                            <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4caf50]" />
+                            <input
+                              value={settings.restaurantPhone}
+                              onChange={(event) => update("restaurantPhone", event.target.value)}
+                              placeholder="+855 12 345 678"
+                              className={`${inputClass} w-full pl-9`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Currency */}
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>Currency</label>
+                        <select
+                          value={settings.currency}
+                          onChange={(event) => update("currency", event.target.value)}
+                          className={`${inputClass} w-full`}
+                        >
+                          <option value="USD">United States dollar - ($)</option>
+                          <option value="KHR">Cambodian Riel - (៛)</option>
+                          <option value="THB">Thai Baht - (฿)</option>
+                        </select>
+                      </div>
+
+                      {/* Save Button */}
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          form="settingsForm"
+                          disabled={saving}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0F522B] px-6 text-sm font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+                          {language === "km" ? "រក្សាទុក" : "Save Changes"}
+                        </button>
+                      </div>
                     </div>
-                  </Panel>
+                  </div>
                 </div>
               )}
 
-              {/* TAB 2: BILLING & RECEIPT */}
+              {/* TAB 2: TAX SETUP */}
               {activeTab === "billing" && (
-                <div className="grid gap-8 md:grid-cols-[1fr_360px] animate-[printerFadeIn_200ms_ease-out]">
-                  <div className="space-y-6">
-                    <Panel
-                      Icon={ReceiptText}
-                      title={language === "km" ? "ការទូទាត់ និងវិក្កយបត្រ" : "Financial & Receipt Rates"}
-                      subtitle={language === "km" ? "កំណត់អត្រាពន្ធ និងលុយ Service Charge" : "Manage your currency, tax, and service charge rates."}
-                      surface={surface}
-                      borderCol={borderCol}
-                      textPrimary={textPrimary}
-                      textSecondary={textSecondary}
-                    >
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <Field label="Currency">
-                          <select
-                            value={settings.currency}
-                            onChange={(event) => update("currency", event.target.value)}
-                            className={inputClass}
-                          >
-                            <option value="USD">USD ($)</option>
-                            <option value="KHR">KHR (៛)</option>
-                            <option value="THB">THB (฿)</option>
-                          </select>
-                        </Field>
-                        <Field label="Tax Rate (%)">
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>
+                    {language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}
+                  </h2>
+
+                  <div className="flex flex-col lg:flex-row gap-5">
+
+                    {/* ── LEFT: Form fields ── */}
+                    <div className={`flex-1 rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
+
+                      {/* Currency */}
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>
+                          {language === "km" ? "រូបិយប័ណ្ណ" : "Currency"}
+                        </label>
+                        <select
+                          value={settings.currency}
+                          onChange={(event) => update("currency", event.target.value)}
+                          className={`${inputClass} w-full`}
+                        >
+                          <option value="USD">United States dollar – ($)</option>
+                          <option value="KHR">Cambodian Riel – (៛)</option>
+                          <option value="THB">Thai Baht – (฿)</option>
+                        </select>
+                      </div>
+
+                      {/* Tax Rate + Service Charge */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "អត្រាពន្ធ (%)" : "Tax Rate (%)"}
+                          </label>
                           <input
-                            type="number"
+                            type="number" min={0} max={100} step={0.1}
                             value={settings.taxRate}
                             onChange={(event) => update("taxRate", Number(event.target.value))}
-                            className={inputClass}
+                            placeholder="e.g. 7"
+                            className={`${inputClass} w-full`}
                           />
-                        </Field>
-                        <Field label="Service Charge (%)">
+                          <p className={`text-[11px] ${textSecondary}`}>
+                            {language === "km" ? "ត្រូវបានប្រើលើតម្លៃសរុប" : "Applied on subtotals"}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "ថ្លៃសេវា (%)" : "Service Charge (%)"}
+                          </label>
                           <input
-                            type="number"
+                            type="number" min={0} max={100} step={0.1}
                             value={settings.serviceChargeRate}
                             onChange={(event) => update("serviceChargeRate", Number(event.target.value))}
-                            className={inputClass}
+                            placeholder="e.g. 10"
+                            className={`${inputClass} w-full`}
                           />
-                        </Field>
+                          <p className={`text-[11px] ${textSecondary}`}>
+                            {language === "km" ? "ត្រូវបានបន្ថែមលើវិក្កយបត្រ" : "Added to final bill"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#4e4f6e]/50">
-                        <Field label="Receipt Footer Note">
-                          <textarea
-                            value={settings.receiptFooter}
-                            onChange={(event) => update("receiptFooter", event.target.value)}
-                            rows={3}
-                            placeholder="e.g. Thank you for dining with us."
-                            className={`${inputClass} resize-none`}
-                          />
-                        </Field>
+                      {/* Receipt Footer */}
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>
+                          {language === "km" ? "ចំណារបញ្ចប់វិក្កយបត្រ" : "Receipt Footer Note"}
+                        </label>
+                        <textarea
+                          value={settings.receiptFooter}
+                          onChange={(event) => update("receiptFooter", event.target.value)}
+                          rows={2}
+                          placeholder="e.g. Thank you for dining with us."
+                          className={`${inputClass} w-full resize-none`}
+                        />
                       </div>
-                    </Panel>
-                  </div>
 
-                  <aside className="space-y-6">
-                    <section className={`rounded-2xl border p-5 shadow-none ${surface} ${borderCol}`}>
-                      <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff]">
-                          <ReceiptText size={19} />
+                      {/* Save Button */}
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                          {saving
+                            ? (language === "km" ? "កំពុងរក្សាទុក..." : "Saving...")
+                            : (language === "km" ? "រក្សាទុក" : "Save Changes")}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ── RIGHT: Live Preview ── */}
+                    <div className={`w-full lg:w-64 shrink-0 rounded-2xl border ${borderCol} ${surface} p-5 flex flex-col gap-4`}>
+                      {/* Header */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
+                          <ReceiptText size={16} />
                         </div>
                         <div>
-                          <h2 className={`text-sm font-black ${textPrimary}`}>Receipt Preview</h2>
+                          <div className={`text-xs font-black ${textPrimary}`}>
+                            {language === "km" ? "ការគណនាជាក់ស្ដែង" : "Live Preview"}
+                          </div>
+                          <div className={`text-[10px] ${textSecondary}`}>
+                            {language === "km" ? "ដោយផ្អែកលើ $42.00" : "Based on $42.00"}
+                          </div>
                         </div>
                       </div>
 
-                      <div className={`rounded-xl border p-4 ${borderCol} ${softSurface} border-dashed`}>
-                        <div className={`text-center text-sm font-black ${textPrimary}`}>
-                          {settings.restaurantName || "Restaurant"}
-                        </div>
-                        <div className={`mt-0.5 text-center text-xs ${textSecondary}`}>
-                          {settings.address}
-                        </div>
+                      {/* Store name */}
+                      <div className={`text-center py-2 border-b ${dark ? "border-[#4e4f6e]/40" : "border-slate-100"}`}>
+                        <div className={`text-xs font-black ${textPrimary}`}>{settings.restaurantName || "Restaurant"}</div>
+                        {settings.address && <div className={`text-[10px] ${textSecondary} mt-0.5`}>{settings.address}</div>}
+                      </div>
 
-                        <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
+                      {/* Rows */}
+                      <div className="space-y-2 flex-1">
+                        {[
+                          { label: language === "km" ? "តម្លៃសរុបមុន" : "Subtotal", value: "$42.00" },
+                          {
+                            label: `${language === "km" ? "ពន្ធ" : "Tax"} (${settings.taxRate}%)`,
+                            value: `$${(42 * (Number(settings.taxRate || 0) / 100)).toFixed(2)}`
+                          },
+                          {
+                            label: `${language === "km" ? "ថ្លៃសេវា" : "Service"} (${settings.serviceChargeRate}%)`,
+                            value: `$${(42 * (Number(settings.serviceChargeRate || 0) / 100)).toFixed(2)}`
+                          },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="flex items-center justify-between text-xs">
+                            <span className={textSecondary}>{label}</span>
+                            <span className={`font-semibold ${textPrimary}`}>{value}</span>
+                          </div>
+                        ))}
+                      </div>
 
-                        <div className="space-y-1.5 text-xs">
-                          {previewRows.map(([label, value]) => (
-                            <div key={label} className="flex items-center justify-between">
-                              <span className={textSecondary}>{label}</span>
-                              <span className={`font-bold ${textPrimary}`}>{value}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className={`my-3 h-px border-b border-dashed ${dark ? "border-slate-700" : "border-slate-200"}`} />
-
+                      {/* Total */}
+                      <div className={`border-t pt-3 ${dark ? "border-[#4e4f6e]/40" : "border-slate-100"}`}>
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs font-black ${textPrimary}`}>Total</span>
-                          <span className="text-base font-black text-[#696cff]">
-                            {currency(
-                              42 +
-                                42 * (Number(settings.taxRate || 0) / 100) +
-                                42 * (Number(settings.serviceChargeRate || 0) / 100),
-                              settings.currency
-                            )}
+                          <span className={`text-xs font-black ${textPrimary}`}>
+                            {language === "km" ? "សរុប" : "Total"}
+                          </span>
+                          <span className="text-lg font-black text-[#696cff]">
+                            ${(42 + 42 * (Number(settings.taxRate || 0) / 100) + 42 * (Number(settings.serviceChargeRate || 0) / 100)).toFixed(2)}
                           </span>
                         </div>
-
-                        <div className={`mt-4 text-center text-[11px] font-medium ${textSecondary}`}>
-                          {settings.receiptFooter}
-                        </div>
+                        {settings.receiptFooter && (
+                          <div className={`mt-2 text-center text-[10px] ${textSecondary} italic`}>
+                            {settings.receiptFooter}
+                          </div>
+                        )}
                       </div>
-                    </section>
-                  </aside>
+                    </div>
+
+                  </div>
                 </div>
               )}
 
-              {/* TAB 3: HARDWARE & PRINTERS */}
+
+
+
+              {/* TAB 3: PRINT SETTINGS */}
               {activeTab === "printers" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
-                  <Panel
-                    Icon={CreditCard}
-                    title={language === "km" ? "ឧបករណ៍ និងម៉ាស៊ីនបោះពុម្ព" : "Hardware & Printers"}
-                    subtitle={language === "km" ? "គ្រប់គ្រងម៉ាស៊ីនបោះពុម្ពវិក្កយបត្រ និងនៅផ្ទះបាយ" : "Manage receipt and kitchen printers."}
-                    surface={surface}
-                    borderCol={borderCol}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                  >
-                    <div className="mb-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={openAddPrinterModal}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
-                      >
-                        <Plus size={15} />
-                        {language === "km" ? "បន្ថែម Printer ថ្មី" : "Add Printer"}
-                      </button>
-                    </div>
+                  {/* Page heading + Add button */}
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className={`text-2xl font-bold ${textPrimary}`}>
+                      {language === "km" ? "ការកំណត់ម៉ាស៊ីនបោះពុម្ព" : "Print Settings"}
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={openAddPrinterModal}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all duration-200"
+                    >
+                      <Plus size={15} />
+                      {language === "km" ? "បន្ថែម Printer" : "Add Printer"}
+                    </button>
+                  </div>
 
-                    <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#4e4f6e]">
-                      <table className="w-full text-left text-xs">
-                        <thead className="border-b bg-slate-100/60 dark:bg-[#232333] dark:border-[#4e4f6e] font-black text-slate-600 dark:text-slate-300">
-                          <tr>
-                            <th className="px-4 py-3">Printer Name</th>
-                            <th className="px-4 py-3">IP Address</th>
-                            <th className="px-4 py-3">Type</th>
-                            <th className="px-4 py-3">Status</th>
-                            <th className="px-4 py-3 w-[100px]">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200/60 dark:divide-[#4e4f6e]">
-                          {printers.length > 0 ? (
-                            printers.map((printer) => (
-                              <tr key={printer.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                                <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100">{printer.name}</td>
-                                <td className="px-4 py-2.5 font-mono text-slate-500">{printer.ipAddress}</td>
-                                <td className="px-4 py-2.5">
-                                  <span className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase bg-[#696cff]/10 text-[#696cff]`}>
+                  {/* Single card */}
+                  <div className={`rounded-2xl border ${borderCol} ${surface} overflow-hidden`}>
+                    {printers.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 gap-3">
+                        <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 ${textSecondary}`}>
+                          <Printer size={26} />
+                        </div>
+                        <p className={`text-sm font-semibold ${textSecondary}`}>
+                          {language === "km" ? "មិនទាន់មាន Printer ទេ" : "No printers added yet"}
+                        </p>
+                        <p className={`text-xs ${textSecondary} opacity-60`}>
+                          {language === "km" ? "ចុច «បន្ថែម Printer» ដើម្បីចាប់ផ្ដើម" : "Click \"Add Printer\" to get started"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className={`border-b ${dark ? "bg-[#232333] border-[#4e4f6e]" : "bg-[#f8f9fa] border-slate-100"}`}>
+                            <tr>
+                              <th className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>
+                                {language === "km" ? "ឈ្មោះ Printer" : "Printer Name"}
+                              </th>
+                              <th className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>
+                                IP Address
+                              </th>
+                              <th className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>
+                                {language === "km" ? "ប្រភេទ" : "Type"}
+                              </th>
+                              <th className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>
+                                {language === "km" ? "ស្ថានភាព" : "Status"}
+                              </th>
+                              <th className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary} text-right`}>
+                                {language === "km" ? "សកម្មភាព" : "Actions"}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className={`divide-y ${dark ? "divide-[#4e4f6e]/40" : "divide-slate-100"}`}>
+                            {printers.map((printer) => (
+                              <tr
+                                key={printer.id}
+                                className={`transition-colors duration-150 ${dark ? "hover:bg-white/[0.03]" : "hover:bg-slate-50/60"}`}
+                              >
+                                <td className={`px-5 py-4 font-bold text-sm ${textPrimary}`}>
+                                  {printer.name}
+                                </td>
+                                <td className={`px-5 py-4 font-mono text-xs ${textSecondary}`}>
+                                  {printer.ipAddress}
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span className="inline-flex items-center rounded-lg bg-[#696cff]/10 px-2.5 py-1 text-[11px] font-black uppercase text-[#696cff]">
                                     {printer.type}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5">
-                                  <span
-                                    className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
-                                      printer.status === "connected"
-                                        ? "bg-[#e8fadf] text-[#71dd37]"
-                                        : "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
-                                    }`}
-                                  >
+                                <td className="px-5 py-4">
+                                  <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-black uppercase ${
+                                    printer.status === "connected"
+                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                      : "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+                                  }`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${printer.status === "connected" ? "bg-emerald-500" : "bg-red-500"}`} />
                                     {printer.status}
                                   </span>
                                 </td>
-                                <td className="px-4 py-2.5">
+                                <td className="px-5 py-4 text-right">
                                   <button
                                     type="button"
                                     onClick={() => openEditPrinterModal(printer)}
-                                    className="text-[#696cff] hover:opacity-80"
+                                    className={`text-xs font-bold text-[#696cff] hover:text-[#5f61e6] transition-colors`}
                                   >
-                                    Edit
+                                    {language === "km" ? "កែប្រែ" : "Edit"}
                                   </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+
+              {/* TAB 4: INTEGRATIONS */}
+              {activeTab === "integrations" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+
+                  {/* Page heading */}
+                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>
+                    {language === "km" ? "ការភ្ជាប់ទំនាក់ទំនង" : "Integrations"}
+                  </h2>
+
+                  {/* Telegram card */}
+                  <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
+
+                    {/* Card title row */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#229ED9]/10 text-[#229ED9]">
+                        <SendHorizontal size={18} />
+                      </div>
+                      <div>
+                        <div className={`text-sm font-black ${textPrimary}`}>
+                          {language === "km" ? "Telegram Bot" : "Telegram Bot Integration"}
+                        </div>
+                        <div className={`text-xs ${textSecondary} mt-0.5`}>
+                          {language === "km"
+                            ? "ទទួលការជូនដំណឹង Login, Password ខុស, Order ថ្មី"
+                            : "Receive instant alerts for logins, failed attempts, and new orders"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className={`border-t ${dark ? "border-[#4e4f6e]/50" : "border-slate-100"}`} />
+
+                    {/* Token + Chat ID */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>
+                          Telegram Bot Token
+                        </label>
+                        <input
+                          type="text"
+                          value={telegramConfig.botToken}
+                          onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, botToken: e.target.value }))}
+                          placeholder="e.g. 7123456789:AAE... (from @BotFather)"
+                          className={`${inputClass} w-full`}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>
+                          Telegram Chat ID
+                        </label>
+                        <input
+                          type="text"
+                          value={telegramConfig.chatId}
+                          onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, chatId: e.target.value }))}
+                          placeholder="e.g. 1511785587 (from @userinfobot)"
+                          className={`${inputClass} w-full`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Alert toggles */}
+                    <div className={`rounded-xl border p-4 space-y-3 ${dark ? "border-[#4e4f6e]/50 bg-[#232333]" : "border-slate-100 bg-slate-50/60"}`}>
+                      <div className={`text-xs font-bold ${textPrimary}`}>
+                        {language === "km" ? "ជ្រើសរើសសំណរការជូនដំណឹង" : "Alert Notifications"}
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        {[
+                          {
+                            key: "alertLogin" as const,
+                            emoji: "🔐",
+                            label: language === "km" ? "Staff Login" : "Staff Login Alert",
+                            checked: telegramConfig.alertLogin,
+                            color: "text-[#696cff]",
+                          },
+                          {
+                            key: "alertFailedLogin" as const,
+                            emoji: "⚠️",
+                            label: language === "km" ? "Password ខុស" : "Failed Login Warning",
+                            checked: telegramConfig.alertFailedLogin,
+                            color: "text-red-500",
+                          },
+                          {
+                            key: "alertNewOrder" as const,
+                            emoji: "🛍️",
+                            label: language === "km" ? "Order ថ្មី" : "New Order Alert",
+                            checked: telegramConfig.alertNewOrder,
+                            color: "text-emerald-500",
+                          },
+                        ].map(({ key, emoji, label, checked, color }) => (
+                          <label key={key} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-colors ${
+                            checked
+                              ? dark ? "border-[#4e4f6e] bg-white/5" : "border-slate-200 bg-white"
+                              : dark ? "border-transparent" : "border-transparent"
+                          }`}>
+                            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ${
+                              checked ? (dark ? "bg-white/10" : "bg-slate-100") : (dark ? "bg-white/5" : "bg-slate-100/60")
+                            }`}>
+                              {emoji}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-xs font-bold ${textPrimary}`}>{label}</div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, [key]: e.target.checked }))}
+                              className={`h-4 w-4 rounded border-slate-300 ${color} focus:ring-current shrink-0`}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleTestTelegram}
+                        disabled={testingTelegram}
+                        className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold transition-all disabled:opacity-50 ${dark ? "border-[#4e4f6e] text-slate-300 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                      >
+                        {testingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                        {language === "km" ? "សាកល្បង Telegram" : "Test Connection"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveTelegram}
+                        disabled={savingTelegram}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all disabled:opacity-50"
+                      >
+                        {savingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                        {language === "km" ? "រក្សាទុក" : "Save Settings"}
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+
+              {/* TAB 5: SYSTEM & BACKUPS */}
+              {activeTab === "security" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out] space-y-6">
+
+                  {/* Page heading */}
+                  <h2 className={`text-2xl font-bold ${textPrimary}`}>
+                    {language === "km" ? "ប្រព័ន្ធ និងការចម្លងទុក" : "System & Backups"}
+                  </h2>
+
+                  {/* ── Audit Logs Card ── */}
+                  <div className={`rounded-2xl border ${borderCol} ${surface} overflow-hidden`}>
+                    {/* Card header */}
+                    <div className={`px-5 py-4 border-b ${dark ? "border-[#4e4f6e]/50" : "border-slate-100"}`}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Title block */}
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-black ${textPrimary}`}>
+                            {language === "km" ? "កំណត់ត្រាប្រវត្តិ Login" : "Staff Login Audit Logs"}
+                          </div>
+                          <div className={`text-xs ${textSecondary} mt-0.5`}>
+                            {language === "km" ? "តាមដានប្រវត្តិការចូល, IP, Device" : "Track authentication history, devices and IP addresses"}
+                          </div>
+                        </div>
+                        {/* Controls: search + filter + refresh */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <input
+                            type="text"
+                            value={auditSearch}
+                            onChange={(e) => { setAuditSearch(e.target.value); loadAuditLogs(e.target.value, auditStatusFilter, 1); }}
+                            placeholder={language === "km" ? "ស្វែងរក..." : "Search..."}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold outline-none transition-colors w-44 ${dark ? "bg-[#2b2c40] border-[#4e4f6e] text-slate-200 placeholder:text-slate-500 focus:border-[#696cff]" : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-400 focus:border-[#696cff]"}`}
+                          />
+                          <select
+                            value={auditStatusFilter}
+                            onChange={(e) => { setAuditStatusFilter(e.target.value); loadAuditLogs(auditSearch, e.target.value, 1); }}
+                            className={`rounded-lg border px-3 py-2 text-xs font-semibold outline-none transition-colors w-32 ${dark ? "bg-[#2b2c40] border-[#4e4f6e] text-slate-200 focus:border-[#696cff]" : "bg-white border-slate-200 text-slate-700 focus:border-[#696cff]"}`}
+                          >
+                            <option value="all">{language === "km" ? "គ្រប់ស្ថានភាព" : "All Status"}</option>
+                            <option value="SUCCESS">SUCCESS</option>
+                            <option value="FAILED">FAILED</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => loadAuditLogs(auditSearch, auditStatusFilter, auditPage)}
+                            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${dark ? "border-[#4e4f6e] text-slate-400 hover:bg-white/10" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+                          >
+                            <Loader2 className={auditLoading ? "animate-spin" : ""} size={12} />
+                            Refresh
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className={`border-b ${dark ? "bg-[#232333] border-[#4e4f6e]" : "bg-[#f8f9fa] border-slate-100"}`}>
+                          <tr>
+                            {[
+                              language === "km" ? "ឈ្មោះបុគ្គលិក" : "Staff Name",
+                              language === "km" ? "តួនាទី" : "Role",
+                              language === "km" ? "សកម្មភាព" : "Action",
+                              "IP / Device",
+                              language === "km" ? "ស្ថានភាព" : "Status",
+                              language === "km" ? "ពេលវេលា" : "Time",
+                            ].map((h) => (
+                              <th key={h} className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${dark ? "divide-[#4e4f6e]/40" : "divide-slate-100"}`}>
+                          {auditLogs.length > 0 ? (
+                            auditLogs.map((log) => (
+                              <tr key={log.id} className={`transition-colors duration-150 ${dark ? "hover:bg-white/[0.03]" : "hover:bg-slate-50/60"}`}>
+                                <td className={`px-5 py-3.5 font-bold text-sm ${textPrimary}`}>{log.userName}</td>
+                                <td className={`px-5 py-3.5 text-xs font-medium ${textSecondary}`}>{log.userRole}</td>
+                                <td className={`px-5 py-3.5 text-xs font-bold ${textPrimary}`}>{log.action}</td>
+                                <td className={`px-5 py-3.5 font-mono text-xs ${textSecondary}`}>{log.ipAddress || "Localhost"}</td>
+                                <td className="px-5 py-3.5">
+                                  <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-black ${
+                                    log.status === "SUCCESS"
+                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                                      : "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+                                  }`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${log.status === "SUCCESS" ? "bg-emerald-500" : "bg-red-500"}`} />
+                                    {log.status}
+                                  </span>
+                                </td>
+                                <td className={`px-5 py-3.5 text-xs ${textSecondary}`}>
+                                  {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan={5} className="px-4 py-6 text-center text-slate-400 font-medium">
-                                No printers added yet.
+                              <td colSpan={6} className={`py-12 text-center text-sm ${textSecondary}`}>
+                                {language === "km" ? "មិនទាន់មានកំណត់ត្រា Login ឡើយ" : "No audit logs found."}
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
-                  </Panel>
-                </div>
-              )}
 
-              {/* TAB 4: INTEGRATIONS */}
-              {activeTab === "integrations" && (
-                <div className="animate-[printerFadeIn_200ms_ease-out]">
-                  <Panel
-                    Icon={SendHorizontal}
-                    title={language === "km" ? "ការភ្ជាប់ជាមួយ Telegram Bot Alert" : "Telegram Bot Integration"}
-                    subtitle={language === "km" ? "ទទួលការជូនដំណឹងរហ័ស ពេលបុគ្គលិក Login, Password ខុស ឬ មាន Order ថ្មី" : "Receive instant alerts on Telegram for staff logins, failed attempts, and orders."}
-                    surface={surface}
-                    borderCol={borderCol}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                  >
-                    <div className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <Field label="Telegram Bot Token">
-                          <input
-                            type="text"
-                            value={telegramConfig.botToken}
-                            onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, botToken: e.target.value }))}
-                            placeholder="e.g. 7123456789:AAE... (from @BotFather)"
-                            className={inputClass}
-                          />
-                        </Field>
-
-                        <Field label="Telegram Chat ID">
-                          <input
-                            type="text"
-                            value={telegramConfig.chatId}
-                            onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, chatId: e.target.value }))}
-                            placeholder="e.g. 1511785587 (from @userinfobot)"
-                            className={inputClass}
-                          />
-                        </Field>
+                    {/* Pagination footer */}
+                    <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-4 border-t ${dark ? "border-[#4e4f6e]/50" : "border-slate-100"}`}>
+                      <div className={`text-xs font-semibold ${textSecondary}`}>
+                        {language === "km"
+                          ? `បង្ហាញ ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} ដល់ ${Math.min(auditPage * 8, auditTotal)} នៃ ${auditTotal} កំណត់ត្រា`
+                          : `Showing ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} to ${Math.min(auditPage * 8, auditTotal)} of ${auditTotal} entries`}
                       </div>
-
-                      <div className="rounded-xl border border-slate-200/80 dark:border-[#4e4f6e] bg-slate-50/50 dark:bg-[#232333] p-4 space-y-3">
-                        <div className="text-xs font-black text-slate-800 dark:text-slate-100">
-                          {language === "km" ? "ជម្រើសការជូនដំណឹងតាម Telegram (Alert Toggles)" : "Telegram Alert Options"}
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <label className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={telegramConfig.alertLogin}
-                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertLogin: e.target.checked }))}
-                              className="h-4 w-4 rounded border-slate-300 text-[#696cff] focus:ring-[#696cff]"
-                            />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                              {language === "km" ? "🔐 ជូនដំណឹង ពេល Staff Login" : "🔐 Staff Login Alert"}
-                            </span>
-                          </label>
-
-                          <label className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={telegramConfig.alertFailedLogin}
-                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertFailedLogin: e.target.checked }))}
-                              className="h-4 w-4 rounded border-slate-300 text-red-500 focus:ring-red-500"
-                            />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                              {language === "km" ? "⚠️ ជូនដំណឹង ពេល Password ខុស" : "⚠️ Failed Login Warning"}
-                            </span>
-                          </label>
-
-                          <label className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={telegramConfig.alertNewOrder}
-                              onChange={(e) => setTelegramConfigState((prev) => ({ ...prev, alertNewOrder: e.target.checked }))}
-                              className="h-4 w-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
-                            />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                              {language === "km" ? "🛍️ ជូនដំណឹង ពេលមាន Order ថ្មី" : "🛍️ New Order Alert"}
-                            </span>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={handleTestTelegram}
-                          disabled={testingTelegram}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#696cff] bg-[#696cff]/10 px-4 text-xs font-bold text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all disabled:opacity-50"
+                          onClick={() => { const prev = Math.max(1, auditPage - 1); setAuditPage(prev); loadAuditLogs(auditSearch, auditStatusFilter, prev); }}
+                          disabled={auditPage <= 1}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-all disabled:opacity-40 ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-400 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
                         >
-                          {testingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                          {language === "km" ? "សាកល្បងផ្ញើសារ Telegram" : "Test Telegram Connection"}
+                          <ChevronLeft size={15} />
                         </button>
-
+                        {Array.from({ length: auditTotalPages }, (_, i) => i + 1).map((pNum) => (
+                          <button
+                            key={pNum}
+                            type="button"
+                            onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, pNum); }}
+                            className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
+                              auditPage === pNum
+                                ? "bg-[#09391D] text-white shadow-sm"
+                                : `border ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`
+                            }`}
+                          >
+                            {pNum}
+                          </button>
+                        ))}
                         <button
                           type="button"
-                          onClick={handleSaveTelegram}
-                          disabled={savingTelegram}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] transition-all shadow-sm shadow-[#696cff]/20 disabled:opacity-50"
+                          onClick={() => { const next = Math.min(auditTotalPages, auditPage + 1); setAuditPage(next); loadAuditLogs(auditSearch, auditStatusFilter, next); }}
+                          disabled={auditPage >= auditTotalPages}
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-all disabled:opacity-40 ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-400 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
                         >
-                          {savingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                          {language === "km" ? "រក្សាទុក Telegram Settings" : "Save Telegram Settings"}
+                          <ChevronRight size={15} />
                         </button>
                       </div>
                     </div>
-                  </Panel>
-                </div>
-              )}
-
-              {/* TAB 5: SYSTEM & SECURITY */}
-              {activeTab === "security" && (
-                <div className="animate-[printerFadeIn_200ms_ease-out] space-y-8 max-w-5xl">
-                  <div className="space-y-6">
-                  <Panel
-                    Icon={History}
-                    title={language === "km" ? "កំណត់ត្រាប្រវត្តិ Login បុគ្គលិក (Login Audit Logs)" : "Staff Login Audit Logs"}
-                    subtitle={language === "km" ? "តាមដានរាល់សកម្មភាពចូលប្រើប្រាស់ប្រព័ន្ធ (Login History, IP Address, Device)" : "Track staff authentication history, devices, IP addresses, and login status."}
-                    surface={surface}
-                    borderCol={borderCol}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                  >
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={auditSearch}
-                            onChange={(e) => {
-                              setAuditSearch(e.target.value);
-                              loadAuditLogs(e.target.value, auditStatusFilter, 1);
-                            }}
-                            placeholder={language === "km" ? "ស្វែងរកតាមឈ្មោះ, តួនាទី, IP..." : "Search user, role, IP..."}
-                            className={`${inputClass} w-60`}
-                          />
-                          <select
-                            value={auditStatusFilter}
-                            onChange={(e) => {
-                              setAuditStatusFilter(e.target.value);
-                              loadAuditLogs(auditSearch, e.target.value, 1);
-                            }}
-                            className={`${inputClass} w-36`}
-                          >
-                            <option value="all">{language === "km" ? "គ្រប់ស្ថានភាព" : "All Status"}</option>
-                            <option value="SUCCESS">SUCCESS</option>
-                            <option value="FAILED">FAILED</option>
-                          </select>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => loadAuditLogs(auditSearch, auditStatusFilter, auditPage)}
-                          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-[#4e4f6e] px-3 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
-                        >
-                          <Loader2 className={auditLoading ? "animate-spin" : ""} size={14} />
-                          {language === "km" ? "Refresh Audit Logs" : "Refresh"}
-                        </button>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#4e4f6e]">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b bg-slate-100/60 dark:bg-[#232333] dark:border-[#4e4f6e] font-black text-slate-600 dark:text-slate-300">
-                            <tr>
-                              <th className="px-4 py-3">Staff Name</th>
-                              <th className="px-4 py-3">Role</th>
-                              <th className="px-4 py-3">Action</th>
-                              <th className="px-4 py-3">IP / Device</th>
-                              <th className="px-4 py-3">Status</th>
-                              <th className="px-4 py-3">Time</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200/60 dark:divide-[#4e4f6e]">
-                            {auditLogs.length > 0 ? (
-                              auditLogs.map((log) => (
-                                <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                                  <td className="px-4 py-2.5 font-bold text-slate-800 dark:text-slate-100">{log.userName}</td>
-                                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 font-medium">{log.userRole}</td>
-                                  <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-300">{log.action}</td>
-                                  <td className="px-4 py-2.5 text-slate-500 text-[11px]">{log.ipAddress || "Localhost"}</td>
-                                  <td className="px-4 py-2.5">
-                                    <span
-                                      className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-black uppercase ${
-                                        log.status === "SUCCESS"
-                                          ? "bg-[#e8fadf] text-[#71dd37]"
-                                          : "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
-                                      }`}
-                                    >
-                                      {log.status}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-2.5 text-slate-500 text-[11px]">
-                                    {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 font-medium">
-                                  {language === "km" ? "មិនទាន់មានកំណត់ត្រា Login ឡើយ" : "No audit logs found."}
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                          {language === "km"
-                            ? `បង្ហាញ ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} ដល់ ${Math.min(auditPage * 8, auditTotal)} នៃ ${auditTotal} កំណត់ត្រា`
-                            : `Showing ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} to ${Math.min(auditPage * 8, auditTotal)} of ${auditTotal} entries`}
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const prev = Math.max(1, auditPage - 1);
-                              setAuditPage(prev);
-                              loadAuditLogs(auditSearch, auditStatusFilter, prev);
-                            }}
-                            disabled={auditPage <= 1}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-400 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
-                          >
-                            <ChevronLeft size={16} />
-                          </button>
-
-                          {Array.from({ length: auditTotalPages }, (_, i) => i + 1).map((pNum) => (
-                            <button
-                              key={pNum}
-                              type="button"
-                              onClick={() => {
-                                setAuditPage(pNum);
-                                loadAuditLogs(auditSearch, auditStatusFilter, pNum);
-                              }}
-                              className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
-                                auditPage === pNum
-                                  ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/30"
-                                  : "border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
-                              }`}
-                            >
-                              {pNum}
-                            </button>
-                          ))}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const next = Math.min(auditTotalPages, auditPage + 1);
-                              setAuditPage(next);
-                              loadAuditLogs(auditSearch, auditStatusFilter, next);
-                            }}
-                            disabled={auditPage >= auditTotalPages}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-[#4e4f6e] bg-slate-50 dark:bg-[#232333] text-slate-400 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
-                          >
-                            <ChevronRight size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </Panel>
                   </div>
 
-                  <div className="space-y-6">
-                  <Panel
-                    Icon={Database}
-                    title="Backup & Restore"
-                    subtitle="Manage system backups, automatic exports, and disaster recovery."
-                    surface={surface}
-                    borderCol={borderCol}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                  >
+                  {/* ── Backup & Restore Card ── */}
+                  <div className={`rounded-2xl border ${borderCol} ${surface} p-6`}>
+                    <div className="mb-5">
+                      <div className={`text-sm font-black ${textPrimary}`}>
+                        {language === "km" ? "ការចម្លងទុក និងស្ដារ" : "Backup & Restore"}
+                      </div>
+                      <div className={`text-xs ${textSecondary} mt-0.5`}>
+                        {language === "km" ? "គ្រប់គ្រងការចម្លង Export និង Recovery" : "Manage system backups, automatic exports, and disaster recovery."}
+                      </div>
+                    </div>
+
                     {!isSuperAdmin ? (
                       <div className={`rounded-xl border p-4 text-xs font-medium ${borderCol} ${softSurface} ${textSecondary}`}>
-                        Login as Admin or Super Admin to manage backups.
+                        {language === "km" ? "សូម Login ជា Admin ដើម្បីគ្រប់គ្រង Backup" : "Login as Admin or Super Admin to manage backups."}
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -1256,34 +1473,26 @@ export default function SettingsPage() {
                             type="button"
                             onClick={createAndDownloadBackup}
                             disabled={Boolean(backupBusy)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#696cff] px-4 text-xs font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-4 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            Create Backup
+                            {language === "km" ? "បង្កើត Backup" : "Create Backup"}
                           </button>
 
                           <button
                             type="button"
                             onClick={downloadLatestBackup}
                             disabled={Boolean(backupBusy) || backupFiles.length === 0}
-                            className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
+                            className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             {backupBusy === "latest" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            Download Latest
+                            {language === "km" ? "ទាញយកចុងក្រោយ" : "Download Latest"}
                           </button>
 
-                          <label
-                            className={`inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all ${borderCol} ${softSurface} ${textPrimary} hover:bg-slate-100/50 dark:hover:bg-slate-800`}
-                          >
+                          <label className={`inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800`}>
                             {backupBusy === "preview" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                            Choose Restore File
-                            <input
-                              type="file"
-                              accept="application/json,.json"
-                              disabled={Boolean(backupBusy)}
-                              onChange={selectRestoreFile}
-                              className="hidden"
-                            />
+                            {language === "km" ? "ជ្រើសរើស Restore File" : "Choose Restore File"}
+                            <input type="file" accept="application/json,.json" disabled={Boolean(backupBusy)} onChange={selectRestoreFile} className="hidden" />
                           </label>
                         </div>
 
@@ -1300,13 +1509,15 @@ export default function SettingsPage() {
                               className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {backupBusy === "restore" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                              Restore Backup
+                              {language === "km" ? "ស្ដារ Backup" : "Restore Backup"}
                             </button>
                           </div>
                         )}
 
                         <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
-                          <div className={`text-[10px] font-extrabold uppercase tracking-wider text-slate-400`}>Latest Saved Safety Backup</div>
+                          <div className={`text-[10px] font-extrabold uppercase tracking-wider ${textSecondary}`}>
+                            {language === "km" ? "Backup ចុងក្រោយ" : "Latest Saved Backup"}
+                          </div>
                           {backupFiles[0] ? (
                             <>
                               <div className={`mt-1.5 truncate text-xs font-bold ${textPrimary}`}>{backupFiles[0].filename}</div>
@@ -1315,18 +1526,21 @@ export default function SettingsPage() {
                               </div>
                             </>
                           ) : (
-                            <div className={`mt-1.5 text-xs ${textSecondary}`}>No saved backups yet.</div>
+                            <div className={`mt-1.5 text-xs ${textSecondary}`}>
+                              {language === "km" ? "មិនទាន់មាន Backup ទេ" : "No saved backups yet."}
+                            </div>
                           )}
                         </div>
                       </div>
                     )}
-                  </Panel>
-                </div>
+                  </div>
+
                 </div>
               )}
+
             </form>
-          </div>
-        </div>
+      </div>
+    </div>
 
     {/* Sticky Floating Save Toast Bar (When settings modified) */}
     {isDirty && (

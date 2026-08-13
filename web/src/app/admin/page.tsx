@@ -14,7 +14,7 @@ import {
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import { useAppTheme } from "../../lib/theme";
-import { BellRing, CheckCircle2, Clock, DollarSign, ShoppingBag, TrendingUp, X } from "lucide-react";
+import { BellRing, CheckCircle2, Clock, DollarSign, Grid2X2, ShoppingBag, TrendingUp, X } from "lucide-react";
 import type {
   DailySalesReport,
   Order,
@@ -208,6 +208,18 @@ export default function DashboardPage() {
     getLanguageSnapshot,
     getServerLanguageSnapshot
   );
+  const [userName, setUserName] = useState("Admin");
+
+  useEffect(() => {
+    try {
+      const rawUser = localStorage.getItem("pos_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u.name) setUserName(u.name);
+      }
+    } catch {}
+  }, []);
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [dailySales, setDailySales] = useState<DailySalesReport | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductReport[]>([]);
@@ -225,11 +237,11 @@ export default function DashboardPage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const softSurface = dark ? "bg-[#232333]" : "bg-white";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/70";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
-  const cardClass = `rounded-2xl border ${borderCol} ${surface} shadow-none`;
+  const cardClass = `rounded-2xl border ${borderCol} ${surface} shadow-none hover:shadow-md hover:shadow-slate-200/60 dark:hover:shadow-black/20 hover:-translate-y-0.5 transition-all duration-200`;
 
   const t = TEXT[language];
 
@@ -356,6 +368,56 @@ export default function DashboardPage() {
   
   const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
 
+  const centerTextPlugin = useMemo(() => ({
+    id: "centerText",
+    beforeDraw: (chart: any) => {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+      ctx.save();
+      
+      const activeCount = activeOrders.length;
+      
+      ctx.font = "bold 20px 'Public Sans', sans-serif";
+      ctx.fillStyle = dark ? "#f8fafc" : "#1e293b";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      
+      const centerX = (chartArea.left + chartArea.right) / 2;
+      const centerY = (chartArea.top + chartArea.bottom) / 2;
+      
+      ctx.fillText(String(activeCount), centerX, centerY - 6);
+      
+      ctx.font = "600 9px 'Public Sans', sans-serif";
+      ctx.fillStyle = dark ? "#94a3b8" : "#64748b";
+      ctx.fillText(language === "km" ? "សកម្ម" : "Active", centerX, centerY + 12);
+      
+      ctx.restore();
+    }
+  }), [activeOrders.length, dark, language]);
+
+  const verticalLinePlugin = useMemo(() => ({
+    id: "verticalLine",
+    afterDraw: (chart: any) => {
+      if (chart.tooltip?._active?.length) {
+        const activePoint = chart.tooltip._active[0];
+        const ctx = chart.ctx;
+        const x = activePoint.element.x;
+        const topY = chart.chartArea.top;
+        const bottomY = chart.chartArea.bottom;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(x, topY);
+        ctx.lineTo(x, bottomY);
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = dark ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.15)";
+        ctx.stroke();
+        ctx.restore();
+      }
+    },
+  }), [dark]);
+
   const STATUS_CONFIG = useMemo(
     () => [
       { key: "pending", label: "pending", keys: ["pending"], color: "#71dd37" },
@@ -405,9 +467,42 @@ export default function DashboardPage() {
         }
       }
     });
-
+ 
     return rows;
   }, [orders]);
+
+  const salesByDay = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d;
+    });
+
+    return days.map((day) => {
+      const dayStr = day.toDateString();
+      const dateLabel = day.toLocaleDateString(language === "km" ? "km-KH" : "en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+
+      const total = orders
+        .filter((o) => {
+          const createdAt = new Date(o.createdAt);
+          return (
+            !Number.isNaN(createdAt.getTime()) &&
+            createdAt.toDateString() === dayStr &&
+            (o.status || "").toLowerCase() !== "cancelled"
+          );
+        })
+        .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+      return {
+        label: dateLabel,
+        total,
+      };
+    });
+  }, [orders, language]);
 
   const peakSalesHour = useMemo(() => {
     return salesByHour.reduce(
@@ -485,24 +580,28 @@ export default function DashboardPage() {
       value: money(computedTodaySales),
       note: `${t.paid} ${money(computedPaidTotal)}`,
       tone: "green" as const,
+      Icon: DollarSign,
     },
     {
       label: t.todayOrders,
       value: String(computedTodayOrdersCount),
       note: t.ordersCreatedToday,
       tone: "blue" as const,
+      Icon: ShoppingBag,
     },
     {
       label: t.activeOrders,
       value: String(activeOrders.length),
       note: t.kitchenQueue,
       tone: "orange" as const,
+      Icon: Clock,
     },
     {
       label: t.completedOrders,
       value: String(orders.filter((order) => order.status === "completed").length),
       note: t.ordersCompleted,
       tone: "green" as const,
+      Icon: CheckCircle2,
     },
   ];
 
@@ -582,62 +681,45 @@ export default function DashboardPage() {
   };
 
   const salesTrendChartData = {
-    labels: salesByHour.map((item) => hourLabel(item.hour)),
+    labels: salesByDay.map((item) => item.label),
     datasets: [
       {
-        label: "Revenue ($)",
-        data: salesByHour.map((item) => item.total),
+        label: "Revenue",
+        data: salesByDay.map((item) => item.total),
         yAxisID: "y",
         fill: true,
-        tension: 0.4,
-        borderWidth: 3,
-        borderColor: "#696cff",
-        pointRadius: salesByHour.map((item) => (item.total === peakSalesHour.total && item.total > 0 ? 5 : 2)),
-        pointHoverRadius: 7,
-        pointBackgroundColor: "#ffffff",
-        pointBorderColor: "#696cff",
+        tension: 0.45,
+        borderWidth: 3.5,
+        borderColor: "#48cf38",
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: "#48cf38",
+        pointBorderColor: "#ffffff",
         pointBorderWidth: 3,
-        pointHoverBackgroundColor: "#696cff",
+        pointHoverBackgroundColor: "#48cf38",
         pointHoverBorderColor: "#ffffff",
         pointHoverBorderWidth: 3,
         backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-          gradient.addColorStop(0, dark ? "rgba(105, 108, 255, 0.45)" : "rgba(105, 108, 255, 0.3)");
-          gradient.addColorStop(0.7, dark ? "rgba(105, 108, 255, 0.08)" : "rgba(105, 108, 255, 0.04)");
-          gradient.addColorStop(1, "rgba(105, 108, 255, 0)");
+          gradient.addColorStop(0, dark ? "rgba(72, 207, 56, 0.3)" : "rgba(72, 207, 56, 0.2)");
+          gradient.addColorStop(0.7, dark ? "rgba(72, 207, 56, 0.05)" : "rgba(72, 207, 56, 0.02)");
+          gradient.addColorStop(1, "rgba(72, 207, 56, 0)");
           return gradient;
         },
-      },
-      {
-        label: "Orders (Count)",
-        data: salesByHour.map((item) => item.count),
-        yAxisID: "y1",
-        fill: false,
-        tension: 0.4,
-        borderWidth: 2,
-        borderDash: [5, 5],
-        borderColor: "#03c3ec",
-        pointRadius: 2,
-        pointHoverRadius: 6,
-        pointBackgroundColor: "#03c3ec",
-        pointBorderColor: "#ffffff",
-        pointBorderWidth: 2,
-        pointHoverBackgroundColor: "#03c3ec",
-        pointHoverBorderColor: "#ffffff",
-        pointHoverBorderWidth: 2,
       },
     ],
   };
 
   const commonTooltip = {
-    backgroundColor: dark ? "#2b2c40" : "#ffffff",
-    titleColor: dark ? "#ffffff" : "#1e293b",
-    bodyColor: dark ? "#a1acb8" : "#475569",
-    borderColor: dark ? "#4e4f6e" : "#e2e8f0",
+    backgroundColor: "#22252a",
+    titleColor: "#ffffff",
+    bodyColor: "#ffffff",
+    borderColor: "#3a3d45",
     borderWidth: 1,
-    padding: 12,
-    boxPadding: 6,
+    padding: 10,
+    boxPadding: 4,
+    cornerRadius: 8,
     usePointStyle: true,
   };
 
@@ -650,45 +732,29 @@ export default function DashboardPage() {
     },
     plugins: {
       legend: {
-        display: true,
-        position: "top" as const,
-        align: "end" as const,
-        labels: {
-          boxWidth: 10,
-          boxHeight: 8,
-          usePointStyle: true,
-          pointStyle: "circle",
-          color: dark ? "#cbd5e1" : "#334155",
-          font: { family: "'Public Sans', sans-serif", size: 12 },
-          padding: 15,
-        },
+        display: false,
       },
       tooltip: {
         ...commonTooltip,
         callbacks: {
-          title: (items: TooltipItem<"line">[]) => `Time: ${items[0]?.label || ""}`,
-          label: (context: TooltipItem<"line">) => {
-            if (context.datasetIndex === 0) {
-              return ` Revenue: ${money(context.parsed.y ?? 0)}`;
-            }
-            return ` Orders: ${context.parsed.y ?? 0} orders`;
-          },
+          title: (items: TooltipItem<"line">[]) => items[0]?.label || "",
+          label: (context: TooltipItem<"line">) => ` Revenue: ${money(context.parsed.y ?? 0)}`,
         },
       },
     },
     scales: {
       x: {
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
+          color: dark ? "#94a3b8" : "#94a3b8",
           maxRotation: 0,
           autoSkip: true,
           autoSkipPadding: 18,
-          font: { family: "'Public Sans', sans-serif", size: 11 }
+          font: { family: "'Public Sans', sans-serif", size: 11 },
         },
         grid: {
           display: false,
         },
-        border: { display: false }
+        border: { display: false },
       },
       y: {
         type: "linear" as const,
@@ -696,33 +762,21 @@ export default function DashboardPage() {
         position: "left" as const,
         beginAtZero: true,
         ticks: {
-          color: dark ? "#94a3b8" : "#64748b",
-          callback: (value: string | number) => money(value),
+          color: dark ? "#94a3b8" : "#94a3b8",
+          callback: (value: string | number) => {
+            const num = Number(value || 0);
+            if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`;
+            if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+            return `$${num.toFixed(0)}`;
+          },
           font: { family: "'Public Sans', sans-serif", size: 11 },
           padding: 8,
         },
         grid: {
-          color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(226, 232, 240, 0.8)",
+          color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(226, 232, 240, 0.7)",
           drawTicks: false,
         },
-        border: { display: false }
-      },
-      y1: {
-        type: "linear" as const,
-        display: true,
-        position: "right" as const,
-        beginAtZero: true,
-        ticks: {
-          color: "#03c3ec",
-          precision: 0,
-          callback: (value: string | number) => `${value}`,
-          font: { family: "'Public Sans', sans-serif", size: 11 },
-          padding: 8,
-        },
-        grid: {
-          display: false,
-        },
-        border: { display: false }
+        border: { display: false, dash: [4, 4] },
       },
     },
   };
@@ -770,13 +824,7 @@ export default function DashboardPage() {
     cutout: '75%',
     plugins: {
       legend: {
-        position: "bottom" as const,
-        labels: {
-          boxWidth: 10,
-          color: dark ? "#cbd5e1" : "#475569",
-          font: { family: "'Public Sans', sans-serif" },
-          padding: 20
-        },
+        display: false,
       },
       tooltip: commonTooltip,
     },
@@ -787,8 +835,8 @@ export default function DashboardPage() {
         className={`flex-1 overflow-y-auto ${language === "km" ? "font-khmer" : ""}`}
       >
         <TopBar
-          title={t.title}
-          subtitle={t.subtitle}
+          title={language === "km" ? `សូមស្វាគមន៍ត្រឡប់មកវិញ, ${userName}!` : `Welcome back, ${userName}!`}
+          subtitle=""
           language={language}
           onLanguageChange={setDashboardLanguage}
           notifications={notifications}
@@ -803,7 +851,7 @@ export default function DashboardPage() {
             </div>
             <div className="min-w-0">
               <div className="text-[10px] font-extrabold uppercase text-[#696cff] tracking-wider">New Real-Time Order Received</div>
-              <div className="text-xs font-bold text-[#2c3e50] dark:text-slate-200 truncate">{toastNotification.detail} • {money(toastNotification.totalAmount || 0)}</div>
+              <div className={`text-xs font-bold ${dark ? "text-slate-200" : "text-[#2c3e50]"} truncate`}>{toastNotification.detail} • {money(toastNotification.totalAmount || 0)}</div>
             </div>
             <button
               type="button"
@@ -815,7 +863,22 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1600px] px-5 py-5">
+          {/* Dashboard Page Header */}
+          <div className="mb-5 flex items-center gap-3 dash-animate dash-delay-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#48cf38]/10 text-[#48cf38]">
+              <Grid2X2 size={20} />
+            </div>
+            <div>
+              <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? "ផ្ទាំងគ្រប់គ្រង" : "Dashboard"}
+              </h1>
+              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+                {language === "km" ? "ផ្ទាំងគ្រប់គ្រងផ្ទាល់ខ្លួនរបស់អ្នក។" : "Your personalized command center."}
+              </p>
+            </div>
+          </div>
+
           <div>
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
@@ -829,90 +892,87 @@ export default function DashboardPage() {
                 key={stat.label}
                 label={stat.label}
                 value={loading ? "..." : stat.value}
-                note={stat.note}
                 tone={stat.tone}
                 dark={dark}
                 index={idx}
+                Icon={stat.Icon}
+                animClass={`dash-animate dash-delay-${idx + 1}`}
               />
             ))}
           </section>
 
           <section className="mb-4 grid gap-4 grid-cols-1 xl:grid-cols-12">
-            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none`}>
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className={`text-lg font-bold ${textPrimary}`}>
-                    {t.salesAnalytics}
-                  </h2>
-                  <p className={`mt-1 text-sm ${textSecondary}`}>
-                    {t.salesAnalyticsDesc}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 sm:min-w-[220px]">
-                  <div
-                    className={`rounded border px-3 py-2 text-right ${borderCol} ${softSurface}`}
-                  >
-                    <div
-                      className={`text-[10px] font-bold uppercase tracking-wide ${textSecondary}`}
-                    >
-                      Peak Hour
-                    </div>
-                    <div className={`text-sm font-bold ${textPrimary}`}>
-                      {peakSalesHour.total > 0 ? hourLabel(peakSalesHour.hour) : "-"}
-                    </div>
-                  </div>
-
-                  <div
-                    className={`rounded border px-3 py-2 text-right ${borderCol} ${softSurface}`}
-                  >
-                    <div
-                      className={`text-[10px] font-bold uppercase tracking-wide ${textSecondary}`}
-                    >
-                      Revenue
-                    </div>
-                    <div className={`text-sm font-bold ${textPrimary}`}>
-                      {money(dailySales?.totalSales || 0)}
-                    </div>
-                  </div>
+            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none dash-animate dash-delay-5`}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className={`text-base font-bold ${textPrimary}`}>
+                  {language === "km" ? "និន្នាការចំណូល" : "Revenue Trend"}
+                </h2>
+                <div className="text-xs text-slate-400 font-medium">
+                  {language === "km" ? "៧ ថ្ងៃចុងក្រោយ" : "Last 7 days"}
                 </div>
               </div>
 
               <div
-                className={`h-[220px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
+                className={`h-[230px] min-w-0 rounded-xl border p-4 ${borderCol} ${softSurface}`}
               >
-                <Line data={salesTrendChartData} options={salesChartOptions} />
+                <Line data={salesTrendChartData} options={salesChartOptions} plugins={[verticalLinePlugin]} />
               </div>
             </div>
 
-            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-none`}>
-              <div className="mb-4">
-                <h2 className={`text-lg font-bold ${textPrimary}`}>
+            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-none flex flex-col justify-between dash-animate dash-delay-6`}>
+              <div className="mb-3">
+                <h2 className={`text-base font-bold ${textPrimary}`}>
                   {t.orderStatus}
                 </h2>
-                <p className={`mt-1 text-sm ${textSecondary}`}>
-                  {t.orderStatusDesc}
-                </p>
               </div>
 
               <div
-                className={`h-[220px] min-w-0 rounded border p-4 ${borderCol} ${softSurface}`}
+                className={`flex-1 min-w-0 rounded-xl border p-4 flex flex-col justify-between ${borderCol} ${softSurface}`}
               >
-                <Doughnut data={orderStatusChartData} options={doughnutOptions} />
+                <div className="relative h-[125px] flex items-center justify-center">
+                  <Doughnut data={orderStatusChartData} options={doughnutOptions} plugins={[centerTextPlugin]} />
+                </div>
+                
+                {/* Premium Custom HTML Legend Grid */}
+                <div className={`grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] font-bold ${dark ? "text-slate-400 border-[#4e4f6e]/30" : "text-slate-500 border-slate-100"} border-t pt-3 mt-1.5`}>
+                  {STATUS_CONFIG.map((cfg) => {
+                    const count = orders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length;
+                    const total = orders.length || 1;
+                    const pct = Math.round((count / total) * 100);
+                    
+                    // Localized label mapping to prevent modifying application logic
+                    let displayLabel = cfg.label;
+                    if (language === "km") {
+                      if (cfg.key === "pending") displayLabel = "រង់ចាំ";
+                      else if (cfg.key === "preparing") displayLabel = "រៀបចំ";
+                      else if (cfg.key === "completed") displayLabel = "ជោគជ័យ";
+                      else if (cfg.key === "cancelled") displayLabel = "បោះបង់";
+                    }
+
+                    return (
+                      <div key={cfg.key} className="flex items-center gap-1.5 min-w-0 justify-between">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: cfg.color }} />
+                          <span className="truncate capitalize text-slate-400">{displayLabel}:</span>
+                        </div>
+                        <span className={`font-black shrink-0 ${dark ? "text-slate-300" : "text-slate-700"}`}>
+                          {count} ({pct}%)
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </section>
 
           <section className="grid gap-4 grid-cols-1 xl:grid-cols-12 items-stretch">
-            <div className={`min-w-0 xl:col-span-8 overflow-hidden ${cardClass}`}>
+            <div className={`min-w-0 xl:col-span-8 overflow-hidden ${cardClass} dash-animate dash-delay-7`}>
               <div className="flex items-center justify-between p-5">
                 <div>
                   <h2 className={`text-base font-black ${textPrimary}`}>
                     {t.recentOrders}
                   </h2>
-                  <p className={`hidden text-xs sm:block ${textSecondary} mt-1`}>
-                    {t.recentOrdersDesc}
-                  </p>
                 </div>
 
                 <span className="rounded-full bg-[#696cff]/10 px-3 py-1 text-[11px] font-black text-[#696cff] transition-all duration-200 hover:scale-105 hover:bg-[#696cff]/20 cursor-default">
@@ -961,12 +1021,12 @@ export default function DashboardPage() {
                           key={order.id}
                           className={`border-b last:border-b-0 ${
                             dark
-                              ? "border-[#4e4f6e]/50 hover:bg-[#232333]/40"
-                              : "border-[#f0f2f5] hover:bg-[#f5f5f9]/50"
-                          } transition-all duration-150`}
+                              ? "border-[#4e4f6e]/30 hover:bg-[#2b2c40]/40"
+                              : "border-slate-100 hover:bg-slate-50/40"
+                          } transition-colors duration-200`}
                         >
                           <td className="px-5 py-4">
-                            <span className="inline-flex items-center gap-1 rounded bg-[#696cff]/10 px-2 py-0.5 text-xs font-bold text-[#696cff]">
+                            <span className={`text-xs font-extrabold cursor-default hover:underline transition-all duration-200 ${dark ? "text-[#8285ff]" : "text-[#696cff]"}`}>
                               {formatShortOrderNo(order)}
                             </span>
                           </td>
@@ -1017,15 +1077,12 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="min-w-0 xl:col-span-4">
+            <div className="min-w-0 xl:col-span-4 dash-animate dash-delay-8">
               <div className={`${cardClass} p-5 h-full flex flex-col`}>
                 <div className="mb-4">
                   <h2 className={`text-base font-bold ${textPrimary}`}>
                     {t.topProducts}
                   </h2>
-                  <p className={`mt-1 text-sm ${textSecondary}`}>
-                    {t.topProductsDesc}
-                  </p>
                 </div>
 
                 {computedTopProducts.length === 0 ? (
@@ -1064,54 +1121,109 @@ export default function DashboardPage() {
 }
 
 function AnimatedCounter({ value }: { value?: string | number | null }) {
-  return <>{value ?? ""}</>;
+  const [displayValue, setDisplayValue] = useState(value ?? "");
+
+  useEffect(() => {
+    if (value === null || value === undefined) {
+      setDisplayValue("");
+      return;
+    }
+
+    const strValue = String(value);
+    const match = strValue.match(/[\d.]+/);
+    if (!match) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const targetNum = parseFloat(match[0]);
+    if (Number.isNaN(targetNum)) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const prefix = strValue.slice(0, match.index);
+    const suffix = strValue.slice(match.index! + match[0].length);
+
+    const decimalParts = match[0].split(".");
+    const decimals = decimalParts.length > 1 ? decimalParts[1].length : 0;
+
+    const start = 0;
+    const duration = 800; // Animation duration in milliseconds
+    const startTime = performance.now();
+
+    let animationFrameId: number;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function: easeOutQuad
+      const easedProgress = progress * (2 - progress);
+      const currentNum = start + targetNum * easedProgress;
+
+      setDisplayValue(`${prefix}${currentNum.toFixed(decimals)}${suffix}`);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(strValue);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [value]);
+
+  return <>{displayValue}</>;
 }
 
 function StatCard({
   label,
   value,
-  note,
   tone,
   dark,
+  Icon,
+  animClass = "",
 }: {
   label: string;
   value: string;
-  note: string;
   tone: "green" | "blue" | "orange" | "red";
   dark: boolean;
   index?: number;
+  animClass?: string;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
 }) {
-  const tones = {
-    green: "bg-[#e8fadf] text-[#71dd37]",
-    blue: "bg-[#e7e7ff] text-[#696cff]",
-    orange: "bg-[#fff2e2] text-[#ff9f43]",
-    red: "bg-[#ffe0db] text-[#ff3e1d]",
+  const iconTones = {
+    green: dark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-600",
+    blue: dark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600",
+    orange: dark ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-600",
+    red: dark ? "bg-rose-500/10 text-rose-400" : "bg-rose-50 text-rose-600",
   };
 
   return (
     <div
-      className={`rounded-2xl border p-4 sm:p-5 shadow-none transition-all ${
+      className={`rounded-2xl border p-4 sm:p-5 shadow-none hover:shadow-md hover:shadow-slate-200/60 dark:hover:shadow-black/20 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-between ${
         dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
-      }`}
+      } ${animClass}`}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
-          <div
-            className={`mt-1 text-2xl font-bold tracking-tight ${
-              dark ? "text-slate-100" : "text-[#566a7f]"
-            }`}
-          >
-            <AnimatedCounter value={value} />
-          </div>
+      <div>
+        <div className="text-sm font-semibold text-[#a1acb8]">{label}</div>
+        <div
+          className={`mt-1 text-2xl font-bold tracking-tight ${
+            dark ? "text-slate-100" : "text-[#566a7f]"
+          }`}
+        >
+          <AnimatedCounter value={value} />
         </div>
-
-        <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-semibold ${tones[tone] || tones.green}`}>
-          Live
-        </span>
       </div>
 
-      <div className="text-xs font-semibold text-[#8592a3]">{note}</div>
+      <div className={`p-2.5 rounded-xl shrink-0 ${iconTones[tone] || iconTones.green}`}>
+        <Icon size={20} />
+      </div>
     </div>
   );
 }

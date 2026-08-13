@@ -2,11 +2,12 @@
 
 import { FormEvent, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { apiOrigin, getSettings, getUsers, login, logAuditEntry } from "../../lib/api";
+import { apiOrigin, getSettings, getUsers, login, logAuditEntry, loginPin, getPublicStaff } from "../../lib/api";
 import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
-import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X } from "lucide-react";
+import { useAppLanguage } from "../../lib/language";
+import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check } from "lucide-react";
 
 const DEFAULT_POS_NAME = "ផ្ទះកន្ត្រក ផ្លូវ១០";
 
@@ -18,6 +19,7 @@ const STAFF_PRESETS = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const language = useAppLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,8 +40,27 @@ export default function LoginPage() {
   // Cashier PIN Pad Mode State
   const [loginMethod, setLoginMethod] = useState<"pin" | "email">("pin");
   const [pin, setPin] = useState("");
-  const [staffPresets, setStaffPresets] = useState(STAFF_PRESETS);
-  const [selectedStaff, setSelectedStaff] = useState(STAFF_PRESETS[0]);
+  const [staffPresets, setStaffPresets] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("pos_public_staff_cache");
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return [];
+  });
+  const [selectedStaff, setSelectedStaff] = useState<any>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("pos_public_staff_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        }
+      } catch {}
+    }
+    return null;
+  });
 
   // 2FA / OTP & Reset Password State
   const [step, setStep] = useState<"login" | "2fa" | "forgot_email" | "forgot_reset">("login");
@@ -102,7 +123,7 @@ export default function LoginPage() {
   useEffect(() => {
     async function loadDynamicUsers() {
       try {
-        const users = await getUsers();
+        const users = await getPublicStaff();
         if (users && Array.isArray(users) && users.length > 0) {
           // Clean deduplication by name/email
           const uniqueUsers: any[] = [];
@@ -133,7 +154,7 @@ export default function LoginPage() {
               role: roleStr,
               email: u.email,
               pin: u.pin || (isCashier ? "1234" : isStaff ? "5678" : "0000"),
-              avatarBg: isCashier ? "bg-emerald-600" : isStaff ? "bg-amber-600" : "bg-[#696cff]",
+              avatarBg: isCashier ? "bg-emerald-600" : isStaff ? "bg-amber-600" : "bg-[#6ab070]",
               initial: (u.name || "U")[0].toUpperCase(),
             };
           });
@@ -141,6 +162,9 @@ export default function LoginPage() {
           if (mapped.length > 0) {
             setStaffPresets(mapped);
             setSelectedStaff(mapped[0]);
+            try {
+              localStorage.setItem("pos_public_staff_cache", JSON.stringify(mapped));
+            } catch {}
           }
         }
       } catch {}
@@ -155,6 +179,18 @@ export default function LoginPage() {
     if (savedName) setPosName(savedName);
     if (savedImage) setRestaurantImageUrl(savedImage);
 
+    // Show Logout Toast alert if redirected from logout action
+    try {
+      const logoutAlert = localStorage.getItem("pos_logout_success_alert");
+      if (logoutAlert) {
+        const parsed = JSON.parse(logoutAlert);
+        if (parsed && Date.now() - (parsed.timestamp || 0) < 30000) {
+          setMessage(language === "km" ? "បានចាកចេញពីប្រព័ន្ធដោយជោគជ័យ" : "Logout successful!");
+        }
+        localStorage.removeItem("pos_logout_success_alert");
+      }
+    } catch {}
+
     getSettings()
       .then((settings) => {
         const nextName = settings.restaurantName || DEFAULT_POS_NAME;
@@ -166,7 +202,7 @@ export default function LoginPage() {
         window.dispatchEvent(new Event("pos-settings-change"));
       })
       .catch(() => undefined);
-  }, []);
+  }, [language]);
 
   const handleOceanMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -282,56 +318,20 @@ export default function LoginPage() {
     }
   }
 
-  // 🛡️ SECURITY ENHANCEMENT 1: Brute-Force Rate Limiting & Lockout Check
+  // 🛡️ SECURITY ENHANCEMENT 1: Brute-Force Rate Limiting & Lockout Check (Relying fully on backend DB)
   function getLockoutStatus(targetEmail: string): { isLocked: boolean; remainingMins: number } {
-    try {
-      const key = `pos_failed_login_${targetEmail.trim().toLowerCase()}`;
-      const raw = localStorage.getItem(key);
-      if (!raw) return { isLocked: false, remainingMins: 0 };
-      const data = JSON.parse(raw);
-      if (data.lockedUntil && data.lockedUntil > Date.now()) {
-        const remainingMs = data.lockedUntil - Date.now();
-        const remainingMins = Math.ceil(remainingMs / (60 * 1000));
-        return { isLocked: true, remainingMins };
-      }
-    } catch {}
     return { isLocked: false, remainingMins: 0 };
   }
 
   function recordFailedAttempt(targetEmail: string) {
-    try {
-      const clean = targetEmail.trim().toLowerCase();
-      const key = `pos_failed_login_${clean}`;
-      const raw = localStorage.getItem(key);
-      let count = 1;
-      if (raw) {
-        const data = JSON.parse(raw);
-        count = (data.count || 0) + 1;
-      }
-
-      let lockedUntil = 0;
-      if (count >= 5) {
-        lockedUntil = Date.now() + 15 * 60 * 1000; // 15-minute lockout
-        sendClientTelegramAlert(
-          false,
-          clean,
-          "Guest",
-          "🚨 BRUTE-FORCE LOCKOUT TRIGGERED! Account locked for 15 minutes due to 5 consecutive failed login attempts."
-        );
-      }
-
-      localStorage.setItem(key, JSON.stringify({ count, lockedUntil }));
-    } catch {}
+    // Handled by backend database
   }
 
   function clearFailedAttempts(targetEmail: string) {
-    try {
-      const clean = targetEmail.trim().toLowerCase();
-      localStorage.removeItem(`pos_failed_login_${clean}`);
-    } catch {}
+    // Handled by backend database
   }
 
-  function verifyAndSubmitPin(enteredPin: string) {
+  async function verifyAndSubmitPin(enteredPin: string) {
     setLoading(true);
     setError("");
 
@@ -341,48 +341,54 @@ export default function LoginPage() {
     localStorage.removeItem("pos_logged_in");
     localStorage.removeItem("pos_login_timestamp");
 
-    // Match exact staff by PIN code entered
-    let targetStaff = staffPresets.find((s) => String(s.pin) === String(enteredPin));
-    if (!targetStaff) {
-      if (enteredPin === "1234") {
-        targetStaff = staffPresets.find((s) => s.role.toLowerCase().includes("cashier")) || selectedStaff;
-      } else if (enteredPin === "5678") {
-        targetStaff = staffPresets.find((s) => s.role.toLowerCase().includes("staff")) || selectedStaff;
-      } else if (enteredPin === "0000") {
-        targetStaff = staffPresets.find((s) => s.role.toLowerCase().includes("admin")) || selectedStaff;
-      } else {
-        targetStaff = selectedStaff;
+    try {
+      const res = await loginPin(enteredPin);
+
+      // Determine target role strictly from user
+      const targetRole = typeof res.user.role === "string" 
+        ? res.user.role 
+        : res.user.role?.name || res.user.roleName || "Cashier";
+      const targetRoleName = res.user.roleName || (typeof res.user.role === "object" && res.user.role ? res.user.role.name : String(res.user.role || "Cashier"));
+      const userPayload = {
+        id: res.user.id,
+        name: res.user.name,
+        email: res.user.email,
+        role: targetRole,
+        roleName: targetRoleName.toUpperCase(),
+      };
+
+      localStorage.setItem("pos_logged_in", "true");
+      localStorage.setItem("pos_login_timestamp", Date.now().toString());
+      localStorage.setItem("pos_token", res.token);
+      localStorage.setItem("pos_user", JSON.stringify(userPayload));
+
+      // Store temporary login alert info for layout
+      localStorage.setItem(
+        "pos_login_success_alert",
+        JSON.stringify({ userName: res.user.name, role: targetRole, timestamp: Date.now() })
+      );
+
+      window.dispatchEvent(new Event("pos-auth-change"));
+
+      const targetPath = firstAllowedPathForRole(targetRole);
+      router.replace(targetPath);
+    } catch (err: any) {
+      const errText = err instanceof Error ? err.message : "Invalid PIN";
+      let localizedMsg = errText;
+      if (errText.includes("ACCOUNT_LOCKED:")) {
+        const parts = errText.split(":");
+        const mins = parts[1] || "15";
+        localizedMsg = language === "km"
+          ? `🛑 គណនីរបស់អ្នកត្រូវបានចាក់សោបណ្តោះអាសន្ន! សូមព្យាយាមម្តងទៀតក្នុងរយៈពេល ${mins} នាទី`
+          : `🛑 Account temporarily locked. Please try again in ${mins} minute(s).`;
+      } else if (errText.toLowerCase().includes("invalid pin")) {
+        localizedMsg = language === "km" ? "🛑 លេខកូដ PIN មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid PIN code entered";
       }
+      setError(localizedMsg);
+      setPin("");
+    } finally {
+      setLoading(false);
     }
-
-    // Determine target role strictly from targetStaff
-    let targetRole = "Cashier";
-    if (targetStaff) {
-      const r = typeof targetStaff.role === "string" ? targetStaff.role : (targetStaff.role as any)?.name || "Cashier";
-      targetRole = r;
-    }
-
-    // If entering 1234 or cashier PIN, force Cashier role!
-    if (enteredPin === "1234" && !targetRole.toLowerCase().includes("admin")) {
-      targetRole = "Cashier";
-    }
-
-    const userPayload = {
-      id: targetStaff?.id || 2,
-      name: targetStaff?.name || "POS Cashier",
-      email: targetStaff?.email || "cashier@pos.local",
-      role: targetRole,
-      roleName: targetRole.toUpperCase(),
-    };
-
-    localStorage.setItem("pos_logged_in", "true");
-    localStorage.setItem("pos_login_timestamp", Date.now().toString());
-    localStorage.setItem("pos_token", "token-" + (targetStaff?.id || 2));
-    localStorage.setItem("pos_user", JSON.stringify(userPayload));
-    window.dispatchEvent(new Event("pos-auth-change"));
-
-    const targetPath = firstAllowedPathForRole(targetRole);
-    router.replace(targetPath);
   }
 
   // Step 1: Submit Primary Credentials
@@ -398,86 +404,10 @@ export default function LoginPage() {
       return;
     }
 
-    // 🛡️ SECURITY ENHANCEMENT 1 CHECK: Rate Limiting & Account Lockout
-    const lockout = getLockoutStatus(cleanEmail);
-    if (lockout.isLocked) {
-      setError(`🛑 Account temporarily locked due to 5 failed attempts. Please try again in ${lockout.remainingMins} minute(s).`);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Check for locally reset password override
-      const overridesRaw = typeof window !== "undefined" ? localStorage.getItem("pos_custom_reset_passwords") : null;
-      let effectivePassword = password;
-      if (overridesRaw) {
-        try {
-          const overrides = JSON.parse(overridesRaw);
-          if (overrides[cleanEmail] && overrides[cleanEmail] !== password) {
-            // Password mismatch with updated password
-            throw new Error("Invalid email or password.");
-          }
-        } catch (e: any) {
-          if (e.message) throw e;
-        }
-      }
-
-      const result = await login(cleanEmail, effectivePassword).catch(async (err) => {
-        let isOverridden = false;
-        if (overridesRaw) {
-          try {
-            const overrides = JSON.parse(overridesRaw);
-            if (overrides[cleanEmail] === password) isOverridden = true;
-          } catch {}
-        }
-
-        // Check custom users in local database
-        const storedUsersRaw = typeof window !== "undefined" ? localStorage.getItem("pos_custom_users_list") : null;
-        if (storedUsersRaw) {
-          try {
-            const customUsers = JSON.parse(storedUsersRaw);
-            if (Array.isArray(customUsers)) {
-              const matchedUser = customUsers.find(
-                (u: any) => u.email?.toLowerCase() === cleanEmail || u.name?.toLowerCase() === cleanEmail
-              );
-              if (matchedUser) {
-                const uRole = typeof matchedUser.role === "string" ? matchedUser.role : matchedUser.role?.name || matchedUser.roleName || "Cashier";
-                return {
-                  token: "demo-user-token-" + matchedUser.id,
-                  user: {
-                    id: matchedUser.id,
-                    name: matchedUser.name,
-                    email: matchedUser.email,
-                    role: uRole,
-                    roleName: uRole.toUpperCase(),
-                  },
-                };
-              }
-            }
-          } catch {}
-        }
-
-        if (cleanEmail === "cheychon258@gmail.com" || cleanEmail === "admin@pos.local" || isOverridden) {
-          return {
-            token: "demo-admin-token",
-            user: { id: 1, name: "System Admin", email: cleanEmail, role: "Admin", roleName: "ADMIN" },
-          };
-        }
-        if (cleanEmail === "cashier@pos.local" || cleanEmail.includes("cashier")) {
-          return {
-            token: "demo-cashier-token",
-            user: { id: 2, name: "POS Cashier", email: cleanEmail, role: "Cashier", roleName: "CASHIER" },
-          };
-        }
-        if (cleanEmail === "kitchen@pos.local" || cleanEmail.includes("staff")) {
-          return {
-            token: "demo-staff-token",
-            user: { id: 3, name: "Kitchen Staff", email: cleanEmail, role: "Staff", roleName: "STAFF" },
-          };
-        }
-        throw err;
-      });
+      const result = await login(cleanEmail, password);
 
       setPendingLoginResult(result);
 
@@ -498,10 +428,17 @@ export default function LoginPage() {
       }).catch(() => undefined);
 
       setStep("2fa");
-    } catch (err) {
+    } catch (err: any) {
       const errText = err instanceof Error ? err.message : "Login failed";
-      recordFailedAttempt(cleanEmail);
-      setError(errText);
+      let localizedMsg = errText;
+      if (errText.includes("ACCOUNT_LOCKED:")) {
+        const parts = errText.split(":");
+        const mins = parts[1] || "15";
+        localizedMsg = language === "km"
+          ? `🛑 គណនីរបស់អ្នកត្រូវបានចាក់សោបណ្តោះអាសន្ន! សូមព្យាយាមម្តងទៀតក្នុងរយៈពេល ${mins} នាទី`
+          : `🛑 Account temporarily locked. Please try again in ${mins} minute(s).`;
+      }
+      setError(localizedMsg);
       sendClientTelegramAlert(false, cleanEmail || "Unknown User", "Guest", errText);
     } finally {
       setLoading(false);
@@ -664,24 +601,31 @@ export default function LoginPage() {
         role: result.user?.role || result.user?.roleName || "Admin",
       };
       if (result.token) localStorage.setItem("pos_token", result.token || "dev-admin-token");
-      localStorage.setItem("pos_user", JSON.stringify(result.user));
+      localStorage.setItem("pos_user", JSON.stringify(userPayload));
+
+      // Store temporary login success info to trigger toast in layout
+      const currentRole = userPayload.role;
+      const roleString = typeof currentRole === "object" && currentRole ? currentRole.name : String(currentRole || "Admin");
+      localStorage.setItem(
+        "pos_login_success_alert",
+        JSON.stringify({ userName: userPayload.name, role: roleString, timestamp: Date.now() })
+      );
 
       logAuditEntry({
-        userName: result.user.name || cleanEmail,
-        userRole: result.user.role || "Staff",
+        userName: userPayload.name || cleanEmail,
+        userRole: roleString,
         action: "Staff Login Success",
         status: "SUCCESS",
-        details: `Login verified for ${result.user.name || cleanEmail}`,
+        details: `Login verified for ${userPayload.name || cleanEmail}`,
       });
       window.dispatchEvent(new Event("pos-auth-change"));
 
       const redirect = new URLSearchParams(window.location.search).get("redirect");
       let targetPath = redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "";
       
-      const r = result.user?.role;
-      const role = typeof r === "object" && r ? r.name : r;
+      const role = roleString;
 
-      sendClientTelegramAlert(true, result.user?.name || email, String(role || "Staff"));
+      sendClientTelegramAlert(true, userPayload.name || email, role);
 
       if (!targetPath) {
         let userPerms = null;
@@ -691,7 +635,7 @@ export default function LoginPage() {
             userPerms = JSON.parse(savedPermsRaw);
           } catch {}
         }
-        targetPath = firstAllowedPathForRole(String(role || "Member"), userPerms);
+        targetPath = firstAllowedPathForRole(role, userPerms);
       }
       router.replace(targetPath);
     } else {
@@ -706,201 +650,243 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen w-full relative select-none flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f8fafc] dark:bg-[#0f172a] text-slate-900 dark:text-white">
-      {/* FLOATING TOP SUCCESS TOAST (Vibrant Blue #696cff Theme with 3s Progress Timer) */}
-      <div className="fixed top-6 left-0 right-0 z-50 flex justify-center pointer-events-none px-4">
-        {message && (
-          <div className="pointer-events-auto relative overflow-hidden flex items-center gap-2.5 px-4.5 py-2.5 rounded-2xl bg-[#696cff] text-white text-xs font-semibold shadow-xl shadow-[#696cff]/30 backdrop-blur-md border border-white/20 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-            <CheckCircle2 size={15} className="text-white shrink-0" />
+    <main className="login-page min-h-screen w-full relative select-none flex items-center justify-center bg-[#eef2ee] dark:bg-[#0f172a] text-slate-900 dark:text-white overflow-hidden p-4 sm:p-6 md:p-12 lg:p-24">
+      {/* FLOATING TOP TOAST ALERTS */}
+      <div className="fixed top-6 left-0 right-0 z-50 flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+        {/* 1. Loading Toast */}
+        {loading && (
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <Loader2 className="animate-spin text-slate-400 shrink-0" size={15} />
+            <span>Please wait...</span>
+          </div>
+        )}
+
+        {/* 2. Success Toast */}
+        {!loading && message && (
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+              <Check size={11} strokeWidth={4.5} className="text-white" />
+            </div>
             <span>{message}</span>
-            {/* 3s Countdown Progress Bar */}
-            <div className="absolute bottom-0 left-0 h-[2.5px] bg-white/70 animate-[toastProgress_3000ms_linear_forwards]" />
+          </div>
+        )}
+
+        {/* 3. Error Toast */}
+        {!loading && error && (
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="h-5 w-5 rounded-full bg-rose-500 flex items-center justify-center text-white shrink-0">
+              <X size={11} strokeWidth={4.5} className="text-white" />
+            </div>
+            <span>{error}</span>
           </div>
         )}
       </div>
 
-      {/* DUAL-PANE SPLIT CONTAINER */}
-      <div className="w-full max-w-[980px] min-h-[560px] rounded-3xl overflow-hidden border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#181920] shadow-xl shadow-slate-200/40 dark:shadow-none flex flex-col lg:flex-row">
-        
-        {/* LEFT PANE: RESTAURANT BRANDING & HERO IMAGE */}
-        <div
-          className="hidden lg:flex w-1/2 relative bg-cover bg-center flex-col justify-between p-8 text-white overflow-hidden"
-          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1400')` }}
-        >
-          {/* Dark Ambient Gradient Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/30 z-0 pointer-events-none" />
 
-          {/* Top Logo, Station Info & Live Clock Header (Transparent Floating) */}
-          <div className="relative z-10 flex items-center justify-between gap-2.5 w-full">
-            <div className="flex items-center gap-2.5 drop-shadow-md">
-              {restaurantImageUrl && !imageError ? (
-                <img
-                  src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
-                  alt="Restaurant Logo"
-                  className="h-7 w-7 rounded-full object-cover border border-white/30 shadow-sm"
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <div className="h-7 w-7 rounded-full bg-[#696cff] flex items-center justify-center text-white font-bold text-xs shadow-md">
-                  <Store size={14} />
-                </div>
-              )}
-              <div>
-                <h2 className="font-khmer text-[11.5px] font-bold tracking-normal leading-none drop-shadow">{posName}</h2>
-                <span className="text-[8.5px] text-emerald-400 font-bold uppercase tracking-widest mt-0.5 block drop-shadow">Live Terminal Station</span>
+
+      {/* CENTER LAYOUT CONTAINER */}
+      <div className="w-full flex items-center justify-center z-10">
+
+        {/* Login Card */}
+        <div className="w-full max-w-[420px] rounded-3xl bg-white dark:bg-[#181920] border border-slate-200/40 dark:border-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col p-6 sm:p-8 relative overflow-hidden transition-all duration-300">
+          <div className="w-full space-y-4 my-auto">
+            {/* Logo Header (Vertically Stacked) */}
+            {!(step === "login" && loginMethod === "pin" && selectedStaff) && (
+              <div className="flex flex-col items-center text-center mb-6">
+                {restaurantImageUrl && !imageError ? (
+                  <img
+                    src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
+                    alt="Restaurant Logo"
+                    className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 shadow-xs mb-2.5"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-full bg-[#6ab070]/10 text-[#6ab070] dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center font-bold shadow-xs mb-2.5">
+                    <Store size={26} />
+                  </div>
+                )}
+                <h2 className="font-khmer text-base font-black tracking-normal leading-tight text-slate-800 dark:text-slate-100">
+                  {posName}
+                </h2>
               </div>
-            </div>
+            )}
 
-            {/* Live Clock & Calendar Header Widget (Transparent Floating) */}
-            <div className="flex items-center gap-2.5 drop-shadow-md text-[11px] font-mono text-white">
-              <div className="flex items-center gap-1.5 text-white">
-                <Clock size={12} className="text-emerald-400 animate-pulse" />
-                <span className="font-bold text-white tracking-wider">{time || "00:00:00"}</span>
-              </div>
-              <span className="text-white/40 text-[10px]">|</span>
-              <div className="flex items-center gap-1.5 text-white/80 text-[10px] font-sans font-medium">
-                <Calendar size={11} className="text-emerald-400" />
-                <span>{date || "Loading..."}</span>
-              </div>
-            </div>
-          </div>
+            {/* Header Title (Centered) */}
+            <div className="text-center">
 
-          {/* Bottom Hero Tagline */}
-          <div className="relative z-10 space-y-1.5">
-            <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-semibold tracking-widest uppercase backdrop-blur-md inline-block">
-              POS Station Register
-            </span>
-            <h3 className="font-sans text-lg font-bold tracking-tight text-white leading-snug">
-              Streamline Orders & Sales with Speed
-            </h3>
-            <p className="text-[11px] text-white/70 font-normal leading-relaxed max-w-[300px]">
-              Access your station register, manage table orders, and monitor real-time restaurant analytics smoothly.
-            </p>
-          </div>
-        </div>
-
-        {/* RIGHT PANE: LOGIN FORM */}
-        <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-6 sm:p-10 lg:p-12 relative min-h-[560px]">
-          <div className="hidden lg:block h-2" /> {/* Top Spacer */}
-
-          <div className="w-full max-w-[380px] space-y-4 my-auto">
-            {/* Header Title */}
-            <div>
-          {step === "login" && (
-            <>
-              <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Welcome back
-              </h1>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal mt-0.5">
-                Please sign in to access your station register.
-              </p>
-            </>
-          )}
           {step === "2fa" && (
             <>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="relative flex items-center justify-center mb-1">
                 <button
                   type="button"
                   onClick={() => setStep("login")}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                   2-Step Verification
                 </h1>
               </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5">
-                We sent a 6-digit verification code to <strong className="text-[#696cff] dark:text-indigo-400">{email}</strong>.
+              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
+                We sent a 6-digit verification code to <strong className="text-[#6ab070] dark:text-emerald-400">{email}</strong>.
               </p>
             </>
           )}
           {step === "forgot_email" && (
             <>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="relative flex items-center justify-center mb-1">
                 <button
                   type="button"
                   onClick={() => setStep("login")}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  Reset Admin Password
+                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                  Reset Password
                 </h1>
               </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5">
+              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
                 Enter your Admin Email to receive a 6-digit recovery OTP.
               </p>
             </>
           )}
           {step === "forgot_reset" && (
             <>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="relative flex items-center justify-center mb-1">
                 <button
                   type="button"
                   onClick={() => setStep("forgot_email")}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  Verify & New Password
+                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                  New Password
                 </h1>
               </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5">
-                Enter the 6-digit OTP sent to <strong className="text-[#696cff] dark:text-indigo-400">{resetEmail}</strong> and your new password.
+              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
+                Enter the 6-digit OTP sent to <strong className="text-[#6ab070] dark:text-emerald-400">{resetEmail}</strong> and your new password.
               </p>
             </>
           )}
         </div>
 
-        {/* INLINE ERROR ALERT BANNER (Matches Screenshot 2) */}
+        {/* INLINE ERROR ALERT BANNER */}
         {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/40 px-3.5 py-2.5 text-[11.5px] text-red-600 dark:text-red-400 font-medium animate-[shake_300ms_ease-in-out]">
+          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/40 px-3.5 py-2.5 text-[11.5px] text-red-600 dark:text-red-400 font-medium animate-[shake_300ms_ease-in-out] mb-2">
             {error}
-          </div>
-        )}
-
-        {/* STEP 1: LOGIN METHOD TAB SWITCHER (PIN Pad vs Email) */}
-        {step === "login" && (
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 mb-2">
-            <button
-              type="button"
-              onClick={() => { setLoginMethod("pin"); setError(""); setPin(""); }}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-[11.5px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginMethod === "pin"
-                  ? "bg-white dark:bg-slate-700 text-[#696cff] dark:text-indigo-400 shadow-xs"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              <KeyRound size={13} />
-              <span>Quick PIN (Cashier)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginMethod("email"); setError(""); }}
-              className={`flex-1 py-1.5 px-3 rounded-lg text-[11.5px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginMethod === "email"
-                  ? "bg-white dark:bg-slate-700 text-[#696cff] dark:text-indigo-400 shadow-xs"
-                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
-            >
-              <Mail size={13} />
-              <span>Email Sign In</span>
-            </button>
           </div>
         )}
 
         {/* STEP 1: QUICK PIN PAD MODE */}
         {step === "login" && loginMethod === "pin" && (
-          <div className="space-y-4">
-            {/* Staff Selector Chips */}
-            <div>
-              <label className="block text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
-                Select Staff Account
-              </label>
-              <div className="grid grid-cols-3 gap-2">
+          selectedStaff ? (
+            // User PIN Entry View (Option B style but personalized)
+            <div className="space-y-3 w-full flex flex-col items-center">
+              {/* Top Navigation Row */}
+              <div className="flex items-center justify-between w-full border-b border-slate-100 dark:border-slate-800/60 pb-2.5 mb-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStaff(null);
+                    setPin("");
+                    setError("");
+                  }}
+                  className="text-xs font-semibold text-slate-400 hover:text-[#6ab070] transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none"
+                >
+                  ← Back
+                </button>
+              </div>
+
+              {/* User details */}
+              <div className="flex flex-col items-center text-center shrink-0">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight">
+                  {selectedStaff.name}
+                </h3>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+                  {selectedStaff.role}
+                </span>
+              </div>
+
+              {/* Subtle PIN label */}
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-normal text-center shrink-0">
+                Enter your 4-digit PIN
+              </p>
+
+              {/* 4-Pill PIN Indicator — green */}
+              <div className="flex items-center justify-center py-1 shrink-0">
+                <div className="flex items-center gap-2">
+                  {[0, 1, 2, 3].map((idx) => (
+                    <div
+                      key={idx}
+                      className={`h-1.5 w-7 rounded-full transition-all duration-200 ${
+                        pin.length > idx
+                          ? "bg-[#6ab070] shadow-sm shadow-[#6ab070]/30 scale-x-105"
+                          : "bg-slate-200 dark:bg-slate-700/60"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* 3x4 Touch Numpad — clean */}
+              <div className="grid grid-cols-3 gap-y-1 gap-x-4 max-w-[210px] w-full mx-auto justify-items-center">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((btn) => (
+                  <button
+                    key={btn}
+                    type="button"
+                    onClick={() => {
+                      setError("");
+                      if (btn === "C") {
+                        setPin("");
+                      } else if (btn === "⌫") {
+                        setPin((prev) => prev.slice(0, -1));
+                      } else {
+                        if (pin.length < 4) {
+                          const nextPin = pin + btn;
+                          setPin(nextPin);
+                          if (nextPin.length === 4) {
+                            verifyAndSubmitPin(nextPin);
+                          }
+                        }
+                      }
+                    }}
+                    className={`w-13 h-13 rounded-full text-base font-semibold flex items-center justify-center transition-all cursor-pointer duration-150 active:scale-95 shadow-sm ${
+                      btn === "⌫"
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90"
+                        : btn === "C"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 hover:bg-[#6ab070]/10 hover:text-[#6ab070] hover:border-[#6ab070]/30 active:bg-[#6ab070]/20 active:scale-90"
+                    }`}
+                  >
+                    {btn}
+                  </button>
+                ))}
+              </div>
+
+              {/* Switch to Admin Email */}
+              <div className="pt-1 text-center w-full">
+                <button
+                  type="button"
+                  onClick={() => { setLoginMethod("email"); setError(""); }}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-[#6ab070] transition-all cursor-pointer bg-transparent border-none"
+                >
+                  Sign in as Admin with Email
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Select Staff Screen View
+            <div className="space-y-3 w-full">
+              <div className="text-center mb-2">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Select your staff account to sign in
+                </p>
+              </div>
+
+              <div className="space-y-2 max-w-[320px] mx-auto w-full">
                 {staffPresets.map((staff) => (
                   <button
                     key={staff.id}
@@ -910,99 +896,70 @@ export default function LoginPage() {
                       setPin("");
                       setError("");
                     }}
-                    className={`flex flex-col items-center p-2 rounded-xl border text-center transition-all cursor-pointer ${
-                      selectedStaff.id === staff.id
-                        ? "border-[#696cff] bg-[#696cff]/10 text-[#696cff] font-bold shadow-xs"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    }`}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200 transition-all cursor-pointer text-left group"
                   >
-                    <div className={`h-7 w-7 rounded-full ${staff.avatarBg} text-white flex items-center justify-center text-xs font-bold mb-1 shadow-xs`}>
+                    <div className={`h-9 w-9 rounded-full ${staff.avatarBg} text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0`}>
                       {staff.initial}
                     </div>
-                    <span className="text-[11px] leading-tight font-semibold truncate w-full">{staff.name}</span>
-                    <span className="text-[9.5px] opacity-70 mt-0.5 font-medium truncate w-full">{staff.role}</span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">{staff.name}</h4>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold truncate block">{staff.role}</span>
+                    </div>
+                    <span className="text-slate-400 group-hover:text-[#6ab070] dark:group-hover:text-emerald-400 transition-colors text-xs font-extrabold pr-1">
+                      →
+                    </span>
                   </button>
                 ))}
               </div>
-            </div>
 
-            {/* 4-Digit PIN Indicator Dots */}
-            <div className="flex flex-col items-center justify-center py-1">
-              <div className="flex items-center gap-3">
-                {[0, 1, 2, 3].map((idx) => (
-                  <div
-                    key={idx}
-                    className={`h-4 w-4 rounded-full border-2 transition-all duration-150 ${
-                      pin.length > idx
-                        ? "bg-[#696cff] border-[#696cff] scale-110 shadow-sm shadow-[#696cff]/50"
-                        : "border-slate-300 dark:border-slate-600 bg-transparent"
-                    }`}
-                  />
-                ))}
+              {/* Switch to Admin Email Mode */}
+              <div className="pt-1 text-center w-full">
+                <button
+                  type="button"
+                  onClick={() => { setLoginMethod("email"); setError(""); }}
+                  className="text-[11px] font-bold text-slate-400 hover:text-[#6ab070] dark:hover:text-emerald-400 transition-all cursor-pointer bg-transparent border-none"
+                >
+                  Sign in as Admin with Email
+                </button>
               </div>
             </div>
-
-            {/* 3x4 Touch Numpad */}
-            <div className="grid grid-cols-3 gap-2 max-w-[280px] mx-auto">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((btn) => (
-                <button
-                  key={btn}
-                  type="button"
-                  onClick={() => {
-                    setError("");
-                    if (btn === "C") {
-                      setPin("");
-                    } else if (btn === "⌫") {
-                      setPin((prev) => prev.slice(0, -1));
-                    } else {
-                      if (pin.length < 4) {
-                        const nextPin = pin + btn;
-                        setPin(nextPin);
-                        if (nextPin.length === 4) {
-                          verifyAndSubmitPin(nextPin);
-                        }
-                      }
-                    }
-                  }}
-                  className={`h-11 rounded-xl text-base font-bold transition-all flex items-center justify-center shadow-xs active:scale-95 cursor-pointer ${
-                    btn === "C" || btn === "⌫"
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
-                      : "bg-slate-50 dark:bg-slate-800/90 text-slate-900 dark:text-white border border-slate-200/80 dark:border-slate-700 hover:bg-[#696cff] hover:text-white hover:border-[#696cff]"
-                  }`}
-                >
-                  {btn}
-                </button>
-              ))}
-            </div>
-          </div>
+          )
         )}
 
         {/* STEP 1: PRIMARY EMAIL CREDENTIALS FORM */}
         {step === "login" && loginMethod === "email" && (
-          <form onSubmit={handlePrimarySubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-[11.5px] font-semibold text-slate-800 dark:text-slate-200">
-                Email Address
-              </label>
-              <div className="relative">
-                <input
-                  value={email}
-                  onChange={(event) => {
-                    if (error) setError("");
-                    setEmail(event.target.value);
-                  }}
-                  onFocus={() => setError("")}
-                  type="email"
-                  placeholder="name@restaurant.com"
-                  className="w-full h-9.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-[11.5px] text-slate-900 dark:text-white placeholder-slate-300 outline-none focus:border-slate-400 dark:focus:border-slate-500 transition-colors"
-                  required
-                />
-              </div>
+          <form onSubmit={handlePrimarySubmit} className="space-y-4 w-full">
+            {/* Header Row (Login on left, Restaurant Logo on right) */}
+            {/* Centered screen title for Admin login */}
+            <div className="text-center mb-3">
+              <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                Admin Sign In
+              </h1>
             </div>
 
-            <div className="space-y-1.5">
+            {/* Username Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
+                Email
+              </label>
+              <input
+                value={email}
+                onChange={(event) => {
+                  if (error) setError("");
+                  setEmail(event.target.value);
+                }}
+                onFocus={() => setError("")}
+                type="email"
+                placeholder="Enter Your email here..."
+                className="w-full h-11 rounded-2xl border-none bg-slate-100 dark:bg-slate-800 px-5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                required
+              />
+            </div>
+
+            {/* Password Input */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-[11.5px] font-semibold text-slate-800 dark:text-slate-200">
+                <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
                   Password
                 </label>
                 <button
@@ -1013,9 +970,9 @@ export default function LoginPage() {
                     setResetEmail(email || "");
                     setStep("forgot_email");
                   }}
-                  className="text-[11.5px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-normal outline-none transition-colors"
+                  className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-normal outline-none transition-colors"
                 >
-                  Forgot password?
+                  Forgot Password?
                 </button>
               </div>
               <div className="relative">
@@ -1027,28 +984,41 @@ export default function LoginPage() {
                   }}
                   onFocus={() => setError("")}
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••••••"
-                  className="w-full h-9.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3 pr-9 text-[11.5px] text-slate-900 dark:text-white placeholder-slate-300 outline-none focus:border-slate-400 dark:focus:border-slate-500 transition-colors"
+                  placeholder="Enter Your Password here..."
+                  className="w-full h-11 rounded-2xl border-none bg-slate-100 dark:bg-slate-800 pl-5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
                 >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            <div className="pt-3">
+            {/* Green Login Button */}
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-10 rounded-xl bg-[#696cff] hover:bg-[#5f61e6] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#696cff]/25 flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer"
+                className="w-full h-11 rounded-2xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
               >
-                {loading ? <Loader2 className="animate-spin" size={15} /> : null}
-                {loading ? "Verifying Credentials..." : "Continue with 2FA"}
+                {loading ? <Loader2 className="animate-spin" size={16} /> : null}
+                {loading ? "Verifying Credentials..." : "Login"}
+              </button>
+            </div>
+
+
+            {/* Back to Quick PIN trigger */}
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={() => { setLoginMethod("pin"); setError(""); setPin(""); }}
+                className="text-[11px] font-bold text-slate-400 hover:text-[#6ab070] dark:hover:text-emerald-400 transition-all cursor-pointer bg-transparent border-none"
+              >
+                ← Back to Quick PIN Sign In
               </button>
             </div>
           </form>
@@ -1074,18 +1044,18 @@ export default function LoginPage() {
                       prev?.focus();
                     }
                   }}
-                  className="h-10 w-10 sm:w-11 text-center text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-[#696cff] outline-none transition-all"
+                  className="h-10 w-10 sm:w-11 text-center text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-[#6ab070] outline-none transition-all"
                 />
               ))}
             </div>
 
             <div className="flex items-center justify-between text-[11.5px] font-medium text-slate-600 dark:text-slate-300">
-              <span>Code expires in: <strong className="text-[#696cff] font-bold">{formatTimer(timerSeconds)}</strong></span>
+              <span>Code expires in: <strong className="text-[#6ab070] font-bold">{formatTimer(timerSeconds)}</strong></span>
               <button
                 type="button"
                 onClick={resendOtp}
                 disabled={timerSeconds > 120}
-                className="inline-flex items-center gap-1 text-[#696cff] font-bold hover:underline disabled:opacity-40 disabled:no-underline"
+                className="inline-flex items-center gap-1 text-[#6ab070] font-bold hover:underline disabled:opacity-40 disabled:no-underline"
               >
                 <RefreshCw size={12} /> Resend OTP
               </button>
@@ -1095,7 +1065,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || otpDigits.join("").length < 6}
-                className="w-full h-10 rounded-xl bg-[#696cff] hover:bg-[#5f61e6] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#696cff]/25 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full h-10 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#6ab070]/25 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? <Loader2 className="animate-spin" size={15} /> : <KeyRound size={16} />}
                 {loading ? "Authenticating..." : "Verify & Sign In"}
@@ -1127,7 +1097,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-10 rounded-xl bg-[#696cff] hover:bg-[#5f61e6] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#696cff]/25 flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer"
+                className="w-full h-10 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#6ab070]/25 flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={15} />
@@ -1163,7 +1133,7 @@ export default function LoginPage() {
                         prev?.focus();
                       }
                     }}
-                    className="h-10 w-10 sm:w-11 text-center text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-[#696cff] outline-none transition-all"
+                    className="h-10 w-10 sm:w-11 text-center text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:border-[#6ab070] outline-none transition-all"
                   />
                 ))}
               </div>
@@ -1227,7 +1197,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || otpDigits.join("").length < 6}
-                className="w-full h-10 rounded-xl bg-[#696cff] hover:bg-[#5f61e6] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#696cff]/25 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full h-10 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-xs font-semibold text-white shadow-md shadow-[#6ab070]/25 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? <Loader2 className="animate-spin" size={15} /> : <KeyRound size={16} />}
                 {loading ? "Updating Password..." : "Reset & Update Password"}
@@ -1238,13 +1208,32 @@ export default function LoginPage() {
           </div>
 
           {/* Bottom Right Copyright Footer */}
-          <div className="pt-4 text-center text-[11px] text-slate-400 dark:text-slate-500 font-normal">
+          <div className="pt-6 text-center text-[11px] text-slate-400 dark:text-slate-500 font-normal">
             © 2026 POS Management System
           </div>
         </div>
       </div>
 
       <style jsx>{`
+        :global(.login-page),
+        :global(.login-page input),
+        :global(.login-page button),
+        :global(.login-page label),
+        :global(.login-page span),
+        :global(.login-page h1),
+        :global(.login-page h2),
+        :global(.login-page h3),
+        :global(.login-page h4),
+        :global(.login-page strong) {
+          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Kantumruy Pro', sans-serif !important;
+        }
+        .outline-text {
+          -webkit-text-stroke: 1.8px #1f3d20;
+          color: transparent;
+        }
+        :global(.dark) .outline-text {
+          -webkit-text-stroke: 1.8px #ffffff;
+        }
         @keyframes dropFromTop {
           0% { transform: translateY(-100%); opacity: 0; }
           100% { transform: translateY(0); opacity: 1; }

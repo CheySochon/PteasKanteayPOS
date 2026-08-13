@@ -5,6 +5,7 @@ export type CartItem = {
   name: string;
   unitPrice: number;
   quantity: number;
+  notes?: string;
 };
 
 export function cartItemFromProduct(product: {

@@ -22,12 +22,74 @@ async function upsertByName(model: string, name: string, data: any) {
 }
 
 async function main() {
+  const defaultRoles = [
+    {
+      name: "Admin",
+      description: "Full system access & administration",
+      permissions: [
+        { key: "dashboard", label: "Dashboard", category: "PAGE / MENU", view: true, create: false, edit: false, delete: false, supportsCreate: false, supportsEdit: false, supportsDelete: false },
+        { key: "orders", label: "Orders", category: "PAGE / MENU", view: true, create: true, edit: true, delete: true },
+        { key: "menu", label: "Menu List", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "categories", label: "Categories", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "tables", label: "Tables", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "users", label: "Staff & Roles", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "settings", label: "Settings", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+      ]
+    },
+    {
+      name: "Cashier",
+      description: "Point of sale & order processing",
+      permissions: [
+        { key: "dashboard", label: "Dashboard", category: "PAGE / MENU", view: true, create: false, edit: false, delete: false, supportsCreate: false, supportsEdit: false, supportsDelete: false },
+        { key: "orders", label: "Orders", category: "PAGE / MENU", view: true, create: true, edit: true, delete: true },
+        { key: "menu", label: "Menu List", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "categories", label: "Categories", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "tables", label: "Tables", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "users", label: "Staff & Roles", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "settings", label: "Settings", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+      ]
+    },
+    {
+      name: "Staff",
+      description: "Kitchen display system & order status",
+      permissions: [
+        { key: "dashboard", label: "Dashboard", category: "PAGE / MENU", view: true, create: false, edit: false, delete: false, supportsCreate: false, supportsEdit: false, supportsDelete: false },
+        { key: "orders", label: "Orders", category: "PAGE / MENU", view: true, create: false, edit: true, delete: false },
+        { key: "menu", label: "Menu List", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "categories", label: "Categories", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "tables", label: "Tables", category: "MENU CATALOG", view: true, create: false, edit: false, delete: false },
+        { key: "users", label: "Staff & Roles", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "settings", label: "Settings", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+      ]
+    },
+    {
+      name: "Member",
+      description: "Basic guest user without management rights",
+      permissions: [
+        { key: "dashboard", label: "Dashboard", category: "PAGE / MENU", view: false, create: false, edit: false, delete: false, supportsCreate: false, supportsEdit: false, supportsDelete: false },
+        { key: "orders", label: "Orders", category: "PAGE / MENU", view: false, create: false, edit: false, delete: false },
+        { key: "menu", label: "Menu List", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "categories", label: "Categories", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "tables", label: "Tables", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "users", label: "Staff & Roles", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+        { key: "settings", label: "Settings", category: "MENU CATALOG", view: false, create: false, edit: false, delete: false },
+      ]
+    }
+  ];
+
   const roles: Record<string, { id: number; name: string }> = {};
-  for (const name of ["Admin", "Cashier", "Staff", "Member"]) {
-    roles[name] = await prisma.role.upsert({
-      where: { name },
-      update: {},
-      create: { name },
+  for (const r of defaultRoles) {
+    roles[r.name] = await prisma.role.upsert({
+      where: { name: r.name },
+      update: {
+        description: r.description,
+        permissions: r.permissions as any,
+      },
+      create: {
+        name: r.name,
+        description: r.description,
+        permissions: r.permissions as any,
+      },
     });
   }
 
@@ -38,6 +100,7 @@ async function main() {
       password: await bcrypt.hash("password123", 10),
       roleId: roles.Admin.id,
       isActive: true,
+      pin: "0000",
       deletedAt: null,
     },
     create: {
@@ -46,6 +109,7 @@ async function main() {
       password: await bcrypt.hash("password123", 10),
       roleId: roles.Admin.id,
       isActive: true,
+      pin: "0000",
     },
   });
 
@@ -56,6 +120,7 @@ async function main() {
       password: await bcrypt.hash("password123", 10),
       roleId: roles.Cashier.id,
       isActive: true,
+      pin: "1234",
       deletedAt: null,
     },
     create: {
@@ -64,6 +129,7 @@ async function main() {
       password: await bcrypt.hash("password123", 10),
       roleId: roles.Cashier.id,
       isActive: true,
+      pin: "1234",
     },
   });
 

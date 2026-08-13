@@ -156,7 +156,7 @@ export default function ProfilePage() {
             type="button"
             onClick={saveChanges}
             disabled={!hasChanges}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200"
           >
             <Save size={16} />
             Save Changes
@@ -179,7 +179,7 @@ export default function ProfilePage() {
         {/* Profile details grid */}
         <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
           {/* Avatar / Photo Panel */}
-          <div className={`rounded border shadow-sm p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
+          <div className={`rounded-2xl border shadow-sm p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
             <div className="relative group">
               {previewImage ? (
                 <img
@@ -212,7 +212,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-6 flex w-full gap-3">
-              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all">
+              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200">
                 <UploadCloud size={15} />
                 Upload Photo
                 <input
@@ -227,7 +227,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={removeProfileImage}
                 disabled={!previewImage}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200"
                 title="Remove photo"
               >
                 <Trash2 size={15} />
@@ -246,7 +246,7 @@ export default function ProfilePage() {
                   Overview of your credential and system attributes.
                 </p>
               </div>
-              <span className={`rounded px-2.5 py-1 text-xs font-semibold bg-[#eceef1]/60 text-[#8592a3] border ${borderCol}`}>
+              <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#eceef1]/60 text-[#8592a3] border ${borderCol}`}>
                 POS Account
               </span>
             </div>
@@ -255,9 +255,11 @@ export default function ProfilePage() {
               {details.map(({ label, value, Icon, colorClass }) => (
                 <div
                   key={label}
-                  className={`flex items-center gap-3.5 rounded border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""}`}
+                  className={`flex items-center gap-3.5 rounded-xl border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""} ${
+                    label === "User ID" ? "sm:col-span-2" : ""
+                  }`}
                 >
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded ${colorClass}`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
                     <Icon size={18} />
                   </div>
                   <div className="min-w-0">

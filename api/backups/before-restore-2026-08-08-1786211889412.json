@@ -1,0 +1,741 @@
+{
+  "version": 1,
+  "app": "pos-newflow",
+  "createdAt": "2026-08-08T17:58:09.411Z",
+  "createdBy": {
+    "id": "1",
+    "email": "",
+    "role": "Admin"
+  },
+  "data": {
+    "roles": [
+      {
+        "id": 1,
+        "name": "Admin",
+        "createdAt": "2026-08-05T16:06:55.167Z",
+        "updatedAt": "2026-08-05T16:06:55.167Z"
+      },
+      {
+        "id": 2,
+        "name": "Cashier",
+        "createdAt": "2026-08-05T16:06:55.178Z",
+        "updatedAt": "2026-08-05T16:06:55.178Z"
+      },
+      {
+        "id": 3,
+        "name": "Staff",
+        "createdAt": "2026-08-05T16:06:55.182Z",
+        "updatedAt": "2026-08-05T16:06:55.182Z"
+      },
+      {
+        "id": 4,
+        "name": "Member",
+        "createdAt": "2026-08-05T16:06:55.186Z",
+        "updatedAt": "2026-08-05T16:06:55.186Z"
+      }
+    ],
+    "users": [
+      {
+        "id": 1,
+        "name": "Admin",
+        "email": "cheychon258@gmail.com",
+        "password": "$2b$10$vvS0h9KzvAgjEqNHMr1hoe.mcyEC5KA3XzXchUku3ArlbqiDeOnq.",
+        "roleId": 1,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "0000",
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:51.846Z",
+        "updatedAt": "2026-08-05T16:11:51.846Z"
+      },
+      {
+        "id": 2,
+        "name": "Cashier User",
+        "email": "cashier@pos.local",
+        "password": "$2b$10$z1Mf7CvlT7VzuaNPEsmqFOlnwDQ1gbiE3IYgw0x9vqWSCUyUIw1Mi",
+        "roleId": 2,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "1234",
+        "deletedAt": "2026-08-07T17:52:10.117Z",
+        "createdAt": "2026-08-05T16:11:52.027Z",
+        "updatedAt": "2026-08-07T17:52:10.333Z"
+      },
+      {
+        "id": 3,
+        "name": "nampich",
+        "email": "nampich@pos.local",
+        "password": "$2b$12$h5mLmOa.qAp8MQF92GdxxusDz.qOSNJy3v7JzFMNFEWPjYgzhWJf.",
+        "roleId": 2,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "1234",
+        "deletedAt": "2026-08-07T17:52:10.117Z",
+        "createdAt": "2026-08-07T17:07:16.167Z",
+        "updatedAt": "2026-08-07T17:52:10.333Z"
+      },
+      {
+        "id": 4,
+        "name": "Pic",
+        "email": "pic@pos.local",
+        "password": "$2b$12$PZv7V1b.JQ6vDsaiaTcsvexLMRiQ8zvnct.WRPIJYOqUrofplFYtK",
+        "roleId": 2,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "1234",
+        "deletedAt": "2026-08-07T17:52:10.117Z",
+        "createdAt": "2026-08-07T17:07:41.310Z",
+        "updatedAt": "2026-08-07T17:52:10.333Z"
+      },
+      {
+        "id": 5,
+        "name": "Chon",
+        "email": "chon@pos.localll",
+        "password": "$2b$12$z2kVc9n1wmOOuQcBC5MfBu.MLpZQZkLEA2cOiOSQde1/TiNF96gTq",
+        "roleId": 2,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "5555",
+        "deletedAt": null,
+        "createdAt": "2026-08-07T17:15:42.216Z",
+        "updatedAt": "2026-08-07T17:15:42.216Z"
+      },
+      {
+        "id": 6,
+        "name": "Heng",
+        "email": "heng@pos.local",
+        "password": "$2b$12$FZzPx2LWU/99gCuJy91Z0.2R/Wn14AiVn4fXO/nEVkLxotIOeowtO",
+        "roleId": 2,
+        "isActive": true,
+        "failedLoginAttempts": 0,
+        "lockedUntil": null,
+        "pin": "1234",
+        "deletedAt": null,
+        "createdAt": "2026-08-07T17:27:11.126Z",
+        "updatedAt": "2026-08-07T17:27:11.126Z"
+      }
+    ],
+    "appSettings": [
+      {
+        "id": 1,
+        "key": "restaurantEmail",
+        "value": "hello@thetofu.local",
+        "category": "profile",
+        "description": "Public contact email",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.387Z",
+        "updatedAt": "2026-08-07T18:07:30.498Z"
+      },
+      {
+        "id": 2,
+        "key": "lowStockAlerts",
+        "value": true,
+        "category": "notifications",
+        "description": "Enable low-stock alerts",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.405Z",
+        "updatedAt": "2026-08-07T18:07:30.509Z"
+      },
+      {
+        "id": 3,
+        "key": "orderNotifications",
+        "value": true,
+        "category": "notifications",
+        "description": "Enable new order notifications",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.411Z",
+        "updatedAt": "2026-08-07T18:07:30.510Z"
+      },
+      {
+        "id": 4,
+        "key": "kitchenDisplayMode",
+        "value": "compact",
+        "category": "operations",
+        "description": "Kitchen display density",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.419Z",
+        "updatedAt": "2026-08-07T18:07:30.511Z"
+      },
+      {
+        "id": 5,
+        "key": "staffPermissions",
+        "value": {
+          "kds": true,
+          "pos": false,
+          "menu": true,
+          "users": {},
+          "orders": true,
+          "tables": true,
+          "reports": false,
+          "defaults": {
+            "kds": true,
+            "pos": false,
+            "menu": true,
+            "users": false,
+            "orders": true,
+            "tables": true,
+            "reports": false,
+            "settings": false,
+            "dashboard": true,
+            "inventory": true
+          },
+          "settings": false,
+          "dashboard": true,
+          "inventory": true
+        },
+        "category": "permissions",
+        "description": "Page permissions for Staff role",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.428Z",
+        "updatedAt": "2026-08-07T18:07:30.513Z"
+      },
+      {
+        "id": 6,
+        "key": "telegramBotToken",
+        "value": "8948111433:AAHBfQ5a45EdpjfgK8Ijgx0RRK6HGNBHFlU",
+        "category": "telegram",
+        "description": "Telegram Bot API Token",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.438Z",
+        "updatedAt": "2026-08-07T18:07:30.517Z"
+      },
+      {
+        "id": 7,
+        "key": "restaurantPhone",
+        "value": "+66 00 000 0000",
+        "category": "profile",
+        "description": "Public contact phone",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.441Z",
+        "updatedAt": "2026-08-07T18:07:30.499Z"
+      },
+      {
+        "id": 8,
+        "key": "restaurantName",
+        "value": "The Tofu",
+        "category": "profile",
+        "description": "Restaurant display name",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.444Z",
+        "updatedAt": "2026-08-07T18:07:30.495Z"
+      },
+      {
+        "id": 9,
+        "key": "telegramChatId",
+        "value": "1511785587",
+        "category": "telegram",
+        "description": "Telegram Chat ID",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.454Z",
+        "updatedAt": "2026-08-07T18:07:30.518Z"
+      },
+      {
+        "id": 10,
+        "key": "telegramAlertLogin",
+        "value": true,
+        "category": "telegram",
+        "description": "Send alert on staff login",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.466Z",
+        "updatedAt": "2026-08-07T18:07:30.515Z"
+      },
+      {
+        "id": 11,
+        "key": "address",
+        "value": "Bangkok, Thailand",
+        "category": "profile",
+        "description": "Receipt and customer-facing address",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.467Z",
+        "updatedAt": "2026-08-07T18:07:30.501Z"
+      },
+      {
+        "id": 12,
+        "key": "telegramAlertFailedLogin",
+        "value": true,
+        "category": "telegram",
+        "description": "Send warning alert on failed login",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.469Z",
+        "updatedAt": "2026-08-07T18:07:30.514Z"
+      },
+      {
+        "id": 13,
+        "key": "telegramAlertNewOrder",
+        "value": true,
+        "category": "telegram",
+        "description": "Send alert on new order",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.473Z",
+        "updatedAt": "2026-08-07T18:07:30.516Z"
+      },
+      {
+        "id": 14,
+        "key": "currency",
+        "value": "USD",
+        "category": "payments",
+        "description": "Default currency code",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.491Z",
+        "updatedAt": "2026-08-07T18:07:30.502Z"
+      },
+      {
+        "id": 15,
+        "key": "taxRate",
+        "value": 7,
+        "category": "payments",
+        "description": "Default tax percentage",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.524Z",
+        "updatedAt": "2026-08-07T18:07:30.503Z"
+      },
+      {
+        "id": 16,
+        "key": "autoAcceptQrOrders",
+        "value": false,
+        "category": "orders",
+        "description": "Automatically accept guest QR orders",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.526Z",
+        "updatedAt": "2026-08-07T18:07:30.508Z"
+      },
+      {
+        "id": 17,
+        "key": "serviceChargeRate",
+        "value": 10,
+        "category": "payments",
+        "description": "Default service charge percentage",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.529Z",
+        "updatedAt": "2026-08-07T18:07:30.504Z"
+      },
+      {
+        "id": 18,
+        "key": "restaurantImageUrl",
+        "value": "",
+        "category": "profile",
+        "description": "Restaurant profile image",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.534Z",
+        "updatedAt": "2026-08-07T18:07:30.500Z"
+      },
+      {
+        "id": 19,
+        "key": "receiptFooter",
+        "value": "Thank you for dining with us.",
+        "category": "receipts",
+        "description": "Receipt footer message",
+        "updatedById": 1,
+        "createdAt": "2026-08-05T16:15:18.545Z",
+        "updatedAt": "2026-08-07T18:07:30.506Z"
+      },
+      {
+        "id": 21,
+        "key": "telegram_bot_token",
+        "value": "8948111433:AAHBfQ5a45EdpjfgK8Ijgx0RRK6HGNBHFlU",
+        "category": "telegram",
+        "description": null,
+        "updatedById": null,
+        "createdAt": "2026-08-06T12:12:52.186Z",
+        "updatedAt": "2026-08-07T18:03:14.162Z"
+      },
+      {
+        "id": 23,
+        "key": "telegram_chat_id",
+        "value": "1511785587",
+        "category": "telegram",
+        "description": null,
+        "updatedById": null,
+        "createdAt": "2026-08-06T12:12:52.193Z",
+        "updatedAt": "2026-08-07T18:03:14.174Z"
+      },
+      {
+        "id": 25,
+        "key": "telegram_alert_login",
+        "value": true,
+        "category": "telegram",
+        "description": null,
+        "updatedById": null,
+        "createdAt": "2026-08-06T12:12:52.200Z",
+        "updatedAt": "2026-08-07T18:03:14.178Z"
+      },
+      {
+        "id": 27,
+        "key": "telegram_alert_failed_login",
+        "value": true,
+        "category": "telegram",
+        "description": null,
+        "updatedById": null,
+        "createdAt": "2026-08-06T12:12:52.205Z",
+        "updatedAt": "2026-08-07T18:03:14.190Z"
+      },
+      {
+        "id": 29,
+        "key": "telegram_alert_new_order",
+        "value": true,
+        "category": "telegram",
+        "description": null,
+        "updatedById": null,
+        "createdAt": "2026-08-06T12:12:52.211Z",
+        "updatedAt": "2026-08-07T18:03:14.200Z"
+      }
+    ],
+    "categories": [
+      {
+        "id": 1,
+        "name": "Coffee",
+        "slug": "coffee",
+        "description": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.035Z",
+        "updatedAt": "2026-08-05T16:11:52.035Z"
+      },
+      {
+        "id": 2,
+        "name": "Tea",
+        "slug": "tea",
+        "description": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.047Z",
+        "updatedAt": "2026-08-05T16:11:52.047Z"
+      },
+      {
+        "id": 3,
+        "name": "Frappe",
+        "slug": "frappe",
+        "description": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.052Z",
+        "updatedAt": "2026-08-05T16:11:52.052Z"
+      },
+      {
+        "id": 4,
+        "name": "Food",
+        "slug": "food",
+        "description": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.057Z",
+        "updatedAt": "2026-08-05T16:11:52.057Z"
+      },
+      {
+        "id": 5,
+        "name": "Dessert",
+        "slug": "dessert",
+        "description": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.062Z",
+        "updatedAt": "2026-08-05T16:11:52.062Z"
+      },
+      {
+        "id": 6,
+        "name": "បាយឆា",
+        "slug": "",
+        "description": "បាយ",
+        "deletedAt": "2026-08-08T04:23:16.614Z",
+        "createdAt": "2026-08-07T15:39:56.850Z",
+        "updatedAt": "2026-08-08T04:23:16.615Z"
+      }
+    ],
+    "diningTables": [
+      {
+        "id": 1,
+        "name": "T1",
+        "capacity": 2,
+        "zone": "indoor",
+        "qrToken": "table-t-1",
+        "isActive": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.113Z",
+        "updatedAt": "2026-08-05T16:11:52.113Z"
+      },
+      {
+        "id": 2,
+        "name": "T2",
+        "capacity": 2,
+        "zone": "indoor",
+        "qrToken": "table-t-2",
+        "isActive": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.123Z",
+        "updatedAt": "2026-08-05T16:11:52.123Z"
+      },
+      {
+        "id": 3,
+        "name": "T3",
+        "capacity": 4,
+        "zone": "indoor",
+        "qrToken": "table-t-3",
+        "isActive": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.125Z",
+        "updatedAt": "2026-08-05T16:11:52.125Z"
+      },
+      {
+        "id": 4,
+        "name": "T4",
+        "capacity": 4,
+        "zone": "outdoor",
+        "qrToken": "table-t-4",
+        "isActive": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.128Z",
+        "updatedAt": "2026-08-05T16:11:52.128Z"
+      },
+      {
+        "id": 5,
+        "name": "VIP1",
+        "capacity": 6,
+        "zone": "vip",
+        "qrToken": "table-vip-1",
+        "isActive": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.132Z",
+        "updatedAt": "2026-08-05T16:11:52.132Z"
+      }
+    ],
+    "products": [
+      {
+        "id": 1,
+        "categoryId": 1,
+        "name": "Americano",
+        "slug": "americano",
+        "description": "Espresso with hot water.",
+        "imageUrl": "/uploads/products/1786208126303-photo-2023-04-09-21-50-31.jpg",
+        "basePrice": "2",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.070Z",
+        "updatedAt": "2026-08-08T16:55:26.338Z"
+      },
+      {
+        "id": 2,
+        "categoryId": 1,
+        "name": "Latte",
+        "slug": "latte",
+        "description": "Espresso with steamed milk.",
+        "imageUrl": null,
+        "basePrice": "2.5",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.086Z",
+        "updatedAt": "2026-08-05T16:11:52.086Z"
+      },
+      {
+        "id": 3,
+        "categoryId": 1,
+        "name": "Cappuccino",
+        "slug": "cappuccino",
+        "description": "Espresso, milk, and foam.",
+        "imageUrl": null,
+        "basePrice": "2.5",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.090Z",
+        "updatedAt": "2026-08-07T15:34:58.666Z"
+      },
+      {
+        "id": 4,
+        "categoryId": 2,
+        "name": "Green Tea",
+        "slug": "green-tea",
+        "description": "Fresh brewed green tea.",
+        "imageUrl": null,
+        "basePrice": "2.75",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.097Z",
+        "updatedAt": "2026-08-05T16:11:52.097Z"
+      },
+      {
+        "id": 5,
+        "categoryId": 3,
+        "name": "Chocolate Frappe",
+        "slug": "chocolate-frappe",
+        "description": "Iced blended chocolate drink.",
+        "imageUrl": null,
+        "basePrice": "3.5",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.101Z",
+        "updatedAt": "2026-08-05T16:11:52.101Z"
+      },
+      {
+        "id": 6,
+        "categoryId": 4,
+        "name": "Croissant",
+        "slug": "croissant",
+        "description": "Buttery baked croissant.",
+        "imageUrl": null,
+        "basePrice": "2.25",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.105Z",
+        "updatedAt": "2026-08-05T16:11:52.105Z"
+      },
+      {
+        "id": 7,
+        "categoryId": 5,
+        "name": "Cheesecake",
+        "slug": "cheesecake",
+        "description": "Classic cheesecake slice.",
+        "imageUrl": null,
+        "basePrice": "3.25",
+        "isAvailable": true,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:11:52.109Z",
+        "updatedAt": "2026-08-05T16:11:52.109Z"
+      }
+    ],
+    "orders": [
+      {
+        "id": 1,
+        "orderNumber": "ORD-20260805-0001",
+        "tableId": null,
+        "createdById": 1,
+        "status": "served",
+        "subtotal": "9",
+        "discountAmount": "0",
+        "taxAmount": "1.53",
+        "totalAmount": "10.53",
+        "notes": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-05T16:21:13.342Z",
+        "updatedAt": "2026-08-08T05:41:14.893Z"
+      },
+      {
+        "id": 2,
+        "orderNumber": "ORD-20260807-0002",
+        "tableId": null,
+        "createdById": null,
+        "status": "served",
+        "subtotal": "2",
+        "discountAmount": "0",
+        "taxAmount": "0",
+        "totalAmount": "2",
+        "notes": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-07T11:55:56.250Z",
+        "updatedAt": "2026-08-08T05:41:16.070Z"
+      },
+      {
+        "id": 3,
+        "orderNumber": "ORD-20260807-0003",
+        "tableId": null,
+        "createdById": null,
+        "status": "served",
+        "subtotal": "2",
+        "discountAmount": "0",
+        "taxAmount": "0",
+        "totalAmount": "2",
+        "notes": null,
+        "deletedAt": null,
+        "createdAt": "2026-08-07T11:57:16.746Z",
+        "updatedAt": "2026-08-08T05:41:16.623Z"
+      },
+      {
+        "id": 4,
+        "orderNumber": "ORD-20260808-0004",
+        "tableId": 1,
+        "createdById": null,
+        "status": "completed",
+        "subtotal": "6",
+        "discountAmount": "0",
+        "taxAmount": "0",
+        "totalAmount": "6",
+        "notes": "",
+        "deletedAt": null,
+        "createdAt": "2026-08-08T16:59:17.490Z",
+        "updatedAt": "2026-08-08T16:59:33.483Z"
+      }
+    ],
+    "orderItems": [
+      {
+        "id": 1,
+        "orderId": 1,
+        "productId": 6,
+        "quantity": 1,
+        "unitPrice": "2.25",
+        "totalPrice": "2.25",
+        "notes": null,
+        "createdAt": "2026-08-05T16:21:13.342Z",
+        "updatedAt": "2026-08-05T16:21:13.342Z"
+      },
+      {
+        "id": 2,
+        "orderId": 1,
+        "productId": 5,
+        "quantity": 1,
+        "unitPrice": "3.5",
+        "totalPrice": "3.5",
+        "notes": null,
+        "createdAt": "2026-08-05T16:21:13.342Z",
+        "updatedAt": "2026-08-05T16:21:13.342Z"
+      },
+      {
+        "id": 3,
+        "orderId": 1,
+        "productId": 7,
+        "quantity": 1,
+        "unitPrice": "3.25",
+        "totalPrice": "3.25",
+        "notes": null,
+        "createdAt": "2026-08-05T16:21:13.342Z",
+        "updatedAt": "2026-08-05T16:21:13.342Z"
+      },
+      {
+        "id": 4,
+        "orderId": 2,
+        "productId": 1,
+        "quantity": 1,
+        "unitPrice": "2",
+        "totalPrice": "2",
+        "notes": null,
+        "createdAt": "2026-08-07T11:55:56.250Z",
+        "updatedAt": "2026-08-07T11:55:56.250Z"
+      },
+      {
+        "id": 5,
+        "orderId": 3,
+        "productId": 1,
+        "quantity": 1,
+        "unitPrice": "2",
+        "totalPrice": "2",
+        "notes": null,
+        "createdAt": "2026-08-07T11:57:16.746Z",
+        "updatedAt": "2026-08-07T11:57:16.746Z"
+      },
+      {
+        "id": 6,
+        "orderId": 4,
+        "productId": 1,
+        "quantity": 3,
+        "unitPrice": "2",
+        "totalPrice": "6",
+        "notes": null,
+        "createdAt": "2026-08-08T16:59:17.490Z",
+        "updatedAt": "2026-08-08T16:59:17.490Z"
+      }
+    ],
+    "payments": [
+      {
+        "id": 1,
+        "orderId": 1,
+        "method": "cash",
+        "status": "completed",
+        "amount": "10.53",
+        "reference": null,
+        "paidAt": "2026-08-05T16:21:13.410Z",
+        "createdById": 1,
+        "createdAt": "2026-08-05T16:21:13.411Z",
+        "updatedAt": "2026-08-05T16:21:13.411Z"
+      }
+    ],
+    "shifts": [],
+    "notifications": []
+  }
+}

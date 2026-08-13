@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@300;400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Kantumruy+Pro:ital,wght@0,300..700;1,300..700&family=Battambang:wght@400;700&family=Noto+Sans+Khmer:wght@300;400;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -36,11 +36,14 @@ body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-khmer), var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-brand), var(--font-khmer), var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 input, textarea, select, button {
-  font-family: var(--font-khmer), var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-brand), var(--font-khmer), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 .dark body {
@@ -97,6 +100,73 @@ svg {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Hide scrollbar for main scrollable element */
+main {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+main::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Toast Slide-In Animation from Right to Left */
+@keyframes slideFromRight {
+  0% {
+    opacity: 0;
+    transform: translateX(120%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Lively Switch Animation (Bouncy & Springy) */
+@keyframes loginModeSwitch {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  70% {
+    transform: translateY(-2px) scale(1.005);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-mode-switch {
+  animation: loginModeSwitch 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Dashboard Slide-From-Top-Left Entrance Animation */
+@keyframes slideTopLeftToBottomRight {
+  0% {
+    opacity: 0;
+    transform: translate(-20px, -20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+.dash-animate {
+  animation: slideTopLeftToBottomRight 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-delay-0  { animation-delay: 0ms; }
+.dash-delay-1  { animation-delay: 25ms; }
+.dash-delay-2  { animation-delay: 50ms; }
+.dash-delay-3  { animation-delay: 75ms; }
+.dash-delay-4  { animation-delay: 100ms; }
+.dash-delay-5  { animation-delay: 125ms; }
+.dash-delay-6  { animation-delay: 150ms; }
+.dash-delay-7  { animation-delay: 175ms; }
+.dash-delay-8  { animation-delay: 200ms; }
+.dash-delay-9  { animation-delay: 225ms; }
+.dash-delay-10 { animation-delay: 250ms; }
 
 /* ==========================================================================
    OFFICIAL PRINT & PDF REPORT STYLING (@media print)

@@ -7,13 +7,17 @@ export const authMiddleware = (
   next: NextFunction,
 ) => {
   try {
-    let token = req.cookies?.access_token as string | undefined;
+    let token: string | undefined;
 
-    if (!token && req.headers.authorization) {
+    if (req.headers.authorization) {
       const authHeader = req.headers.authorization;
       if (authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7);
       }
+    }
+
+    if (!token) {
+      token = req.cookies?.access_token as string | undefined;
     }
 
     if (!token || typeof token !== "string") {

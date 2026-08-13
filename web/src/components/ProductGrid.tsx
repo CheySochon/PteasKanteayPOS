@@ -30,13 +30,22 @@ export default function ProductGrid({
       {products.map((product) => {
         const imageUrl = resolveImageUrl(product.imageUrl);
 
+        const isOutOfStock = product.trackStock && Number(product.inventory?.quantity ?? 0) <= 0;
+        const isDisabled = !product.isAvailable || isOutOfStock;
+
         return (
           <button
             key={product.id}
             onClick={() => onAdd(product)}
-            disabled={!product.isAvailable}
-            className="group overflow-hidden rounded-lg border border-gray-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#1D9E75] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isDisabled}
+            className="group overflow-hidden rounded-lg border border-gray-100 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#1D9E75] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 relative"
           >
+            {isOutOfStock && (
+              <div className="absolute top-2.5 left-2.5 z-10 rounded-md bg-rose-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                Out of Stock
+              </div>
+            )}
+            
             <div className="aspect-[5/4] overflow-hidden bg-gray-100">
               {imageUrl ? (
                 <img

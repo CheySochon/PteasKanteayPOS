@@ -31,6 +31,11 @@ const DEFAULT_SETTINGS: Record<
     category: "profile",
     description: "Receipt and customer-facing address",
   },
+  vatTin: {
+    value: "",
+    category: "profile",
+    description: "VAT TIN registration number",
+  },
   currency: {
     value: "USD",
     category: "payments",

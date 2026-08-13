@@ -9,6 +9,7 @@ import {
   Percent,
   Minus,
   Plus,
+  Printer,
   Search,
   Settings,
   ShoppingBag,
@@ -22,8 +23,21 @@ import {
   WifiOff,
   X,
   LogOut,
+  CheckCircle2,
+  Check,
+  Archive,
+  LayoutGrid,
+  Smartphone,
+  List,
+  Clock,
+  RotateCw,
+  QrCode,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
+import Sidebar from "../../components/Sidebar";
+import TopBar from "../../components/TopBar";
+import { useAppTheme } from "../../lib/theme";
+import { useAppLanguage, setAppLanguage } from "../../lib/language";
 import {
   apiOrigin,
   createOrder,
@@ -59,7 +73,10 @@ function resolveImageUrl(value?: string | null) {
   return `${apiOrigin}${value}`;
 }
 
-export default function PosPage() {
+export default function PosPage({ isAdminView = false }: { isAdminView?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useAppTheme();
+  const language = useAppLanguage();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [tables, setTables] = useState<DiningTable[]>([]);
@@ -68,6 +85,8 @@ export default function PosPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
   const [ticketNumber, setTicketNumber] = useState("0000");
+  const [orderNote, setOrderNote] = useState("");
+  const [showNoteInput, setShowNoteInput] = useState(false);
   const [posName, setPosName] = useState(() => {
     if (typeof window === "undefined") return DEFAULT_POS_NAME;
     return localStorage.getItem("pos_restaurant_name") || DEFAULT_POS_NAME;
@@ -94,6 +113,17 @@ export default function PosPage() {
     } catch {}
     return "Chon (Cashier)";
   });
+  const [currentUserImageUrl, setCurrentUserImageUrl] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const raw = localStorage.getItem("pos_user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        return String(u.imageUrl || "").trim();
+      }
+    } catch {}
+    return "";
+  });
   const [restaurantImageUrl, setRestaurantImageUrl] = useState("");
   const [serviceRate, setServiceRate] = useState(SERVICE_RATE);
   const [vatRate, setVatRate] = useState(VAT_RATE);
@@ -101,6 +131,11 @@ export default function PosPage() {
   const [splitCount, setSplitCount] = useState(2);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [splitOpen, setSplitOpen] = useState(false);
+  const [paidSplits, setPaidSplits] = useState<number[]>([]);
+  const [selectedSplitIndex, setSelectedSplitIndex] = useState<number | null>(null);
+  const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
+  const [splitPaymentMethod, setSplitPaymentMethod] = useState<"cash" | "qr">("cash");
+  const [splitCashReceived, setSplitCashReceived] = useState(0);
   const [message, setMessage] = useState("");
   useAutoDismiss(message, setMessage);
   const [loading, setLoading] = useState(false);
@@ -118,7 +153,81 @@ export default function PosPage() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [toastNotification, setToastNotification] = useState<any | null>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const unreadCount = notifications.length;
+  const [tableModalOpen, setTableModalOpen] = useState(false);
+
+  const [orderingMode, setOrderingMode] = useState(true);
+  const [selectedZone, setSelectedZone] = useState<string>("All");
+
+  const [tableCarts, setTableCarts] = useState<Record<string, CartItem[]>>({});
+  const [tableNotes, setTableNotes] = useState<Record<string, string>>({});
+  const [tableDiscounts, setTableDiscounts] = useState<Record<string, number>>({});
+  const [tableIsSent, setTableIsSent] = useState<Record<string, boolean>>({});
+  const [tableTicketNumbers, setTableTicketNumbers] = useState<Record<string, string>>({});
+
+  const [showKitchenToast, setShowKitchenToast] = useState(false);
+
+  const saveCurrentTableState = (currentTableId: number | undefined, currentOrderingMode: boolean) => {
+    const key = currentTableId ? `table-${currentTableId}` : (currentOrderingMode ? "takeaway" : "none");
+    if (key !== "none") {
+      setTableCarts((prev) => ({ ...prev, [key]: [...cart] }));
+      setTableNotes((prev) => ({ ...prev, [key]: orderNote }));
+      setTableDiscounts((prev) => ({ ...prev, [key]: discountPercent }));
+      setTableTicketNumbers((prev) => ({ ...prev, [key]: ticketNumber }));
+    }
+  };
+
+  const loadTableState = (newTableId: number | undefined, isTakeaway: boolean) => {
+    const key = newTableId ? `table-${newTableId}` : (isTakeaway ? "takeaway" : "none");
+    if (key !== "none") {
+      setCart(tableCarts[key] || []);
+      setOrderNote(tableNotes[key] || "");
+      setDiscountPercent(tableDiscounts[key] || 0);
+      setTicketNumber(tableTicketNumbers[key] || String(Date.now()).slice(-4));
+    } else {
+      setCart([]);
+      setOrderNote("");
+      setDiscountPercent(0);
+      setTicketNumber(String(Date.now()).slice(-4));
+    }
+  };
+
+  const switchSelection = (newTableId: number | undefined, newOrderingMode: boolean) => {
+    saveCurrentTableState(tableId, orderingMode);
+    setTableId(newTableId);
+    setOrderingMode(newOrderingMode);
+    loadTableState(newTableId, newOrderingMode && !newTableId);
+  };
+
+  const handleSendToKitchen = async () => {
+    if (cart.length === 0) return;
+    const key = tableId ? `table-${tableId}` : "takeaway";
+    setTableIsSent((prev) => ({ ...prev, [key]: true }));
+
+    const socket = getSocket();
+    if (socket) {
+      const payload = {
+        tableId,
+        orderNumber: ticketNumber,
+        status: "pending",
+        totalAmount: total,
+        items: cart.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          name: i.name,
+          unitPrice: i.unitPrice,
+        })),
+        table: selectedTable ? { name: selectedTable.name } : null,
+      };
+      socket.emit("order:new", payload);
+    }
+
+    setShowKitchenToast(true);
+    setTimeout(() => {
+      setShowKitchenToast(false);
+    }, 3000);
+  };
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -130,6 +239,31 @@ export default function PosPage() {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
+
+  const [loginSuccessToast, setLoginSuccessToast] = useState<{ userName: string; role: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("pos_login_success_alert");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.userName && Date.now() - (parsed.timestamp || 0) < 30000) {
+          const roleStr = typeof parsed.role === "object" && parsed.role ? parsed.role.name : parsed.role || "Cashier";
+          setLoginSuccessToast({ userName: parsed.userName, role: roleStr });
+          localStorage.removeItem("pos_login_success_alert");
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Dedicated 5s auto-close timer effect for POS Login Success Toast
+  useEffect(() => {
+    if (!loginSuccessToast) return;
+    const timer = setTimeout(() => {
+      setLoginSuccessToast(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [loginSuccessToast]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -219,6 +353,8 @@ export default function PosPage() {
       .finally(() => setInitialLoading(false));
   }, []);
 
+  // Removed auto-open Table modal useEffect since Table Map is now the landing view
+
   useEffect(() => {
     function syncAuthUser() {
       if (typeof window === "undefined") return;
@@ -229,10 +365,14 @@ export default function PosPage() {
           const u = JSON.parse(raw);
           const r = typeof u.role === "string" ? u.role : u.role?.name || u.roleName || "";
           setCurrentUserRole(String(r).trim().toLowerCase());
+          setCurrentUserName(String(u.name || u.userName || "Chon (Cashier)").trim());
+          setCurrentUserImageUrl(String(u.imageUrl || "").trim());
           return;
         }
       } catch {}
       setCurrentUserRole("");
+      setCurrentUserName("Chon (Cashier)");
+      setCurrentUserImageUrl("");
     }
 
     function reloadMenuData() {
@@ -269,6 +409,11 @@ export default function PosPage() {
     [tableId, tables]
   );
 
+  const filteredTables = useMemo(() => {
+    if (selectedZone === "All") return tables;
+    return tables.filter((t) => t.zone === selectedZone);
+  }, [tables, selectedZone]);
+
   const filteredProducts = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -297,9 +442,114 @@ export default function PosPage() {
   const total = discountedSubtotal + serviceFee + vat;
   const splitAmount = splitCount > 0 ? total / splitCount : total;
 
+  const [heldOrders, setHeldOrders] = useState<any[]>([]);
+  const [heldModalOpen, setHeldModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("pos_held_orders");
+        if (stored) setHeldOrders(JSON.parse(stored));
+      } catch {}
+    }
+  }, []);
+
+  const saveHeldOrdersToStorage = (updated: any[]) => {
+    setHeldOrders(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("pos_held_orders", JSON.stringify(updated));
+      } catch {}
+    }
+  };
+
+  const handleHoldOrder = () => {
+    if (cart.length === 0) return;
+    const newHeld = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      ticketNumber,
+      tableId,
+      tableName: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Walk-in / Takeaway",
+      items: [...cart],
+      discountPercent,
+      orderNote,
+      total,
+    };
+    const updated = [newHeld, ...heldOrders];
+    saveHeldOrdersToStorage(updated);
+    
+    // Clear state for current table/takeaway from records
+    const key = tableId ? `table-${tableId}` : (orderingMode ? "takeaway" : "none");
+    if (key !== "none") {
+      setTableCarts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setTableNotes((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setTableDiscounts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setTableIsSent((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setTableTicketNumbers((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+
+    // Clear current cart state
+    setCart([]);
+    setDiscountPercent(0);
+    setOrderNote("");
+    setTableId(undefined);
+    setOrderingMode(false); // Return to Table Map
+    setTicketNumber(String(Date.now()).slice(-4));
+    setMessage("Order held successfully.");
+  };
+
+  const handleRecallOrder = (heldOrder: any) => {
+    // Restore cart and state
+    setCart(heldOrder.items || []);
+    setDiscountPercent(heldOrder.discountPercent || 0);
+    setOrderNote(heldOrder.orderNote || "");
+    setTableId(heldOrder.tableId);
+    setTicketNumber(heldOrder.ticketNumber || String(Date.now()).slice(-4));
+    setOrderingMode(true); // Open ordering view!
+    
+    // Remove from held orders
+    const updated = heldOrders.filter((o: any) => o.id !== heldOrder.id);
+    saveHeldOrdersToStorage(updated);
+    setHeldModalOpen(false);
+    setMessage("Order recalled.");
+  };
+
+  const handleDiscardHeldOrder = (id: number) => {
+    const updated = heldOrders.filter((o: any) => o.id !== id);
+    saveHeldOrdersToStorage(updated);
+  };
+
   function addProduct(product: Product) {
     const item = cartItemFromProduct(product);
     const key = item.productId;
+
+    const existingItem = cart.find((i: any) => i.productId === key);
+    const nextQty = (existingItem?.quantity || 0) + 1;
+    if (product.trackStock && Number(product.inventory?.quantity ?? 0) < nextQty) {
+      alert(`Insufficient stock for ${product.name}. Available: ${Number(product.inventory?.quantity).toFixed(0)} ${product.unit}`);
+      return;
+    }
 
     setCart((current) => {
       const exists = current.some((entry) => entry.productId === key);
@@ -307,7 +557,7 @@ export default function PosPage() {
 
       return current.map((entry) =>
         entry.productId === key
-          ? { ...entry, quantity: entry.quantity + 1 }
+          ? { ...entry, quantity: nextQty }
           : entry
       );
     });
@@ -357,6 +607,36 @@ export default function PosPage() {
       };
       setLastReceipt(receiptSnapshot);
 
+      // Clear state for current table/takeaway from records
+      const key = tableId ? `table-${tableId}` : (orderingMode ? "takeaway" : "none");
+      if (key !== "none") {
+        setTableCarts((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setTableNotes((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setTableDiscounts((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setTableIsSent((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        setTableTicketNumbers((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+
       setCart([]);
       setDiscountPercent(0);
       setSplitOpen(false);
@@ -364,6 +644,8 @@ export default function PosPage() {
       setPaymentModalOpen(false);
       setCashReceived(0);
       setTicketNumber(String(Date.now()).slice(-4));
+      setTableId(undefined);
+      setOrderingMode(false); // Return to Table Map
       setMessage(`Order ${order.orderNumber || order.orderId} paid successfully.`);
 
       // Trigger browser print dialog after DOM updates
@@ -385,7 +667,7 @@ export default function PosPage() {
 
   if (initialLoading) {
     return (
-      <main className="h-screen w-screen overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f]">
+      <main className={`overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f] ${isAdminView ? 'h-full w-full flex-1' : 'h-screen w-screen'}`}>
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#696cff] border-t-transparent shadow-sm"></div>
           <p className="text-sm font-semibold tracking-wide uppercase">Loading...</p>
@@ -395,378 +677,536 @@ export default function PosPage() {
   }
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#f5f5f9] flex flex-col text-slate-700 print:bg-white print:overflow-visible print:h-auto print:text-black">
-      <div className="flex flex-1 overflow-hidden bg-[#f5f5f9] w-full h-full print:hidden">
-        
-        {/* Left Side: Product Grid & Search */}
-        <section className="flex min-w-0 flex-1 flex-col bg-[#f5f5f9]">
-          <header className="flex h-[70px] items-center gap-3 border-b border-[#eceef1] px-4 sm:px-6 bg-white">
-            <div className="flex h-11 shrink-0 items-center gap-2.5 pr-2">
-              {restaurantImageUrl ? (
-                <img
-                  src={resolveImageUrl(restaurantImageUrl)}
-                  alt="POS Logo"
-                  className="h-9 w-9 rounded-xl object-cover border border-[#0F522B]/20 shadow-xs"
-                />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0F522B] text-white shadow-xs">
-                  <Utensils size={18} />
-                </div>
-              )}
-              <div className="hidden min-w-0 sm:flex sm:flex-col leading-tight">
-                <span className="font-khmer font-bold text-sm text-slate-800 truncate max-w-[210px] tracking-normal">
-                  {posName}
-                </span>
-                <span className="text-[9.5px] font-black tracking-widest text-[#0F522B] uppercase">
-                  LIVE TERMINAL STATION
-                </span>
-              </div>
-            </div>
-
-            {/* Live Search Bar */}
-            <div className="relative max-w-[420px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#a1acb8]" size={16} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search menu items..."
-                className="h-10 w-full rounded border border-[#d9dee3] bg-white pl-10 pr-3 text-sm outline-none placeholder:text-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150"
-              />
-            </div>
-
-            {/* Actions & Utilities */}
-            <div className="ml-auto flex items-center gap-3">
-              {/* Network Status */}
-              <div className={`flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-bold ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600 animate-pulse'}`}>
-                {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-                <span>{isOnline ? (syncing ? "Syncing..." : "Online") : "Offline"}</span>
+    <div suppressHydrationWarning className={isAdminView ? `flex h-screen h-[100dvh] overflow-hidden font-sans ${theme === "dark" ? "bg-[#232333]" : "bg-white"} ${language === "km" ? "font-khmer" : ""}` : "h-screen w-screen"}>
+      {isAdminView && (
+        <Sidebar
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          theme={theme}
+          setTheme={setTheme}
+        />
+      )}
+      <div className={isAdminView ? "flex-1 flex flex-col h-full overflow-hidden" : "h-full w-full"}>
+        {isAdminView && (
+          <TopBar
+            title="POS - Point of Sale"
+            subtitle="Real-time ordering and billing terminal"
+            searchPlaceholder="Search POS..."
+            language={language}
+            onLanguageChange={setAppLanguage}
+            notifications={[]}
+            dark={theme === "dark"}
+          />
+        )}
+        <main className={`overflow-hidden bg-[#f8f9fa] flex flex-col text-slate-700 print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full w-full flex-1' : 'h-full w-full'}`}>
+      {/* Toast Notification for Kitchen */}
+      {showKitchenToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] flex items-center gap-2.5 rounded-xl bg-emerald-500 text-white px-5 py-3.5 shadow-lg font-bold text-xs animate-[posLogoutCard_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
+          ✓ Order sent to kitchen!
+        </div>
+      )}
+      {/* Global POS Header (Top Bar) */}
+      {!isAdminView && (
+        <header className="relative flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-100/80 shadow-sm shadow-slate-100/30 shrink-0 m-4 sm:m-6 mb-0 sm:mb-0">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-black text-slate-800 tracking-tight">Terminal Status</h1>
+            
+            <div className="flex items-center gap-2 ml-4">
+              <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${
+                isOnline 
+                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                  : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'
+              }`}>
+                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span>{isOnline ? "Online" : "Offline"}</span>
               </div>
 
-              {/* Divider */}
-              <div className="hidden h-5 w-px bg-[#d9dee3] sm:block"></div>
+              <div className="w-px h-5 bg-slate-200 mx-1" />
 
-              <div className="hidden items-center gap-1 sm:flex">
-                {/* Current Logged-in Staff Profile Chip */}
-                <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-slate-50/80 pl-1.5 pr-3 py-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#696cff] text-[10px] font-bold text-white uppercase shadow-xs">
-                    {(currentUserRole ? currentUserRole[0] : "C").toUpperCase()}
-                  </div>
-                  <div className="flex flex-col text-left leading-none">
-                    <span className="text-[11px] font-bold text-slate-700 capitalize">
-                      {currentUserRole || "Cashier"}
-                    </span>
-                    <span className="text-[8.5px] font-semibold text-slate-400">Active Shift</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      localStorage.removeItem("pos_logged_in");
-                      localStorage.removeItem("pos_token");
-                      localStorage.removeItem("pos_user");
-                      window.location.href = "/login";
-                    }}
-                    className="ml-1 text-slate-400 hover:text-red-500 transition-colors"
-                    title="Switch User / Logout"
-                  >
-                    <LogOut size={13} />
-                  </button>
-                </div>
-
-                <div className="relative" ref={notificationsRef}>
-                  <IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>
-                    <div className="relative">
-                      <Bell size={17} className="text-[#566a7f]" />
-                      {unreadCount > 0 && (
-                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff3e1d] text-[10px] font-bold text-white shadow-[0_0_0_2px_#fff]">
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </IconButton>
-
-                  {notificationsOpen && (
-                    <div className="absolute right-0 top-10 z-50 mt-2 w-72 overflow-hidden rounded-lg border border-[#d9dee3] bg-white shadow-xl animate-[usersPageIn_200ms_ease-out]">
-                      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
-                        <span className="text-xs font-bold text-slate-700">Notifications</span>
-                        {notifications.length > 0 && (
-                          <button onClick={() => setNotifications([])} className="text-[10px] font-bold text-slate-400 hover:text-slate-800 transition-colors">Clear</button>
-                        )}
-                      </div>
-                      {notifications.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-slate-400">No new notifications</div>
-                      ) : (
-                        <div className="max-h-60 overflow-y-auto p-1.5 space-y-1">
-                          {notifications.map((item) => (
-                            <div key={item.id} className="rounded-md bg-white p-2.5 hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
-                              <div className="text-[11px] font-black text-slate-800">{item.title}</div>
-                              <div className="mt-0.5 text-[11px] text-slate-500 leading-tight">{item.detail}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </header>
-
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 bg-[#f5f5f9]">
-            {message && (
-              <div className="mb-4 rounded border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-                {message}
-              </div>
-            )}
-
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              {/* <div>
-                <h1 className="text-2xl font-bold text-[#566a7f] sm:text-3xl">Terminal Menu</h1>
-                <p className="mt-1 text-xs font-semibold text-[#a1acb8]">
-                  {filteredProducts.length} items matching search criteria
-                </p>
-              </div> */}
-
-              {/* Sneat Pills Category Tabs */}
-              <div className="flex max-w-full gap-1.5 overflow-x-auto rounded bg-[#eceef1]/60 p-1">
-                <CategoryTab active={categoryId === "all"} onClick={() => setCategoryId("all")}>
-                  All Menu
-                </CategoryTab>
-                {categories.map((category) => (
-                  <CategoryTab
-                    key={category.id}
-                    active={categoryId === category.id}
-                    onClick={() => setCategoryId(category.id)}
-                  >
-                    {category.name}
-                  </CategoryTab>
-                ))}
-              </div>
-            </div>
-
-            {filteredProducts.length === 0 ? (
-              <div className="rounded border border-dashed border-[#e5e7eb] bg-slate-50/50 p-12 text-center text-sm font-semibold text-[#8592a3]">
-                <ChefHat size={32} className="mx-auto mb-3 text-slate-300" />
-                No matching menu selections found.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} onAdd={() => addProduct(product)} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Right Side: Order Ticket Checkout */}
-        <aside className="hidden w-[380px] shrink-0 border-l border-[#eceef1] bg-white lg:flex lg:flex-col">
-          <div className="flex h-[70px] items-center justify-between border-b border-[#eceef1] px-6">
-            <button
-              type="button"
-              onClick={() => {
-                setCart([]);
-                setDiscountPercent(0);
-                setSplitOpen(false);
-                setDiscountOpen(false);
-                setTicketNumber(String(Date.now()).slice(-4));
-              }}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
-            >
-              <Plus size={14} />
-              New Order
-            </button>
-            <button
-              type="button"
-              onClick={() => setCart([])}
-              className="flex h-9 w-9 items-center justify-center rounded text-[#8592a3] hover:bg-red-50 hover:text-[#ff3e1d] transition-all"
-              title="Clear current cart"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-6 py-5">
-            <div className="mb-5">
-              <h2 className="text-lg font-bold text-[#566a7f]">Order Ticket</h2>
-              <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#a1acb8]">
-                <MapPin size={11} className="text-[#a1acb8]" />
-                <span>{selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Walk-in / Takeaway"}</span>
-              </div>
-              
-              {/* Tables Selection Dropdown */}
-              <select
-                value={tableId || ""}
-                onChange={(event) => setTableId(event.target.value ? Number(event.target.value) : undefined)}
-                className="mt-3 h-10 w-full rounded border border-[#d9dee3] bg-white px-3 text-sm font-semibold text-[#566a7f] outline-none focus:border-[#696cff] transition-all"
+              <button 
+                type="button" 
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="relative text-slate-400 hover:text-slate-600 transition-colors p-1.5"
               >
-                <option value="">Walk-in / Takeaway</option>
-                {tables.map((table) => (
-                  <option key={table.id} value={table.id}>
-                    {table.name} - {table.zone} ({table.capacity} Seats)
-                  </option>
-                ))}
-              </select>
-            </div>
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500" />
+                )}
+              </button>
 
-            <div className="mb-5 flex gap-2">
-              <span className="rounded bg-[#e7e7ff] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#696cff]">
-                {selectedTable ? "Dine In" : "Takeaway"}
-              </span>
-              <span className="rounded bg-[#eceef1] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8592a3]">
-                #{ticketNumber || "0000"}
-              </span>
-            </div>
-
-            {/* Cart Ticket List */}
-            <div className="space-y-4">
-              {cart.length === 0 ? (
-                <div className="rounded border border-dashed border-[#e5e7eb] bg-slate-50/50 p-8 text-center text-xs font-semibold text-[#8592a3]">
-                  <ShoppingBag size={22} className="mx-auto mb-2 text-slate-300" />
-                  Select menu items to populate order ticket.
-                </div>
-              ) : (
-                cart.map((item, index) => {
-                  const product = productMap.get(item.productId);
-                  return (
-                    <TicketItem
-                      key={`${item.productId}-${index}`}
-                      item={item}
-                      imageUrl={resolveImageUrl(product?.imageUrl)}
-                      onIncrement={() =>
-                        setCart((current) =>
-                          current.map((entry, i) =>
-                            i === index ? { ...entry, quantity: entry.quantity + 1 } : entry
-                          )
-                        )
-                      }
-                      onDecrement={() =>
-                        setCart((current) =>
-                          current.flatMap((entry, i) =>
-                            i === index
-                              ? entry.quantity <= 1
-                                ? []
-                                : [{ ...entry, quantity: entry.quantity - 1 }]
-                              : [entry]
-                          )
-                        )
-                      }
-                    />
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Checkout Totals Summary Section */}
-          <div className="border-t border-[#eceef1] px-6 py-5 bg-[#f5f5f9]/40 space-y-3">
-            <SummaryRow label="Subtotal" value={money(subtotal)} />
-
-            {/* Split Bill Row (Only shown when cart has items) */}
-            {cart.length > 0 && (
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#a1acb8]">Split Bill (Guests)</span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setSplitCount((value) => Math.max(1, value - 1))}
-                      className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
-                    >
-                      <Minus size={11} />
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      value={splitCount}
-                      onChange={(event) => setSplitCount(Math.max(1, Number(event.target.value || 1)))}
-                      className="h-6 w-10 rounded border border-[#d9dee3] bg-white text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setSplitCount((value) => value + 1)}
-                      className="flex h-6 w-6 items-center justify-center rounded border border-[#d9dee3] bg-white text-[#8592a3] hover:text-[#696cff] hover:border-[#696cff] transition-all"
-                    >
-                      <Plus size={11} />
-                    </button>
-                  </div>
-                </div>
-                <span className="text-[#566a7f] font-bold">
-                  {splitCount > 1 ? `${money(splitAmount)} each` : money(total)}
-                </span>
-              </div>
-            )}
-
-            {/* Discount Direct Input Row */}
-            <div className="flex items-center justify-between text-xs font-semibold">
-              <div className="flex items-center gap-2">
-                <span className="text-[#a1acb8]">Discount (%)</span>
-                <div className="relative flex items-center">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={discountPercent}
-                    onChange={(event) =>
-                      setDiscountPercent(Math.min(100, Math.max(0, Number(event.target.value || 0))))
-                    }
-                    className="h-6 w-14 rounded border border-[#d9dee3] bg-white pr-4 text-center text-xs font-bold text-[#566a7f] outline-none focus:border-[#696cff] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                  <span className="pointer-events-none absolute right-1.5 text-[10px] font-bold text-[#a1acb8]">%</span>
-                </div>
-              </div>
-              <span className="text-[#ff3e1d] font-bold">
-                {discountAmount > 0 ? `-${money(discountAmount)}` : money(0)}
-              </span>
-            </div>
-
-            {/* Promo preset quick buttons */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              {PROMO_CODES.map((promo) => (
-                <button
-                  key={promo.code}
-                  type="button"
-                  onClick={() => setDiscountPercent(discountPercent === promo.value ? 0 : promo.value)}
-                  className={`h-6 rounded-md px-2 text-[9px] font-extrabold uppercase transition-all ${
-                    discountPercent === promo.value
-                      ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
-                      : "bg-white text-[#8592a3] border border-[#d9dee3] hover:text-[#696cff]"
-                  }`}
-                >
-                  {promo.label}
-                </button>
-              ))}
-            </div>
-
-            <SummaryRow label={`Service Charge (${Math.round(serviceRate * 100)}%)`} value={money(serviceFee)} />
-            <SummaryRow label={`VAT (${Math.round(vatRate * 100)}%)`} value={money(vat)} />
-
-            <div className="mt-4 flex items-end justify-between border-t pt-3 border-[#eceef1]">
-              <span className="text-sm font-bold uppercase tracking-wider text-[#8592a3]">Total Amount</span>
-              <span className="text-3xl font-bold text-[#696cff]">{money(total)}</span>
-            </div>
-
-            {/* Pay Now Button */}
-            <div className="pt-2">
-              <button
+              <button 
                 type="button"
-                disabled={cart.length === 0}
-                onClick={handlePayClick}
-                className="flex w-full items-center justify-center gap-2 rounded bg-[#696cff] py-3.5 text-[13px] font-bold text-white shadow-sm shadow-[#696cff]/30 hover:bg-[#5f61e6] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none transition-all"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("pos-menu-change"));
+                }}
+                className={`text-slate-400 hover:text-slate-600 transition-colors p-1.5 ${syncing ? 'animate-spin' : ''}`}
               >
-                Pay Now & Print
+                <RotateCw size={18} />
               </button>
             </div>
           </div>
-        </aside>
 
-        {/* Mobile bottom checkout panel */}
-        <MobileTicket
-          cart={cart}
-          total={total}
-          loading={loading}
-          onCheckout={handlePayClick}
-        />
+          {/* Cashier Info & Close Shift Button */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[10px] font-black uppercase overflow-hidden border border-slate-200">
+                {currentUserImageUrl ? (
+                  <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
+                )}
+              </div>
+              <span className="text-xs font-bold text-slate-700 capitalize">{currentUserName || "Alex Cashier"}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutModal(true)}
+              className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
+            >
+              <LogOut size={13} />
+              Close Shift
+            </button>
+          </div>
+        </header>
+      )}
+      {!orderingMode && (
+      <div className={`flex flex-1 overflow-hidden bg-[#f8f9fa] w-full h-full p-4 sm:p-6 relative print:hidden ${isAdminView ? 'pt-4 sm:pt-5' : 'pt-2 sm:pt-2'}`}>
+        {/* VIEW 1: Table Map View — only shown when NOT in ordering mode */}
+        {!orderingMode && (<div className="flex flex-1 flex-col overflow-hidden w-full h-full space-y-4">
+          {/* Sub-header: Filters & Actions */}
+          <div className="flex flex-col gap-4 bg-white rounded-2xl p-4 border border-slate-100/80 shadow-sm shadow-slate-100/30 shrink-0">
+            {/* Row 1: Tabs & Stats */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex gap-2 max-w-full overflow-x-auto no-scrollbar">
+                {Array.from(new Set(tables.map((t) => t.zone))).map((zone) => (
+                  <button
+                    key={zone}
+                    type="button"
+                    onClick={() => setSelectedZone(zone)}
+                    className={`px-5 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                      selectedZone === zone
+                        ? "bg-[#0066ff] text-white shadow-sm shadow-blue-500/10"
+                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {zone.charAt(0).toUpperCase() + zone.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+
+              {/* Counters */}
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
+                  ● {tables.filter((t) => !(tableIsSent[`table-${t.id}`] || t.isOccupied)).length} Free
+                </span>
+                <span className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
+                  ● {tables.filter((t) => tableIsSent[`table-${t.id}`] || t.isOccupied).length} Occupied
+                </span>
+              </div>
+            </div>
+
+            {/* Row 2: Status buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => switchSelection(undefined, true)}
+                className="border border-blue-500 bg-blue-50/50 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-100 flex items-center gap-1.5 cursor-pointer"
+              >
+                <List size={13} />
+                Pending
+              </button>
+              <button
+                type="button"
+                onClick={() => switchSelection(undefined, true)}
+                className="border border-amber-500 bg-amber-50/50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-100 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Clock size={13} />
+                Reserve
+              </button>
+              <button
+                type="button"
+                onClick={() => switchSelection(undefined, true)}
+                className="border border-slate-600 bg-slate-50 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Smartphone size={13} />
+                App
+              </button>
+              <button
+                type="button"
+                onClick={() => switchSelection(undefined, true)}
+                className="border border-purple-500 bg-purple-50/50 text-purple-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-100 flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShoppingBag size={13} />
+                Takeaway
+              </button>
+            </div>
+          </div>
+
+          {/* Tables Grid Layout */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {filteredTables.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-400">
+                No tables found in this zone.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {filteredTables.map((table) => {
+                  const isOccupied = tableIsSent[`table-${table.id}`] || table.isOccupied;
+                  const reservationTime = table.reservation || (table.name.toLowerCase().includes("4") ? "18:30" : null);
+                  const isReserved = !isOccupied && !!reservationTime;
+
+                  const tableCart = tableCarts[`table-${table.id}`] || [];
+                  const tableSubtotal = tableCart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+                  const tableDiscount = tableSubtotal * ((tableDiscounts[`table-${table.id}`] || 0) / 100);
+                  const tableTotal = Math.max(tableSubtotal - tableDiscount, 0) * (1 + serviceRate + vatRate);
+
+                  return (
+                    <div
+                      key={table.id}
+                      onClick={() => switchSelection(table.id, true)}
+                      className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col items-center w-full max-w-[200px] cursor-pointer active:scale-[0.98] ${
+                        isOccupied 
+                          ? "border-rose-400" 
+                          : isReserved 
+                            ? "border-amber-400" 
+                            : "border-slate-200/80 hover:border-emerald-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-3">
+                        <span className="text-xs font-bold text-slate-400">
+                          {table.name}
+                        </span>
+                        {isOccupied && (
+                          <span className="bg-rose-50 text-rose-600 border border-rose-100 text-[9px] px-1.5 py-0.5 rounded font-black">
+                            ACTIVE
+                          </span>
+                        )}
+                        {isReserved && (
+                          <span className="bg-amber-50 text-amber-600 border border-amber-100 text-[9px] px-1.5 py-0.5 rounded font-black">
+                            {reservationTime}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className={`border rounded-2xl w-full aspect-square flex flex-col justify-center items-center shadow-3xs transition-all duration-300 p-4 ${
+                        isOccupied 
+                          ? "border-rose-300 bg-rose-50/40 text-rose-600" 
+                          : isReserved
+                            ? "border-amber-300 bg-amber-50/40 text-amber-600"
+                            : "border-emerald-300 bg-emerald-50/40 text-emerald-600"
+                      }`}>
+                        <span className="text-4xl font-extrabold tracking-tight">
+                          {table.name.toLowerCase().trim() === "vip lounge" ? "V1" : (table.name.replace(/[^0-9]/g, '') || table.name)}
+                        </span>
+                        <span className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
+                          isOccupied 
+                            ? "text-rose-400" 
+                            : isReserved 
+                              ? "text-amber-400" 
+                              : "text-emerald-400"
+                        }`}>
+                          👥 {table.capacity}
+                        </span>
+                        {isOccupied && (
+                          <span className="text-[11px] font-extrabold text-slate-800 mt-1">
+                            {money(tableTotal || 142.50)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className={`mt-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider w-full text-center border text-white ${
+                        isOccupied 
+                          ? "bg-rose-700 border-rose-700" 
+                          : isReserved
+                            ? "bg-[#f59e0b] border-[#f59e0b]"
+                            : "bg-emerald-700 border-emerald-700"
+                      }`}>
+                        {isOccupied ? "OCCUPIED" : isReserved ? "RESERVED" : "AVAILABLE"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>)}
       </div>
+      )}
+      {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
+      {orderingMode && (
+        <div className="flex flex-1 overflow-hidden w-full min-h-0">
+          {/* LEFT: Product Catalogue */}
+          <section className="flex min-w-0 flex-1 flex-col bg-[#f8f9fa]">
+
+            {/* ── Header: "POS - Point of Sale" + action buttons ── */}
+            <header className="flex items-center justify-between h-[58px] px-5 border-b border-slate-100 bg-white shrink-0 gap-3">
+              <h1 className="text-sm font-bold text-slate-800 shrink-0">
+                POS &ndash; <span className="text-[#55a060]">Point</span> of Sale
+              </h1>
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  <LayoutGrid size={12} />
+                  Dual Screen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveCurrentTableState(tableId, orderingMode);
+                    setCart([]);
+                    setDiscountPercent(0);
+                    setTicketNumber(String(Date.now()).slice(-4));
+                  }}
+                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Plus size={12} />
+                  New
+                </button>
+                <button
+                  type="button"
+                  className="relative flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  <QrCode size={12} />
+                  QR Menu Orders
+                  {unreadCount > 0 && (
+                    <span className="ml-0.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHeldModalOpen(true)}
+                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Archive size={12} />
+                  Drafts List
+                  {heldOrders.length > 0 && (
+                    <span className="ml-0.5 bg-slate-200 text-slate-600 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                      {heldOrders.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderingMode(false)}
+                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  <List size={12} />
+                  Table Orders
+                </button>
+              </div>
+            </header>
+
+            {/* ── Category Pills + Search row ── */}
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-white shrink-0 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setCategoryId("all")}
+                className={`shrink-0 h-8 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  categoryId === "all"
+                    ? "bg-[#55a060] text-white shadow-sm"
+                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                All
+              </button>
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setCategoryId(category.id)}
+                  className={`shrink-0 h-8 px-4 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    categoryId === category.id
+                      ? "bg-[#55a060] text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+              {/* Search bar */}
+              <div className="relative flex-1 min-w-[160px] ml-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search"
+                  className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all"
+                />
+              </div>
+              {/* Grid icon */}
+              <button
+                type="button"
+                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <LayoutGrid size={14} />
+              </button>
+            </div>
+
+            {/* ── Product Grid ── */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 bg-[#f8f9fa] min-h-0">
+              {filteredProducts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-400">
+                  <ChefHat size={32} className="mx-auto mb-3 text-slate-300" />
+                  No matching menu selections found.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                  {filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} onAdd={() => addProduct(product)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* RIGHT: Cart / WALKIN CUSTOMER */}
+          <aside className="w-[300px] xl:w-[320px] shrink-0 border-l border-slate-100 bg-white flex flex-col h-full overflow-hidden">
+
+            {/* ── WALKIN CUSTOMER header ── */}
+            <div className="flex items-center justify-between px-5 py-[14px] border-b border-slate-100 shrink-0">
+              <span className="text-[13px] font-black text-slate-800 uppercase tracking-wide">
+                {selectedTable ? selectedTable.name : "WALKIN CUSTOMER"}
+              </span>
+              <button type="button" className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-50">
+                <Search size={15} />
+              </button>
+            </div>
+
+            {/* ── Select Dining Option + Select Table ── */}
+            <div className="flex gap-2 px-4 py-3 border-b border-slate-100 shrink-0">
+              <div className="relative flex-1">
+                <select
+                  value={tableId ? "dine-in" : "walk-in"}
+                  onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                >
+                  <option value="walk-in">Walk-in / Takeaway</option>
+                  <option value="dine-in">Dine In</option>
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px]">▾</span>
+              </div>
+              <div className="relative flex-1">
+                <select
+                  value={tableId || ""}
+                  onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                >
+                  <option value="">Select Table</option>
+                  {tables.map((table) => (
+                    <option key={table.id} value={table.id}>
+                      {table.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px]">▾</span>
+              </div>
+            </div>
+
+            {/* ── Cart Items / Empty State ── */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <ShoppingBag size={44} className="text-slate-200 mb-3" />
+                  <span className="text-xs font-bold text-slate-500">Cart is empty</span>
+                  <span className="text-[11px] text-slate-400 mt-1">Click items to add</span>
+                </div>
+              ) : (
+                <div className="px-4 py-3 space-y-2">
+                  {cart.map((item, index) => {
+                    const product = productMap.get(item.productId);
+                    return (
+                      <TicketItem
+                        key={`${item.productId}-${index}`}
+                        item={item}
+                        imageUrl={resolveImageUrl(product?.imageUrl)}
+                        onIncrement={() => {
+                          const prod = products.find((p) => p.id === item.productId);
+                          const nextQty = item.quantity + 1;
+                          if (prod?.trackStock && Number(prod.inventory?.quantity ?? 0) < nextQty) {
+                            alert(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
+                            return;
+                          }
+                          setCart((current) =>
+                            current.map((entry, i) =>
+                              i === index ? { ...entry, quantity: nextQty } : entry
+                            )
+                          );
+                        }}
+                        onDecrement={() =>
+                          setCart((current) =>
+                            current.flatMap((entry, i) =>
+                              i === index
+                                ? entry.quantity <= 1
+                                  ? []
+                                  : [{ ...entry, quantity: entry.quantity - 1 }]
+                                : [entry]
+                            )
+                          )
+                        }
+                        onRemove={() =>
+                          setCart((current) => current.filter((_, i) => i !== index))
+                        }
+                        onAddNote={(noteText) => {
+                          setCart((current) =>
+                            current.map((entry, i) =>
+                              i === index ? { ...entry, notes: noteText } : entry
+                            )
+                          );
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── Summary Footer ── */}
+            <div className="border-t border-slate-100 px-5 py-4 bg-white space-y-3 shrink-0">
+              <div className="space-y-2">
+                <SummaryRow label="Sub total :" value={money(subtotal)} />
+                <SummaryRow label="Product Discount :" value={money(discountAmount)} />
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                <span className="text-sm font-black text-slate-800">Total :</span>
+                <span className="text-2xl font-black text-slate-900">{money(total)}</span>
+              </div>
+              {/* Draft + Send to Kitchen row */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleHoldOrder}
+                  disabled={cart.length === 0}
+                  className="flex-1 flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Archive size={13} /> Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendToKitchen}
+                  disabled={cart.length === 0}
+                  className="flex-1 flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#55a060] text-[11px] font-bold text-[#55a060] hover:bg-[#55a060]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChefHat size={13} /> Send to Kitchen
+                </button>
+              </div>
+              {/* Create Receipt & Pay */}
+              <button
+                type="button"
+                onClick={handlePayClick}
+                disabled={cart.length === 0}
+                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#439150] text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Printer size={14} /> Create Receipt &amp; Pay
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
       {/* Toast Notification */}
       {toastNotification && (
         <div className="fixed bottom-6 right-6 z-[9999] w-full max-w-xs animate-[dashboardPageIn_0.3s_ease-out] rounded-xl bg-white p-3 shadow-[0_4px_20px_0_rgba(67,89,113,0.15)] ring-1 ring-slate-100 print:hidden">
@@ -896,6 +1336,335 @@ export default function PosPage() {
         </div>
       )}
 
+      {/* Split Bill Modal */}
+      {splitOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out]">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3 flex items-center justify-between">
+              <h3 className="text-base font-black text-slate-800">Split Bill</h3>
+              <button 
+                onClick={() => setSplitOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="p-5">
+              <div className="mb-5 text-center">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Amount</p>
+                <p className="text-2xl font-black text-[#696cff] leading-none mt-1.5">{money(total)}</p>
+                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(total * 4100).toLocaleString()} ៛</p>
+              </div>
+
+              {/* Split Count Selector */}
+              <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Number of Splits</label>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    disabled={splitCount <= 2}
+                    onClick={() => {
+                      const next = Math.max(2, splitCount - 1);
+                      setSplitCount(next);
+                      setPaidSplits([]); // Reset paid splits when count changes
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    -
+                  </button>
+                  <span className="text-xl font-black text-slate-800">{splitCount} Person(s)</span>
+                  <button
+                    type="button"
+                    disabled={splitCount >= 10}
+                    onClick={() => {
+                      const next = Math.min(10, splitCount + 1);
+                      setSplitCount(next);
+                      setPaidSplits([]); // Reset paid splits when count changes
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="mt-3 border-t border-slate-100 pt-2 flex items-center justify-between text-xs font-bold text-slate-600">
+                  <span>Each Pays:</span>
+                  <span className="text-sm font-black text-emerald-600">{money(total / splitCount)}</span>
+                </div>
+              </div>
+
+              {/* Splits List */}
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                {Array.from({ length: splitCount }).map((_, idx) => {
+                  const isPaid = paidSplits.includes(idx);
+                  return (
+                    <div 
+                      key={idx}
+                      className={`flex items-center justify-between rounded-xl border p-3 transition-all ${
+                        isPaid 
+                          ? "border-emerald-100 bg-emerald-50/40" 
+                          : "border-slate-100 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                          isPaid ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Split #{idx + 1}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-extrabold text-slate-800">{money(total / splitCount)}</span>
+                        {isPaid ? (
+                          <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-[10px] font-black text-emerald-700 uppercase">
+                            ✓ Paid
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSplitIndex(idx);
+                              setSplitCashReceived(total / splitCount);
+                              setSplitPaymentMethod("cash");
+                              setSplitPaymentOpen(true);
+                            }}
+                            className="rounded-lg bg-[#696cff] px-3 py-1 text-[10px] font-black text-white hover:bg-[#5f61e6] active:scale-95 transition-all"
+                          >
+                            Pay
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 bg-slate-50/50 p-4">
+              <button 
+                onClick={() => setSplitOpen(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Payment Modal */}
+      {splitPaymentOpen && selectedSplitIndex !== null && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs print:hidden">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_180ms_ease-out]">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3 flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-800">Pay Split #{selectedSplitIndex + 1}</h3>
+              <button 
+                onClick={() => setSplitPaymentOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            
+            <div className="p-5">
+              <div className="mb-4 text-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Split Share</p>
+                <p className="text-2xl font-black text-[#696cff] leading-none mt-1">{money(total / splitCount)}</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5">~ {((total / splitCount) * 4100).toLocaleString()} ៛</p>
+              </div>
+
+              <div className="mb-4 flex gap-1.5">
+                <button 
+                  onClick={() => setSplitPaymentMethod("cash")}
+                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'cash' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
+                >
+                  💵 Cash
+                </button>
+                <button 
+                  onClick={() => setSplitPaymentMethod("qr")}
+                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'qr' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
+                >
+                  📱 QR Code
+                </button>
+              </div>
+
+              {splitPaymentMethod === "cash" && (
+                <div className="space-y-3 animate-[usersPageIn_180ms_ease-out]">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Cash Received</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        value={splitCashReceived || ""}
+                        onChange={(e) => setSplitCashReceived(Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-7 pr-4 text-sm font-black text-slate-800 outline-none focus:border-[#696cff] focus:ring-2 focus:ring-[#696cff]/10"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Cash Presets */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { label: "Exact", val: total / splitCount },
+                      { label: "$5", val: 5 },
+                      { label: "$10", val: 10 },
+                      { label: "$20", val: 20 },
+                    ].map((btn, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSplitCashReceived(btn.val)}
+                        className="rounded-lg bg-slate-50 py-1.5 text-[10px] font-extrabold text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100"
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Change calculation */}
+                  <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Change</span>
+                    <div className="text-right">
+                      <div className={`text-base leading-none font-black ${splitCashReceived - (total / splitCount) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {money(Math.max(0, splitCashReceived - (total / splitCount)))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {splitPaymentMethod === "qr" && (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-4 animate-[usersPageIn_180ms_ease-out]">
+                  <div className="mb-2 rounded-xl bg-white p-1.5 shadow-sm">
+                    <div className="h-24 w-24 bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=KHQR')] bg-contain bg-center bg-no-repeat opacity-85" />
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-500">Scan to pay split share</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
+              <button 
+                onClick={() => setSplitPaymentOpen(false)}
+                className="flex-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                disabled={splitPaymentMethod === 'cash' && splitCashReceived < (total / splitCount)}
+                onClick={async () => {
+                  const updatedPaid = [...paidSplits, selectedSplitIndex];
+                  setPaidSplits(updatedPaid);
+                  setSplitPaymentOpen(false);
+                  
+                  // Check if this was the last split
+                  if (updatedPaid.length === splitCount) {
+                    setLoading(true);
+                    try {
+                      // Submit payment via normal processCheckout
+                      await processCheckout();
+                      setMessage("All splits paid successfully! Order completed.");
+                      setSplitOpen(false);
+                    } catch (e) {
+                      setMessage(e instanceof Error ? e.message : "Failed to finalize order");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                }}
+                className="flex-[2] rounded-xl bg-[#696cff] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#5f61e6] active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all"
+              >
+                Confirm Split Pay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Held Orders Modal */}
+      {heldModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out]">
+            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3.5 flex items-center justify-between">
+              <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                <Archive size={18} className="text-[#696cff]" />
+                Held Orders (ការកុម្មង់ផ្អាកបណ្តោះអាសន្ន)
+              </h3>
+              <button 
+                onClick={() => setHeldModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-5">
+              {heldOrders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-10 text-center text-xs font-semibold text-slate-400">
+                  <Archive size={32} className="mx-auto mb-2 text-slate-300" />
+                  <span>No held orders found.</span>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                  {heldOrders.map((order) => (
+                    <div 
+                      key={order.id}
+                      className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-all hover:bg-slate-50 hover:border-slate-200"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="text-xs font-black text-slate-800">
+                            Ticket #{order.ticketNumber} - {order.tableName}
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                            Held at: {new Date(order.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <span className="text-sm font-black text-[#696cff]">{money(order.total)}</span>
+                      </div>
+
+                      {/* Items Preview */}
+                      <div className="text-[11px] font-medium text-slate-500 line-clamp-1 mb-3">
+                        {order.items.map((item: any) => `${item.quantity}x ${item.name}`).join(", ")}
+                      </div>
+
+                      <div className="flex justify-end gap-2 border-t border-slate-100/80 pt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDiscardHeldOrder(order.id)}
+                          className="rounded-lg bg-rose-50 px-3 py-1.5 text-[10px] font-bold text-rose-600 hover:bg-rose-100 active:scale-95 transition-all"
+                        >
+                          Discard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRecallOrder(order)}
+                          className="rounded-lg bg-[#696cff] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all"
+                        >
+                          Recall Order
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 bg-slate-50/50 p-4">
+              <button 
+                onClick={() => setHeldModalOpen(false)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hidden Thermal Receipt Printer Layout */}
       {lastReceipt && (
         <div className="hidden print:block w-[80mm] max-w-[80mm] mx-auto bg-white text-black font-mono text-[12px] leading-tight pb-10">
@@ -948,7 +1717,219 @@ export default function PosPage() {
           </div>
         </div>
       )}
-    </main>
+
+      {/* CASHIER LOGIN SUCCESS POP-UP TOAST */}
+      {loginSuccessToast && (
+        <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-850 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+              <Check size={11} strokeWidth={4.5} className="text-white" />
+            </div>
+            <span>Login successful!</span>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes dropFromTop {
+          0% { transform: translateY(-100%); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
+
+      {/* CASHIER LOGOUT POP-UP MODAL — Admin Dashboard Style */}
+      {showLogoutModal && (
+        <div
+          onClick={() => setShowLogoutModal(false)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 cursor-pointer animate-[posLogoutBackdrop_180ms_ease-out]"
+          style={{ background: "rgba(30,30,50,0.35)", backdropFilter: "blur(2px)" }}
+        >
+          <style>{`
+            @keyframes posLogoutBackdrop {
+              from { opacity: 0; }
+              to   { opacity: 1; }
+            }
+            @keyframes posLogoutCard {
+              from { opacity: 0; transform: translateY(8px) scale(0.98); }
+              to   { opacity: 1; transform: translateY(0) scale(1); }
+            }
+          `}</style>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm cursor-default overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl animate-[posLogoutCard_200ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            {/* ── Header ─────────────────────────────────────────────── */}
+            <div className="flex items-start gap-4 border-b border-slate-100 px-6 py-5">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 border border-red-100">
+                <LogOut size={20} strokeWidth={2} />
+              </div>
+              <div className="pt-0.5">
+                <h3 className="text-sm font-bold text-slate-800 leading-snug">
+                  ចាកចេញពីគណនី / Confirm Logout
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  តើអ្នកពិតជាចង់ចាកចេញ ឬ ប្តូរកុងស៊ុយបុគ្គលិកមែនទេ?
+                </p>
+              </div>
+            </div>
+
+            {/* ── Actions ────────────────────────────────────────────── */}
+            <div className="flex flex-col gap-2 px-6 py-5">
+              {/* Primary — Logout */}
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem("pos_logged_in");
+                  localStorage.removeItem("pos_token");
+                  localStorage.removeItem("pos_user");
+                  localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
+                  window.location.href = "/login";
+                }}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-red-700 active:scale-[0.98]"
+              >
+                <LogOut size={14} className="shrink-0" />
+                ចាកចេញ / Logout &amp; Lock Station
+              </button>
+
+              {/* Secondary — Switch account */}
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem("pos_logged_in");
+                  localStorage.removeItem("pos_token");
+                  localStorage.removeItem("pos_user");
+                  localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
+                  window.location.href = "/login";
+                }}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition-colors duration-150 hover:bg-slate-50 active:scale-[0.98]"
+              >
+                <span>🔄</span>
+                ប្តូរបុគ្គលិក / Switch Staff Account
+              </button>
+
+              {/* Cancel */}
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="h-8 w-full rounded-lg text-xs font-medium text-slate-400 transition-colors duration-150 hover:text-slate-600"
+              >
+                បោះបង់ / Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table Map Selection Modal */}
+      {tableModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out] flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-slate-800 font-khmer flex items-center gap-2">
+                  <MapPin size={18} className="text-[#696cff]" />
+                  ជ្រើសរើសតុ ឬ ប្រភេទសេវាកម្ម / Select Table or Service Type
+                </h3>
+                <p className="text-[11px] text-slate-400 font-semibold mt-1">
+                  សូមជ្រើសរើសតុសម្រាប់អង្គុយពិសា ឬ ជ្រើសរើសវេចខ្ចប់ដើម្បីចាប់ផ្តើមកម្ម៉ង់។
+                </p>
+              </div>
+              {/* Show close button only if a table has been chosen or they already started takeaway */}
+              {(tableId !== undefined || cart.length > 0 || selectedTable) && (
+                <button
+                  onClick={() => setTableModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Takeaway / Walk-in Option Card */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTableId(undefined);
+                    setTableModalOpen(false);
+                  }}
+                  className={`w-full max-w-md flex flex-col items-center gap-2 rounded-2xl border-2 p-5 text-center transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                    tableId === undefined
+                      ? "border-[#696cff] bg-[#696cff]/5 text-[#696cff] ring-2 ring-[#696cff]"
+                      : "border-slate-100 bg-slate-50/50 text-slate-500 hover:border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-2xl">🛍️</span>
+                  <div className="text-xs font-black uppercase tracking-wider">
+                    វេចខ្ចប់ / Walk-in / Takeaway
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-medium">
+                    គិតលុយ និង ខ្ចប់យកទៅផ្ទះ (No Table Assigned)
+                  </div>
+                </button>
+              </div>
+
+              {/* Table Zones & Tables Grid */}
+              <div className="space-y-6">
+                {/* Dynamically group tables by zone */}
+                {["indoor", "outdoor", "vip"].map((zone) => {
+                  const zoneTables = tables.filter((t) => t.zone.toLowerCase() === zone);
+                  if (zoneTables.length === 0) return null;
+
+                  return (
+                    <div key={zone} className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5 capitalize">
+                        📍 Zone: {zone === "indoor" ? "ខាងក្នុង (Indoor)" : zone === "outdoor" ? "ខាងក្រៅ (Outdoor)" : "វីអាយភី (VIP)"}
+                      </h4>
+                      
+                      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                        {zoneTables.map((table) => {
+                          const isSelected = tableId === table.id;
+                          return (
+                            <button
+                              key={table.id}
+                              type="button"
+                              onClick={() => {
+                                setTableId(table.id);
+                                setTableModalOpen(false);
+                              }}
+                              className={`flex flex-col items-center justify-center rounded-2xl border-2 p-4 transition-all duration-200 active:scale-[0.97] cursor-pointer hover:shadow-xs ${
+                                isSelected
+                                  ? "border-[#696cff] bg-[#696cff]/5 text-[#696cff] ring-2 ring-[#696cff]"
+                                  : "border-slate-100 bg-white text-slate-600 hover:border-[#696cff]/40 hover:bg-slate-50/40"
+                              }`}
+                            >
+                              <span className="text-xl mb-1">🪑</span>
+                              <div className="text-xs font-black leading-snug">{table.name}</div>
+                              <div className="text-[9.5px] font-semibold text-slate-400 mt-1">
+                                {table.capacity} Seats
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer with a quick instructions note */}
+            <div className="border-t border-slate-100 bg-slate-50/50 px-6 py-3 flex items-center justify-center">
+              <span className="text-[10px] font-bold text-slate-400 text-center">
+                * ការជ្រើសរើសតុជួយទប់ស្កាត់កំហុសក្នុងការបញ្ជូនការកុម្មង់ទៅចង្ក្រានបាយ (KDS)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+        </main>
+      </div>
+    </div>
   );
 }
 
@@ -957,35 +1938,40 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
   const unavailable = !product.isAvailable;
   const [imgFailed, setImgFailed] = useState(false);
 
-  const rielPrice = Math.round(Number(product.basePrice || 0) * 4100).toLocaleString();
-
   return (
     <button
       type="button"
       onClick={onAdd}
       disabled={unavailable}
-      className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white text-left shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white text-left shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between"
     >
-      {/* Food Photo Cover */}
-      <div className="w-full aspect-[1.35] bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden shrink-0 border-b border-slate-100">
+      {/* Product Image Cover */}
+      <div className="w-full aspect-[1.3] bg-slate-50 relative overflow-hidden shrink-0 border-b border-slate-100 flex items-center justify-center">
         {imageUrl && !imgFailed ? (
           <img
             src={imageUrl}
             alt={product.name}
             onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 text-slate-300">
-            <Utensils size={32} className="text-slate-300 mb-1" />
-            <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-widest">No Photo</span>
+          <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 text-slate-300">
+            <Utensils size={24} className="text-slate-300/80 mb-1" />
+            <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
           </div>
         )}
 
-        {/* Unavailable overlay badge */}
+        {/* Plus Button Overlay */}
+        {!unavailable && (
+          <span className="absolute bottom-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#ea580c] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
+            <Plus size={12} className="stroke-[3]" />
+          </span>
+        )}
+
+        {/* Unavailable overlay */}
         {unavailable && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px] flex items-center justify-center">
-            <span className="rounded-full bg-red-600 px-3 py-1 text-[10px] font-extrabold text-white uppercase tracking-wider shadow-md">
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
               Sold Out
             </span>
           </div>
@@ -993,31 +1979,14 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       </div>
 
       {/* Card Content Body */}
-      <div className="p-3.5 flex-1 flex flex-col justify-between w-full">
+      <div className="p-3 w-full flex-1 flex flex-col justify-between">
         <div>
-          <h3 className="line-clamp-1 text-xs font-bold text-slate-800 group-hover:text-[#696cff] transition-colors leading-tight">
+          <h3 className="line-clamp-1 text-xs font-bold text-slate-800 group-hover:text-[#ea580c] transition-colors leading-tight">
             {product.name}
           </h3>
-
-          <div className="mt-1 flex items-center justify-between gap-2">
-            <span className="text-xs font-black text-emerald-600">
-              {money(product.basePrice)}
-            </span>
-            <span className="text-[10px] font-bold text-slate-400">
-              {rielPrice} ៛
-            </span>
+          <div className="mt-1 text-xs font-black text-[#ea580c]">
+            {money(product.basePrice)}
           </div>
-        </div>
-
-        {/* Bottom Actions */}
-        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 border-slate-100">
-          <span className="text-[10px] font-semibold text-slate-400 truncate max-w-[100px]">
-            {product.category?.name || "Menu"}
-          </span>
-          
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] group-hover:bg-[#696cff] group-hover:text-white group-hover:scale-105 active:scale-90 transition-all duration-150 shadow-xs">
-            <Plus size={14} className="stroke-[3]" />
-          </span>
         </div>
       </div>
     </button>
@@ -1029,80 +1998,148 @@ function TicketItem({
   imageUrl,
   onIncrement,
   onDecrement,
+  onRemove,
+  onAddNote,
 }: {
   item: CartItem;
   imageUrl: string;
   onIncrement: () => void;
   onDecrement: () => void;
+  onRemove?: () => void;
+  onAddNote?: (noteText: string) => void;
 }) {
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteText, setNoteText] = useState(item.notes || "");
+
   return (
-    <div className="flex gap-3 items-center border-b pb-3 border-[#eceef1]/50 last:border-none last:pb-0 animate-[usersPageIn_150ms_ease-out]">
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-slate-50 border">
-        {imageUrl ? (
-          <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-300">
-            <ShoppingBag size={16} />
-          </div>
+    <div className="group flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-2xs hover:shadow-xs hover:border-slate-200/80 transition-all duration-200">
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="flex-1 min-w-0">
+          <h3 className="truncate text-xs font-black text-slate-800 leading-snug">
+            {item.name}
+          </h3>
+          <span className="text-[10px] font-black text-[#ea580c] block mt-0.5">
+            {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
+          </span>
+        </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
+            title="Remove item"
+          >
+            <Trash2 size={12} className="stroke-[2.5]" />
+          </button>
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-xs font-bold text-[#566a7f]">{item.name}</h3>
-            <p className="mt-0.5 text-[9.5px] font-semibold text-[#a1acb8]">
-              {money(item.unitPrice)}
-            </p>
-          </div>
-          <span className="text-xs font-bold text-[#566a7f]">
-            {money(item.unitPrice * item.quantity)}
-          </span>
-        </div>
-
-        {/* Quantity selectors */}
-        <div className="mt-1.5 flex items-center gap-2">
+      {/* Stepper Count & Add Note Row */}
+      <div className="flex items-center justify-between mt-1">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50/50 p-0.5 scale-90 origin-left">
           <button
             type="button"
             onClick={onDecrement}
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f5f5f9] text-[#8592a3] hover:bg-[#ffe5e5] hover:text-[#ff3e1d] transition-all"
+            className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
           >
-            <Minus size={11} />
+            <Minus size={10} />
           </button>
-          <span className="w-4 text-center text-xs font-bold text-[#566a7f]">{item.quantity}</span>
+          <span className="w-5 text-center text-[10px] font-black text-slate-700">
+            {item.quantity}
+          </span>
           <button
             type="button"
             onClick={onIncrement}
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e7e7ff] text-[#696cff] hover:bg-[#696cff] hover:text-white transition-all"
+            className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
           >
-            <Plus size={11} />
+            <Plus size={10} />
           </button>
         </div>
+
+        {/* Add Notes Button */}
+        {onAddNote && (
+          <button
+            type="button"
+            onClick={() => setIsEditingNote(!isEditingNote)}
+            className="rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-1 text-[9.5px] font-bold text-slate-500 hover:bg-slate-100 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            📝 {item.notes ? `Note: "${item.notes}"` : "Add Notes"}
+          </button>
+        )}
       </div>
+
+      {/* Note input slide-down */}
+      {isEditingNote && onAddNote && (
+        <div className="mt-1 flex items-center gap-1 animate-[usersPageIn_150ms_ease-out]">
+          <input
+            type="text"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Add note (e.g. Less sugar)..."
+            className="h-7 w-full rounded border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-700 outline-none focus:border-[#ea580c] focus:bg-white transition-all"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              onAddNote(noteText);
+              setIsEditingNote(false);
+            }}
+            className="rounded bg-[#ea580c] text-white px-2 py-1 text-[10px] font-bold cursor-pointer"
+          >
+            Save
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+function getCategoryIcon(name: string): string {
+  const map: Record<string, string> = {
+    coffee: "☕", tea: "🍵", dessert: "🍰", cake: "🎂",
+    food: "🍔", frappe: "🧋", juice: "🥤", smoothie: "🥤",
+    pizza: "🍕", pasta: "🍝", salad: "🥗", soup: "🍜",
+    burger: "🍔", sandwich: "🥪", noodle: "🍜", rice: "🍚",
+    snack: "🍟", bread: "🥐", drink: "🧃", water: "💧",
+    beer: "🍺", wine: "🍷", cocktail: "🍹", milk: "🥛",
+    chocolate: "🍫", ice: "🍦", fruit: "🍓", chicken: "🍗",
+  };
+  const key = name.toLowerCase().trim();
+  for (const [k, v] of Object.entries(map)) {
+    if (key.includes(k)) return v;
+  }
+  return "🍴";
 }
 
 function CategoryTab({
   active,
   onClick,
   children,
+  icon,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  icon?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`h-9 shrink-0 rounded px-4 text-xs font-bold active:scale-95 transition-all duration-150 ${
+      className={`relative inline-flex shrink-0 items-center gap-1.5 px-4 pb-3 pt-2.5 text-xs font-bold transition-colors duration-200 ${
         active
-          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
-          : "text-[#8592a3] hover:text-[#696cff] hover:bg-[#eceef1]/60"
+          ? "text-[#696cff]"
+          : "text-slate-400 hover:text-slate-700"
       }`}
     >
-      {children}
+      {icon && <span className="text-sm leading-none">{icon}</span>}
+      <span>{children}</span>
+      {/* Underline indicator */}
+      <span
+        className={`absolute bottom-0 left-0 right-0 h-[2.5px] rounded-full transition-all duration-200 ${
+          active ? "bg-[#696cff] opacity-100" : "opacity-0"
+        }`}
+      />
     </button>
   );
 }
@@ -1122,9 +2159,9 @@ function IconButton({ label, children, onClick }: { label: string; children: Rea
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="mb-2 flex items-center justify-between text-xs font-semibold">
-      <span className="text-[#a1acb8]">{label}</span>
-      <span className="text-[#566a7f]">{value}</span>
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-medium text-slate-400 tracking-wide">{label}</span>
+      <span className="text-xs font-bold text-slate-700">{value}</span>
     </div>
   );
 }

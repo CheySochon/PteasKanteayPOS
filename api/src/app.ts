@@ -19,6 +19,7 @@ import reportRouter from "./routers/report.router.js";
 import settingRouter from "./routers/setting.router.js";
 import backupRouter from "./routers/backup.router.js";
 import auditRouter from "./routers/audit.router.js";
+import inventoryRouter from "./routers/inventory.router.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -106,6 +107,7 @@ app.use("/api/reports", reportRouter);
 app.use("/api/settings", settingRouter);
 app.use("/api/backups", backupRouter);
 app.use("/api/audit", auditRouter);
+app.use("/api/inventory", inventoryRouter);
 
 /**
  * Health check endpoints

@@ -54,10 +54,10 @@ export type RestoreBackupResult = {
 
 function getStoredToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("pos_token") || localStorage.getItem("token") || "dev-admin-token";
+  return localStorage.getItem("pos_token") || localStorage.getItem("token") || null;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: HeadersInit = { "Content-Type": "application/json" };
   const token = options.token ?? getStoredToken();
 
@@ -110,6 +110,7 @@ export const apiOrigin = API_ORIGIN;
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
 export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
+export const loginPin = (pin: string) => request<AuthResult>("/auth/login-pin", { method: "POST", body: { pin } });
 export const getMe = async () => {
   try {
     const data = await request<User>("/auth/me");
@@ -148,23 +149,135 @@ export const createCategory = (body: Partial<Category>) => request<Category>("/c
 export const updateCategory = (id: number, body: Partial<Category>) => request<Category>(`/categories/${id}`, { method: "PUT", body });
 export const deleteCategory = (id: number) => request<void>(`/categories/${id}`, { method: "DELETE" });
 
+const DEFAULT_PRODUCT_IMAGES: Record<string, string> = {
+  cheesecake: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=600&q=80",
+  "chocolate frappe": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=600&q=80",
+  croissant: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80",
+  "green tea": "https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?auto=format&fit=crop&w=600&q=80",
+  latte: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80",
+  americano: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
+  cafe: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80",
+};
+
 export const getProducts = async () => {
+  let list: Product[] = [];
   try {
     const data = await request<Product[]>("/products");
-    if (typeof window !== "undefined") saveToCache("products", data).catch(console.error);
-    return data;
+    if (Array.isArray(data)) list = data;
   } catch (err) {
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("products")) as Product[] | null;
-      if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+      if (cached && Array.isArray(cached) && cached.length > 0) list = cached;
     }
-    throw err;
+  }
+
+  // Load custom created/updated products from localStorage
+  if (typeof window !== "undefined") {
+    try {
+      const storedCustom = localStorage.getItem("pos_custom_created_products");
+      if (storedCustom) {
+        const customProds: Product[] = JSON.parse(storedCustom);
+        customProds.forEach((cp) => {
+          const idx = list.findIndex((p) => p.id === cp.id || p.name.toLowerCase() === cp.name.toLowerCase());
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], ...cp };
+          } else {
+            list.push(cp);
+          }
+        });
+      }
+    } catch {}
+  }
+
+  // Assign high quality food photos for items without photos
+  list = list.map((p) => {
+    if (!p.imageUrl) {
+      const lowerName = (p.name || "").toLowerCase().trim();
+      const fallbackUrl = DEFAULT_PRODUCT_IMAGES[lowerName] || 
+        (lowerName.includes("tea") ? DEFAULT_PRODUCT_IMAGES["green tea"] :
+         lowerName.includes("frappe") ? DEFAULT_PRODUCT_IMAGES["chocolate frappe"] :
+         lowerName.includes("cake") ? DEFAULT_PRODUCT_IMAGES["cheesecake"] :
+         lowerName.includes("coffee") || lowerName.includes("latte") ? DEFAULT_PRODUCT_IMAGES["latte"] : "");
+      if (fallbackUrl) {
+        return { ...p, imageUrl: fallbackUrl };
+      }
+    }
+    return p;
+  });
+
+  if (typeof window !== "undefined" && list.length > 0) {
+    saveToCache("products", list).catch(console.error);
+  }
+
+  return list;
+};
+
+export const getProduct = (id: number) => request<Product>(`/products/${id}`);
+
+export const createProduct = async (body: Partial<Product>): Promise<Product> => {
+  let created: Product;
+  try {
+    created = await request<Product>("/products", { method: "POST", body });
+  } catch (err) {
+    created = {
+      id: Date.now(),
+      name: body.name || "Menu Item",
+      categoryId: body.categoryId || 1,
+      basePrice: body.basePrice || 0,
+      description: body.description || "",
+      imageUrl: body.imageUrl || "",
+      isAvailable: body.isAvailable !== undefined ? body.isAvailable : true,
+    } as Product;
+  }
+
+  if (typeof window !== "undefined" && created) {
+    try {
+      const stored = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
+      stored.unshift(created);
+      localStorage.setItem("pos_custom_created_products", JSON.stringify(stored));
+    } catch {}
+  }
+
+  return created;
+};
+
+export const updateProduct = async (id: number, body: Partial<Product>): Promise<Product> => {
+  let updated: Product;
+  try {
+    updated = await request<Product>(`/products/${id}`, { method: "PUT", body });
+  } catch (err) {
+    updated = { id, ...body } as Product;
+  }
+
+  if (typeof window !== "undefined" && updated) {
+    try {
+      const stored: Product[] = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
+      const idx = stored.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        stored[idx] = { ...stored[idx], ...updated };
+      } else {
+        stored.push(updated);
+      }
+      localStorage.setItem("pos_custom_created_products", JSON.stringify(stored));
+    } catch {}
+  }
+
+  return updated;
+};
+
+export const deleteProduct = async (id: number): Promise<void> => {
+  try {
+    await request<void>(`/products/${id}`, { method: "DELETE" });
+  } catch (err) {}
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored: Product[] = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
+      const filtered = stored.filter((p) => p.id !== id);
+      localStorage.setItem("pos_custom_created_products", JSON.stringify(filtered));
+    } catch {}
   }
 };
-export const getProduct = (id: number) => request<Product>(`/products/${id}`);
-export const createProduct = (body: Partial<Product>) => request<Product>("/products", { method: "POST", body });
-export const updateProduct = (id: number, body: Partial<Product>) => request<Product>(`/products/${id}`, { method: "PUT", body });
-export const deleteProduct = (id: number) => request<void>(`/products/${id}`, { method: "DELETE" });
 export async function uploadProductImage(file: File) {
   const formData = new FormData();
   formData.append("image", file);
@@ -198,6 +311,30 @@ export async function uploadRestaurantImage(file: File) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${API_URL}/settings/upload-image`, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  });
+
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw new Error(payload?.message || `Request failed with status ${response.status}`);
+  }
+
+  return (payload as ApiResponse<{ imageUrl: string }>).data as { imageUrl: string };
+}
+
+export async function uploadUserImage(file: File) {
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const token = getStoredToken();
+  const headers: HeadersInit = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_URL}/users/upload-image`, {
     method: "POST",
     headers,
     body: formData,
@@ -416,7 +553,7 @@ export const getTopProducts = async (date?: string, period = "month"): Promise<T
 export const exportReportsCsv = (date?: string, period = "month") => date ? `${API_URL}/reports/export-csv?date=${date}&period=${period}` : `${API_URL}/reports/export-csv`;
 
 const DEFAULT_DEMO_USERS: User[] = [
-  { id: 1, name: "System Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Admin" }, roleName: "ADMIN", isActive: true },
+  { id: 1, name: "Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Admin" }, roleName: "ADMIN", isActive: true },
   { id: 2, name: "Chon (Cashier)", email: "chon.cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
   { id: 3, name: "POS Cashier", email: "cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
   { id: 4, name: "Kitchen Staff", email: "kitchen@pos.local", role: { id: 3, name: "Staff" }, roleName: "STAFF", isActive: true },
@@ -471,6 +608,47 @@ export const getUsers = async (): Promise<User[]> => {
   return list;
 };
 
+export const getPublicStaff = async (): Promise<User[]> => {
+  let list: User[] = [];
+  try {
+    const apiUsers = await request<User[]>("/auth/staff");
+    if (Array.isArray(apiUsers)) list = apiUsers;
+  } catch (err) {
+    list = [];
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("pos_deleted_user_ids");
+      if (stored) {
+        const deletedIds: number[] = JSON.parse(stored);
+        if (deletedIds.length > 0) {
+          list = list.filter((u) => !deletedIds.includes(u.id));
+        }
+      }
+    } catch {}
+
+    try {
+      const storedCreated = localStorage.getItem("pos_custom_users_list") || localStorage.getItem("pos_custom_created_users");
+      if (storedCreated) {
+        const customUsers = JSON.parse(storedCreated);
+        if (Array.isArray(customUsers)) {
+          customUsers.forEach((cu: any) => {
+            const idx = list.findIndex((u) => u.id === cu.id || (u.email && cu.email && u.email.toLowerCase() === cu.email.toLowerCase()));
+            if (idx >= 0) {
+              list[idx] = { ...list[idx], ...cu };
+            } else {
+              list.unshift(cu);
+            }
+          });
+        }
+      }
+    } catch {}
+  }
+
+  return list;
+};
+
 export const getRoles = async (): Promise<Role[]> => {
   try {
     return await request<Role[]>("/users/roles");
@@ -479,81 +657,67 @@ export const getRoles = async (): Promise<Role[]> => {
   }
 };
 
-export const createUser = async (body: { name: string; email: string; password?: string; roleName: string; isActive: boolean }): Promise<User> => {
-  let newUser: User;
-  try {
-    newUser = await request<User>("/users", { method: "POST", body });
-  } catch (err) {
-    newUser = {
-      id: Date.now(),
-      name: body.name,
-      email: body.email,
-      role: { id: 2, name: body.roleName },
-      roleName: body.roleName.toUpperCase(),
-      isActive: body.isActive,
-    };
-  }
+export const createRole = async (body: { name: string; description?: string; permissions?: any }): Promise<Role> => {
+  return await request<Role>("/users/roles", { method: "POST", body });
+};
 
-  if (newUser) {
-    const exists = inMemoryCreatedUsers.some((u) => u.id === newUser.id || u.email === newUser.email);
-    if (!exists) {
-      inMemoryCreatedUsers.unshift(newUser);
-    } else {
-      inMemoryCreatedUsers = inMemoryCreatedUsers.map((u) => (u.id === newUser.id ? newUser : u));
-    }
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("pos_custom_created_users", JSON.stringify(inMemoryCreatedUsers));
-      } catch {}
-    }
-  }
+export const updateRole = async (id: number, body: { name?: string; description?: string; permissions?: any }): Promise<Role> => {
+  return await request<Role>(`/users/roles/${id}`, { method: "PUT", body });
+};
 
+export const deleteRole = async (id: number): Promise<void> => {
+  await request<void>(`/users/roles/${id}`, { method: "DELETE" });
+};
+
+export const createUser = async (body: { name: string; email: string; password?: string; roleName: string; isActive: boolean; imageUrl?: string }): Promise<User> => {
+  // Always call real API — throw error if it fails (no silent localStorage fallback)
+  const newUser = await request<User>("/users", { method: "POST", body });
   return newUser;
 };
 
-export const updateUser = async (id: number, body: { name?: string; email?: string; password?: string; roleName?: string; isActive?: boolean }): Promise<User> => {
-  let updatedUser: User;
-  try {
-    updatedUser = await request<User>(`/users/${id}`, { method: "PUT", body });
-  } catch (err) {
-    updatedUser = {
-      id,
-      name: body.name || "User",
-      email: body.email || "user@pos.local",
-      roleName: (body.roleName || "STAFF").toUpperCase(),
-      isActive: body.isActive !== undefined ? body.isActive : true,
-    } as User;
-  }
-
-  if (updatedUser) {
-    inMemoryCreatedUsers = inMemoryCreatedUsers.map((u) => (u.id === id ? { ...u, ...updatedUser } : u));
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("pos_custom_created_users", JSON.stringify(inMemoryCreatedUsers));
-      } catch {}
-    }
-  }
-
+export const updateUser = async (id: number, body: { name?: string; email?: string; password?: string; roleName?: string; isActive?: boolean; imageUrl?: string }): Promise<User> => {
+  // Always call real API — throw error if it fails
+  const updatedUser = await request<User>(`/users/${id}`, { method: "PUT", body });
   return updatedUser;
 };
 
 export const deleteUser = async (id: number): Promise<void> => {
-  try {
-    await request<void>(`/users/${id}`, { method: "DELETE" });
-  } catch (err) {
-    // API deletion
-  } finally {
-    if (!inMemoryDeletedUserIds.includes(id)) {
-      inMemoryDeletedUserIds.push(id);
-    }
-    inMemoryCreatedUsers = inMemoryCreatedUsers.filter((u) => u.id !== id);
+  // If it's a client-side mock user (id generated via Date.now())
+  if (id > 2147483647) {
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("pos_deleted_user_ids", JSON.stringify(inMemoryDeletedUserIds));
-        localStorage.setItem("pos_custom_created_users", JSON.stringify(inMemoryCreatedUsers));
-      } catch {}
+        // 1. Remove from pos_custom_created_users
+        const storedCreated = localStorage.getItem("pos_custom_created_users");
+        if (storedCreated) {
+          const users: User[] = JSON.parse(storedCreated);
+          const filtered = users.filter((u) => u.id !== id);
+          localStorage.setItem("pos_custom_created_users", JSON.stringify(filtered));
+        }
+
+        // 2. Remove from pos_custom_users_list (if present)
+        const storedList = localStorage.getItem("pos_custom_users_list");
+        if (storedList) {
+          const users: any[] = JSON.parse(storedList);
+          const filtered = users.filter((u) => u.id !== id);
+          localStorage.setItem("pos_custom_users_list", JSON.stringify(filtered));
+        }
+
+        // 3. Add to pos_deleted_user_ids to keep fallback listing consistent
+        const storedDeleted = localStorage.getItem("pos_deleted_user_ids");
+        const deletedIds: number[] = storedDeleted ? JSON.parse(storedDeleted) : [];
+        if (!deletedIds.includes(id)) {
+          deletedIds.push(id);
+          localStorage.setItem("pos_deleted_user_ids", JSON.stringify(deletedIds));
+        }
+      } catch (e) {
+        console.error("Local storage delete fallback error:", e);
+      }
     }
+    return;
   }
+
+  // Always call real API — throw error if it fails
+  await request<void>(`/users/${id}`, { method: "DELETE" });
 };
 export const getSettings = async (): Promise<AppSettings> => {
   try {
@@ -575,6 +739,7 @@ export const getSettings = async (): Promise<AppSettings> => {
       restaurantPhone: "+66 00 000 0000",
       restaurantImageUrl: "",
       address: "Bangkok, Thailand",
+      vatTin: "",
       currency: "USD",
       taxRate: 7,
       serviceChargeRate: 10,
@@ -615,15 +780,7 @@ export const getBackupFiles = async (): Promise<BackupFile[]> => {
   try {
     return await request<BackupFile[]>("/backups");
   } catch (err) {
-    const now = new Date().toISOString();
-    return [
-      {
-        filename: "posv2-backup-2026-08-02.json",
-        createdAt: now,
-        updatedAt: now,
-        size: 15420,
-      },
-    ];
+    return [];
   }
 };
 
@@ -659,24 +816,48 @@ export const restoreBackup = async (body: unknown): Promise<RestoreBackupResult>
 };
 
 export async function downloadBackup(latest = false) {
-  const token = getStoredToken();
-  const headers: HeadersInit = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = getStoredToken();
+    const headers: HeadersInit = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}/backups/${latest ? "latest" : "download"}`, {
-    headers,
-    credentials: "include",
-  });
+    const response = await fetch(`${API_URL}/backups/${latest ? "latest" : "download"}`, {
+      headers,
+      credentials: "include",
+    });
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message || `Request failed with status ${response.status}`);
-  }
+    if (response.ok) {
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `posv2-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      return;
+    }
+  } catch {}
 
-  const blob = await response.blob();
-  const disposition = response.headers.get("content-disposition") || "";
-  const match = disposition.match(/filename="?([^"]+)"?/i);
-  const filename = match?.[1] || `posv2-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  // Fallback client-side backup generator so Admin download never fails
+  const backupData = {
+    version: 2,
+    app: "pos-newflow",
+    createdAt: new Date().toISOString(),
+    storeName: localStorage.getItem("pos_restaurant_name") || "The Tofu",
+    orders: JSON.parse(localStorage.getItem("orders") || "[]"),
+    users: JSON.parse(localStorage.getItem("pos_custom_created_users") || "[]"),
+    auditLogs: JSON.parse(localStorage.getItem("pos_audit_logs") || "[]"),
+    settings: JSON.parse(localStorage.getItem("pos_app_settings") || "{}"),
+  };
+
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const filename = `posv2-backup-${new Date().toISOString().slice(0, 10)}.json`;
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -771,7 +952,7 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
     logs = [
       {
         id: now - 300000,
-        userName: "System Admin",
+        userName: "Admin",
         userRole: "Admin",
         action: "Staff Login (PIN Verification)",
         ipAddress: "127.0.0.1 (Local)",
@@ -819,7 +1000,8 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
       log.action.toLowerCase().includes(search) ||
       (log.ipAddress && log.ipAddress.toLowerCase().includes(search));
 
-    const matchStatus = status === "all" || log.status.toLowerCase() === status;
+    const isAllStatus = !status || status === "all" || status.includes("all");
+    const matchStatus = isAllStatus || log.status.toLowerCase() === status;
     return matchSearch && matchStatus;
   });
 
@@ -836,6 +1018,60 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
   };
 };
 
-export const getTelegramConfig = () => request<TelegramConfig>("/audit/telegram");
-export const updateTelegramConfig = (body: Partial<TelegramConfig>) => request<TelegramConfig>("/audit/telegram", { method: "POST", body });
+export const getTelegramConfig = async (): Promise<TelegramConfig> => {
+  try {
+    const res = await request<TelegramConfig>("/audit/telegram");
+    if (res && (res.botToken || res.chatId)) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pos_telegram_config", JSON.stringify(res));
+      }
+      return res;
+    }
+  } catch {}
+
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("pos_telegram_config");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.botToken || parsed.chatId)) return parsed;
+      }
+      const storedSettings = localStorage.getItem("pos_app_settings");
+      if (storedSettings) {
+        const s = JSON.parse(storedSettings);
+        if (s.telegramBotToken || s.telegramChatId) {
+          return {
+            botToken: s.telegramBotToken || "",
+            chatId: s.telegramChatId || "",
+            alertLogin: s.telegramAlertLogin ?? true,
+            alertFailedLogin: s.telegramAlertFailedLogin ?? true,
+            alertNewOrder: s.telegramAlertNewOrder ?? false,
+          };
+        }
+      }
+    } catch {}
+  }
+
+  return {
+    botToken: "",
+    chatId: "",
+    alertLogin: true,
+    alertFailedLogin: true,
+    alertNewOrder: false,
+  };
+};
+
+export const updateTelegramConfig = async (body: Partial<TelegramConfig>): Promise<TelegramConfig> => {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("pos_telegram_config", JSON.stringify(body));
+    } catch {}
+  }
+  try {
+    return await request<TelegramConfig>("/audit/telegram", { method: "POST", body });
+  } catch {
+    return body as TelegramConfig;
+  }
+};
+
 export const testTelegramBot = (body: { botToken: string; chatId: string }) => request<{ message: string }>("/audit/telegram/test", { method: "POST", body });

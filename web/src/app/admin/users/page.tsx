@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  Check,
   CheckCircle2,
   Edit3,
   Loader2,
@@ -27,6 +28,15 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Camera,
+  Mail,
+  Lock,
+  Phone,
+  Briefcase,
+  Sliders,
+  Package,
+  Utensils,
+  UserPlus,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
@@ -38,6 +48,8 @@ import {
   getRoles,
   getUsers,
   updateUser,
+  apiOrigin,
+  uploadUserImage,
 } from "../../../lib/api";
 import type { Role, User } from "../../../lib/types";
 import {
@@ -47,6 +59,9 @@ import {
   initials,
   profileAvatarClass,
   subscribeToProfileChanges,
+  saveProfileImage,
+  clearProfileImage,
+  profileRoleClass,
 } from "../../../lib/profile";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 
@@ -58,6 +73,9 @@ type UserForm = {
   pin: string;
   roleName: string;
   isActive: boolean;
+  imageUrl?: string;
+  phone?: string;
+  designation?: string;
 };
 
 const EMPTY_FORM: UserForm = {
@@ -67,6 +85,9 @@ const EMPTY_FORM: UserForm = {
   pin: "1234",
   roleName: "Cashier",
   isActive: true,
+  imageUrl: "",
+  phone: "",
+  designation: "",
 };
 
 export default function UsersPage() {
@@ -95,6 +116,10 @@ export default function UsersPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [showModalPassword, setShowModalPassword] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   useAutoDismiss(message, setMessage);
   useAutoDismiss(error, setError);
   useSyncExternalStore(
@@ -211,12 +236,25 @@ export default function UsersPage() {
     });
   }, [users, filterRole, filterStatus, searchQuery]);
 
+  // Sort users so that Admins are always first (far left)
+  const sortedUsers = useMemo(() => {
+    return [...filteredUsers].sort((a, b) => {
+      const aRole = roleName(a).toUpperCase();
+      const bRole = roleName(b).toUpperCase();
+      const aIsAdmin = aRole === "ADMIN";
+      const bIsAdmin = bRole === "ADMIN";
+      if (aIsAdmin && !bIsAdmin) return -1;
+      if (!aIsAdmin && bIsAdmin) return 1;
+      return 0;
+    });
+  }, [filteredUsers]);
+
   // Pagination calculations
-  const totalPages = Math.ceil(filteredUsers.length / limit) || 1;
+  const totalPages = Math.ceil(sortedUsers.length / limit) || 1;
   const startIndex = (currentPage - 1) * limit;
   const paginatedUsers = useMemo(() => {
-    return filteredUsers.slice(startIndex, startIndex + limit);
-  }, [filteredUsers, startIndex, limit]);
+    return sortedUsers.slice(startIndex, startIndex + limit);
+  }, [sortedUsers, startIndex, limit]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -229,6 +267,16 @@ export default function UsersPage() {
     setMessage("");
     setError("");
 
+    // ── Token Guard: ensure real JWT before calling API ──────────────
+    const currentToken = typeof window !== "undefined" ? localStorage.getItem("pos_token") : null;
+    const isRealToken = currentToken && currentToken.startsWith("eyJ");
+    if (!isRealToken) {
+      setError("⚠️ Session expired or invalid. Please login with your Admin Email & Password at /login to perform this action.");
+      setSaving(false);
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     try {
       const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
 
@@ -239,6 +287,7 @@ export default function UsersPage() {
           roleName: form.roleName,
           isActive: form.isActive,
           pin: form.pin || "1234",
+          imageUrl: form.imageUrl || "",
           ...(form.password ? { password: form.password } : {}),
         };
 
@@ -247,6 +296,25 @@ export default function UsersPage() {
         setUsers((current) =>
           current.map((user) => (user.id === updated.id ? updated : user)),
         );
+
+        // Update local session if the user edited their own account details
+        if (typeof window !== "undefined") {
+          const currentUserRaw = localStorage.getItem("pos_user");
+          if (currentUserRaw) {
+            try {
+              const cur = JSON.parse(currentUserRaw);
+              if (cur.id === updated.id || (cur.email && cur.email.trim().toLowerCase() === updated.email.trim().toLowerCase())) {
+                const mergedUser = { 
+                  ...cur, 
+                  ...updated,
+                  role: typeof updated.role === "string" ? updated.role : updated.role?.name || updated.roleName || cur.role
+                };
+                localStorage.setItem("pos_user", JSON.stringify(mergedUser));
+                window.dispatchEvent(new Event("pos-auth-change"));
+              }
+            } catch {}
+          }
+        }
 
         const socket = getSocket();
         if (socket) socket.emit("user:updated", updated);
@@ -260,6 +328,7 @@ export default function UsersPage() {
           roleName: form.roleName,
           isActive: form.isActive,
           pin: form.pin || "1234",
+          imageUrl: form.imageUrl || "",
         } as any);
 
         setUsers((current) => [created, ...current]);
@@ -272,7 +341,12 @@ export default function UsersPage() {
 
       closeUserModal();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save user");
+      const msg = err instanceof Error ? err.message : "Unable to save user";
+      if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("403")) {
+        setError("⚠️ Invalid session. Please logout and login again with Admin Email & Password.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -292,6 +366,17 @@ export default function UsersPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [deleteConfirmUser]);
+
+  // Close action menu on click or scroll
+  useEffect(() => {
+    const handleClose = () => setActionMenuOpen(null);
+    window.addEventListener("click", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    return () => {
+      window.removeEventListener("click", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+    };
+  }, []);
 
   async function confirmRemoveUser() {
     if (!deleteConfirmUser) return;
@@ -333,16 +418,41 @@ export default function UsersPage() {
   }
 
   function edit(user: User) {
+    const uRole = roleName(user) || "Cashier";
     setForm({
       id: user.id,
       name: user.name,
       email: user.email,
       password: "",
       pin: (user as any).pin || (user.email.includes("cashier") ? "1234" : user.email.includes("staff") ? "5678" : "0000"),
-      roleName: roleName(user) || "Cashier",
+      roleName: uRole,
       isActive: user.isActive,
+      imageUrl: user.imageUrl || "",
     });
 
+    const userRoleObj = roles.find((r) => r.name === uRole);
+    const initialPerms = [
+      { key: "dashboard", view: userRoleObj?.permissions?.find((x: any) => x.key === "dashboard")?.view },
+      { key: "pos", view: userRoleObj?.permissions?.find((x: any) => x.key === "menu")?.view },
+      { key: "orders", view: userRoleObj?.permissions?.find((x: any) => x.key === "orders")?.view },
+      { key: "customer_display", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("cashier") },
+      { key: "kds", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("staff") || uRole.toLowerCase().includes("chef") },
+      { key: "order_status", view: true },
+      { key: "order_stage", view: true },
+      { key: "kitchen_workflow", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("staff") || uRole.toLowerCase().includes("chef") },
+      { key: "reservations", view: true },
+      { key: "view_bookings", view: true },
+      { key: "manage_bookings", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
+      { key: "customer_directory", view: true },
+      { key: "view_customer_profiles", view: true },
+      { key: "manage_customer_profiles", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
+      { key: "invoices", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("cashier") },
+      { key: "void_invoices", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
+      { key: "invoice_audit", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
+      { key: "loyalty", view: true },
+    ].filter(x => x.view).map(x => x.key);
+
+    setSelectedPerms(initialPerms);
     setMessage("");
     setError("");
     setShowModalPassword(false);
@@ -354,6 +464,7 @@ export default function UsersPage() {
     setMessage("");
     setError("");
     setShowModalPassword(false);
+    setSelectedPerms(["pos", "orders", "customer_display", "order_status", "invoices", "loyalty"]); // Default Cashier
     setIsUserModalOpen(true);
   }
 
@@ -361,555 +472,682 @@ export default function UsersPage() {
     setIsUserModalOpen(false);
     setShowModalPassword(false);
     setForm(EMPTY_FORM);
+    setSelectedPerms([]);
+  }
+
+  function handleExport() {
+    if (users.length === 0) return;
+    
+    // Header columns
+    const headers = ["ID", "Name", "Email", "Role", "Status", "Created At"];
+    
+    // Rows
+    const rows = users.map(user => [
+      user.id,
+      user.name,
+      user.email,
+      roleName(user) || "Cashier",
+      user.isActive ? "Active" : "Inactive",
+      user.createdAt ? new Date(user.createdAt).toISOString() : ""
+    ]);
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    // Download trigger
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `staff_users_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   return (
     <>
 
 
-      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"}`}>
+      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
         <TopBar
           title={language === "km" ? "បុគ្គលិក និងសិទ្ធិ" : "Staff & Roles"}
-          subtitle={language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក និងតួនាទី" : "Manage system users and their roles."}
+          subtitle=""
           language={language}
           onLanguageChange={setAppLanguage}
           notifications={[]}
           dark={dark}
         />
 
-        {/* Shared Tabs for Staff & Roles */}
-        <div className={`px-4 pt-4 lg:px-8 flex items-center justify-between border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
-          <div className="mx-auto w-full max-w-[1600px] flex items-center justify-between">
-            <div className="flex gap-6">
-              <Link 
-                href="/admin/users" 
-                className={`pb-3 font-bold text-[14px] border-b-[3px] transition-colors border-[#0F522B] text-[#0F522B]`}
-              >
-                <span className="flex items-center gap-2"><UserRound size={16} /> {language === "km" ? "បញ្ជីបុគ្គលិក" : "User List"}</span>
-              </Link>
-              <Link 
-                href="/admin/permissions" 
-                className={`pb-3 font-semibold text-[14px] border-b-[3px] transition-colors border-transparent ${dark ? "text-[#a1acb8] hover:text-slate-200" : "text-[#566a7f] hover:text-[#0F522B]"}`}
-              >
-                <span className="flex items-center gap-2"><ShieldCheck size={16} /> {language === "km" ? "កំណត់សិទ្ធិ" : "Permissions"}</span>
-              </Link>
-            </div>
-
-            {/* SUCCESS TOAST ALERT (Positioned inside Tab Bar on the right side with #696cff color) */}
-            {message && (
-              <div className="relative overflow-hidden flex items-center gap-2.5 px-4 py-1.5 mb-2 rounded-xl bg-[#696cff] text-white text-xs font-bold shadow-md shadow-[#696cff]/25 backdrop-blur-md border border-white/20 animate-[slideFromRight_350ms_cubic-bezier(0.16,1,0.3,1)]">
-                <CheckCircle2 size={15} className="text-white shrink-0" />
-                <span>{message}</span>
-                {/* 3s Countdown Progress Bar */}
-                <div className="absolute bottom-0 left-0 h-[2px] bg-white/70 animate-[toastProgress_3000ms_linear_forwards]" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+        <div className="flex-1 overflow-y-auto px-5 pt-3 pb-6">
           <div className="mx-auto w-full max-w-[1600px]">
 
-            {/* Error Alert */}
-            {error && (
-              <div className="mb-6 rounded border border-red-150 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-                {error}
-              </div>
-            )}
-
-            {/* Table & Table Controls Container */}
-            <section className={`rounded-2xl shadow-none overflow-hidden ${surface} border ${borderCol}`}>
-              {/* Unified Controls & Filters Bar */}
-              <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between border-b border-slate-100 dark:border-[#4e4f6e]/50">
-                {/* Left Side: Limit, Search & Dropdown Filters */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <select
-                    value={limit}
-                    onChange={(e) => setLimit(Number(e.target.value))}
-                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  >
-                    <option value="10">10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Search User..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`h-9 w-48 sm:w-56 rounded-lg border pl-3.5 pr-3 text-xs font-semibold outline-none placeholder-[#b4bdc6] focus:border-[#696cff] transition-all ${
-                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                      }`}
-                    />
+            {/* Floating Top Success/Error Toast Alerts */}
+            <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+              {message && (
+                <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-200/50 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+                  <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+                    <Check size={11} strokeWidth={4.5} className="text-white" />
                   </div>
-
-                  <select
-                    value={filterRole}
-                    onChange={(e) => setFilterRole(e.target.value)}
-                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  >
-                    <option value="">All Roles</option>
-                    {roles.map((role, idx) => (
-                      <option key={`filter-role-${role.name}-${idx}`} value={role.name}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#696cff] transition-all ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  >
-                    <option value="">All Status</option>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  <span>{message}</span>
                 </div>
+              )}
 
-                {/* Right Side: Export & Add User */}
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-4 text-xs font-semibold hover:opacity-90 transition-all ${
-                      dark ? "border-[#4e4f6e] text-slate-200 bg-[#232333]" : "border-[#d9dee3] text-[#8592a3] bg-[#eceef1]/60"
-                    }`}
-                  >
-                    <Download size={14} />
-                    Export
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={openCreateUserModal}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#0F522B] px-4 text-xs font-semibold text-white shadow-sm shadow-[#0F522B]/20 hover:bg-[#0A3E20] active:scale-95 transition-all"
-                  >
-                    <Plus size={15} />
-                    Add New User
-                  </button>
+              {error && (
+                <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-200/50 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+                  <div className="h-5 w-5 rounded-full bg-[#f43f5e] flex items-center justify-center text-white shrink-0">
+                    <X size={11} strokeWidth={4.5} className="text-white" />
+                  </div>
+                  <span>{error}</span>
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Table wrapper */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className={`border-b ${borderCol} text-[11px] uppercase tracking-wider text-[#a1acb8] font-semibold bg-[#f5f5f9]/40 ${dark ? "bg-slate-800/10" : ""}`}>
-                      <th className="px-5 py-3 w-12">
-                        <input
-                          type="checkbox"
-                          className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] accent-[#696cff]"
-                        />
-                      </th>
-                      <th className="px-5 py-3">User</th>
-                      <th className="px-5 py-3">Role</th>
-                      <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className={dark ? "divide-y divide-[#4e4f6e]" : "divide-y divide-[#f0f2f5]"}>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-12 text-center">
-                          <Loader2 className="animate-spin text-[#696cff] inline-block" size={24} />
-                        </td>
-                      </tr>
-                    ) : paginatedUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className={`px-5 py-8 text-center text-sm ${textSecondary}`}>
-                          No entries found
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedUsers.map((user) => {
-                        const isSelf = currentUserId === user.id;
-                        const uRole = roleName(user) || "Member";
-                        const isActive = user.isActive;
+            {/* Title & "+ New" Button Header */}
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className={`text-[32px] font-light text-slate-700 dark:text-slate-200`}>{language === "km" ? "បុគ្គលិក" : "Users"}</h1>
+              <button
+                type="button"
+                onClick={openCreateUserModal}
+                className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700/50 bg-[#f5f5f9]/80 dark:bg-[#34354c]/60 px-3.5 text-xs font-normal text-slate-600 dark:text-slate-350 hover:bg-[#eceef1] dark:hover:bg-[#3e3f59] transition-all cursor-pointer"
+              >
+                <Plus size={12} className="text-slate-400 stroke-[1.8]" />
+                {language === "km" ? "ថ្មី" : "New"}
+              </button>
+            </div>
 
-                        return (
-                          <tr key={user.id} className={dark ? "hover:bg-[#34354f]" : "hover:bg-[#fcfcfd]"}>
-                            <td className="px-5 py-3">
-                              <input
-                                type="checkbox"
-                                className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] accent-[#696cff]"
-                              />
-                            </td>
-                            <td className="px-5 py-3">
-                              <div className="flex items-center gap-3">
-                                <TeamMemberAvatar user={user} />
-                                <div className="min-w-0">
-                                  <div className={`text-sm font-semibold truncate ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
-                                    {user.name}
-                                  </div>
-                                  <div className="text-xs text-[#a1acb8] truncate">
-                                    {user.email}
-                                  </div>
+              {/* Grid Wrapper */}
+              <div className="pt-1 pb-4">
+                {loading ? (
+                  <div className="flex h-64 w-full items-center justify-center">
+                    <Loader2 className="animate-spin text-[#696cff]" size={32} />
+                  </div>
+                ) : sortedUsers.length === 0 ? (
+                  <div className={`py-12 text-center text-sm ${textSecondary}`}>
+                    No entries found
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
+                    {sortedUsers.map((user) => {
+                      const isSelf = currentUserId === user.id;
+                      const uRole = roleName(user) || "Member";
+                      const isActive = user.isActive;
+                      const imageUrl = user.imageUrl ? resolveImageUrl(user.imageUrl) : "";
+                      const image = imageUrl || getProfileImage({
+                        id: user.id,
+                        name: user.name,
+                        email: user.email,
+                        role: uRole,
+                        isActive: user.isActive,
+                        createdAt: user.createdAt,
+                        updatedAt: user.updatedAt,
+                      });
+
+                      const roleObj = roles.find((r) => r.name === uRole);
+                      const scopes = roleObj && Array.isArray(roleObj.permissions)
+                        ? roleObj.permissions.filter((p: any) => p.view).map((p: any) => String(p.key || "").toUpperCase())
+                        : ["DASHBOARD", "ORDERS", "POS", "KITCHEN_DISPLAY", "RESERVATIONS", "SETTINGS"];
+
+                      const isAdmin = uRole.toUpperCase() === "ADMIN";
+
+                      return (
+                        <div
+                          key={user.id}
+                          className={`w-full max-w-[320px] rounded-[32px] border p-3 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
+                            isAdmin ? "min-h-[280px]" : "min-h-[480px]"
+                          } ${
+                            dark
+                              ? "border-[#4e4f6e]/40 bg-[#2b2c40]"
+                              : "border-[#e0e4e8] bg-white"
+                          }`}
+                        >
+                          <div className="flex flex-col items-center w-full">
+                            {/* Big Circular Avatar */}
+                            <div className="mt-4 shrink-0">
+                              {image ? (
+                                <img
+                                  src={image}
+                                  alt={user.name}
+                                  className="h-20 w-20 rounded-full object-cover border border-slate-200/40 dark:border-slate-700 shadow-sm"
+                                />
+                              ) : (
+                                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#f0f2f5] dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200/45 dark:border-slate-700 shadow-inner">
+                                  <UserRound size={28} className="stroke-[1.2] text-slate-400" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* User Name & Role */}
+                            <h3 className={`text-base font-semibold mt-3.5 truncate max-w-full ${dark ? "text-slate-100" : "text-[#2c3e50]"}`}>
+                              {user.name}
+                            </h3>
+                            <span className="text-[11px] font-normal tracking-wide uppercase text-slate-400 mt-0.5">
+                              {uRole}
+                            </span>
+
+                            {/* Email */}
+                            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-2 truncate max-w-full">
+                              <Mail size={13} className="shrink-0 text-slate-400 stroke-[1.5]" />
+                              <span className="truncate">{user.email}</span>
+                            </div>
+
+                            {/* Scopes Section for non-Admins */}
+                            {!isAdmin && (
+                              <div className="w-full text-left mt-5">
+                                <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">
+                                  Scopes:
+                                </span>
+                                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1 select-none">
+                                  {scopes.map((scope, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[9px] font-semibold tracking-wide bg-slate-100 dark:bg-[#232333] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50 uppercase"
+                                    >
+                                      {scope}
+                                    </span>
+                                  ))}
                                 </div>
                               </div>
-                            </td>
-                            <td className="px-5 py-3">
-                              <div className="flex items-center gap-2 text-sm text-[#566a7f] font-medium capitalize">
-                                <RoleIcon role={uRole} />
-                                <span className={dark ? "text-slate-200" : ""}>{uRole}</span>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3">
+                            )}
+                          </div>
+
+                          {/* Action Buttons at bottom for non-Admins */}
+                          {!isAdmin && (
+                            <div className="w-full flex items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-100 dark:border-[#4e4f6e]/30 px-3">
                               <button
-                                disabled={isSelf}
-                                onClick={() => toggleActive(user)}
-                                className={`rounded px-2 py-1 text-xs font-semibold select-none transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
-                                  isActive
-                                    ? "bg-[#e8fadf] text-[#71dd37]"
-                                    : "bg-[#eceef1] text-[#8592a3]"
-                                }`}
+                                type="button"
+                                onClick={() => edit(user)}
+                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-[#f1f5f9] dark:bg-[#232333]/50 dark:hover:bg-[#232333] text-[#4f5d75] dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/50 transition-all cursor-pointer leading-tight"
                               >
-                                {isActive ? "Active" : "Inactive"}
+                                <span>Edit</span>
+                                <span>User</span>
                               </button>
-                            </td>
-                            <td className="px-5 py-3">
-                              <div className="flex items-center justify-center gap-3 text-[#8592a3]">
-                                <button
-                                  onClick={() => edit(user)}
-                                  className="hover:text-[#696cff] transition-colors p-1"
-                                  title="Edit User"
-                                >
-                                  <Edit3 size={15} />
-                                </button>
-                                <button
-                                  disabled={isSelf}
-                                  onClick={() => setDeleteConfirmUser(user)}
-                                  className="hover:text-[#ff3e1d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed p-1"
-                                  title="Delete User"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                                <Link
-                                  href={`/admin/permissions?userId=${user.id}`}
-                                  className="hover:text-[#696cff] transition-colors p-1"
-                                  title="Manage Permissions"
-                                >
-                                  <ShieldCheck size={15} />
-                                </Link>
-                                <button className="hover:text-slate-600 transition-colors p-1">
-                                  <MoreVertical size={15} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                              <button
+                                type="button"
+                                onClick={() => edit(user)}
+                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-[#f1f5f9] dark:bg-[#232333]/50 dark:hover:bg-[#232333] text-[#4f5d75] dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/50 transition-all cursor-pointer leading-tight"
+                              >
+                                <span>Reset</span>
+                                <span>Password</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmUser(user)}
+                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-rose-50/20 dark:bg-[#232333]/50 dark:hover:bg-rose-950/10 text-rose-500 hover:text-rose-600 dark:text-rose-400 border border-slate-200/80 dark:border-slate-700/50 hover:border-rose-200/60 dark:hover:border-rose-900/30 transition-all cursor-pointer leading-tight"
+                              >
+                                <span>Delete</span>
+                                <span>User</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
-              {/* Table Footer / Pagination controls */}
-              <div className={`flex flex-col gap-4 border-t p-5 sm:flex-row sm:items-center sm:justify-between ${borderCol}`}>
-                <span className="text-xs text-[#a1acb8]">
-                  Showing {filteredUsers.length ? startIndex + 1 : 0} to{" "}
-                  {Math.min(startIndex + limit, filteredUsers.length)} of{" "}
-                  {filteredUsers.length} entries
-                </span>
-
-                <div className="flex items-center gap-1 justify-end">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
-                  >
-                    <ChevronsLeft size={14} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                    disabled={currentPage === 1}
-                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const page = i + 1;
-                    const isActive = page === currentPage;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`flex h-8 w-8 items-center justify-center rounded text-sm font-semibold border ${
-                          isActive
-                            ? "bg-[#696cff] text-white border-[#696cff]"
-                            : `text-[#8592a3] border-slate-200 hover:bg-slate-50 ${borderCol}`
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className={`flex h-8 w-8 items-center justify-center rounded text-[#8592a3] border ${borderCol} hover:bg-slate-50 disabled:opacity-45 disabled:pointer-events-none`}
-                  >
-                    <ChevronsRight size={14} />
-                  </button>
-                </div>
-              </div>
-            </section>
 
           </div>
         </div>
       </main>
 
-      {/* Sneat Modal for User Create/Edit */}
-      {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded shadow-2xl border p-6 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  {form.id ? "Edit User" : "Create User"}
-                </p>
-                <h2 className={`mt-1 text-xl font-bold ${textPrimary}`}>
-                  {form.id ? form.name : "Add New User"}
-                </h2>
-                <p className={`mt-1 text-xs text-[#a1acb8]`}>
-                  {form.id
-                    ? "Update user account information."
-                    : "Enter details to create a new user account."}
-                </p>
-              </div>
+      {/* Redesigned User Modal Create/Edit matching mock */}
+      {isUserModalOpen && (() => {
+        const allPermissionsList = [
+          { key: "dashboard", label: "Dashboard Overview" },
+          { key: "pos", label: "Point of Sale (POS)" },
+          { key: "customer_display", label: "Customer Facing Display" },
+          { key: "kds", label: "Kitchen Display System (KDS)" },
+          { key: "order_status", label: "Order Status Board" },
+          { key: "order_stage", label: "Order Stage Updates" },
+          { key: "orders", label: "Orders Management" },
+          { key: "kitchen_workflow", label: "Kitchen Workflow" },
+          { key: "reservations", label: "Reservations Module" },
+          { key: "view_bookings", label: "View Bookings" },
+          { key: "manage_bookings", label: "Manage Bookings" },
+          { key: "customer_directory", label: "Customer Directory" },
+          { key: "view_customer_profiles", label: "View Customer Profiles" },
+          { key: "manage_customer_profiles", label: "Manage Customer Profiles" },
+          { key: "invoices", label: "Invoices & Billing" },
+          { key: "void_invoices", label: "Void Invoices" },
+          { key: "invoice_audit", label: "Invoice Audit Log" },
+          { key: "loyalty", label: "Loyalty & Memberships" },
+        ];
 
-              <button
-                type="button"
-                onClick={closeUserModal}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-[#d9dee3] text-slate-400 hover:text-slate-600 outline-none"
-              >
-                <X size={15} />
-              </button>
-            </div>
+        const handleRoleSelect = (roleName: string) => {
+          setForm((curr) => ({ ...curr, roleName }));
+          let keys: string[] = [];
+          const rLower = roleName.toLowerCase();
+          if (rLower.includes("manager") || rLower.includes("store") || rLower.includes("admin")) {
+            keys = allPermissionsList.map((p) => p.key);
+          } else if (rLower.includes("cashier")) {
+            keys = ["pos", "orders", "customer_display", "order_status", "invoices", "loyalty"];
+          } else if (rLower.includes("staff") || rLower.includes("chef") || rLower.includes("kitchen")) {
+            keys = ["kds", "kitchen_workflow", "order_status", "order_stage"];
+          } else if (rLower.includes("waiter") || rLower.includes("waitstaff")) {
+            keys = ["pos", "view_bookings", "manage_bookings", "reservations"];
+          } else if (rLower.includes("inventory")) {
+            keys = ["dashboard", "orders", "invoices"];
+          }
+          setSelectedPerms(keys);
+        };
 
-            <form onSubmit={submit} className="space-y-4">
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                  Name
-                </label>
-                <input
-                  required
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                  }`}
-                />
-              </div>
+        const togglePerm = (key: string) => {
+          setSelectedPerms((curr) => {
+            const next = curr.includes(key) ? curr.filter((k) => k !== key) : [...curr, key];
+            return next;
+          });
+          setForm((curr) => ({ ...curr, roleName: "Custom" }));
+        };
 
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                  Email
-                </label>
-                <input
-                  required={["Admin", "Super Admin", "Manager"].includes(form.roleName)}
-                  type="email"
-                  value={form.email}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      email: event.target.value,
-                    }))
-                  }
-                  placeholder="user@pos.local"
-                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                  }`}
-                />
-              </div>
+        const selectAll = () => {
+          setSelectedPerms(allPermissionsList.map((p) => p.key));
+          setForm((curr) => ({ ...curr, roleName: "Custom" }));
+        };
 
-              {/* Show Password field ONLY for Admin / Manager roles */}
-              {["Admin", "Super Admin", "Manager"].includes(form.roleName) && (
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                    Admin Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      required={!form.id}
-                      type={showModalPassword ? "text" : "password"}
-                      value={form.password}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          password: event.target.value,
-                        }))
-                      }
-                      placeholder={form.id ? "•••••••• (Leave blank to keep current)" : "••••••••"}
-                      className={`w-full rounded border pl-3.5 pr-10 py-2 text-sm outline-none focus:border-[#696cff] ${
-                        dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowModalPassword((prev) => !prev)}
-                      className="absolute right-3 top-2.5 text-[#8592a3] hover:text-[#696cff] transition-colors p-0.5"
-                      title={showModalPassword ? "Hide Password" : "Show Password"}
-                    >
-                      {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+        const deselectAll = () => {
+          setSelectedPerms([]);
+          setForm((curr) => ({ ...curr, roleName: "Custom" }));
+        };
+
+        const rolesList = [
+          { id: "cashier", label: "Cashier", role: "Cashier", icon: CreditCard },
+          { id: "kitchen_chef", label: "Kitchen Chef", role: "Staff", icon: ChefHat },
+        ];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
+            <div
+              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-[28px] shadow-2xl border px-12 py-6 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none"
+              }}
+            >
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-6">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <UserPlus size={18} className="stroke-[2.2] text-[#5cb85c] shrink-0" />
+                  <span className="text-[17px] font-bold text-slate-600 dark:text-slate-200 leading-none flex items-center">
+                    {form.id ? (language === "km" ? "កែប្រែគណនី" : "Edit User") : (language === "km" ? "បន្ថែមគណនីថ្មី" : "Add New User")}
+                  </span>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                  POS 4-Digit PIN Code
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={form.pin}
-                    onChange={(event) => {
-                      const clean = event.target.value.replace(/\D/g, "").slice(0, 4);
-                      setForm((current) => ({
-                        ...current,
-                        pin: clean,
-                      }));
-                    }}
-                    placeholder="1234"
-                    className={`w-full rounded border px-3.5 py-2 text-sm font-mono font-bold tracking-widest outline-none focus:border-[#696cff] ${
-                      dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                    }`}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-[#566a7f] mb-1.5 font-bold">
-                  Role
-                </label>
-                <select
-                  value={form.roleName}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      roleName: event.target.value,
-                    }))
-                  }
-                  className={`w-full rounded border px-3.5 py-2 text-sm outline-none focus:border-[#696cff] ${
-                    dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-[#d9dee3] bg-white text-[#566a7f]"
-                  }`}
-                >
-                  {(roleOptions.length
-                    ? roleOptions
-                    : [{ id: 0, name: "Staff" }]
-                  ).map((role, idx) => (
-                    <option key={`form-role-${role.name}-${idx}`} value={role.name}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center pt-2">
-                <label className="flex items-center gap-2 text-sm text-slate-600 select-none cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        isActive: event.target.checked,
-                      }))
-                    }
-                    className="h-4.5 w-4.5 rounded border-[#d9dee3] text-[#696cff] focus:ring-[#696cff] accent-[#696cff]"
-                  />
-                  Active Account
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-3">
                 <button
                   type="button"
                   onClick={closeUserModal}
-                  className={`h-10 flex-1 rounded border px-4 text-sm font-semibold hover:bg-slate-50 transition-colors ${
-                    dark ? "border-[#4e4f6e] text-slate-300" : "border-[#d9dee3] text-[#8592a3]"
-                  }`}
+                  className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none flex items-center justify-center"
                 >
-                  Cancel
-                </button>
-
-                <button
-                  disabled={saving}
-                  className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded bg-[#696cff] px-4 text-sm font-semibold text-white hover:bg-[#5f61e6] active:bg-[#5859d0] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? (
-                    <Loader2 className="animate-spin" size={17} />
-                  ) : (
-                    <Save size={17} />
-                  )}
-                  {form.id ? "Save User" : "Create User"}
+                  <X size={18} className="stroke-[1.8]" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-        {deleteConfirmUser && (
+              <form onSubmit={submit} className="space-y-4">
+                
+                {/* DETAILS & CREDENTIALS SECTION */}
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 px-10 py-4 bg-white dark:bg-[#1e293b] space-y-4">
+                  <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                    <UserRound size={12} className="stroke-[2.5]" />
+                    Details & Credentials
+                  </div>
+
+                  {/* Profile image upload matching mockup */}
+                  <div className="flex flex-col items-center justify-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-3 bg-[#f8f9fa] dark:bg-[#232333]/30 w-full max-w-[240px] mx-auto">
+                    <div className="relative mb-2 group">
+                      {uploadingImage ? (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-[#232333]">
+                          <Loader2 className="animate-spin text-[#696cff]" size={16} />
+                        </div>
+                      ) : form.imageUrl ? (
+                        <img
+                          src={resolveImageUrl(form.imageUrl)}
+                          alt="Avatar Preview"
+                          className="h-12 w-12 rounded-full object-cover border border-[#696cff]/20 shadow-sm"
+                        />
+                      ) : (
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-black text-white ${profileAvatarClass(form.roleName)}`}>
+                          {initials(form.name || "User")}
+                        </div>
+                      )}
+                      <label className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950/40 text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera size={14} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setUploadingImage(true);
+                            setError("");
+                            try {
+                              const res = await uploadUserImage(file);
+                              setForm((current) => ({ ...current, imageUrl: res.imageUrl }));
+                            } catch (err: any) {
+                              setError(err?.message || "Failed to upload image.");
+                            } finally {
+                              setUploadingImage(false);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer rounded-xl bg-slate-150/70 dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-650 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                        {uploadingImage ? "Uploading..." : "Change Image"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingImage}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setUploadingImage(true);
+                            setError("");
+                            try {
+                              const res = await uploadUserImage(file);
+                              setForm((current) => ({ ...current, imageUrl: res.imageUrl }));
+                            } catch (err: any) {
+                              setError(err?.message || "Failed to upload image.");
+                            } finally {
+                              setUploadingImage(false);
+                            }
+                          }}
+                        />
+                      </label>
+                      {form.imageUrl && (
+                        <button
+                          type="button"
+                          disabled={uploadingImage}
+                          onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
+                          className="rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100 transition-all disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                        Name - (Required)
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <UserRound size={13} className="stroke-[1.8]" />
+                        </div>
+                        <input
+                          required
+                          value={form.name}
+                          onChange={(e) => setForm((curr) => ({ ...curr, name: e.target.value }))}
+                          placeholder="Enter Full Name here..."
+                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                        Email - (Required)
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Mail size={13} className="stroke-[1.8]" />
+                        </div>
+                        <input
+                          required
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm((curr) => ({ ...curr, email: e.target.value }))}
+                          placeholder="Enter Email here..."
+                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Password, Phone, Designation */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                        Password - {form.id ? "(Optional)" : "(Required)"}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Lock size={13} className="stroke-[1.8]" />
+                        </div>
+                        <input
+                          required={!form.id}
+                          type={showModalPassword ? "text" : "password"}
+                          value={form.password}
+                          onChange={(e) => setForm((curr) => ({ ...curr, password: e.target.value }))}
+                          placeholder="Enter Password here..."
+                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-9 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowModalPassword((prev) => !prev)}
+                          className="absolute right-2.5 top-0 bottom-0 my-auto text-slate-400 hover:text-slate-650 transition-colors p-0.5 flex items-center"
+                        >
+                          {showModalPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                        Phone
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Phone size={13} className="stroke-[1.8]" />
+                        </div>
+                        <input
+                          value={form.phone || ""}
+                          onChange={(e) => setForm((curr) => ({ ...curr, phone: e.target.value }))}
+                          placeholder="Enter Phone Number here..."
+                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
+                        Designation
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Briefcase size={13} className="stroke-[1.8]" />
+                        </div>
+                        <input
+                          value={form.designation || ""}
+                          onChange={(e) => setForm((curr) => ({ ...curr, designation: e.target.value }))}
+                          placeholder="Enter Designation here..."
+                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ROLE ASSIGNMENT SECTION */}
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 bg-white dark:bg-[#1e293b] space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      <ShieldAlert size={12} className="stroke-[2.5]" />
+                      Role Assignment
+                    </div>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                      Select a role template or customize permissions below
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 max-w-md mt-2">
+                    {rolesList.map((item) => {
+                      const IconComp = item.icon;
+                      const isSelected = form.roleName === item.role;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleRoleSelect(item.role)}
+                          className={`flex items-center justify-center gap-1.5 h-9 rounded-lg border transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-emerald-600 text-white border-emerald-600 font-semibold"
+                              : "border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-slate-650 dark:text-slate-355 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+                          }`}
+                        >
+                          <IconComp size={13} className={`shrink-0 ${isSelected ? "text-white" : "text-slate-400"}`} />
+                          <span className="text-[10px] uppercase tracking-wider whitespace-nowrap">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* PERMISSIONS & SCOPES SECTION */}
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 bg-white dark:bg-[#1e293b] space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 dark:border-slate-850 pb-3 mb-2 gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        <ShieldCheck size={12} className="stroke-[2.5]" />
+                        Permissions & Scopes
+                      </div>
+                      <span className="rounded bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600">
+                        {selectedPerms.length} / {allPermissionsList.length} Selected
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-emerald-600 font-semibold select-none">
+                      <button type="button" onClick={selectAll} className="hover:underline cursor-pointer">Select All</button>
+                      <span className="text-slate-200">|</span>
+                      <button type="button" onClick={deselectAll} className="hover:underline cursor-pointer">Deselect All</button>
+                    </div>
+                  </div>
+
+                  <div
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[250px] overflow-y-auto no-scrollbar pr-1"
+                    style={{
+                      scrollbarWidth: "none",
+                      msOverflowStyle: "none"
+                    }}
+                  >
+                    <style>{`
+                      .no-scrollbar::-webkit-scrollbar {
+                        display: none;
+                      }
+                    `}</style>
+                    {allPermissionsList.map((perm) => {
+                      const isChecked = selectedPerms.includes(perm.key);
+                      return (
+                        <div
+                          key={perm.key}
+                          onClick={() => togglePerm(perm.key)}
+                          className={`flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all cursor-pointer select-none ${
+                            isChecked
+                              ? "border-emerald-500/70 bg-emerald-50/20 text-emerald-600 dark:text-emerald-450 font-medium"
+                              : "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-white dark:bg-[#1e293b]/20 hover:bg-slate-50/80"
+                          }`}
+                        >
+                          <div className={`h-3.5 w-3.5 rounded-full flex items-center justify-center border transition-all shrink-0 ${
+                            isChecked
+                              ? "border-emerald-500 bg-emerald-500 text-white"
+                              : "border-slate-355 bg-white dark:bg-slate-800 text-transparent"
+                          }`}>
+                            <Check size={8} strokeWidth={5.0} className="text-white" />
+                          </div>
+                          <span className="text-[10px] font-semibold">{perm.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Footer buttons */}
+                <div className="flex gap-3 justify-end pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={closeUserModal}
+                    className="h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+
+                  <button
+                    disabled={saving}
+                    className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-emerald-750/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {saving ? (
+                      <Loader2 className="animate-spin" size={14} />
+                    ) : (
+                      <Save size={14} />
+                    )}
+                    Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmUser && (
           <div
             onClick={() => setDeleteConfirmUser(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_200ms_ease-out_both] cursor-pointer"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer animate-[userModalBackdrop_200ms_ease-out_both]"
+            style={{ background: "rgba(10,12,24,0.65)", backdropFilter: "blur(2px)" }}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-sm overflow-hidden rounded-xl border p-6 text-center shadow-2xl animate-[userModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both] cursor-default ${dark ? "bg-[#1f2130] border-[#383a50] text-slate-100" : "bg-white border-slate-200 text-slate-800"}`}
+              className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl animate-[userModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both]"
+              style={{
+                background: "linear-gradient(160deg, #1c1e30 0%, #14161f 100%)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+              }}
             >
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
-                <Trash2 size={26} />
+              {/* Header */}
+              <div className="px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "#dc2626", boxShadow: "0 2px 8px rgba(220,38,38,0.25)" }}>
+                  <Trash2 size={20} className="text-white" />
+                </div>
+                <h3 className="text-[15px] font-bold text-white leading-snug">
+                  {language === "km" ? "បញ្ជាក់ការលុបគណនី" : "Delete User Account?"}
+                </h3>
+                <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {language === "km"
+                    ? `តើអ្នកពិតជាចង់លុបគណនី "${deleteConfirmUser.name}" មែនតើ? តិន្នន័យនើមិនអាចត្រលប់មកវិញបានតើ។`
+                    : `Are you sure you want to delete user "${deleteConfirmUser.name}"? This action cannot be undone.`}
+                </p>
               </div>
 
-              <h3 className="text-lg font-black tracking-tight">
-                {language === "km" ? "បញ្ជាក់ការលុបគណនី" : "Delete User Account?"}
-              </h3>
-              <p className={`mt-2 text-xs font-medium ${textSecondary}`}>
-                {language === "km"
-                  ? `តើអ្នកពិតជាចង់លុបគណនី "${deleteConfirmUser.name}" មែនទេ? ទិន្នន័យនេះមិនអាចត្រឡប់មកវិញបានទេ។`
-                  : `Are you sure you want to delete user "${deleteConfirmUser.name}"? This action cannot be undone.`}
-              </p>
-
-              <div className="mt-6 flex items-center gap-3">
+              {/* Actions */}
+              <div className="flex gap-2.5 px-6 py-5">
                 <button
                   type="button"
                   onClick={() => setDeleteConfirmUser(null)}
-                  className={`flex-1 rounded-lg border py-2.5 text-xs font-bold transition-all ${dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                  className="flex-1 h-10 rounded-xl text-xs font-medium transition-colors duration-150 hover:bg-white/10"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.65)" }}
                 >
                   {language === "km" ? "បោះបង់" : "Cancel"}
                 </button>
                 <button
                   type="button"
                   onClick={confirmRemoveUser}
-                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20"
+                  className="flex-1 h-10 rounded-xl text-xs font-semibold text-white transition-opacity duration-150 hover:opacity-90 active:opacity-75"
+                  style={{ background: "#dc2626", boxShadow: "0 2px 6px rgba(220,38,38,0.2)" }}
                 >
                   {language === "km" ? "លុបចោល" : "Delete"}
                 </button>
@@ -1028,7 +1266,8 @@ function roleName(user: User) {
 
 function TeamMemberAvatar({ user }: { user: User }) {
   const role = roleName(user) || "Member";
-  const profileUser = {
+  const imageUrl = user.imageUrl ? resolveImageUrl(user.imageUrl) : "";
+  const image = imageUrl || getProfileImage({
     id: user.id,
     name: user.name,
     email: user.email,
@@ -1036,8 +1275,7 @@ function TeamMemberAvatar({ user }: { user: User }) {
     isActive: user.isActive,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-  };
-  const image = getProfileImage(profileUser);
+  });
 
   if (image) {
     return (
@@ -1061,4 +1299,10 @@ function TeamMemberAvatar({ user }: { user: User }) {
       {user.name ? initials(user.name) : <UserRound size={16} />}
     </div>
   );
+}
+
+function resolveImageUrl(imageUrl?: string | null) {
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }
