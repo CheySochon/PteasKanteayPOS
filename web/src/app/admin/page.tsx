@@ -863,7 +863,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-[1600px] px-5 py-5">
+        <div className="mx-auto w-full max-w-[1600px] px-5 pt-2.5 pb-5">
           {/* Dashboard Page Header */}
           <div className="mb-5 flex items-center gap-3 dash-animate dash-delay-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#48cf38]/10 text-[#48cf38]">
@@ -956,7 +956,7 @@ export default function DashboardPage() {
                           <span className="truncate capitalize text-slate-400">{displayLabel}:</span>
                         </div>
                         <span className={`font-black shrink-0 ${dark ? "text-slate-300" : "text-slate-700"}`}>
-                          {count} ({pct}%)
+                          {count}
                         </span>
                       </div>
                     );

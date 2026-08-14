@@ -14,11 +14,14 @@ import {
   Bell,
 } from "lucide-react";
 import KdsOrderCard from "../../components/KdsOrderCard";
+import Sidebar from "../../components/Sidebar";
+import TopBar from "../../components/TopBar";
 import { getOrders, updateOrderStatus } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import type { Order, OrderStatus } from "../../lib/types";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
+import { useAppLanguage, setAppLanguage } from "../../lib/language";
 
 const visibleStatuses: OrderStatus[] = ["pending", "preparing"];
 
@@ -85,7 +88,9 @@ function playKitchenBellSound() {
 }
 
 export default function KdsPage() {
-  const [theme] = useAppTheme();
+  const [theme, setTheme] = useAppTheme();
+  const language = useAppLanguage();
+  const [collapsed, setCollapsed] = useState(false);
   const dark = theme === "dark";
   const [orders, setOrders] = useState<Order[]>([]);
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
@@ -252,29 +257,34 @@ export default function KdsPage() {
   }
 
   return (
-    <main className={`min-h-screen ${dark ? "bg-[#232333]" : "bg-[#f5f5f9]"} select-none pb-12`}>
-      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
+    <div className={`flex h-screen h-[100dvh] overflow-hidden font-sans ${dark ? "bg-[#232333]" : "bg-white"} ${language === "km" ? "font-khmer" : ""}`}>
+      <Sidebar
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        theme={theme}
+        setTheme={setTheme}
+      />
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        <TopBar
+          title={language === "km" ? "ផ្ទះបាយ (Kitchen)" : "Kitchen Display"}
+          subtitle={language === "km" ? "គ្រប់គ្រង និងតាមដានការបញ្ជាទិញក្នុងផ្ទះបាយ" : "Live kitchen order queue and preparation status"}
+          language={language}
+          onLanguageChange={setAppLanguage}
+          notifications={[]}
+          dark={dark}
+        />
+        <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-white"} select-none pb-12`}>
+          <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
         
         {/* Sneat KDS Header Card */}
-        <div className="mb-6 rounded-xl p-5 bg-white dark:bg-[#2b2c40] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] border border-transparent dark:border-[#4e4f6e] flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-6 pb-2 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           
           {/* Brand & Live Clock */}
           <div className="flex items-center gap-3.5">
-            <a
-              href="/admin"
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eceef1]/60 dark:bg-[#3a3b53] text-[#8592a3] hover:bg-[#696cff] hover:text-white transition-all"
-              title="Back to Admin Panel"
-            >
-              <ArrowLeft size={18} />
-            </a>
-
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shadow-sm">
-              <ChefHat size={26} />
-            </div>
 
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-[#566a7f] dark:text-[#c9d4ea]">
+                <h1 className="text-xl font-normal text-slate-800 dark:text-white shrink-0">
                   Kitchen Display System
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#71dd37]/10 px-2.5 py-0.5 text-xs font-bold text-[#71dd37]">
@@ -361,18 +371,6 @@ export default function KdsPage() {
           </div>
         </div>
 
-        {/* Audio Unlocked Notification Banner */}
-        {soundEnabled && !audioUnlocked && (
-          <div
-            onClick={() => {
-              playKitchenBellSound();
-              setAudioUnlocked(true);
-            }}
-            className="mb-5 cursor-pointer rounded-xl border border-[#696cff]/30 bg-[#696cff]/10 p-3 text-center text-xs font-bold text-[#696cff] transition-all hover:bg-[#696cff]/20 animate-pulse"
-          >
-            🔔 Sound Alarms Active! Tap anywhere on the page to enable kitchen bell chime.
-          </div>
-        )}
 
         {/* Message Banner */}
         {message && (
@@ -397,5 +395,7 @@ export default function KdsPage() {
         )}
       </div>
     </main>
+      </div>
+    </div>
   );
 }

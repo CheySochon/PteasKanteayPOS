@@ -290,6 +290,7 @@ export const getPublicStaff = async (
         name: true,
         email: true,
         pin: true,
+        imageUrl: true,
         role: {
           select: {
             name: true,

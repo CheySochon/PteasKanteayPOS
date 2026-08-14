@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   UserRound,
   Boxes,
+  ChefHat,
 } from "lucide-react";
 import { apiOrigin, getSettings, logoutApi } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -53,6 +54,7 @@ const NAV_MAIN = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
   { label: "POS", href: "/admin/pos", icon: PosIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
+  { label: "Kitchen", href: "/kds", icon: KitchenIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
 ];
 
@@ -100,6 +102,7 @@ const TEXT = {
       Dashboard: "Dashboard",
       POS: "POS",
       Orders: "Orders",
+      Kitchen: "Kitchen",
       Menu: "Menu",
       Inventory: "Inventory",
       Reports: "Reports",
@@ -126,6 +129,7 @@ const TEXT = {
       Dashboard: "ផ្ទាំងគ្រប់គ្រង",
       POS: "លក់ (POS)",
       Orders: "ការបញ្ជាទិញ",
+      Kitchen: "ផ្ទះបាយ (Kitchen)",
       Menu: "មុខម្ហូប",
       Inventory: "ស្តុក",
       Reports: "របាយការណ៍",
@@ -318,6 +322,8 @@ export default function Sidebar({
       setActiveNav("Dashboard");
     } else if (pathname.startsWith("/admin/orders")) {
       setActiveNav("Orders");
+    } else if (pathname.startsWith("/kds") || pathname.startsWith("/admin/kitchen")) {
+      setActiveNav("Kitchen");
     } else if (pathname.startsWith("/admin/inventory")) {
       setActiveNav("Inventory");
     } else if (pathname.startsWith("/admin/reports")) {
@@ -797,7 +803,7 @@ function SidebarProfileCard({
           )}
 
           <div className="min-w-0 flex-1">
-            <div className={`truncate leading-4 font-bold ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13px]" : "text-[12.5px]"}`}>
+            <div className={`truncate leading-4 font-normal ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13px]" : "text-[12.5px]"}`}>
               {user.name}
             </div>
             <div className="mt-1 flex items-center gap-1.5">
@@ -1005,6 +1011,10 @@ function PosIcon({ active = false }: IconProps) {
 
 function OrdersIcon({ active = false }: IconProps) {
   return <ReceiptText size={18} strokeWidth={1.75} color="currentColor" />;
+}
+
+function KitchenIcon({ active = false }: IconProps) {
+  return <ChefHat size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function MenuIcon({ active = false }: IconProps) {

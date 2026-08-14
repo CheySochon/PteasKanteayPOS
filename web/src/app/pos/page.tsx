@@ -672,7 +672,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     return (
       <main className={`overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f] ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-screen w-screen'}`}>
         <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#696cff] border-t-transparent shadow-sm"></div>
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#55a060] border-t-transparent shadow-sm"></div>
           <p className="text-sm font-semibold tracking-wide uppercase">Loading...</p>
         </div>
       </main>
@@ -698,71 +698,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           ✓ Order sent to kitchen!
         </div>
       )}
-      {/* Global POS Header (Top Bar) */}
-      {!isAdminView && (
-        <header className="relative flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-100/80 shadow-sm shadow-slate-100/30 shrink-0 m-4 sm:m-6 mb-0 sm:mb-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-black text-slate-800 tracking-tight">Terminal Status</h1>
-            
-            <div className="flex items-center gap-2 ml-4">
-              <div className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold border ${
-                isOnline 
-                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                  : 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse'
-              }`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                <span>{isOnline ? "Online" : "Offline"}</span>
-              </div>
 
-              <div className="w-px h-5 bg-slate-200 mx-1" />
-
-              <button 
-                type="button" 
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative text-slate-400 hover:text-slate-600 transition-colors p-1.5"
-              >
-                <Bell size={18} />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500" />
-                )}
-              </button>
-
-              <button 
-                type="button"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent("pos-menu-change"));
-                }}
-                className={`text-slate-400 hover:text-slate-600 transition-colors p-1.5 ${syncing ? 'animate-spin' : ''}`}
-              >
-                <RotateCw size={18} />
-              </button>
-            </div>
-          </div>
-
-          {/* Cashier Info & Close Shift Button */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-full px-3 py-1">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[10px] font-black uppercase overflow-hidden border border-slate-200">
-                {currentUserImageUrl ? (
-                  <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
-                ) : (
-                  (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
-                )}
-              </div>
-              <span className="text-xs font-bold text-slate-700 capitalize">{currentUserName || "Alex Cashier"}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowLogoutModal(true)}
-              className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
-            >
-              <LogOut size={13} />
-              Close Shift
-            </button>
-          </div>
-        </header>
-      )}
       {!orderingMode && (
       <div className={`flex flex-1 overflow-hidden bg-[#f8f9fa] w-full h-full p-4 sm:p-6 relative print:hidden ${isAdminView ? 'pt-4 sm:pt-5' : 'pt-2 sm:pt-2'}`}>
         {/* VIEW 1: Table Map View — only shown when NOT in ordering mode */}
@@ -788,7 +724,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 ))}
               </div>
 
-              {/* Counters */}
+              {/* Counters & Cashier Info */}
               <div className="flex items-center gap-2">
                 <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
                   ● {tables.filter((t) => !(tableIsSent[`table-${t.id}`] || t.isOccupied)).length} Free
@@ -796,6 +732,33 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <span className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
                   ● {tables.filter((t) => tableIsSent[`table-${t.id}`] || t.isOccupied).length} Occupied
                 </span>
+
+                {/* Cashier Info & Logout (Only in standalone Cashier mode) */}
+                {!isAdminView && (
+                  <>
+                    <div className="w-px h-5 bg-slate-200 mx-1.5 shrink-0" />
+                    
+                    <div className="flex items-center gap-2 shrink-0 bg-slate-50 border border-slate-100 rounded-full px-2.5 py-1">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[9px] font-black uppercase overflow-hidden border border-slate-200">
+                        {currentUserImageUrl ? (
+                          <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
+                        ) : (
+                          (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
+                        )}
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-700 capitalize">{currentUserName || "Alex"}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutModal(true)}
+                      className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.98] shrink-0"
+                    >
+                      <LogOut size={13} />
+                      Logout
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -988,6 +951,33 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <List size={14} />
                 Table Orders
               </button>
+
+              {/* Cashier Info & Logout (Only in standalone Cashier mode) */}
+              {!isAdminView && (
+                <>
+                  <div className="w-px h-5 bg-slate-200 mx-1.5 shrink-0" />
+                  
+                  <div className="flex items-center gap-2 shrink-0 bg-slate-50 border border-slate-100 rounded-full px-2.5 py-1">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[9px] font-black uppercase overflow-hidden border border-slate-200">
+                      {currentUserImageUrl ? (
+                        <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
+                      )}
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-700 capitalize">{currentUserName || "Alex"}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLogoutModal(true)}
+                    className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50/50 border border-rose-150 rounded-xl px-3 py-2 hover:bg-rose-100 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <LogOut size={13} />
+                    Logout
+                  </button>
+                </>
+              )}
             </div>
           </header>
 
@@ -1073,16 +1063,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
           <aside className="w-[390px] xl:w-[32%] xl:min-w-[390px] xl:max-w-[450px] shrink-0 bg-white border border-slate-200/80 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out">
-
-            {/* ── WALKIN CUSTOMER header ── */}
-            <div className="flex items-center gap-2 px-4.5 pt-3.5 pb-2 border-b border-slate-100 shrink-0">
-              <div className="flex-1 flex h-10 items-center rounded-lg border border-[#ebf0ec] bg-[#f8faf9] px-3.5 text-xs font-bold text-[#6b7a82] tracking-wide uppercase select-none">
-                {selectedTable ? selectedTable.name : "WALKIN CUSTOMER"}
-              </div>
-              <button type="button" className="h-10 w-10 flex items-center justify-center rounded-lg border border-[#ebf0ec] bg-[#f8faf9] text-[#6b7a82] hover:bg-[#f0f4f2] transition-colors shrink-0 cursor-pointer">
-                <Search size={15} />
-              </button>
-            </div>
 
             {/* ── Select Dining Option + Select Table ── */}
             <div className="flex gap-2 px-4.5 py-3.5 border-b border-slate-100 shrink-0">

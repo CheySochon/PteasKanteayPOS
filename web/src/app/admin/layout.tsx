@@ -133,7 +133,7 @@ export default function AdminLayout({
     return (
       <div className={`flex h-screen w-screen items-center justify-center ${bg}`}>
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[#696cff]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#55a060]" />
           <span className="text-xs font-bold text-slate-400">Verifying Permissions...</span>
         </div>
       </div>

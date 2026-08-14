@@ -7,6 +7,7 @@ import {
   Bell,
   Cake,
   Camera,
+  Check,
   CheckCircle2,
   Coffee,
   Eye,
@@ -822,15 +823,26 @@ export default function MenuPage() {
       <div className="flex-1 overflow-y-auto px-5 py-5">
         <div className="mx-auto w-full max-w-[1600px]">
 
-        {(error || message) && (
-          <div
-            className={`mb-5 rounded border px-4 py-2.5 text-xs font-semibold ${
-              error
-                ? "border-red-150 bg-red-50 text-red-600"
-                : "border-emerald-150 bg-emerald-50 text-emerald-700"
-            }`}
-          >
-            {error || message}
+        {error && (
+          <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
+            <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+              <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+                <Check size={11} strokeWidth={4.5} className="text-white" />
+              </div>
+              <span>{message}</span>
+            </div>
+            <style>{`
+              @keyframes dropFromTop {
+                0% { transform: translateY(-150%); opacity: 0; }
+                100% { transform: translateY(0); opacity: 1; }
+              }
+            `}</style>
           </div>
         )}
 

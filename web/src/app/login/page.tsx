@@ -7,14 +7,14 @@ import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage } from "../../lib/language";
-import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check, ChevronRight } from "lucide-react";
 
 const DEFAULT_POS_NAME = "ផ្ទះកន្ត្រក ផ្លូវ១០";
 
 const STAFF_PRESETS = [
-  { id: 1, name: "Chon (Cashier)", role: "Cashier", email: "chon.cashier@pos.local", pin: "1234", avatarBg: "bg-emerald-600", initial: "C" },
-  { id: 2, name: "Sophea (Cashier)", role: "Cashier", email: "cashier@pos.local", pin: "1234", avatarBg: "bg-emerald-600", initial: "S" },
-  { id: 3, name: "Dara (Staff)", role: "Staff", email: "staff@pos.local", pin: "5678", avatarBg: "bg-amber-600", initial: "D" },
+  { id: 1, name: "Chon (Cashier)", role: "Cashier", email: "chon.cashier@pos.local", pin: "1234", avatarBg: "bg-emerald-600", initial: "C", imageUrl: "" },
+  { id: 2, name: "Sophea (Cashier)", role: "Cashier", email: "cashier@pos.local", pin: "1234", avatarBg: "bg-emerald-600", initial: "S", imageUrl: "" },
+  { id: 3, name: "Dara (Staff)", role: "Staff", email: "staff@pos.local", pin: "5678", avatarBg: "bg-amber-600", initial: "D", imageUrl: "" },
 ];
 
 export default function LoginPage() {
@@ -154,6 +154,7 @@ export default function LoginPage() {
               role: roleStr,
               email: u.email,
               pin: u.pin || (isCashier ? "1234" : isStaff ? "5678" : "0000"),
+              imageUrl: u.imageUrl || u.image || "",
               avatarBg: isCashier ? "bg-emerald-600" : isStaff ? "bg-amber-600" : "bg-[#6ab070]",
               initial: (u.name || "U")[0].toUpperCase(),
             };
@@ -335,14 +336,14 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
-    // Clear all stale session cache first
-    localStorage.removeItem("pos_user");
-    localStorage.removeItem("pos_token");
-    localStorage.removeItem("pos_logged_in");
-    localStorage.removeItem("pos_login_timestamp");
-
     try {
       const res = await loginPin(enteredPin);
+
+      // Clear old session & write new session ONLY on SUCCESS!
+      localStorage.removeItem("pos_user");
+      localStorage.removeItem("pos_token");
+      localStorage.removeItem("pos_logged_in");
+      localStorage.removeItem("pos_login_timestamp");
 
       // Determine target role strictly from user
       const targetRole = typeof res.user.role === "string" 
@@ -596,16 +597,23 @@ export default function LoginPage() {
       // 🛡️ SECURITY ENHANCEMENT 3: Store Login Timestamp for Shift Expiry / Session Timeout (8 Hours)
       localStorage.setItem("pos_login_timestamp", Date.now().toString());
 
+      const userObj = result?.user || { name: email.split("@")[0] || "Admin", email, role: "Admin", roleName: "ADMIN" };
+      const targetRole = typeof userObj.role === "string" 
+        ? userObj.role 
+        : userObj.role?.name || userObj.roleName || "Admin";
+      const targetRoleName = userObj.roleName || (typeof userObj.role === "object" && userObj.role ? userObj.role.name : String(targetRole));
+
       const userPayload = {
-        ...result.user,
-        role: result.user?.role || result.user?.roleName || "Admin",
+        ...userObj,
+        role: targetRole,
+        roleName: String(targetRoleName).toUpperCase(),
       };
-      if (result.token) localStorage.setItem("pos_token", result.token || "dev-admin-token");
+
+      if (result?.token) localStorage.setItem("pos_token", result.token || "dev-admin-token");
       localStorage.setItem("pos_user", JSON.stringify(userPayload));
 
       // Store temporary login success info to trigger toast in layout
-      const currentRole = userPayload.role;
-      const roleString = typeof currentRole === "object" && currentRole ? currentRole.name : String(currentRole || "Admin");
+      const roleString = targetRole;
       localStorage.setItem(
         "pos_login_success_alert",
         JSON.stringify({ userName: userPayload.name, role: roleString, timestamp: Date.now() })
@@ -637,7 +645,7 @@ export default function LoginPage() {
         }
         targetPath = firstAllowedPathForRole(role, userPerms);
       }
-      router.replace(targetPath);
+      window.location.href = targetPath;
     } else {
       setError("Invalid 6-digit 2FA verification code. Please try again.");
     }
@@ -650,19 +658,17 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="login-page min-h-screen w-full relative select-none flex items-center justify-center bg-[#eef2ee] dark:bg-[#0f172a] text-slate-900 dark:text-white overflow-hidden p-4 sm:p-6 md:p-12 lg:p-24">
-      {/* FLOATING TOP TOAST ALERTS */}
-      <div className="fixed top-6 left-0 right-0 z-50 flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
-        {/* 1. Loading Toast */}
-        {loading && (
-          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-            <Loader2 className="animate-spin text-slate-400 shrink-0" size={15} />
-            <span>Please wait...</span>
-          </div>
-        )}
+    <main className={`min-h-screen w-full flex items-center justify-center p-4 relative font-sans transition-colors duration-200 ${
+      theme === "dark" ? "bg-[#101117]" : "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-slate-50 to-slate-100/70"
+    }`}>
+      {/* Background Decorator Gradients */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[350px] w-[350px] rounded-full bg-emerald-500/5 blur-[120px] dark:bg-emerald-500/10" />
+      </div>
 
-        {/* 2. Success Toast */}
-        {!loading && message && (
+      {/* FLOATING TOP TOAST ALERTS */}
+      <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+        {message && (
           <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
             <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
               <Check size={11} strokeWidth={4.5} className="text-white" />
@@ -670,9 +676,7 @@ export default function LoginPage() {
             <span>{message}</span>
           </div>
         )}
-
-        {/* 3. Error Toast */}
-        {!loading && error && (
+        {error && (
           <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
             <div className="h-5 w-5 rounded-full bg-rose-500 flex items-center justify-center text-white shrink-0">
               <X size={11} strokeWidth={4.5} className="text-white" />
@@ -682,13 +686,11 @@ export default function LoginPage() {
         )}
       </div>
 
-
-
       {/* CENTER LAYOUT CONTAINER */}
       <div className="w-full flex items-center justify-center z-10">
 
         {/* Login Card */}
-        <div className="w-full max-w-[420px] rounded-3xl bg-white dark:bg-[#181920] border border-slate-200/40 dark:border-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col p-6 sm:p-8 relative overflow-hidden transition-all duration-300">
+        <div className="w-full max-w-[400px] rounded-3xl bg-white dark:bg-[#181920] border border-slate-200/60 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] flex flex-col p-6 sm:p-8 relative overflow-hidden transition-all duration-300">
           <div className="w-full space-y-4 my-auto">
             {/* Logo Header (Vertically Stacked) */}
             {!(step === "login" && loginMethod === "pin" && selectedStaff) && (
@@ -697,11 +699,11 @@ export default function LoginPage() {
                   <img
                     src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
                     alt="Restaurant Logo"
-                    className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 shadow-xs mb-2.5"
+                    className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 ring-4 ring-emerald-500/10 shadow-xs mb-3"
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="h-16 w-16 rounded-full bg-[#6ab070]/10 text-[#6ab070] dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center font-bold shadow-xs mb-2.5">
+                  <div className="h-16 w-16 rounded-full bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/10 dark:text-emerald-400 ring-4 ring-emerald-500/10 flex items-center justify-center font-bold shadow-xs mb-3">
                     <Store size={26} />
                   </div>
                 )}
@@ -724,7 +726,7 @@ export default function LoginPage() {
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
                   2-Step Verification
                 </h1>
               </div>
@@ -743,7 +745,7 @@ export default function LoginPage() {
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
                   Reset Password
                 </h1>
               </div>
@@ -762,7 +764,7 @@ export default function LoginPage() {
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
                   New Password
                 </h1>
               </div>
@@ -773,20 +775,15 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* INLINE ERROR ALERT BANNER */}
-        {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/80 dark:bg-red-950/40 px-3.5 py-2.5 text-[11.5px] text-red-600 dark:text-red-400 font-medium animate-[shake_300ms_ease-in-out] mb-2">
-            {error}
-          </div>
-        )}
+
 
         {/* STEP 1: QUICK PIN PAD MODE */}
         {step === "login" && loginMethod === "pin" && (
           selectedStaff ? (
             // User PIN Entry View (Option B style but personalized)
-            <div className="space-y-3 w-full flex flex-col items-center">
+            <div className="space-y-3.5 w-full flex flex-col items-center">
               {/* Top Navigation Row */}
-              <div className="flex items-center justify-between w-full border-b border-slate-100 dark:border-slate-800/60 pb-2.5 mb-1 shrink-0">
+              <div className="flex items-center justify-between w-full border-b border-slate-100 dark:border-slate-800/60 pb-2 mb-0.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
@@ -794,45 +791,57 @@ export default function LoginPage() {
                     setPin("");
                     setError("");
                   }}
-                  className="text-xs font-semibold text-slate-400 hover:text-[#6ab070] transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/80 dark:bg-slate-800/80 text-slate-500 hover:text-[#55a060] hover:bg-[#55a060]/10 text-xs font-semibold transition-all cursor-pointer border border-transparent hover:border-[#55a060]/20"
                 >
-                  ← Back
+                  <ArrowLeft size={13} className="shrink-0" />
+                  Back
                 </button>
               </div>
 
-              {/* User details */}
+              {/* User Details & Avatar Badge */}
               <div className="flex flex-col items-center text-center shrink-0">
+                {selectedStaff.imageUrl ? (
+                  <img
+                    src={selectedStaff.imageUrl.startsWith("http") ? selectedStaff.imageUrl : `${apiOrigin}${selectedStaff.imageUrl}`}
+                    alt={selectedStaff.name}
+                    className="h-11 w-11 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
+                  />
+                ) : (
+                  <div className={`h-11 w-11 rounded-2xl ${selectedStaff.avatarBg} text-white flex items-center justify-center text-sm font-black shadow-sm mb-2 ring-4 ring-emerald-500/10`}>
+                    {selectedStaff.initial}
+                  </div>
+                )}
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight">
                   {selectedStaff.name}
                 </h3>
-                <span className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+                <span className="inline-block mt-1 text-[9.5px] font-extrabold uppercase tracking-wide bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 px-2.5 py-0.5 rounded-full">
                   {selectedStaff.role}
                 </span>
               </div>
 
               {/* Subtle PIN label */}
-              <p className="text-xs text-slate-400 dark:text-slate-500 font-normal text-center shrink-0">
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium text-center shrink-0 pt-0.5">
                 Enter your 4-digit PIN
               </p>
 
-              {/* 4-Pill PIN Indicator — green */}
+              {/* 4-Pill Circular PIN Indicator */}
               <div className="flex items-center justify-center py-1 shrink-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {[0, 1, 2, 3].map((idx) => (
                     <div
                       key={idx}
-                      className={`h-1.5 w-7 rounded-full transition-all duration-200 ${
+                      className={`h-3 w-3 rounded-full transition-all duration-200 ${
                         pin.length > idx
-                          ? "bg-[#6ab070] shadow-sm shadow-[#6ab070]/30 scale-x-105"
-                          : "bg-slate-200 dark:bg-slate-700/60"
+                          ? "bg-[#55a060] border-2 border-[#55a060] shadow-sm shadow-[#55a060]/40 scale-110"
+                          : "bg-slate-100 dark:bg-slate-800 border-2 border-slate-200/80 dark:border-slate-700"
                       }`}
                     />
                   ))}
                 </div>
               </div>
 
-              {/* 3x4 Touch Numpad — clean */}
-              <div className="grid grid-cols-3 gap-y-1 gap-x-4 max-w-[210px] w-full mx-auto justify-items-center">
+              {/* 3x4 Touch Numpad — Clean */}
+              <div className="grid grid-cols-3 gap-y-2 gap-x-3.5 max-w-[210px] w-full mx-auto justify-items-center pt-1">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((btn) => (
                   <button
                     key={btn}
@@ -853,12 +862,12 @@ export default function LoginPage() {
                         }
                       }
                     }}
-                    className={`w-13 h-13 rounded-full text-base font-semibold flex items-center justify-center transition-all cursor-pointer duration-150 active:scale-95 shadow-sm ${
+                    className={`w-12 h-12 rounded-full text-base font-bold flex items-center justify-center transition-all cursor-pointer duration-150 active:scale-90 shadow-2xs ${
                       btn === "⌫"
-                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90"
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 border border-slate-200/60 dark:border-slate-700"
                         : btn === "C"
-                          ? "bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90"
-                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 hover:bg-[#6ab070]/10 hover:text-[#6ab070] hover:border-[#6ab070]/30 active:bg-[#6ab070]/20 active:scale-90"
+                          ? "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-slate-700"
+                          : "bg-slate-50/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/70 dark:border-slate-700 hover:bg-[#55a060] hover:text-white hover:border-[#55a060] hover:shadow-md active:bg-[#55a060]"
                     }`}
                   >
                     {btn}
@@ -867,26 +876,27 @@ export default function LoginPage() {
               </div>
 
               {/* Switch to Admin Email */}
-              <div className="pt-1 text-center w-full">
+              <div className="pt-2 text-center w-full">
                 <button
                   type="button"
                   onClick={() => { setLoginMethod("email"); setError(""); }}
-                  className="text-[11px] font-semibold text-slate-400 hover:text-[#6ab070] transition-all cursor-pointer bg-transparent border-none"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-slate-100/70 dark:bg-slate-800/60 text-slate-500 hover:bg-[#55a060]/10 hover:text-[#55a060] dark:hover:text-emerald-400 text-xs font-semibold transition-all cursor-pointer border border-transparent hover:border-[#55a060]/20"
                 >
+                  <ShieldCheck size={13} className="shrink-0 text-slate-400 group-hover:text-[#55a060]" />
                   Sign in as Admin with Email
                 </button>
               </div>
             </div>
           ) : (
             // Select Staff Screen View
-            <div className="space-y-3 w-full">
-              <div className="text-center mb-2">
+            <div className="space-y-4 w-full">
+              <div className="text-center mb-1">
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                   Select your staff account to sign in
                 </p>
               </div>
 
-              <div className="space-y-2 max-w-[320px] mx-auto w-full">
+              <div className="space-y-2.5 max-w-[340px] mx-auto w-full">
                 {staffPresets.map((staff) => (
                   <button
                     key={staff.id}
@@ -896,29 +906,36 @@ export default function LoginPage() {
                       setPin("");
                       setError("");
                     }}
-                    className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-200 transition-all cursor-pointer text-left group"
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-800/40 hover:bg-emerald-50/40 dark:hover:bg-slate-800/80 hover:border-[#55a060]/40 dark:hover:border-emerald-500/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-left group"
                   >
-                    <div className={`h-9 w-9 rounded-full ${staff.avatarBg} text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0`}>
-                      {staff.initial}
-                    </div>
+                    {staff.imageUrl ? (
+                      <img
+                        src={staff.imageUrl.startsWith("http") ? staff.imageUrl : `${apiOrigin}${staff.imageUrl}`}
+                        alt={staff.name}
+                        className="h-10 w-10 rounded-xl object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
+                      />
+                    ) : (
+                      <div className={`h-10 w-10 rounded-xl ${staff.avatarBg} text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0 group-hover:scale-105 transition-transform`}>
+                        {staff.initial}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">{staff.name}</h4>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold truncate block">{staff.role}</span>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
+                      <span className="inline-block mt-0.5 text-[9.5px] font-extrabold uppercase tracking-wide bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
                     </div>
-                    <span className="text-slate-400 group-hover:text-[#6ab070] dark:group-hover:text-emerald-400 transition-colors text-xs font-extrabold pr-1">
-                      →
-                    </span>
+                    <ChevronRight size={16} className="text-slate-400 group-hover:text-[#55a060] dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 mr-1" />
                   </button>
                 ))}
               </div>
 
               {/* Switch to Admin Email Mode */}
-              <div className="pt-1 text-center w-full">
+              <div className="pt-2 text-center w-full">
                 <button
                   type="button"
                   onClick={() => { setLoginMethod("email"); setError(""); }}
-                  className="text-[11px] font-bold text-slate-400 hover:text-[#6ab070] dark:hover:text-emerald-400 transition-all cursor-pointer bg-transparent border-none"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-slate-100/70 dark:bg-slate-800/60 text-slate-500 hover:bg-[#55a060]/10 hover:text-[#55a060] dark:hover:text-emerald-400 text-xs font-semibold transition-all cursor-pointer border border-transparent hover:border-[#55a060]/20"
                 >
+                  <ShieldCheck size={13} className="shrink-0 text-slate-400 group-hover:text-[#55a060]" />
                   Sign in as Admin with Email
                 </button>
               </div>
@@ -932,7 +949,7 @@ export default function LoginPage() {
             {/* Header Row (Login on left, Restaurant Logo on right) */}
             {/* Centered screen title for Admin login */}
             <div className="text-center mb-3">
-              <h1 className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+              <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
                 Admin Sign In
               </h1>
             </div>

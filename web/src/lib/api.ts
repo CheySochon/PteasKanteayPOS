@@ -96,7 +96,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       }
     }
 
-    if (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed") {
+    const isAuthLoginRoute = path.startsWith("/auth/login") || path.startsWith("/auth/login-pin") || path.startsWith("/auth/register");
+    if (!isAuthLoginRoute && (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed")) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("pos_token");
         localStorage.removeItem("pos_user");

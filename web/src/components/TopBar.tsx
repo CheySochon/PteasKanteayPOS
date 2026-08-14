@@ -791,7 +791,7 @@ export default function TopBar({
               } cursor-pointer`}
             >
               <ProfileAvatar user={user} />
-              <span className="text-sm font-extrabold tracking-tight hidden sm:inline-block">{user.name}</span>
+              <span className="text-sm font-normal tracking-tight hidden sm:inline-block">{user.name}</span>
               <ChevronDown size={15} className="text-slate-500 shrink-0" />
             </button>
 
