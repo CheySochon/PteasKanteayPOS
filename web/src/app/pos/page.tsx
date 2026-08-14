@@ -35,6 +35,9 @@ import {
   Banknote,
   ChevronDown,
   AlertTriangle,
+  SlidersHorizontal,
+  ClipboardList,
+  Pencil,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
@@ -49,6 +52,7 @@ import {
   getProducts,
   getSettings,
   getTables,
+  getOrders,
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import type { Category, DiningTable, Product } from "../../lib/types";
@@ -79,6 +83,7 @@ function resolveImageUrl(value?: string | null) {
 export default function PosPage({ isAdminView = false }: { isAdminView?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useAppTheme();
+  const dark = theme === "dark";
   const language = useAppLanguage();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -170,6 +175,40 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [tableTicketNumbers, setTableTicketNumbers] = useState<Record<string, string>>({});
 
   const [showKitchenToast, setShowKitchenToast] = useState(false);
+  const [saveDraftModalOpen, setSaveDraftModalOpen] = useState(false);
+  const [draftRefInput, setDraftRefInput] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // QR Menu Orders Real-time State
+  const [qrOrdersModalOpen, setQrOrdersModalOpen] = useState(false);
+  const [qrOrders, setQrOrders] = useState<any[]>([]);
+  const [qrOrdersFilter, setQrOrdersFilter] = useState<"all" | "pending" | "preparing" | "completed">("all");
+
+  const pendingQrCount = useMemo(() => {
+    return qrOrders.filter((o) => o.status === "pending" || !o.status).length;
+  }, [qrOrders]);
+
+  const handleLoadQrOrderToCart = (qrOrder: any) => {
+    if (!qrOrder || !qrOrder.items || qrOrder.items.length === 0) return;
+    
+    const loadedCartItems: CartItem[] = qrOrder.items.map((item: any) => {
+      const prod = productMap.get(item.productId);
+      return {
+        productId: item.productId,
+        name: item.product?.name || item.name || prod?.name || `Product #${item.productId}`,
+        unitPrice: Number(item.unitPrice || item.price || prod?.basePrice || 0),
+        quantity: Number(item.quantity || 1),
+        notes: item.notes || "",
+      };
+    });
+
+    setCart(loadedCartItems);
+    if (qrOrder.tableId) setTableId(qrOrder.tableId);
+    if (qrOrder.orderNumber) setTicketNumber(qrOrder.orderNumber);
+    setOrderingMode(true);
+    setQrOrdersModalOpen(false);
+    setMessage(`Loaded Order ${qrOrder.orderNumber || `#${qrOrder.id}`} into Cart!`);
+  };
 
   const saveCurrentTableState = (currentTableId: number | undefined, currentOrderingMode: boolean) => {
     const key = currentTableId ? `table-${currentTableId}` : (currentOrderingMode ? "takeaway" : "none");
@@ -269,17 +308,31 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   }, [loginSuccessToast]);
 
   useEffect(() => {
+    getOrders()
+      .then((data) => {
+        if (Array.isArray(data)) setQrOrders(data);
+      })
+      .catch(() => {});
+
     const socket = getSocket();
     if (!socket) return;
 
     function handleOrderCreated(order: any) {
+      if (!order) return;
+
+      setQrOrders((current) => {
+        const exists = current.some((o) => o.id === order.id);
+        if (exists) return current.map((o) => (o.id === order.id ? { ...o, ...order } : o));
+        return [order, ...current];
+      });
+
       const label = order.orderNumber || order.orderId || `#${order.id}`;
       const table = order.table?.name || order.tableNo;
       const detail = table ? `${label} - Table ${table} needs attention` : `${label} needs attention`;
 
       const notif = {
         id: `order-${order.id}-${Date.now()}`,
-        title: "New order received",
+        title: "New QR Order Received",
         detail,
         orderId: order.id,
         tableNo: String(table || ""),
@@ -287,13 +340,20 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       };
 
       setNotifications((current) => [notif, ...current].slice(0, 5));
-      setToastNotification(notif);
-      setTimeout(() => setToastNotification(null), 5000);
+    }
+
+    function handleOrderUpdated(order: any) {
+      if (!order) return;
+      setQrOrders((current) => current.map((o) => (o.id === order.id ? { ...o, ...order } : o)));
     }
 
     socket.on("order:created", handleOrderCreated);
+    socket.on("order:new", handleOrderCreated);
+    socket.on("order:updated", handleOrderUpdated);
     return () => {
       socket.off("order:created", handleOrderCreated);
+      socket.off("order:new", handleOrderCreated);
+      socket.off("order:updated", handleOrderUpdated);
     };
   }, []);
 
@@ -468,8 +528,17 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
   const handleHoldOrder = () => {
     if (cart.length === 0) return;
+    setDraftRefInput(orderNote || (selectedTable ? selectedTable.name : ""));
+    setSaveDraftModalOpen(true);
+  };
+
+  const confirmSaveDraft = () => {
+    if (cart.length === 0) return;
+    const refName = draftRefInput.trim() || (selectedTable ? selectedTable.name : `Draft #${ticketNumber}`);
+
     const newHeld = {
       id: Date.now(),
+      refName,
       timestamp: new Date().toISOString(),
       ticketNumber,
       tableId,
@@ -517,9 +586,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     setDiscountPercent(0);
     setOrderNote("");
     setTableId(undefined);
-    setOrderingMode(false); // Return to Table Map
     setTicketNumber(String(Date.now()).slice(-4));
-    setMessage("Order held successfully.");
+    setSaveDraftModalOpen(false);
+    setDraftRefInput("");
+    setMessage("Draft saved successfully.");
   };
 
   const handleRecallOrder = (heldOrder: any) => {
@@ -585,6 +655,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       };
 
       const order = await createOrder(payload);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("pos-order-created"));
+      }
       
       if (isOnline) {
         await createPayment({ 
@@ -680,7 +753,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   }
 
   const mainContent = (
-    <main className={`overflow-hidden bg-white flex flex-col text-slate-700 print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'}`}>
+    <main className={`overflow-hidden flex flex-col print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'} ${
+      dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-700"
+    }`}>
       {isAdminView && (
         <TopBar
           title="POS - Point of Sale"
@@ -694,213 +769,29 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       )}
       {/* Toast Notification for Kitchen */}
       {showKitchenToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] flex items-center gap-2.5 rounded-xl bg-emerald-500 text-white px-5 py-3.5 shadow-lg font-bold text-xs animate-[posLogoutCard_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
-          ✓ Order sent to kitchen!
+        <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#2b2c40] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-[#3b3c54] animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+              <Check size={11} strokeWidth={4.5} className="text-white" />
+            </div>
+            <span>Order sent to kitchen!</span>
+          </div>
         </div>
       )}
 
-      {!orderingMode && (
-      <div className={`flex flex-1 overflow-hidden bg-[#f8f9fa] w-full h-full p-4 sm:p-6 relative print:hidden ${isAdminView ? 'pt-4 sm:pt-5' : 'pt-2 sm:pt-2'}`}>
-        {/* VIEW 1: Table Map View — only shown when NOT in ordering mode */}
-        {!orderingMode && (<div className="flex flex-1 flex-col overflow-hidden w-full h-full space-y-4">
-          {/* Sub-header: Filters & Actions */}
-          <div className="flex flex-col gap-4 bg-white rounded-2xl p-4 border border-slate-100/80 shadow-sm shadow-slate-100/30 shrink-0">
-            {/* Row 1: Tabs & Stats */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex gap-2 max-w-full overflow-x-auto no-scrollbar">
-                {Array.from(new Set(tables.map((t) => t.zone))).map((zone) => (
-                  <button
-                    key={zone}
-                    type="button"
-                    onClick={() => setSelectedZone(zone)}
-                    className={`px-5 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all cursor-pointer ${
-                      selectedZone === zone
-                        ? "bg-[#0066ff] text-white shadow-sm shadow-blue-500/10"
-                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                    }`}
-                  >
-                    {zone.charAt(0).toUpperCase() + zone.slice(1).toLowerCase()}
-                  </button>
-                ))}
-              </div>
-
-              {/* Counters & Cashier Info */}
-              <div className="flex items-center gap-2">
-                <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
-                  ● {tables.filter((t) => !(tableIsSent[`table-${t.id}`] || t.isOccupied)).length} Free
-                </span>
-                <span className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
-                  ● {tables.filter((t) => tableIsSent[`table-${t.id}`] || t.isOccupied).length} Occupied
-                </span>
-
-                {/* Cashier Info & Logout (Only in standalone Cashier mode) */}
-                {!isAdminView && (
-                  <>
-                    <div className="w-px h-5 bg-slate-200 mx-1.5 shrink-0" />
-                    
-                    <div className="flex items-center gap-2 shrink-0 bg-slate-50 border border-slate-100 rounded-full px-2.5 py-1">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[9px] font-black uppercase overflow-hidden border border-slate-200">
-                        {currentUserImageUrl ? (
-                          <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
-                        ) : (
-                          (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
-                        )}
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-700 capitalize">{currentUserName || "Alex"}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowLogoutModal(true)}
-                      className="border border-rose-200 text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-[0.98] shrink-0"
-                    >
-                      <LogOut size={13} />
-                      Logout
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Row 2: Status buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => switchSelection(undefined, true)}
-                className="border border-blue-500 bg-blue-50/50 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-blue-100 flex items-center gap-1.5 cursor-pointer"
-              >
-                <List size={13} />
-                Pending
-              </button>
-              <button
-                type="button"
-                onClick={() => switchSelection(undefined, true)}
-                className="border border-amber-500 bg-amber-50/50 text-amber-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-amber-100 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Clock size={13} />
-                Reserve
-              </button>
-              <button
-                type="button"
-                onClick={() => switchSelection(undefined, true)}
-                className="border border-slate-600 bg-slate-50 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Smartphone size={13} />
-                App
-              </button>
-              <button
-                type="button"
-                onClick={() => switchSelection(undefined, true)}
-                className="border border-purple-500 bg-purple-50/50 text-purple-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-purple-100 flex items-center gap-1.5 cursor-pointer"
-              >
-                <ShoppingBag size={13} />
-                Takeaway
-              </button>
-            </div>
-          </div>
-
-          {/* Tables Grid Layout */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {filteredTables.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-400">
-                No tables found in this zone.
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {filteredTables.map((table) => {
-                  const isOccupied = tableIsSent[`table-${table.id}`] || table.isOccupied;
-                  const reservationTime = table.reservation || (table.name.toLowerCase().includes("4") ? "18:30" : null);
-                  const isReserved = !isOccupied && !!reservationTime;
-
-                  const tableCart = tableCarts[`table-${table.id}`] || [];
-                  const tableSubtotal = tableCart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-                  const tableDiscount = tableSubtotal * ((tableDiscounts[`table-${table.id}`] || 0) / 100);
-                  const tableTotal = Math.max(tableSubtotal - tableDiscount, 0) * (1 + serviceRate + vatRate);
-
-                  return (
-                    <div
-                      key={table.id}
-                      onClick={() => switchSelection(table.id, true)}
-                      className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col items-center w-full max-w-[200px] cursor-pointer active:scale-[0.98] ${
-                        isOccupied 
-                          ? "border-rose-400" 
-                          : isReserved 
-                            ? "border-amber-400" 
-                            : "border-slate-200/80 hover:border-emerald-300"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-3">
-                        <span className="text-xs font-bold text-slate-400">
-                          {table.name}
-                        </span>
-                        {isOccupied && (
-                          <span className="bg-rose-50 text-rose-600 border border-rose-100 text-[9px] px-1.5 py-0.5 rounded font-black">
-                            ACTIVE
-                          </span>
-                        )}
-                        {isReserved && (
-                          <span className="bg-amber-50 text-amber-600 border border-amber-100 text-[9px] px-1.5 py-0.5 rounded font-black">
-                            {reservationTime}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className={`border rounded-2xl w-full aspect-square flex flex-col justify-center items-center shadow-3xs transition-all duration-300 p-4 ${
-                        isOccupied 
-                          ? "border-rose-300 bg-rose-50/40 text-rose-600" 
-                          : isReserved
-                            ? "border-amber-300 bg-amber-50/40 text-amber-600"
-                            : "border-emerald-300 bg-emerald-50/40 text-emerald-600"
-                      }`}>
-                        <span className="text-4xl font-extrabold tracking-tight">
-                          {table.name.toLowerCase().trim() === "vip lounge" ? "V1" : (table.name.replace(/[^0-9]/g, '') || table.name)}
-                        </span>
-                        <span className={`text-[10px] font-bold mt-1.5 flex items-center gap-1 ${
-                          isOccupied 
-                            ? "text-rose-400" 
-                            : isReserved 
-                              ? "text-amber-400" 
-                              : "text-emerald-400"
-                        }`}>
-                          👥 {table.capacity}
-                        </span>
-                        {isOccupied && (
-                          <span className="text-[11px] font-extrabold text-slate-800 mt-1">
-                            {money(tableTotal || 142.50)}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className={`mt-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider w-full text-center border text-white ${
-                        isOccupied 
-                          ? "bg-rose-700 border-rose-700" 
-                          : isReserved
-                            ? "bg-[#f59e0b] border-[#f59e0b]"
-                            : "bg-emerald-700 border-emerald-700"
-                      }`}>
-                        {isOccupied ? "OCCUPIED" : isReserved ? "RESERVED" : "AVAILABLE"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>)}
-      </div>
-      )}
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
-      {orderingMode && (
-        <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0">
+      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0">
           {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
-          <header className="flex items-center justify-between pt-3 pb-3 px-6 bg-white shrink-0 gap-3">
-            <h1 className="text-xl font-normal text-slate-800 dark:text-white shrink-0">
+          <header className={`flex items-center justify-between pt-3 pb-3 px-6 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+            <h1 className={`text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
               POS &ndash; Point of Sale
             </h1>
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
               <button
                 type="button"
-                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+                className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
+                  dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                }`}
               >
                 <LayoutGrid size={14} />
                 Dual Screen
@@ -913,51 +804,75 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   setDiscountPercent(0);
                   setTicketNumber(String(Date.now()).slice(-4));
                 }}
-                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+                className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
+                  dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                }`}
               >
                 <Plus size={14} />
                 New
               </button>
               <button
                 type="button"
-                className="relative flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+                onClick={() => setQrOrdersModalOpen(true)}
+                className={`relative flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
+                  pendingQrCount > 0
+                    ? dark
+                      ? "bg-amber-950/40 border border-amber-500/50 text-amber-300 hover:bg-amber-900/50"
+                      : "bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100"
+                    : dark
+                    ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                    : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                }`}
               >
-                <QrCode size={14} />
-                QR Menu Orders
-                {unreadCount > 0 && (
-                  <span className="ml-0.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                <QrCode size={14} className={pendingQrCount > 0 ? "text-amber-500 animate-pulse" : ""} />
+                {language === "km" ? "ការកុម្ម៉ង់ QR Menu" : "QR Menu Orders"}
+                {pendingQrCount > 0 ? (
+                  <span className="ml-0.5 bg-amber-500 text-white text-[9.5px] font-black px-1.5 py-0.5 rounded-full leading-none animate-pulse">
+                    {pendingQrCount > 9 ? "9+" : pendingQrCount}
                   </span>
-                )}
+                ) : qrOrders.length > 0 ? (
+                  <span className={`ml-0.5 text-[9.5px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                    dark ? "bg-[#3b3c54] text-slate-300" : "bg-slate-200 text-slate-600"
+                  }`}>
+                    {qrOrders.length}
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"
                 onClick={() => setHeldModalOpen(true)}
-                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+                className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
+                  dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                }`}
               >
                 <Archive size={14} />
                 Drafts List
                 {heldOrders.length > 0 && (
-                  <span className="ml-0.5 bg-slate-200 text-slate-600 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                  <span className={`ml-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none ${
+                    dark ? "bg-[#3b3c54] text-slate-200" : "bg-slate-200 text-slate-600"
+                  }`}>
                     {heldOrders.length}
                   </span>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => setOrderingMode(false)}
-                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              <Link
+                href="/admin/orders"
+                className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
+                  dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                }`}
               >
                 <List size={14} />
-                Table Orders
-              </button>
+                Orders List
+              </Link>
 
               {/* Cashier Info & Logout (Only in standalone Cashier mode) */}
               {!isAdminView && (
                 <>
-                  <div className="w-px h-5 bg-slate-200 mx-1.5 shrink-0" />
+                  <div className={`w-px h-5 mx-1.5 shrink-0 ${dark ? "bg-[#3b3c54]" : "bg-slate-200"}`} />
                   
-                  <div className="flex items-center gap-2 shrink-0 bg-slate-50 border border-slate-100 rounded-full px-2.5 py-1">
+                  <div className={`flex items-center gap-2 shrink-0 rounded-full px-2.5 py-1 ${
+                    dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-slate-50 border border-slate-100"
+                  }`}>
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[9px] font-black uppercase overflow-hidden border border-slate-200">
                       {currentUserImageUrl ? (
                         <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
@@ -965,7 +880,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                         (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
                       )}
                     </div>
-                    <span className="text-[11px] font-bold text-slate-700 capitalize">{currentUserName || "Alex"}</span>
+                    <span className={`text-[11px] font-bold capitalize ${dark ? "text-slate-200" : "text-slate-700"}`}>{currentUserName || "Alex"}</span>
                   </div>
 
                   <button
@@ -981,12 +896,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
           </header>
 
-          <div className="flex flex-1 overflow-hidden w-full min-h-0 bg-white pt-0 px-6 pb-6 gap-6">
+          <div className={`flex flex-1 overflow-hidden w-full min-h-0 pt-0 px-6 pb-6 gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             {/* LEFT: Product Catalogue */}
-            <section className="flex min-w-0 flex-1 flex-col bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out">
+            <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+              dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
+            }`}>
 
             {/* ── Category Pills + Search row ── */}
-            <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-white shrink-0 min-w-0">
+            <div className={`flex items-center justify-between gap-3 px-5 py-3.5 border-b shrink-0 min-w-0 ${
+              dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"
+            }`}>
               {/* Left Scrollable Pills Wrapper with Blur Fade Overlay */}
               <div
                 className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-12"
@@ -998,10 +917,12 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <button
                   type="button"
                   onClick={() => setCategoryId("all")}
-                  className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-bold transition-all cursor-pointer ${
+                  className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-normal transition-all cursor-pointer ${
                     categoryId === "all"
                       ? "bg-[#55a060] text-white shadow-sm"
-                      : "border border-slate-200 bg-white text-[#6b7a82] hover:bg-slate-50"
+                      : dark
+                      ? "border border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]"
+                      : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
                   }`}
                 >
                   All
@@ -1011,10 +932,12 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     key={category.id}
                     type="button"
                     onClick={() => setCategoryId(category.id)}
-                    className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-normal transition-all cursor-pointer whitespace-nowrap ${
                       categoryId === category.id
                         ? "bg-[#55a060] text-white shadow-sm"
-                        : "border border-slate-200 bg-white text-[#6b7a82] hover:bg-slate-50"
+                        : dark
+                        ? "border border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]"
+                        : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
                     {category.name}
@@ -1031,30 +954,50 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search"
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13.5px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all"
+                    className={`h-10 w-full rounded-xl border pl-9 pr-3 text-[13.5px] font-medium outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all ${
+                      dark
+                        ? "border-[#3b3c54] bg-[#232333] text-slate-100 focus:bg-[#2b2c40]"
+                        : "border-slate-200/90 bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-700"
+                    }`}
                   />
                 </div>
-                {/* Grid icon */}
+                {/* View Mode Toggle Icon */}
                 <button
                   type="button"
-                  className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-[#55a060] hover:bg-slate-50 transition-all cursor-pointer"
+                  onClick={() => setViewMode((prev) => (prev === "grid" ? "list" : "grid"))}
+                  className={`shrink-0 h-10 w-10 flex items-center justify-center rounded-xl border transition-all cursor-pointer ${
+                    viewMode === "list"
+                      ? "bg-[#55a060] text-white border-[#55a060] shadow-2xs"
+                      : dark
+                      ? "bg-[#232333] text-[#55a060] border-[#3b3c54] hover:bg-[#34354e]"
+                      : "bg-slate-50 text-[#55a060] border-slate-200/90 hover:bg-slate-100"
+                  }`}
+                  title={viewMode === "grid" ? "Switch to Horizontal List View" : "Switch to Grid View"}
                 >
                   <LayoutGrid size={15} />
                 </button>
               </div>
             </div>
 
-            {/* ── Product Grid ── */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 bg-white min-h-0">
+            {/* ── Product Grid / List ── */}
+            <div className={`flex-1 overflow-y-auto px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
               {filteredProducts.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-400">
-                  <ChefHat size={32} className="mx-auto mb-3 text-slate-300" />
+                <div className={`rounded-2xl border border-dashed p-12 text-center text-sm font-semibold text-slate-400 ${
+                  dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200 bg-white"
+                }`}>
+                  <ChefHat size={32} className="mx-auto mb-3 text-slate-400/60" />
                   No matching menu selections found.
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4">
+              ) : viewMode === "grid" ? (
+                <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} onAdd={() => addProduct(product)} />
+                    <ProductCard key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3.5">
+                  {filteredProducts.map((product) => (
+                    <ProductListItem key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
                   ))}
                 </div>
               )}
@@ -1062,18 +1005,22 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className="w-[390px] xl:w-[32%] xl:min-w-[390px] xl:max-w-[450px] shrink-0 bg-white border border-slate-200/80 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out">
+          <aside className={`w-[340px] lg:w-[350px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+            dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
+          }`}>
 
             {/* ── Select Dining Option + Select Table ── */}
-            <div className="flex gap-2 px-4.5 py-3.5 border-b border-slate-100 shrink-0">
+            <div className={`flex gap-2 px-4.5 py-3.5 border-b shrink-0 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"}`}>
               <div className="relative flex-1">
                 <select
                   value={tableId ? "dine-in" : "walk-in"}
                   onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                  className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
+                  }`}
                 >
-                  <option value="walk-in">Select Dining Option</option>
-                  <option value="dine-in">Dine In</option>
+                  <option value="walk-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>Select Dining Option</option>
+                  <option value="dine-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>Dine In</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               </div>
@@ -1081,11 +1028,13 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <select
                   value={tableId || ""}
                   onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                  className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
+                  }`}
                 >
-                  <option value="">Select Table</option>
+                  <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>Select Table</option>
                   {tables.map((table) => (
-                    <option key={table.id} value={table.id}>
+                    <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
                       {table.name}
                     </option>
                   ))}
@@ -1095,11 +1044,11 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
 
             {/* ── Cart Items / Empty State ── */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div className={`flex-1 overflow-y-auto min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                  <ShoppingBag size={44} className="text-slate-200 mb-3" />
-                  <span className="text-xs font-bold text-slate-500">Cart is empty</span>
+                  <ShoppingBag size={44} className={`mb-3 ${dark ? "text-slate-600" : "text-slate-200"}`} />
+                  <span className={`text-xs font-bold ${dark ? "text-slate-300" : "text-slate-500"}`}>Cart is empty</span>
                   <span className="text-[11px] text-slate-400 mt-1">Click items to add</span>
                 </div>
               ) : (
@@ -1110,6 +1059,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                       <TicketItem
                         key={`${item.productId}-${index}`}
                         item={item}
+                        dark={dark}
                         imageUrl={resolveImageUrl(product?.imageUrl)}
                         onIncrement={() => {
                           const prod = products.find((p) => p.id === item.productId);
@@ -1119,30 +1069,24 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                             return;
                           }
                           setCart((current) =>
-                            current.map((entry, i) =>
-                              i === index ? { ...entry, quantity: nextQty } : entry
+                            current.map((i) =>
+                              i.productId === item.productId ? { ...i, quantity: nextQty } : i
                             )
                           );
                         }}
-                        onDecrement={() =>
+                        onDecrement={() => {
                           setCart((current) =>
-                            current.flatMap((entry, i) =>
-                              i === index
-                                ? entry.quantity <= 1
-                                  ? []
-                                  : [{ ...entry, quantity: entry.quantity - 1 }]
-                                : [entry]
-                            )
-                          )
-                        }
-                        onRemove={() =>
-                          setCart((current) => current.filter((_, i) => i !== index))
-                        }
+                            current
+                              .map((i) => (i.productId === item.productId ? { ...i, quantity: i.quantity - 1 } : i))
+                              .filter((i) => i.quantity > 0)
+                          );
+                        }}
+                        onRemove={() => {
+                          setCart((current) => current.filter((i) => i.productId !== item.productId));
+                        }}
                         onAddNote={(noteText) => {
                           setCart((current) =>
-                            current.map((entry, i) =>
-                              i === index ? { ...entry, notes: noteText } : entry
-                            )
+                            current.map((i) => (i.productId === item.productId ? { ...i, notes: noteText } : i))
                           );
                         }}
                       />
@@ -1152,35 +1096,45 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               )}
             </div>
 
-            {/* ── Summary Footer ── */}
-            <div className="border-t border-slate-100 px-6 pt-4 pb-5 bg-white space-y-3 shrink-0">
-              <div className="space-y-2">
-                <SummaryRow label="Sub total :" value={money(subtotal)} />
-                <SummaryRow label="Product Discount :" value={money(discountAmount)} />
+            {/* ── Cart Summary Footer Block ── */}
+            <div className={`p-4.5 border-t space-y-3 shrink-0 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"}`}>
+              <div className="space-y-1.5">
+                <SummaryRow label="Sub total :" value={money(subtotal)} dark={dark} />
+                {discountPercent > 0 && (
+                  <SummaryRow label={`Discount (${discountPercent}%):`} value={`-${money(discountAmount)}`} dark={dark} />
+                )}
+                {serviceFee > 0 && <SummaryRow label="Service Fee :" value={money(serviceFee)} dark={dark} />}
+                {vat > 0 && <SummaryRow label="VAT :" value={money(vat)} dark={dark} />}
               </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="text-[17px] font-black text-slate-800">Total :</span>
-                <span className="text-3xl font-black text-slate-900">{money(total)}</span>
+
+              {/* Total Row */}
+              <div className={`flex items-center justify-between border-t pt-2.5 ${dark ? "border-[#3b3c54]" : "border-slate-100"}`}>
+                <span className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>Total :</span>
+                <span className="text-2xl font-black text-[#55a060]">{money(total)}</span>
               </div>
-              {/* Draft + Send to Kitchen row */}
-              <div className="flex gap-2.5">
+
+              {/* Draft & Send to Kitchen Buttons Row */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleHoldOrder}
                   disabled={cart.length === 0}
-                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
                 >
-                  <Archive size={16} /> Draft
+                  <Archive size={14} /> Draft
                 </button>
                 <button
                   type="button"
                   onClick={handleSendToKitchen}
                   disabled={cart.length === 0}
-                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-[#55a060] text-[13px] font-bold text-[#55a060] hover:bg-[#55a060]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <ChefHat size={16} /> Send to Kitchen
+                  <ChefHat size={14} /> Send to Kitchen
                 </button>
               </div>
+
               {/* Create Receipt & Pay */}
               <button
                 type="button"
@@ -1194,7 +1148,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </aside>
         </div>
       </div>
-    )}
       {/* Toast Notification */}
       {toastNotification && (
         <div className="fixed bottom-6 right-6 z-[9999] w-full max-w-xs animate-[dashboardPageIn_0.3s_ease-out] rounded-xl bg-white p-3 shadow-[0_4px_20px_0_rgba(67,89,113,0.15)] ring-1 ring-slate-100 print:hidden">
@@ -1572,82 +1525,149 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         </div>
       )}
 
-      {/* Held Orders Modal */}
-      {heldModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out]">
-            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3.5 flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                <Archive size={18} className="text-[#696cff]" />
-                Held Orders (ការកុម្មង់ផ្អាកបណ្តោះអាសន្ន)
-              </h3>
-              <button 
-                onClick={() => setHeldModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="p-5">
-              {heldOrders.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-10 text-center text-xs font-semibold text-slate-400">
-                  <Archive size={32} className="mx-auto mb-2 text-slate-300" />
-                  <span>No held orders found.</span>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                  {heldOrders.map((order) => (
-                    <div 
-                      key={order.id}
-                      className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-all hover:bg-slate-50 hover:border-slate-200"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <div className="text-xs font-black text-slate-800">
-                            Ticket #{order.ticketNumber} - {order.tableName}
-                          </div>
-                          <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                            Held at: {new Date(order.id).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                        <span className="text-sm font-black text-[#696cff]">{money(order.total)}</span>
-                      </div>
+      {/* Save Draft Modal */}
+      {saveDraftModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/30 print:hidden">
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white p-6 shadow-none animate-[dashboardPageIn_200ms_ease-out]">
+            <h3 className="text-base font-bold text-slate-800 mb-4">
+              Save cart items to draft
+            </h3>
 
-                      {/* Items Preview */}
-                      <div className="text-[11px] font-medium text-slate-500 line-clamp-1 mb-3">
-                        {order.items.map((item: any) => `${item.quantity}x ${item.name}`).join(", ")}
-                      </div>
-
-                      <div className="flex justify-end gap-2 border-t border-slate-100/80 pt-2.5">
-                        <button
-                          type="button"
-                          onClick={() => handleDiscardHeldOrder(order.id)}
-                          className="rounded-lg bg-rose-50 px-3 py-1.5 text-[10px] font-bold text-rose-600 hover:bg-rose-100 active:scale-95 transition-all"
-                        >
-                          Discard
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRecallOrder(order)}
-                          className="rounded-lg bg-[#696cff] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all"
-                        >
-                          Recall Order
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="mb-5 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-500">
+                Reference
+              </label>
+              <input
+                type="text"
+                value={draftRefInput}
+                onChange={(e) => setDraftRefInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmSaveDraft();
+                }}
+                placeholder="Enter Reference Name here..."
+                autoFocus
+                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-700 outline-none focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10 transition-all"
+              />
             </div>
 
-            <div className="flex justify-end border-t border-slate-100 bg-slate-50/50 p-4">
-              <button 
-                onClick={() => setHeldModalOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all"
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setSaveDraftModalOpen(false)}
+                className="rounded-lg bg-slate-100/90 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/80 active:scale-95 transition-all cursor-pointer"
               >
                 Close
               </button>
+              <button
+                type="button"
+                onClick={confirmSaveDraft}
+                className="rounded-lg bg-[#55a060] px-6 py-2 text-xs font-semibold text-white hover:bg-[#439150] active:scale-95 transition-all cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Drafts Modal */}
+      {heldModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 print:hidden">
+          <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white p-6 shadow-none animate-[dashboardPageIn_200ms_ease-out]">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                Drafts
+              </h3>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Filter / Sort"
+                >
+                  <SlidersHorizontal size={18} />
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setHeldModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div>
+              {heldOrders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-12 text-center text-xs font-semibold text-slate-400">
+                  <Archive size={32} className="mx-auto mb-2 text-slate-300" />
+                  <span>No saved drafts found.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[420px] overflow-y-auto pr-1">
+                  {heldOrders.map((order: any) => {
+                    const totalQty = (order.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+                    const formattedDate = new Date(order.id).toLocaleString([], {
+                      year: 'numeric',
+                      month: 'numeric',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    });
+                    const displayRef = order.refName || order.tableName || `Draft #${order.ticketNumber}`;
+
+                    return (
+                      <div 
+                        key={order.id}
+                        className="rounded-2xl border border-slate-200/90 bg-white p-4 flex items-center justify-between gap-3 shadow-3xs hover:border-emerald-300 hover:shadow-md transition-all duration-200 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Circular Gray Icon */}
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                            <ClipboardList size={22} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-slate-800 truncate" title={displayRef}>
+                              Ref: {displayRef}
+                            </div>
+                            <div className="text-xs font-semibold text-slate-500 mt-0.5">
+                              {totalQty} Cart Item{totalQty > 1 ? 's' : ''}
+                            </div>
+                            <div className="text-[11px] font-medium text-slate-400 mt-0.5 truncate">
+                              {formattedDate}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Icon Buttons */}
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRecallOrder(order)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-emerald-100 hover:text-emerald-700 active:scale-95 transition-all cursor-pointer"
+                            title="Edit / Recall Draft"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardHeldOrder(order.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-400 hover:bg-rose-100 hover:text-rose-600 active:scale-95 transition-all cursor-pointer"
+                            title="Delete Draft"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1915,6 +1935,209 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </div>
         </div>
       )}
+
+      {/* ── Real-Time QR Menu Orders Modal ── */}
+      {qrOrdersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-hidden rounded-3xl border shadow-2xl animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] flex flex-col ${
+            dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+          }`}>
+            {/* Modal Header */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+              dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-100 bg-slate-50/60"
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
+                  <QrCode size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                      {language === "km" ? "ការកុម្ម៉ង់តាម QR Menu (Real-time)" : "QR Menu Orders"}
+                    </h2>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                  </div>
+                  <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
+                    {language === "km" ? "ការកុម្ម៉ង់ផ្ទាល់ពីរថែប្លេត ឬទូរស័ព្ទអតិថិជន" : "Incoming customer orders placed via QR code scan"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    getOrders().then((data) => { if (Array.isArray(data)) setQrOrders(data); });
+                  }}
+                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <RotateCw size={13} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrOrdersModalOpen(false)}
+                  className={`rounded-xl p-1.5 transition-colors cursor-pointer ${
+                    dark ? "text-slate-400 hover:bg-[#34354e] hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  }`}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className={`flex items-center gap-2 px-6 py-3 border-b text-xs font-semibold shrink-0 ${
+              dark ? "border-[#3b3c54] bg-[#232333]/50" : "border-slate-100 bg-slate-50/30"
+            }`}>
+              {(["all", "pending", "preparing", "completed"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setQrOrdersFilter(tab)}
+                  className={`px-3.5 py-1.5 rounded-xl capitalize transition-all cursor-pointer ${
+                    qrOrdersFilter === tab
+                      ? "bg-[#55a060] text-white font-bold shadow-xs"
+                      : dark
+                      ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                      : "bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {tab === "all" ? `All (${qrOrders.length})` : `${tab} (${qrOrders.filter(o => o.status === tab).length})`}
+                </button>
+              ))}
+            </div>
+
+            {/* Orders Content List */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[500px]">
+              {(() => {
+                const list = qrOrders.filter((o) => qrOrdersFilter === "all" || o.status === qrOrdersFilter);
+                if (list.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
+                        dark ? "bg-[#232333] text-slate-500" : "bg-slate-100 text-slate-400"
+                      }`}>
+                        <QrCode size={28} />
+                      </div>
+                      <p className={`text-sm font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
+                        {language === "km" ? "មិនទាន់មានការកុម្ម៉ង់ QR Menu ឡើយ" : "No QR Menu orders found"}
+                      </p>
+                      <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
+                        {language === "km" ? "នៅពេលអតិថិជនស្កែន QR ធ្វើការកុម្ម៉ង់ វានឹងបង្ហាញនៅទីនេះភ្លាមៗ" : "Incoming QR orders will appear here automatically in real time"}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return list.map((order) => {
+                  const items = Array.isArray(order.items) ? order.items : [];
+                  const orderNum = order.orderNumber || `#${order.id}`;
+                  const tableName = order.table?.name || (order.tableId ? `Table ${order.tableId}` : "Takeaway / QR");
+                  const orderTotal = Number(order.totalAmount || order.total || items.reduce((sum: number, i: any) => sum + Number(i.unitPrice || 0) * Number(i.quantity || 1), 0));
+                  const isPending = order.status === "pending" || !order.status;
+
+                  return (
+                    <div
+                      key={order.id}
+                      className={`rounded-2xl border p-4 transition-all ${
+                        dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200/80 bg-slate-50/50"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/40 dark:border-slate-700/40">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-extrabold text-sm text-[#55a060]">
+                            {orderNum}
+                          </span>
+                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-lg border ${
+                            dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-200" : "bg-white border-slate-200 text-slate-700"
+                          }`}>
+                            {tableName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[11px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
+                            isPending
+                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                              : order.status === "preparing"
+                              ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                              : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                          }`}>
+                            {order.status || "pending"}
+                          </span>
+                          <span className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
+                            {order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Items list */}
+                      <div className="py-3 space-y-1.5">
+                        {items.map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-700"}`}>
+                              <span className="font-bold text-[#55a060]">{item.quantity}×</span> {item.product?.name || item.name || `Item #${item.productId}`}
+                              {item.notes && <span className="text-slate-400 italic ml-1.5">({item.notes})</span>}
+                            </span>
+                            <span className={`font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
+                              {money(Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Total & Action Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/40 dark:border-slate-700/40">
+                        <div className="text-xs">
+                          <span className={dark ? "text-slate-400" : "text-slate-500"}>Total: </span>
+                          <span className="text-sm font-black text-[#55a060]">{money(orderTotal)}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadQrOrderToCart(order)}
+                            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                              dark
+                                ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]"
+                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            <ShoppingBag size={13} className="text-[#55a060]" />
+                            {language === "km" ? "បញ្ចូលក្នុង Cart" : "Load to Cart"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const socket = getSocket();
+                              if (socket) {
+                                socket.emit("order:update", { id: order.id, status: "preparing" });
+                              }
+                              setQrOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: "preparing" } : o)));
+                              setMessage(`Order ${orderNum} sent to Kitchen!`);
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
+                          >
+                            <ChefHat size={13} />
+                            {language === "km" ? "ផ្ញើទៅចុងភៅ" : "Send to Kitchen"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 
@@ -1929,7 +2152,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   );
 }
 
-function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }) {
+function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: () => void }) {
   const imageUrl = resolveImageUrl(product.imageUrl);
   const unavailable = !product.isAvailable;
   const [imgFailed, setImgFailed] = useState(false);
@@ -1939,12 +2162,16 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       type="button"
       onClick={onAdd}
       disabled={unavailable}
-      className="group relative overflow-hidden rounded-2xl border border-slate-200/90 bg-white text-left shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between"
+      className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between ${
+        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
+      }`}
     >
       {/* Product Image Cover */}
-      <div className="w-full aspect-[1.3] bg-slate-50 relative overflow-hidden shrink-0 border-b border-slate-100 flex items-center justify-center">
+      <div className={`w-full aspect-[1.35] relative overflow-hidden shrink-0 border-b flex items-center justify-center ${
+        dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
+      }`}>
         {product.category && (
-          <span className="absolute top-2.5 left-2.5 bg-[#55a060] text-white text-[10px] font-bold px-2 py-0.5 rounded-lg z-10">
+          <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9.5px] font-bold px-2.5 py-1 rounded-br-lg z-10">
             {product.category.name}
           </span>
         )}
@@ -1957,23 +2184,23 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
             className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 text-slate-300">
-            <Utensils size={26} className="text-slate-300/80 mb-1" />
-            <span className="text-[9px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
+          <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
+            <Utensils size={24} className="text-slate-400/80 mb-1" />
+            <span className="text-[8.5px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
           </div>
         )}
 
         {/* Plus Button Overlay */}
         {!unavailable && (
-          <span className="absolute bottom-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#55a060] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
-            <Plus size={14} className="stroke-[3]" />
+          <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-xs hover:scale-110 active:scale-90 transition-all">
+            <Plus size={13} className="stroke-[3]" />
           </span>
         )}
 
         {/* Unavailable overlay */}
         {unavailable && (
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
-            <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
               Sold Out
             </span>
           </div>
@@ -1981,16 +2208,18 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       </div>
 
       {/* Card Content Body */}
-      <div className="p-3 w-full flex-1 flex flex-col justify-between">
+      <div className="p-2.5 w-full flex-1 flex flex-col justify-between">
         <div>
           {product.trackStock && product.inventory && Number(product.inventory.quantity) <= Number(product.inventory.minStock) && (
-            <div className="flex items-center gap-1.5 bg-[#fdf8e2] border border-[#fbeba5] text-[#b38f00] text-[10px] font-bold px-2.5 py-0.5 rounded-lg mb-2">
-              <AlertTriangle size={10} className="text-[#e6b800] shrink-0" />
+            <div className="flex items-center gap-1 bg-[#fdf8e2] border border-[#fbeba5] text-[#b38f00] text-[9.5px] font-bold px-2 py-0.5 rounded mb-1.5">
+              <AlertTriangle size={9.5} className="text-[#e6b800] shrink-0" />
               <span>Low Stock - {Number(product.inventory.quantity)} Qty</span>
             </div>
           )}
 
-          <h3 className="line-clamp-1 text-[13.5px] font-bold text-slate-800 group-hover:text-[#55a060] transition-colors leading-tight">
+          <h3 className={`line-clamp-1 text-[12.5px] font-bold group-hover:text-[#55a060] transition-colors leading-snug ${
+            dark ? "text-slate-100" : "text-slate-800"
+          }`}>
             {product.name}
           </h3>
 
@@ -2006,13 +2235,13 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
             
             if (!text) return null;
             return (
-              <span className="text-[11.5px] text-slate-400 block mt-1 font-medium">
+              <span className="text-[10.5px] text-slate-400 block mt-0.5 font-medium">
                 {text}
               </span>
             );
           })()}
 
-          <div className="mt-1 text-[13.5px] font-black text-[#55a060]">
+          <div className="mt-1 text-[12.5px] font-black text-[#55a060]">
             {money(product.basePrice)}
           </div>
         </div>
@@ -2021,8 +2250,100 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
   );
 }
 
+function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: () => void }) {
+  const imageUrl = resolveImageUrl(product.imageUrl);
+  const unavailable = !product.isAvailable;
+  const [imgFailed, setImgFailed] = useState(false);
+
+  return (
+    <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs hover:shadow-md transition-all duration-200 ease-out h-[105px] ${
+      dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
+    }`}>
+      {/* Product Image Cover (Left Side) */}
+      <div className={`w-[110px] sm:w-[120px] relative overflow-hidden shrink-0 border-r flex items-center justify-center ${
+        dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
+      }`}>
+        {product.category && (
+          <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9px] font-bold px-2 py-0.5 rounded-br-md z-10">
+            {product.category.name}
+          </span>
+        )}
+
+        {imageUrl && !imgFailed ? (
+          <img
+            src={imageUrl}
+            alt={product.name}
+            onError={() => setImgFailed(true)}
+            className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+          />
+        ) : (
+          <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
+            <Utensils size={22} className="text-slate-400/80 mb-1" />
+            <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
+          </div>
+        )}
+
+        {unavailable && (
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
+              Sold Out
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Content Right Side */}
+      <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
+        {/* Header Row: Title & Price */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className={`line-clamp-1 text-xs font-bold group-hover:text-[#55a060] transition-colors leading-snug ${
+            dark ? "text-slate-100" : "text-slate-800"
+          }`}>
+            {product.name}
+          </h3>
+          <span className="text-xs font-black text-[#55a060] shrink-0">
+            {money(product.basePrice)}
+          </span>
+        </div>
+
+        {/* Subtitle / Variants / Addons text */}
+        {(() => {
+          const key = product.name.toLowerCase();
+          let text = null;
+          if (key.includes("pizza")) text = "2 Variants • 2 Addons";
+          else if (key.includes("fries")) text = "1 Variants • 1 Addons";
+          else if (key.includes("burger")) text = "2 Variants • 3 Addons";
+          else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
+          else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
+          else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
+          
+          if (!text) return <div className="flex-1" />;
+          return (
+            <span className="text-[10px] text-slate-400 block line-clamp-1 font-medium">
+              {text}
+            </span>
+          );
+        })()}
+
+        {/* Bottom Action Row: ADD Button */}
+        <div className="flex items-center justify-end mt-1">
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={unavailable}
+            className="rounded-lg bg-[#55a060] px-4 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-[#439150] active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ADD
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TicketItem({
   item,
+  dark,
   imageUrl,
   onIncrement,
   onDecrement,
@@ -2030,6 +2351,7 @@ function TicketItem({
   onAddNote,
 }: {
   item: CartItem;
+  dark?: boolean;
   imageUrl: string;
   onIncrement: () => void;
   onDecrement: () => void;
@@ -2040,10 +2362,12 @@ function TicketItem({
   const [noteText, setNoteText] = useState(item.notes || "");
 
   return (
-    <div className="group flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-2xs hover:shadow-xs hover:border-slate-200/80 transition-all duration-200">
+    <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 ${
+      dark ? "bg-[#232333] border-[#2b2c40] text-slate-100" : "bg-white border-slate-100 text-slate-700"
+    }`}>
       <div className="flex items-start justify-between gap-2.5">
         <div className="flex-1 min-w-0">
-          <h3 className="truncate text-sm font-bold text-slate-700 leading-snug">
+          <h3 className={`truncate text-sm font-bold leading-snug ${dark ? "text-slate-100" : "text-slate-700"}`}>
             {item.name}
           </h3>
           <span className="text-xs font-semibold text-[#55a060] block mt-0.5">
@@ -2054,7 +2378,7 @@ function TicketItem({
           <button
             type="button"
             onClick={onRemove}
-            className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
+            className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
             title="Remove item"
           >
             <Trash2 size={13} className="stroke-[2.5]" />
@@ -2064,7 +2388,9 @@ function TicketItem({
 
       {/* Stepper Count & Add Note Row */}
       <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50/50 p-0.5 scale-100">
+        <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
+          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
+        }`}>
           <button
             type="button"
             onClick={onDecrement}
@@ -2072,7 +2398,7 @@ function TicketItem({
           >
             <Minus size={12} />
           </button>
-          <span className="w-6 text-center text-xs font-bold text-slate-600">
+          <span className={`w-6 text-center text-xs font-bold ${dark ? "text-slate-200" : "text-slate-600"}`}>
             {item.quantity}
           </span>
           <button
@@ -2089,7 +2415,9 @@ function TicketItem({
           <button
             type="button"
             onClick={() => setIsEditingNote(!isEditingNote)}
-            className="rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-1 text-[10.5px] font-semibold text-slate-500 hover:bg-slate-100 transition-all flex items-center gap-1 cursor-pointer"
+            className={`rounded-lg border px-2 py-1 text-[10.5px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-100 bg-slate-50/50 text-slate-500 hover:bg-slate-100"
+            }`}
           >
             📝 {item.notes ? `Note: "${item.notes}"` : "Add Notes"}
           </button>
@@ -2104,7 +2432,9 @@ function TicketItem({
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Add note (e.g. Less sugar)..."
-            className="h-8.5 w-full rounded border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] focus:bg-white transition-all"
+            className={`h-8.5 w-full rounded border px-2 text-xs font-semibold outline-none focus:border-[#55a060] transition-all ${
+              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 focus:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 focus:bg-white"
+            }`}
           />
           <button
             type="button"
@@ -2127,7 +2457,7 @@ function getCategoryIcon(name: string): string {
     coffee: "☕", tea: "🍵", dessert: "🍰", cake: "🎂",
     food: "🍔", frappe: "🧋", juice: "🥤", smoothie: "🥤",
     pizza: "🍕", pasta: "🍝", salad: "🥗", soup: "🍜",
-    burger: "🍔", sandwich: "🥪", noodle: "🍜", rice: "🍚",
+    burger: "🍔", sandwich: "🥪", noodle: "<ctrl42>", rice: "🍚",
     snack: "🍟", bread: "🥐", drink: "🧃", water: "💧",
     beer: "🍺", wine: "🍷", cocktail: "🍹", milk: "🥛",
     chocolate: "🍫", ice: "🍦", fruit: "🍓", chicken: "🍗",
@@ -2185,11 +2515,11 @@ function IconButton({ label, children, onClick }: { label: string; children: Rea
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, dark }: { label: string; value: string; dark?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-xs font-medium text-slate-400 tracking-wide">{label}</span>
-      <span className="text-xs font-bold text-slate-700">{value}</span>
+      <span className={`text-xs font-bold ${dark ? "text-slate-100" : "text-slate-700"}`}>{value}</span>
     </div>
   );
 }

@@ -397,12 +397,12 @@ export default function SettingsPage() {
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200";
+  const borderCol = dark ? "border-[#3b3c54]" : "border-slate-200/80";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
-  const inputClass = `w-full rounded-lg border px-3.5 py-2.5 text-xs font-semibold outline-none transition placeholder-slate-400 focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 ${
+  const textSecondary = dark ? "text-slate-300 font-medium" : "text-[#64748b]";
+  const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition placeholder-slate-400 focus:border-[#55a060] ${
     dark
-      ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
+      ? "border-[#3b3c54] bg-[#232333] text-slate-100 focus:bg-[#2b2c40]"
       : "border-slate-300 bg-white text-slate-900"
   }`;
   const isSuperAdmin = ["superadmin", "admin"].includes(storedUserRole().toLowerCase().replace(/[^a-z0-9]/g, ""));
@@ -641,15 +641,19 @@ export default function SettingsPage() {
         />
 
         {/* Secondary Sub-Navigation Bar */}
-        <div className={`px-5 py-3 border-b border-slate-200/50 dark:border-[#4e4f6e]/30 flex flex-wrap items-center gap-2 text-xs font-semibold bg-white dark:bg-[#1a1c29] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0`}>
+        <div className={`px-5 py-3 border-b flex flex-wrap items-center gap-2 text-xs font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
+          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
+        }`}>
           {/* 1. Store Details */}
           <button
             type="button"
             onClick={() => setActiveTab("general")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "general"
-                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
-                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <Info size={15} />
@@ -660,10 +664,12 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("printers")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "printers"
-                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
-                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <Printer size={15} />
@@ -674,26 +680,28 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("billing")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "billing"
-                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
-                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <ReceiptText size={15} />
             <span>{language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}</span>
           </button>
 
-
-
           {/* 8. Integrations */}
           <button
             type="button"
             onClick={() => setActiveTab("integrations")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "integrations"
-                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
-                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <SendHorizontal size={15} />
@@ -704,10 +712,12 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("security")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "security"
-                ? "bg-[#dcecdb] text-[#09391D] dark:bg-[#0F522B]/20 dark:text-emerald-400 font-bold"
-                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/40 hover:text-slate-800 dark:hover:text-slate-200"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <Database size={15} />
@@ -715,7 +725,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="w-full">
 
 
@@ -894,7 +904,7 @@ export default function SettingsPage() {
                           type="submit"
                           form="settingsForm"
                           disabled={saving}
-                          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0F522B] px-6 text-sm font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:opacity-50"
+                          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-6 text-sm font-bold text-white transition-all shadow-sm shadow-[#55a060]/20 disabled:opacity-50 cursor-pointer"
                         >
                           {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
                           {language === "km" ? "រក្សាទុក" : "Save Changes"}
@@ -986,7 +996,7 @@ export default function SettingsPage() {
                         <button
                           type="submit"
                           disabled={saving}
-                          className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                         >
                           {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                           {saving
@@ -1075,7 +1085,7 @@ export default function SettingsPage() {
                     <button
                       type="button"
                       onClick={openAddPrinterModal}
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all duration-200"
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 transition-all duration-200 cursor-pointer"
                     >
                       <Plus size={15} />
                       {language === "km" ? "បន្ថែម Printer" : "Add Printer"}
@@ -1293,7 +1303,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={handleSaveTelegram}
                         disabled={savingTelegram}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {savingTelegram ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
                         {language === "km" ? "រក្សាទុក" : "Save Settings"}
@@ -1359,31 +1369,27 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
+                    <div className="overflow-x-auto min-h-[420px]">
+                      <table className="w-full text-left text-sm table-fixed">
                         <thead className={`border-b ${dark ? "bg-[#232333] border-[#4e4f6e]" : "bg-[#f8f9fa] border-slate-100"}`}>
                           <tr>
-                            {[
-                              language === "km" ? "ឈ្មោះបុគ្គលិក" : "Staff Name",
-                              language === "km" ? "តួនាទី" : "Role",
-                              language === "km" ? "សកម្មភាព" : "Action",
-                              "IP / Device",
-                              language === "km" ? "ស្ថានភាព" : "Status",
-                              language === "km" ? "ពេលវេលា" : "Time",
-                            ].map((h) => (
-                              <th key={h} className={`px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{h}</th>
-                            ))}
+                            <th className={`w-[26%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ឈ្មោះបុគ្គលិក" : "Staff Name"}</th>
+                            <th className={`w-[12%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "តួនាទី" : "Role"}</th>
+                            <th className={`w-[18%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "សកម្មភាព" : "Action"}</th>
+                            <th className={`w-[14%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>IP / Device</th>
+                            <th className={`w-[14%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ស្ថានភាព" : "Status"}</th>
+                            <th className={`w-[16%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ពេលវេលា" : "Time"}</th>
                           </tr>
                         </thead>
                         <tbody className={`divide-y ${dark ? "divide-[#4e4f6e]/40" : "divide-slate-100"}`}>
                           {auditLogs.length > 0 ? (
                             auditLogs.map((log) => (
-                              <tr key={log.id} className={`transition-colors duration-150 ${dark ? "hover:bg-white/[0.03]" : "hover:bg-slate-50/60"}`}>
-                                <td className={`px-5 py-3.5 font-bold text-sm ${textPrimary}`}>{log.userName}</td>
-                                <td className={`px-5 py-3.5 text-xs font-medium ${textSecondary}`}>{log.userRole}</td>
-                                <td className={`px-5 py-3.5 text-xs font-bold ${textPrimary}`}>{log.action}</td>
-                                <td className={`px-5 py-3.5 font-mono text-xs ${textSecondary}`}>{log.ipAddress || "Localhost"}</td>
-                                <td className="px-5 py-3.5">
+                              <tr key={log.id} className={`h-[48px] transition-colors duration-150 ${dark ? "hover:bg-white/[0.03]" : "hover:bg-slate-50/60"}`}>
+                                <td className={`px-5 py-3.5 font-normal text-sm truncate ${textPrimary}`} title={log.userName}>{log.userName}</td>
+                                <td className={`px-5 py-3.5 text-xs font-medium truncate ${textSecondary}`}>{log.userRole}</td>
+                                <td className={`px-5 py-3.5 text-xs font-bold truncate ${textPrimary}`}>{log.action}</td>
+                                <td className={`px-5 py-3.5 font-mono text-xs truncate ${textSecondary}`}>{log.ipAddress || "Localhost"}</td>
+                                <td className="px-5 py-3.5 truncate">
                                   <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-black ${
                                     log.status === "SUCCESS"
                                       ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
@@ -1393,7 +1399,7 @@ export default function SettingsPage() {
                                     {log.status}
                                   </span>
                                 </td>
-                                <td className={`px-5 py-3.5 text-xs ${textSecondary}`}>
+                                <td className={`px-5 py-3.5 text-xs truncate ${textSecondary}`}>
                                   {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                 </td>
                               </tr>
@@ -1425,20 +1431,30 @@ export default function SettingsPage() {
                         >
                           <ChevronLeft size={15} />
                         </button>
-                        {Array.from({ length: auditTotalPages }, (_, i) => i + 1).map((pNum) => (
-                          <button
-                            key={pNum}
-                            type="button"
-                            onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, pNum); }}
-                            className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
-                              auditPage === pNum
-                                ? "bg-[#09391D] text-white shadow-sm"
-                                : `border ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`
-                            }`}
-                          >
-                            {pNum}
-                          </button>
-                        ))}
+                        {(() => {
+                          const maxVisiblePages = 5;
+                          let startPage = Math.max(1, auditPage - 2);
+                          let endPage = Math.min(auditTotalPages, startPage + maxVisiblePages - 1);
+                          if (endPage - startPage + 1 < maxVisiblePages) {
+                            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                          }
+                          const visiblePages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+
+                          return visiblePages.map((pNum) => (
+                            <button
+                              key={pNum}
+                              type="button"
+                              onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, pNum); }}
+                              className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
+                                auditPage === pNum
+                                  ? "bg-[#55a060] text-white shadow-sm"
+                                  : `border ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`
+                              }`}
+                            >
+                              {pNum}
+                            </button>
+                          ));
+                        })()}
                         <button
                           type="button"
                           onClick={() => { const next = Math.min(auditTotalPages, auditPage + 1); setAuditPage(next); loadAuditLogs(auditSearch, auditStatusFilter, next); }}
@@ -1473,7 +1489,7 @@ export default function SettingsPage() {
                             type="button"
                             onClick={createAndDownloadBackup}
                             disabled={Boolean(backupBusy)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#09391D] hover:bg-[#0b4a26] active:scale-95 px-4 text-sm font-bold text-white shadow-sm shadow-[#09391D]/20 transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-4 text-sm font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-sm shadow-[#55a060]/20"
                           >
                             {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
                             {language === "km" ? "បង្កើត Backup" : "Create Backup"}
@@ -1522,7 +1538,7 @@ export default function SettingsPage() {
                             <>
                               <div className={`mt-1.5 truncate text-xs font-bold ${textPrimary}`}>{backupFiles[0].filename}</div>
                               <div className={`mt-0.5 text-[11px] font-medium ${textSecondary}`}>
-                                {formatFileSize(backupFiles[0].size)} · {formatDate(backupFiles[0].updatedAt)}
+                                {formatFileSize(backupFiles[0].size)} · {formatDate(backupFiles[0].updatedAt || backupFiles[0].createdAt, backupFiles[0].filename)}
                               </div>
                             </>
                           ) : (
@@ -1856,11 +1872,40 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-function formatDate(value?: string) {
-  if (!value) return "Unknown date";
+function formatDate(value?: string | number | Date | null, filename?: string) {
+  if (value) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) {
+      return new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(d);
+    }
+  }
 
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  if (filename) {
+    const tsMatch = filename.match(/-(\d{12,14})\./);
+    if (tsMatch && tsMatch[1]) {
+      const d = new Date(Number(tsMatch[1]));
+      if (!isNaN(d.getTime())) {
+        return new Intl.DateTimeFormat("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(d);
+      }
+    }
+
+    const dateMatch = filename.match(/(\d{4}-\d{2}-\d{2})/);
+    if (dateMatch && dateMatch[1]) {
+      const d = new Date(dateMatch[1]);
+      if (!isNaN(d.getTime())) {
+        return new Intl.DateTimeFormat("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(d);
+      }
+    }
+  }
+
+  return "Unknown date";
 }

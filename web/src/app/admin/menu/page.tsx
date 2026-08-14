@@ -821,7 +821,7 @@ export default function MenuPage() {
       />
       
       <div className="flex-1 overflow-y-auto px-5 py-5">
-        <div className="mx-auto w-full max-w-[1600px]">
+        <div className="mx-auto w-full max-w-[1400px]">
 
         {error && (
           <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">

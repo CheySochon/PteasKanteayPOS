@@ -548,14 +548,16 @@ export default function UsersPage() {
             </div>
 
             {/* Title & "+ New" Button Header */}
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className={`text-[32px] font-light text-slate-700 dark:text-slate-200`}>{language === "km" ? "បុគ្គលិក" : "Users"}</h1>
+            <div className="flex items-center gap-3 mb-4">
+              <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>{language === "km" ? "បុគ្គលិក" : "Users"}</h1>
               <button
                 type="button"
                 onClick={openCreateUserModal}
-                className="inline-flex h-8 items-center justify-center gap-1 rounded-xl border border-slate-200 dark:border-slate-700/50 bg-[#f5f5f9]/80 dark:bg-[#34354c]/60 px-3.5 text-xs font-normal text-slate-600 dark:text-slate-350 hover:bg-[#eceef1] dark:hover:bg-[#3e3f59] transition-all cursor-pointer"
+                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                <Plus size={12} className="text-slate-400 stroke-[1.8]" />
+                <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
                 {language === "km" ? "ថ្មី" : "New"}
               </button>
             </div>
@@ -597,55 +599,71 @@ export default function UsersPage() {
                       return (
                         <div
                           key={user.id}
-                          className={`w-full max-w-[320px] rounded-[32px] border p-3 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
-                            isAdmin ? "min-h-[280px]" : "min-h-[480px]"
+                          className={`w-full max-w-[320px] rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
+                            isAdmin ? "min-h-[260px]" : "min-h-[440px]"
                           } ${
                             dark
-                              ? "border-[#4e4f6e]/40 bg-[#2b2c40]"
-                              : "border-[#e0e4e8] bg-white"
+                              ? "border-[#3b3c54] bg-[#2b2c40]"
+                              : "border-slate-200/80 bg-white"
                           }`}
                         >
                           <div className="flex flex-col items-center w-full">
                             {/* Big Circular Avatar */}
-                            <div className="mt-4 shrink-0">
+                            <div className="mt-2 shrink-0">
                               {image ? (
                                 <img
                                   src={image}
                                   alt={user.name}
-                                  className="h-20 w-20 rounded-full object-cover border border-slate-200/40 dark:border-slate-700 shadow-sm"
+                                  className={`h-20 w-20 rounded-full object-cover border shadow-xs ${
+                                    dark ? "border-[#3b3c54]" : "border-slate-200"
+                                  }`}
                                 />
                               ) : (
-                                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#f0f2f5] dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200/45 dark:border-slate-700 shadow-inner">
-                                  <UserRound size={28} className="stroke-[1.2] text-slate-400" />
+                                <div className={`flex h-20 w-20 items-center justify-center rounded-full border shadow-inner ${
+                                  dark ? "bg-[#232333] border-[#3b3c54] text-slate-400" : "bg-slate-100 border-slate-200 text-slate-400"
+                                }`}>
+                                  <UserRound size={32} className="stroke-[1.5]" />
                                 </div>
                               )}
                             </div>
 
                             {/* User Name & Role */}
-                            <h3 className={`text-base font-semibold mt-3.5 truncate max-w-full ${dark ? "text-slate-100" : "text-[#2c3e50]"}`}>
+                            <h3 className={`text-base font-bold mt-3.5 truncate max-w-full ${dark ? "text-slate-100" : "text-slate-800"}`}>
                               {user.name}
                             </h3>
-                            <span className="text-[11px] font-normal tracking-wide uppercase text-slate-400 mt-0.5">
+                            <span className={`text-[11px] font-extrabold tracking-wider uppercase mt-1 px-2.5 py-0.5 rounded-full border ${
+                              dark
+                                ? "bg-[#232333] border-[#3b3c54] text-[#55a060]"
+                                : "bg-emerald-50 border-emerald-200/60 text-[#55a060]"
+                            }`}>
                               {uRole}
                             </span>
 
                             {/* Email */}
-                            <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-2 truncate max-w-full">
-                              <Mail size={13} className="shrink-0 text-slate-400 stroke-[1.5]" />
+                            <div className={`flex items-center justify-center gap-1.5 text-xs mt-2.5 truncate max-w-full ${
+                              dark ? "text-slate-400" : "text-slate-500"
+                            }`}>
+                              <Mail size={13} className="shrink-0 stroke-[1.8]" />
                               <span className="truncate">{user.email}</span>
                             </div>
 
                             {/* Scopes Section for non-Admins */}
                             {!isAdmin && (
-                              <div className="w-full text-left mt-5">
-                                <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-2">
-                                  Scopes:
+                              <div className="w-full text-left mt-4">
+                                <span className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
+                                  dark ? "text-slate-400" : "text-slate-500"
+                                }`}>
+                                  SCOPES:
                                 </span>
-                                <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto pr-1 select-none">
+                                <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 select-none no-scrollbar">
                                   {scopes.map((scope, idx) => (
                                     <span
                                       key={idx}
-                                      className="text-[9px] font-semibold tracking-wide bg-slate-100 dark:bg-[#232333] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50 uppercase"
+                                      className={`text-[9.5px] font-bold tracking-wide px-2.5 py-1 rounded-lg border uppercase ${
+                                        dark
+                                          ? "bg-[#232333] border-[#3b3c54] text-slate-300"
+                                          : "bg-slate-50 border-slate-200/80 text-slate-600"
+                                      }`}
                                     >
                                       {scope}
                                     </span>
@@ -657,30 +675,41 @@ export default function UsersPage() {
 
                           {/* Action Buttons at bottom for non-Admins */}
                           {!isAdmin && (
-                            <div className="w-full flex items-center justify-between gap-2 mt-6 pt-4 border-t border-slate-100 dark:border-[#4e4f6e]/30 px-3">
+                            <div className={`w-full flex items-center justify-between gap-2 mt-5 pt-3.5 border-t ${
+                              dark ? "border-[#3b3c54]" : "border-slate-100"
+                            }`}>
                               <button
                                 type="button"
                                 onClick={() => edit(user)}
-                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-[#f1f5f9] dark:bg-[#232333]/50 dark:hover:bg-[#232333] text-[#4f5d75] dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/50 transition-all cursor-pointer leading-tight"
+                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                  dark
+                                    ? "bg-[#232333] border-[#3b3c54] text-slate-200 hover:bg-[#34354e]"
+                                    : "bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100"
+                                }`}
                               >
-                                <span>Edit</span>
-                                <span>User</span>
+                                Edit User
                               </button>
                               <button
                                 type="button"
                                 onClick={() => edit(user)}
-                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-[#f1f5f9] dark:bg-[#232333]/50 dark:hover:bg-[#232333] text-[#4f5d75] dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/50 transition-all cursor-pointer leading-tight"
+                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                  dark
+                                    ? "bg-[#232333] border-[#3b3c54] text-slate-200 hover:bg-[#34354e]"
+                                    : "bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100"
+                                }`}
                               >
-                                <span>Reset</span>
-                                <span>Password</span>
+                                Reset Password
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setDeleteConfirmUser(user)}
-                                className="flex-1 h-10 flex flex-col items-center justify-center text-[10px] font-semibold rounded-2xl bg-[#f8fafc] hover:bg-rose-50/20 dark:bg-[#232333]/50 dark:hover:bg-rose-950/10 text-rose-500 hover:text-rose-600 dark:text-rose-400 border border-slate-200/80 dark:border-slate-700/50 hover:border-rose-200/60 dark:hover:border-rose-900/30 transition-all cursor-pointer leading-tight"
+                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                                  dark
+                                    ? "bg-rose-950/30 border-rose-900/50 text-rose-400 hover:bg-rose-900/40"
+                                    : "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                                }`}
                               >
-                                <span>Delete</span>
-                                <span>User</span>
+                                Delete User
                               </button>
                             </div>
                           )}

@@ -281,32 +281,27 @@ export default function KdsPage() {
           
           {/* Brand & Live Clock */}
           <div className="flex items-center gap-3.5">
-
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-normal text-slate-800 dark:text-white shrink-0">
-                  Kitchen Display System
-                </h1>
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#71dd37]/10 px-2.5 py-0.5 text-xs font-bold text-[#71dd37]">
-                  <span className="h-2 w-2 rounded-full bg-[#71dd37] animate-ping" />
-                  Live KDS
-                </span>
-              </div>
-              <p className="text-xs text-[#a1acb8] font-semibold mt-0.5">
-                {currentTime || "00:00:00 AM"} • Real-time Order Station
+              <h1 className={`text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                Kitchen Display System
+              </h1>
+              <p className={`text-xs font-semibold mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>
+                {currentTime || "00:00:00 AM"}
               </p>
             </div>
           </div>
 
           {/* Ticket Status Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 sm:ml-auto">
             <button
               type="button"
               onClick={() => setStatusFilter("all")}
-              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+              className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
                 statusFilter === "all"
-                  ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/20"
-                  : "bg-[#eceef1]/60 dark:bg-[#3a3b53] text-[#8592a3] hover:bg-slate-200"
+                  ? "bg-[#55a060] text-white shadow-sm shadow-[#55a060]/20"
+                  : dark
+                  ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200/80"
               }`}
             >
               All ({activeOrders.length})
@@ -315,10 +310,12 @@ export default function KdsPage() {
             <button
               type="button"
               onClick={() => setStatusFilter("pending")}
-              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 statusFilter === "pending"
-                  ? "bg-[#ff9f43] text-white shadow-sm shadow-[#ff9f43]/20"
-                  : "bg-[#ff9f43]/10 text-[#ff9f43] hover:bg-[#ff9f43]/20"
+                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20"
+                  : dark
+                  ? "bg-[#2b2c40] border border-amber-900/50 text-amber-400 hover:bg-amber-950/30"
+                  : "bg-amber-50 text-amber-600 border border-amber-200/60 hover:bg-amber-100/80"
               }`}
             >
               <Clock size={13} />
@@ -328,63 +325,48 @@ export default function KdsPage() {
             <button
               type="button"
               onClick={() => setStatusFilter("preparing")}
-              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 statusFilter === "preparing"
-                  ? "bg-[#03c3ec] text-white shadow-sm shadow-[#03c3ec]/20"
-                  : "bg-[#03c3ec]/10 text-[#03c3ec] hover:bg-[#03c3ec]/20"
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-600/20"
+                  : dark
+                  ? "bg-[#2b2c40] border border-blue-900/50 text-blue-400 hover:bg-blue-950/30"
+                  : "bg-blue-50 text-blue-600 border border-blue-200/60 hover:bg-blue-100/80"
               }`}
             >
               <Flame size={13} />
               Preparing ({preparingCount})
             </button>
-
-          </div>
-
-          {/* Action Control Icons */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !soundEnabled;
-                setSoundEnabled(next);
-                if (next) playKitchenBellSound();
-              }}
-              className={`flex h-10 items-center gap-1.5 rounded-lg px-3.5 text-xs font-semibold transition-all ${
-                soundEnabled
-                  ? "bg-[#71dd37]/10 text-[#71dd37] border border-[#71dd37]/30"
-                  : "bg-[#eceef1]/60 dark:bg-[#3a3b53] text-[#8592a3]"
-              }`}
-              title={soundEnabled ? "Sound Alarms Active" : "Sound Alarms Muted"}
-            >
-              {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              <span>{soundEnabled ? "Sound On" : "Muted"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eceef1]/60 dark:bg-[#3a3b53] text-[#8592a3] hover:bg-[#696cff] hover:text-white transition-all"
-              title="Toggle Fullscreen Mode"
-            >
-              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
           </div>
         </div>
 
-
         {/* Message Banner */}
         {message && (
-          <div className="mb-5 rounded border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-700 animate-bounce">
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900/50 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-400 animate-bounce">
             {message}
           </div>
         )}
 
-        {/* Orders Ticket Grid */}
         {activeOrders.length === 0 ? (
-          <div className="py-20 text-center bg-white dark:bg-[#2b2c40] rounded-xl border border-transparent dark:border-[#4e4f6e] shadow-[0_2px_6px_0_rgba(67,89,113,0.12)]">
-            <ChefHat size={44} className="mx-auto mb-2 text-[#696cff] opacity-40" />
-            <h2 className="text-base font-bold text-[#566a7f] dark:text-[#c9d4ea]">All Kitchen Orders Clear!</h2>
-            <p className="text-xs text-[#a1acb8] mt-1">New orders placed at POS will appear here instantly.</p>
+          <div className={`flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl border ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
+          }`}>
+            <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-3.5 ${
+              dark ? "bg-emerald-500/10 text-emerald-400" : "bg-[#55a060]/10 text-[#55a060]"
+            }`}>
+              <ChefHat size={28} />
+            </div>
+            <h2 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              All Kitchen Orders Clear!
+            </h2>
+            <p className={`text-xs font-medium mt-1 max-w-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>
+              New orders submitted from POS will appear here automatically in real time.
+            </p>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mt-4 border ${
+              dark ? "bg-emerald-950/60 text-emerald-400 border-emerald-900/60" : "bg-emerald-50 text-[#55a060] border-emerald-200/60"
+            }`}>
+              <span className="h-2 w-2 rounded-full bg-[#55a060] animate-pulse" />
+              Kitchen Station Active &amp; Ready
+            </span>
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,280px))] items-start justify-start">

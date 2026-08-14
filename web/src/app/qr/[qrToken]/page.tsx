@@ -101,7 +101,18 @@ export default function TableQrPage({
   const [error, setError] = useState("");
   const [orderNote, setOrderNote] = useState("");
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [logoUrlState, setLogoUrlState] = useState<string>("");
+  const [logoUrlState, setLogoUrlState] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("pos_restaurant_image_url") || "";
+    }
+    return "";
+  });
+  const [restaurantNameState, setRestaurantNameState] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("pos_restaurant_name") || "The Tofu";
+    }
+    return "The Tofu";
+  });
 
   // Navigation & Language States matching my-app
   const [locale, setLocale] = useState<"EN" | "KH">("KH");
@@ -110,6 +121,13 @@ export default function TableQrPage({
   const [orderConfirmed, setOrderConfirmed] = useState(false);
 
   useEffect(() => {
+    if (menuData?.restaurant?.name) {
+      setRestaurantNameState(menuData.restaurant.name);
+    } else {
+      const savedName = typeof window !== "undefined" ? localStorage.getItem("pos_restaurant_name") : null;
+      if (savedName) setRestaurantNameState(savedName);
+    }
+
     if (menuData?.restaurant?.logoUrl) {
       setLogoUrlState(menuData.restaurant.logoUrl);
     } else {
@@ -117,6 +135,24 @@ export default function TableQrPage({
       if (savedImage) setLogoUrlState(savedImage);
     }
   }, [menuData]);
+
+  useEffect(() => {
+    function syncSettings() {
+      if (typeof window === "undefined") return;
+      const savedName = localStorage.getItem("pos_restaurant_name");
+      const savedImage = localStorage.getItem("pos_restaurant_image_url");
+      if (savedName) setRestaurantNameState(savedName);
+      if (savedImage) setLogoUrlState(savedImage);
+    }
+
+    syncSettings();
+    window.addEventListener("storage", syncSettings);
+    window.addEventListener("pos-settings-change", syncSettings);
+    return () => {
+      window.removeEventListener("storage", syncSettings);
+      window.removeEventListener("pos-settings-change", syncSettings);
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -352,13 +388,14 @@ export default function TableQrPage({
     );
   }
 
-  const restaurantName = menuData?.restaurant?.name || "ភោជនីយដ្ឋាន ផ្ទះកន្ធាយ ផ្លូវ៦០";
+  const restaurantName = menuData?.restaurant?.name || restaurantNameState || "The Tofu";
   const tableName = menuData?.table?.name || "Table";
   const isReadOnly = orderConfirmed;
   const finalLogoUrl = menuData?.restaurant?.logoUrl || logoUrlState || "";
 
   return (
-    <div className="mx-auto max-w-[430px] min-h-screen bg-[#FAF9F6] pb-36 font-sans text-slate-800 relative selection:bg-emerald-100">
+    <div className="min-h-screen w-full bg-[#edeef0] dark:bg-[#121614] flex flex-col items-center justify-center sm:py-6 sm:px-4 font-sans text-slate-800 selection:bg-emerald-100">
+      <div className="relative w-full max-w-[430px] min-h-screen sm:min-h-[840px] sm:max-h-[92vh] bg-[#FAF9F6] pb-36 sm:rounded-[36px] sm:border sm:border-slate-200/80 sm:shadow-[0_16px_50px_rgba(0,0,0,0.12)] overflow-hidden overflow-y-auto flex flex-col no-scrollbar">
       
       {/* ── HEADER MOCKUP matching my-app ── */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3 shadow-xs">
@@ -933,5 +970,6 @@ export default function TableQrPage({
         })}
       </nav>
     </div>
-  );
+  </div>
+);
 }

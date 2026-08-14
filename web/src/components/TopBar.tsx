@@ -328,12 +328,19 @@ export default function TopBar({
           const detail = table ? `Table ${table} • $${Number(o.totalAmount || 0).toFixed(2)}` : `$${Number(o.totalAmount || 0).toFixed(2)}`;
           return {
             id: `topbar-order-${o.id}`,
-            title: `Order ${label} (${(o.status || "pending").toUpperCase()})`,
+            title: `New Order ${label}`,
             detail,
             orderId: o.id,
             orderNumber: label,
             tableNo: String(table || ""),
             totalAmount: Number(o.totalAmount || 0),
+            items: (o.items || []).map((i: any) => ({
+              name: i.product?.name || i.name || "Item",
+              quantity: i.quantity || 1,
+              price: Number(i.unitPrice || i.price || 0),
+              notes: i.notes || "",
+              image: i.product?.imageUrl || i.image || "",
+            })),
           };
         });
         setInternalNotifications(items);
@@ -341,6 +348,14 @@ export default function TopBar({
     }
 
     fetchNotifications();
+
+    function handleLocalOrderEvent() {
+      fetchNotifications();
+    }
+
+    window.addEventListener("pos-order-created", handleLocalOrderEvent);
+    window.addEventListener("pos-order-updated", handleLocalOrderEvent);
+    window.addEventListener("storage", handleLocalOrderEvent);
 
     const socket = getSocket();
     if (socket) {
@@ -355,19 +370,7 @@ export default function TopBar({
             return next;
           });
         }
-        const label = order.orderNumber || order.orderId || `#${order.id}`;
-        const table = order.table?.name || order.tableNo;
-        const detail = table ? `Table ${table} • $${Number(order.totalAmount || 0).toFixed(2)}` : `$${Number(order.totalAmount || 0).toFixed(2)}`;
-        const newNotif: NotificationItem = {
-          id: `topbar-order-${order.id}-${Date.now()}`,
-          title: `New Order ${label}`,
-          detail,
-          orderId: order.id,
-          orderNumber: label,
-          tableNo: String(table || ""),
-          totalAmount: Number(order.totalAmount || 0),
-        };
-        setInternalNotifications((prev) => [newNotif, ...prev.filter((i) => i.orderId !== order.id)]);
+        fetchNotifications();
       }
 
       function handleNotificationsCleared() {
@@ -381,6 +384,9 @@ export default function TopBar({
 
       return () => {
         mounted = false;
+        window.removeEventListener("pos-order-created", handleLocalOrderEvent);
+        window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
+        window.removeEventListener("storage", handleLocalOrderEvent);
         socket.off("order:created", handleNewOrder);
         socket.off("order:updated", handleNewOrder);
         socket.off("notifications:cleared", handleNotificationsCleared);
@@ -389,6 +395,9 @@ export default function TopBar({
 
     return () => {
       mounted = false;
+      window.removeEventListener("pos-order-created", handleLocalOrderEvent);
+      window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
+      window.removeEventListener("storage", handleLocalOrderEvent);
     };
   }, []);
 
@@ -702,8 +711,8 @@ export default function TopBar({
             </button>
 
             {notificationsOpen && (
-              <div className={`absolute right-0 z-40 mt-2 w-80 rounded-xl border p-3 shadow-xl ${dropdownSurface}`}>
-                <div className={`mb-2 flex items-center justify-between text-sm font-black ${textPrimary} ${kmClass}`}>
+              <div className={`absolute right-0 top-full mt-2.5 z-50 w-80 sm:w-88 rounded-2xl border p-3.5 shadow-2xl ${dropdownSurface} animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
+                <div className={`mb-3 flex items-center justify-between px-1 text-sm font-bold ${textPrimary} ${kmClass}`}>
                   <span>{t.notifications}</span>
                   {activeNotifications.length > 0 ? (
                     <button
@@ -724,7 +733,7 @@ export default function TopBar({
                         const socket = getSocket();
                         if (socket) socket.emit("notifications:cleared");
                       }}
-                      className={`rounded-md px-2 py-1 text-[11px] font-bold ${textSecondary} ${menuHover}`}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${textSecondary} ${menuHover}`}
                     >
                       {t.clear}
                     </button>
@@ -734,11 +743,11 @@ export default function TopBar({
                 </div>
 
                 {activeNotifications.length === 0 ? (
-                  <div className={`rounded-lg bg-slate-50 p-4 text-center text-xs ${textSecondary} ${kmClass}`}>
+                  <div className={`rounded-xl bg-slate-50 dark:bg-[#232333] p-4 text-center text-xs font-medium ${textSecondary} ${kmClass}`}>
                     {t.noNotifications}
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                  <div className="space-y-2 max-h-80 overflow-y-auto no-scrollbar">
                     {activeNotifications.map((item) => (
                       <button
                         key={item.id}
@@ -747,32 +756,32 @@ export default function TopBar({
                           setSelectedNotification(item);
                           setNotificationsOpen(false);
                         }}
-                        className={`flex w-full items-start gap-3 rounded-lg p-2.5 text-left transition-all hover:scale-[1.01] active:scale-[0.99] ${
-                          isDark ? "bg-[#232333] hover:bg-[#2b2c40]" : "bg-slate-50 hover:bg-slate-100/80 border border-slate-200/50"
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl p-3 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                          isDark ? "bg-[#232333] hover:bg-[#2b2c40]" : "bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200/60"
                         }`}
                       >
-                        <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                            item.tone === "warning"
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-[#696cff]/10 text-[#696cff]"
-                          }`}
-                        >
-                          {item.tone === "warning" ? <Package size={15} /> : <ShoppingBag size={15} />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <div className={`truncate text-xs font-black ${textPrimary} ${kmClass}`}>
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                              item.tone === "warning"
+                                ? "bg-orange-100 text-orange-700"
+                                : "bg-[#696cff]/10 text-[#696cff]"
+                            }`}
+                          >
+                            {item.tone === "warning" ? <Package size={17} /> : <ShoppingBag size={17} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className={`truncate text-xs font-bold ${textPrimary} ${kmClass}`}>
                               {item.title}
                             </div>
-                            <span className="shrink-0 rounded bg-[#696cff]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#696cff]">
-                              {language === "km" ? "មើលមុខម្ហូប" : "View Dishes"}
-                            </span>
-                          </div>
-                          <div className={`mt-0.5 truncate text-xs ${textSecondary} ${kmClass}`}>
-                            {item.detail}
+                            <div className={`mt-0.5 truncate text-[11px] font-medium ${textSecondary} ${kmClass}`}>
+                              {item.detail}
+                            </div>
                           </div>
                         </div>
+                        <span className="shrink-0 rounded-lg bg-[#696cff]/10 px-2.5 py-1 text-[11px] font-bold text-[#696cff] hover:bg-[#696cff]/20 transition-colors">
+                          {language === "km" ? "មើលមុខម្ហូប" : "View Dishes"}
+                        </span>
                       </button>
                     ))}
                   </div>
