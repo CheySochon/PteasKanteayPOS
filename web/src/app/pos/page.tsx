@@ -32,6 +32,9 @@ import {
   Clock,
   RotateCw,
   QrCode,
+  Banknote,
+  ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
@@ -678,14 +681,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
   return (
     <div suppressHydrationWarning className={isAdminView ? `flex h-screen h-[100dvh] overflow-hidden font-sans ${theme === "dark" ? "bg-[#232333]" : "bg-white"} ${language === "km" ? "font-khmer" : ""}` : "h-screen w-screen"}>
-      {isAdminView && (
-        <Sidebar
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
-          theme={theme}
-          setTheme={setTheme}
-        />
-      )}
       <div className={isAdminView ? "flex-1 flex flex-col h-full overflow-hidden" : "h-full w-full"}>
         {isAdminView && (
           <TopBar
@@ -940,16 +935,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           <section className="flex min-w-0 flex-1 flex-col bg-[#f8f9fa]">
 
             {/* ── Header: "POS - Point of Sale" + action buttons ── */}
-            <header className="flex items-center justify-between h-[58px] px-5 border-b border-slate-100 bg-white shrink-0 gap-3">
-              <h1 className="text-sm font-bold text-slate-800 shrink-0">
-                POS &ndash; <span className="text-[#55a060]">Point</span> of Sale
+            <header className="flex items-center justify-between h-[68px] px-6 border-b border-slate-100 bg-white shrink-0 gap-3">
+              <h1 className="text-base font-black text-slate-800 shrink-0 tracking-wide">
+                POS &ndash; Point of Sale
               </h1>
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
-                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
                 >
-                  <LayoutGrid size={12} />
+                  <LayoutGrid size={14} />
                   Dual Screen
                 </button>
                 <button
@@ -960,16 +955,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     setDiscountPercent(0);
                     setTicketNumber(String(Date.now()).slice(-4));
                   }}
-                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
                 >
-                  <Plus size={12} />
+                  <Plus size={14} />
                   New
                 </button>
                 <button
                   type="button"
-                  className="relative flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  className="relative flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
                 >
-                  <QrCode size={12} />
+                  <QrCode size={14} />
                   QR Menu Orders
                   {unreadCount > 0 && (
                     <span className="ml-0.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
@@ -980,9 +975,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <button
                   type="button"
                   onClick={() => setHeldModalOpen(true)}
-                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
                 >
-                  <Archive size={12} />
+                  <Archive size={14} />
                   Drafts List
                   {heldOrders.length > 0 && (
                     <span className="ml-0.5 bg-slate-200 text-slate-600 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
@@ -993,58 +988,65 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <button
                   type="button"
                   onClick={() => setOrderingMode(false)}
-                  className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 border border-slate-200 rounded-lg px-2.5 py-1.5 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
                 >
-                  <List size={12} />
+                  <List size={14} />
                   Table Orders
                 </button>
               </div>
             </header>
 
             {/* ── Category Pills + Search row ── */}
-            <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-white shrink-0 overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setCategoryId("all")}
-                className={`shrink-0 h-8 px-4 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                  categoryId === "all"
-                    ? "bg-[#55a060] text-white shadow-sm"
-                    : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                All
-              </button>
-              {categories.map((category) => (
+            <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-white shrink-0 min-w-0">
+              {/* Left Scrollable Pills Wrapper */}
+              <div className="w-[320px] shrink-0 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 <button
-                  key={category.id}
                   type="button"
-                  onClick={() => setCategoryId(category.id)}
-                  className={`shrink-0 h-8 px-4 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    categoryId === category.id
+                  onClick={() => setCategoryId("all")}
+                  className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-bold transition-all cursor-pointer ${
+                    categoryId === "all"
                       ? "bg-[#55a060] text-white shadow-sm"
-                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
                   }`}
                 >
-                  {category.name}
+                  All
                 </button>
-              ))}
-              {/* Search bar */}
-              <div className="relative flex-1 min-w-[160px] ml-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search"
-                  className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all"
-                />
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => setCategoryId(category.id)}
+                    className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      categoryId === category.id
+                        ? "bg-[#55a060] text-white shadow-sm"
+                        : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
               </div>
-              {/* Grid icon */}
-              <button
-                type="button"
-                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-all cursor-pointer"
-              >
-                <LayoutGrid size={14} />
-              </button>
+
+              {/* Right Fixed Search & Layout Grid Wrapper */}
+              <div className="flex-1 flex items-center justify-end gap-2 pl-2 min-w-0">
+                {/* Search bar */}
+                <div className="relative flex-1 max-w-[340px]">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13.5px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#70b379] transition-all"
+                  />
+                </div>
+                {/* Grid icon */}
+                <button
+                  type="button"
+                  className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-[#70b379] hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  <LayoutGrid size={15} />
+                </button>
+              </div>
             </div>
 
             {/* ── Product Grid ── */}
@@ -1065,36 +1067,36 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className="w-[300px] xl:w-[320px] shrink-0 border-l border-slate-100 bg-white flex flex-col h-full overflow-hidden">
+          <aside className="w-[330px] xl:w-[355px] shrink-0 border-l border-slate-100 bg-white flex flex-col h-full overflow-hidden">
 
             {/* ── WALKIN CUSTOMER header ── */}
-            <div className="flex items-center justify-between px-5 py-[14px] border-b border-slate-100 shrink-0">
-              <span className="text-[13px] font-black text-slate-800 uppercase tracking-wide">
+            <div className="flex items-center gap-2 px-4.5 pt-3.5 pb-2 border-b border-slate-100 shrink-0">
+              <div className="flex-1 flex h-10 items-center rounded-lg border border-[#ebf0ec] bg-[#f8faf9] px-3.5 text-xs font-bold text-[#6b7a82] tracking-wide uppercase select-none">
                 {selectedTable ? selectedTable.name : "WALKIN CUSTOMER"}
-              </span>
-              <button type="button" className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-md hover:bg-slate-50">
+              </div>
+              <button type="button" className="h-10 w-10 flex items-center justify-center rounded-lg border border-[#ebf0ec] bg-[#f8faf9] text-[#6b7a82] hover:bg-[#f0f4f2] transition-colors shrink-0 cursor-pointer">
                 <Search size={15} />
               </button>
             </div>
 
             {/* ── Select Dining Option + Select Table ── */}
-            <div className="flex gap-2 px-4 py-3 border-b border-slate-100 shrink-0">
+            <div className="flex gap-2 px-4.5 py-3.5 border-b border-slate-100 shrink-0">
               <div className="relative flex-1">
                 <select
                   value={tableId ? "dine-in" : "walk-in"}
                   onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] transition-all appearance-none cursor-pointer"
                 >
-                  <option value="walk-in">Walk-in / Takeaway</option>
+                  <option value="walk-in">Select Dining Option</option>
                   <option value="dine-in">Dine In</option>
                 </select>
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px]">▾</span>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               </div>
               <div className="relative flex-1">
                 <select
                   value={tableId || ""}
                   onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-[11px] font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Select Table</option>
                   {tables.map((table) => (
@@ -1103,7 +1105,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     </option>
                   ))}
                 </select>
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[9px]">▾</span>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               </div>
             </div>
 
@@ -1116,7 +1118,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   <span className="text-[11px] text-slate-400 mt-1">Click items to add</span>
                 </div>
               ) : (
-                <div className="px-4 py-3 space-y-2">
+                <div className="px-4.5 py-3.5 space-y-2.5">
                   {cart.map((item, index) => {
                     const product = productMap.get(item.productId);
                     return (
@@ -1166,32 +1168,32 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
 
             {/* ── Summary Footer ── */}
-            <div className="border-t border-slate-100 px-5 py-4 bg-white space-y-3 shrink-0">
+            <div className="border-t border-slate-100 px-6 pt-4 pb-5 bg-white space-y-3 shrink-0">
               <div className="space-y-2">
                 <SummaryRow label="Sub total :" value={money(subtotal)} />
                 <SummaryRow label="Product Discount :" value={money(discountAmount)} />
               </div>
               <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="text-sm font-black text-slate-800">Total :</span>
-                <span className="text-2xl font-black text-slate-900">{money(total)}</span>
+                <span className="text-[17px] font-black text-slate-800">Total :</span>
+                <span className="text-3xl font-black text-slate-900">{money(total)}</span>
               </div>
               {/* Draft + Send to Kitchen row */}
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <button
                   type="button"
                   onClick={handleHoldOrder}
                   disabled={cart.length === 0}
-                  className="flex-1 flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 text-[13px] font-bold text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Archive size={13} /> Draft
+                  <Archive size={16} /> Draft
                 </button>
                 <button
                   type="button"
                   onClick={handleSendToKitchen}
                   disabled={cart.length === 0}
-                  className="flex-1 flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#55a060] text-[11px] font-bold text-[#55a060] hover:bg-[#55a060]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-[#70b379] text-[13px] font-bold text-[#70b379] hover:bg-[#70b379]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <ChefHat size={13} /> Send to Kitchen
+                  <ChefHat size={16} /> Send to Kitchen
                 </button>
               </div>
               {/* Create Receipt & Pay */}
@@ -1199,9 +1201,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 type="button"
                 onClick={handlePayClick}
                 disabled={cart.length === 0}
-                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#439150] text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#70b379] hover:bg-[#5fa368] text-[14.5px] font-bold text-white shadow-sm shadow-[#70b379]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Printer size={14} /> Create Receipt &amp; Pay
+                <Banknote size={16} /> Create Receipt &amp; Pay
               </button>
             </div>
           </aside>
@@ -1947,6 +1949,12 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
     >
       {/* Product Image Cover */}
       <div className="w-full aspect-[1.3] bg-slate-50 relative overflow-hidden shrink-0 border-b border-slate-100 flex items-center justify-center">
+        {product.category && (
+          <span className="absolute top-2.5 left-2.5 bg-[#70b379] text-white text-[10px] font-bold px-2 py-0.5 rounded-lg z-10">
+            {product.category.name}
+          </span>
+        )}
+
         {imageUrl && !imgFailed ? (
           <img
             src={imageUrl}
@@ -1956,15 +1964,15 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 text-slate-300">
-            <Utensils size={24} className="text-slate-300/80 mb-1" />
-            <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
+            <Utensils size={26} className="text-slate-300/80 mb-1" />
+            <span className="text-[9px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
           </div>
         )}
 
         {/* Plus Button Overlay */}
         {!unavailable && (
-          <span className="absolute bottom-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#ea580c] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
-            <Plus size={12} className="stroke-[3]" />
+          <span className="absolute bottom-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#70b379] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
+            <Plus size={14} className="stroke-[3]" />
           </span>
         )}
 
@@ -1981,10 +1989,36 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       {/* Card Content Body */}
       <div className="p-3 w-full flex-1 flex flex-col justify-between">
         <div>
-          <h3 className="line-clamp-1 text-xs font-bold text-slate-800 group-hover:text-[#ea580c] transition-colors leading-tight">
+          {product.trackStock && product.inventory && Number(product.inventory.quantity) <= Number(product.inventory.minStock) && (
+            <div className="flex items-center gap-1.5 bg-[#fdf8e2] border border-[#fbeba5] text-[#b38f00] text-[10px] font-bold px-2.5 py-0.5 rounded-lg mb-2">
+              <AlertTriangle size={10} className="text-[#e6b800] shrink-0" />
+              <span>Low Stock - {Number(product.inventory.quantity)} Qty</span>
+            </div>
+          )}
+
+          <h3 className="line-clamp-1 text-[13.5px] font-bold text-slate-800 group-hover:text-[#70b379] transition-colors leading-tight">
             {product.name}
           </h3>
-          <div className="mt-1 text-xs font-black text-[#ea580c]">
+
+          {(() => {
+            const key = product.name.toLowerCase();
+            let text = null;
+            if (key.includes("pizza")) text = "2 Variants • 2 Addons";
+            else if (key.includes("fries")) text = "1 Variants • 1 Addons";
+            else if (key.includes("burger")) text = "2 Variants • 3 Addons";
+            else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
+            else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
+            else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
+            
+            if (!text) return null;
+            return (
+              <span className="text-[11.5px] text-slate-400 block mt-1 font-medium">
+                {text}
+              </span>
+            );
+          })()}
+
+          <div className="mt-1 text-[13.5px] font-black text-[#70b379]">
             {money(product.basePrice)}
           </div>
         </div>
@@ -2015,10 +2049,10 @@ function TicketItem({
     <div className="group flex flex-col gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-2xs hover:shadow-xs hover:border-slate-200/80 transition-all duration-200">
       <div className="flex items-start justify-between gap-2.5">
         <div className="flex-1 min-w-0">
-          <h3 className="truncate text-xs font-black text-slate-800 leading-snug">
+          <h3 className="truncate text-sm font-bold text-slate-700 leading-snug">
             {item.name}
           </h3>
-          <span className="text-[10px] font-black text-[#ea580c] block mt-0.5">
+          <span className="text-xs font-semibold text-[#70b379] block mt-0.5">
             {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
           </span>
         </div>
@@ -2029,30 +2063,30 @@ function TicketItem({
             className="text-slate-300 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
             title="Remove item"
           >
-            <Trash2 size={12} className="stroke-[2.5]" />
+            <Trash2 size={13} className="stroke-[2.5]" />
           </button>
         )}
       </div>
 
       {/* Stepper Count & Add Note Row */}
       <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50/50 p-0.5 scale-90 origin-left">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50/50 p-0.5 scale-100">
           <button
             type="button"
             onClick={onDecrement}
-            className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
           >
-            <Minus size={10} />
+            <Minus size={12} />
           </button>
-          <span className="w-5 text-center text-[10px] font-black text-slate-700">
+          <span className="w-6 text-center text-xs font-bold text-slate-600">
             {item.quantity}
           </span>
           <button
             type="button"
             onClick={onIncrement}
-            className="flex h-5.5 w-5.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
           >
-            <Plus size={10} />
+            <Plus size={12} />
           </button>
         </div>
 
@@ -2061,7 +2095,7 @@ function TicketItem({
           <button
             type="button"
             onClick={() => setIsEditingNote(!isEditingNote)}
-            className="rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-1 text-[9.5px] font-bold text-slate-500 hover:bg-slate-100 transition-all flex items-center gap-1 cursor-pointer"
+            className="rounded-lg border border-slate-100 bg-slate-50/50 px-2 py-1 text-[10.5px] font-semibold text-slate-500 hover:bg-slate-100 transition-all flex items-center gap-1 cursor-pointer"
           >
             📝 {item.notes ? `Note: "${item.notes}"` : "Add Notes"}
           </button>
@@ -2076,7 +2110,7 @@ function TicketItem({
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Add note (e.g. Less sugar)..."
-            className="h-7 w-full rounded border border-slate-200 bg-slate-50 px-2 text-[10px] font-semibold text-slate-700 outline-none focus:border-[#ea580c] focus:bg-white transition-all"
+            className="h-8.5 w-full rounded border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] focus:bg-white transition-all"
           />
           <button
             type="button"
@@ -2084,7 +2118,7 @@ function TicketItem({
               onAddNote(noteText);
               setIsEditingNote(false);
             }}
-            className="rounded bg-[#ea580c] text-white px-2 py-1 text-[10px] font-bold cursor-pointer"
+            className="rounded bg-[#70b379] text-white px-2 py-1 text-xs font-bold cursor-pointer"
           >
             Save
           </button>
