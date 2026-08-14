@@ -95,6 +95,17 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         message = String(payload.message);
       }
     }
+
+    if (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed") {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("pos_token");
+        localStorage.removeItem("pos_user");
+        localStorage.removeItem("pos_logged_in");
+        window.dispatchEvent(new Event("pos-auth-change"));
+        window.location.href = "/login";
+      }
+    }
+
     throw new Error(message);
   }
 

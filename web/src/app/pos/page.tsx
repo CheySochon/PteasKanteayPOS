@@ -670,7 +670,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
   if (initialLoading) {
     return (
-      <main className={`overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f] ${isAdminView ? 'h-full w-full flex-1' : 'h-screen w-screen'}`}>
+      <main className={`overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f] ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-screen w-screen'}`}>
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#696cff] border-t-transparent shadow-sm"></div>
           <p className="text-sm font-semibold tracking-wide uppercase">Loading...</p>
@@ -679,21 +679,19 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     );
   }
 
-  return (
-    <div suppressHydrationWarning className={isAdminView ? `flex h-screen h-[100dvh] overflow-hidden font-sans ${theme === "dark" ? "bg-[#232333]" : "bg-white"} ${language === "km" ? "font-khmer" : ""}` : "h-screen w-screen"}>
-      <div className={isAdminView ? "flex-1 flex flex-col h-full overflow-hidden" : "h-full w-full"}>
-        {isAdminView && (
-          <TopBar
-            title="POS - Point of Sale"
-            subtitle="Real-time ordering and billing terminal"
-            searchPlaceholder="Search POS..."
-            language={language}
-            onLanguageChange={setAppLanguage}
-            notifications={[]}
-            dark={theme === "dark"}
-          />
-        )}
-        <main className={`overflow-hidden bg-[#f8f9fa] flex flex-col text-slate-700 print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full w-full flex-1' : 'h-full w-full'}`}>
+  const mainContent = (
+    <main className={`overflow-hidden bg-white flex flex-col text-slate-700 print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'}`}>
+      {isAdminView && (
+        <TopBar
+          title="POS - Point of Sale"
+          subtitle="Real-time ordering and billing terminal"
+          searchPlaceholder="Search POS..."
+          language={language}
+          onLanguageChange={setAppLanguage}
+          notifications={[]}
+          dark={theme === "dark"}
+        />
+      )}
       {/* Toast Notification for Kitchen */}
       {showKitchenToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] flex items-center gap-2.5 rounded-xl bg-emerald-500 text-white px-5 py-3.5 shadow-lg font-bold text-xs animate-[posLogoutCard_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
@@ -930,83 +928,90 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       )}
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
       {orderingMode && (
-        <div className="flex flex-1 overflow-hidden w-full min-h-0">
-          {/* LEFT: Product Catalogue */}
-          <section className="flex min-w-0 flex-1 flex-col bg-[#f8f9fa]">
+        <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0">
+          {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
+          <header className="flex items-center justify-between pt-3 pb-3 px-6 bg-white shrink-0 gap-3">
+            <h1 className="text-xl font-normal text-slate-800 dark:text-white shrink-0">
+              POS &ndash; Point of Sale
+            </h1>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              >
+                <LayoutGrid size={14} />
+                Dual Screen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveCurrentTableState(tableId, orderingMode);
+                  setCart([]);
+                  setDiscountPercent(0);
+                  setTicketNumber(String(Date.now()).slice(-4));
+                }}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              >
+                <Plus size={14} />
+                New
+              </button>
+              <button
+                type="button"
+                className="relative flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              >
+                <QrCode size={14} />
+                QR Menu Orders
+                {unreadCount > 0 && (
+                  <span className="ml-0.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setHeldModalOpen(true)}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              >
+                <Archive size={14} />
+                Drafts List
+                {heldOrders.length > 0 && (
+                  <span className="ml-0.5 bg-slate-200 text-slate-600 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
+                    {heldOrders.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderingMode(false)}
+                className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
+              >
+                <List size={14} />
+                Table Orders
+              </button>
+            </div>
+          </header>
 
-            {/* ── Header: "POS - Point of Sale" + action buttons ── */}
-            <header className="flex items-center justify-between h-[68px] px-6 border-b border-slate-100 bg-white shrink-0 gap-3">
-              <h1 className="text-base font-black text-slate-800 shrink-0 tracking-wide">
-                POS &ndash; Point of Sale
-              </h1>
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
-                >
-                  <LayoutGrid size={14} />
-                  Dual Screen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    saveCurrentTableState(tableId, orderingMode);
-                    setCart([]);
-                    setDiscountPercent(0);
-                    setTicketNumber(String(Date.now()).slice(-4));
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
-                >
-                  <Plus size={14} />
-                  New
-                </button>
-                <button
-                  type="button"
-                  className="relative flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
-                >
-                  <QrCode size={14} />
-                  QR Menu Orders
-                  {unreadCount > 0 && (
-                    <span className="ml-0.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeldModalOpen(true)}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
-                >
-                  <Archive size={14} />
-                  Drafts List
-                  {heldOrders.length > 0 && (
-                    <span className="ml-0.5 bg-slate-200 text-slate-600 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none">
-                      {heldOrders.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrderingMode(false)}
-                  className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#6b7a82] bg-[#f8faf9] border border-[#ebf0ec] rounded-xl px-3 py-2 hover:bg-[#f0f4f2] active:scale-95 transition-all cursor-pointer"
-                >
-                  <List size={14} />
-                  Table Orders
-                </button>
-              </div>
-            </header>
+          <div className="flex flex-1 overflow-hidden w-full min-h-0 bg-white pt-0 px-6 pb-6 gap-6">
+            {/* LEFT: Product Catalogue */}
+            <section className="flex min-w-0 flex-1 flex-col bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out">
 
             {/* ── Category Pills + Search row ── */}
             <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-100 bg-white shrink-0 min-w-0">
-              {/* Left Scrollable Pills Wrapper */}
-              <div className="w-[320px] shrink-0 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+              {/* Left Scrollable Pills Wrapper with Blur Fade Overlay */}
+              <div
+                className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-12"
+                style={{
+                  WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 98%)',
+                  maskImage: 'linear-gradient(to right, black 80%, transparent 98%)'
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setCategoryId("all")}
                   className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-bold transition-all cursor-pointer ${
                     categoryId === "all"
                       ? "bg-[#55a060] text-white shadow-sm"
-                      : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                      : "border border-slate-200 bg-white text-[#6b7a82] hover:bg-slate-50"
                   }`}
                 >
                   All
@@ -1019,7 +1024,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                       categoryId === category.id
                         ? "bg-[#55a060] text-white shadow-sm"
-                        : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
+                        : "border border-slate-200 bg-white text-[#6b7a82] hover:bg-slate-50"
                     }`}
                   >
                     {category.name}
@@ -1028,21 +1033,21 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               </div>
 
               {/* Right Fixed Search & Layout Grid Wrapper */}
-              <div className="flex-1 flex items-center justify-end gap-2 pl-2 min-w-0">
+              <div className="shrink-0 flex items-center justify-end gap-2 pl-4">
                 {/* Search bar */}
-                <div className="relative flex-1 max-w-[340px]">
+                <div className="relative w-[180px] sm:w-[240px] md:w-[280px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search"
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13.5px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#70b379] transition-all"
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-[13.5px] font-medium text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all"
                   />
                 </div>
                 {/* Grid icon */}
                 <button
                   type="button"
-                  className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-[#70b379] hover:bg-slate-50 transition-all cursor-pointer"
+                  className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-[#55a060] hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   <LayoutGrid size={15} />
                 </button>
@@ -1050,14 +1055,14 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
 
             {/* ── Product Grid ── */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 bg-[#f8f9fa] min-h-0">
+            <div className="flex-1 overflow-y-auto px-5 py-4 bg-white min-h-0">
               {filteredProducts.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm font-semibold text-slate-400">
                   <ChefHat size={32} className="mx-auto mb-3 text-slate-300" />
                   No matching menu selections found.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4">
                   {filteredProducts.map((product) => (
                     <ProductCard key={product.id} product={product} onAdd={() => addProduct(product)} />
                   ))}
@@ -1067,7 +1072,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className="w-[330px] xl:w-[355px] shrink-0 border-l border-slate-100 bg-white flex flex-col h-full overflow-hidden">
+          <aside className="w-[390px] xl:w-[32%] xl:min-w-[390px] xl:max-w-[450px] shrink-0 bg-white border border-slate-200/80 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out">
 
             {/* ── WALKIN CUSTOMER header ── */}
             <div className="flex items-center gap-2 px-4.5 pt-3.5 pb-2 border-b border-slate-100 shrink-0">
@@ -1085,7 +1090,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <select
                   value={tableId ? "dine-in" : "walk-in"}
                   onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] transition-all appearance-none cursor-pointer"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
                 >
                   <option value="walk-in">Select Dining Option</option>
                   <option value="dine-in">Dine In</option>
@@ -1096,7 +1101,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <select
                   value={tableId || ""}
                   onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] transition-all appearance-none cursor-pointer"
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Select Table</option>
                   {tables.map((table) => (
@@ -1191,7 +1196,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   type="button"
                   onClick={handleSendToKitchen}
                   disabled={cart.length === 0}
-                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-[#70b379] text-[13px] font-bold text-[#70b379] hover:bg-[#70b379]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-[#55a060] text-[13px] font-bold text-[#55a060] hover:bg-[#55a060]/5 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <ChefHat size={16} /> Send to Kitchen
                 </button>
@@ -1201,14 +1206,15 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 type="button"
                 onClick={handlePayClick}
                 disabled={cart.length === 0}
-                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#70b379] hover:bg-[#5fa368] text-[14.5px] font-bold text-white shadow-sm shadow-[#70b379]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#439150] text-[14.5px] font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Banknote size={16} /> Create Receipt &amp; Pay
               </button>
             </div>
           </aside>
         </div>
-      )}
+      </div>
+    )}
       {/* Toast Notification */}
       {toastNotification && (
         <div className="fixed bottom-6 right-6 z-[9999] w-full max-w-xs animate-[dashboardPageIn_0.3s_ease-out] rounded-xl bg-white p-3 shadow-[0_4px_20px_0_rgba(67,89,113,0.15)] ring-1 ring-slate-100 print:hidden">
@@ -1929,8 +1935,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </div>
         </div>
       )}
-        </main>
-      </div>
+    </main>
+  );
+
+  if (isAdminView) {
+    return mainContent;
+  }
+
+  return (
+    <div suppressHydrationWarning className="h-screen w-screen bg-white">
+      {mainContent}
     </div>
   );
 }
@@ -1950,7 +1964,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
       {/* Product Image Cover */}
       <div className="w-full aspect-[1.3] bg-slate-50 relative overflow-hidden shrink-0 border-b border-slate-100 flex items-center justify-center">
         {product.category && (
-          <span className="absolute top-2.5 left-2.5 bg-[#70b379] text-white text-[10px] font-bold px-2 py-0.5 rounded-lg z-10">
+          <span className="absolute top-2.5 left-2.5 bg-[#55a060] text-white text-[10px] font-bold px-2 py-0.5 rounded-lg z-10">
             {product.category.name}
           </span>
         )}
@@ -1971,7 +1985,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
 
         {/* Plus Button Overlay */}
         {!unavailable && (
-          <span className="absolute bottom-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#70b379] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
+          <span className="absolute bottom-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#55a060] text-white shadow-sm hover:scale-110 active:scale-90 transition-all">
             <Plus size={14} className="stroke-[3]" />
           </span>
         )}
@@ -1996,7 +2010,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
             </div>
           )}
 
-          <h3 className="line-clamp-1 text-[13.5px] font-bold text-slate-800 group-hover:text-[#70b379] transition-colors leading-tight">
+          <h3 className="line-clamp-1 text-[13.5px] font-bold text-slate-800 group-hover:text-[#55a060] transition-colors leading-tight">
             {product.name}
           </h3>
 
@@ -2018,7 +2032,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: () => void }
             );
           })()}
 
-          <div className="mt-1 text-[13.5px] font-black text-[#70b379]">
+          <div className="mt-1 text-[13.5px] font-black text-[#55a060]">
             {money(product.basePrice)}
           </div>
         </div>
@@ -2052,7 +2066,7 @@ function TicketItem({
           <h3 className="truncate text-sm font-bold text-slate-700 leading-snug">
             {item.name}
           </h3>
-          <span className="text-xs font-semibold text-[#70b379] block mt-0.5">
+          <span className="text-xs font-semibold text-[#55a060] block mt-0.5">
             {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
           </span>
         </div>
@@ -2110,7 +2124,7 @@ function TicketItem({
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Add note (e.g. Less sugar)..."
-            className="h-8.5 w-full rounded border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#70b379] focus:bg-white transition-all"
+            className="h-8.5 w-full rounded border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#55a060] focus:bg-white transition-all"
           />
           <button
             type="button"
@@ -2118,7 +2132,7 @@ function TicketItem({
               onAddNote(noteText);
               setIsEditingNote(false);
             }}
-            className="rounded bg-[#70b379] text-white px-2 py-1 text-xs font-bold cursor-pointer"
+            className="rounded bg-[#55a060] text-white px-2 py-1 text-xs font-bold cursor-pointer"
           >
             Save
           </button>

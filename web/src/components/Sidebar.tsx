@@ -671,7 +671,7 @@ function SideNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group w-full flex items-center gap-3.5 rounded-full border-none cursor-pointer mb-1.5 transition-all duration-200 relative text-left 
+      className={`group w-full flex items-center gap-3.5 rounded-full border-none cursor-pointer mb-1.5 transition-all duration-200 relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
         ${collapsed ? "justify-center p-3.5" : "justify-start px-4.5 py-3"}
         ${
           active
@@ -680,17 +680,17 @@ function SideNavItem({
               : "bg-[#dcecdb] text-[#09391D] font-medium"
             : dark
               ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-white"
-              : "text-[#2c3e50] hover:bg-[#dcecdb] hover:text-[#09391D]"
+              : "text-slate-800 hover:bg-[#dcecdb] hover:text-[#09391D]"
         }
         ${isKhmer ? "font-medium text-[15px] leading-relaxed" : active ? "font-medium text-[15px]" : "font-normal text-[15px]"}
       `}
     >
-      <span className={`shrink-0 transition-colors ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#2c3e50] group-hover:text-[#09391D]"}`}>
+      <span className={`shrink-0 transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-slate-800 group-hover:text-[#09391D]"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-medium" : "text-[#09391D] font-medium") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-[#2c3e50] group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15px]" : "text-[15px]"}`}>
+        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-medium" : "text-[#09391D] font-medium") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-800 group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15px]" : "text-[15px]"}`}>
           {label}
         </span>
       )}
@@ -723,17 +723,17 @@ function MenuSubNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group flex h-9 items-center gap-2 rounded-lg px-3 transition duration-200 ${
+      className={`group flex h-9 items-center gap-2 rounded-lg px-3 transition duration-200 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
             ? "bg-[#0F522B]/20 font-bold text-emerald-400 border border-[#0F522B]/30"
             : "bg-[#dcecdb] font-bold text-[#09391D] border border-[#09391D]/15"
           : dark 
             ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-emerald-400 font-normal"
-            : "text-[#566a7f] hover:bg-[#dcecdb] hover:text-[#09391D] font-normal"
+            : "text-slate-700 hover:bg-[#dcecdb] hover:text-[#09391D] font-normal"
       } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={active ? "text-[#09391D] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-[#8592a3] group-hover:text-[#09391D]"}>{icon}</span>
+      <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#09391D] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-700 group-hover:text-[#09391D]"}`}>{icon}</span>
       <span className={`truncate ${active ? "text-[#09391D] dark:text-emerald-400" : "group-hover:text-[#09391D]"}`}>{label}</span>
     </Link>
   );
