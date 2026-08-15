@@ -820,8 +820,8 @@ export default function MenuPage() {
         searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
       />
       
-      <div className="flex-1 overflow-y-auto px-5 py-5">
-        <div className="mx-auto w-full max-w-[1400px]">
+      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
+        <div className="mx-auto w-full max-w-[1720px]">
 
         {error && (
           <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">

@@ -839,8 +839,7 @@ export default function DashboardPage() {
           subtitle=""
           language={language}
           onLanguageChange={setDashboardLanguage}
-          notifications={notifications}
-          onClearNotifications={clearNotifications}
+          notifications={[]}
           dark={dark}
         />
 

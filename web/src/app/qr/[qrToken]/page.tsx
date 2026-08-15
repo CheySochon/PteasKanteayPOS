@@ -18,7 +18,7 @@ import {
   ArrowLeft,
   Check,
 } from "lucide-react";
-import { apiBaseUrl, apiOrigin } from "../../../lib/api";
+import { apiBaseUrl, apiOrigin, getApiBaseUrl, getApiOrigin } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 
 const PRIMARY = "#0F522B";
@@ -159,7 +159,8 @@ export default function TableQrPage({
 
     async function fetchMenu() {
       try {
-        const res = await fetch(`${apiBaseUrl}/tables/${encodeURIComponent(qrToken)}/menu`);
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/tables/${encodeURIComponent(qrToken)}/menu`);
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || "Failed to load table menu");
         if (mounted) setMenuData(json.data);
@@ -172,7 +173,8 @@ export default function TableQrPage({
 
     async function fetchActiveOrders() {
       try {
-        const res = await fetch(`${apiBaseUrl}/orders/qr/${encodeURIComponent(qrToken)}`);
+        const baseUrl = getApiBaseUrl();
+        const res = await fetch(`${baseUrl}/orders/qr/${encodeURIComponent(qrToken)}`);
         const json = await res.json();
         if (res.ok && json.success && mounted) {
           const fetchedOrders = json.data || [];
@@ -394,66 +396,79 @@ export default function TableQrPage({
   const finalLogoUrl = menuData?.restaurant?.logoUrl || logoUrlState || "";
 
   return (
-    <div className="min-h-screen w-full bg-[#edeef0] dark:bg-[#121614] flex flex-col items-center justify-center sm:py-6 sm:px-4 font-sans text-slate-800 selection:bg-emerald-100">
-      <div className="relative w-full max-w-[430px] min-h-screen sm:min-h-[840px] sm:max-h-[92vh] bg-[#FAF9F6] pb-36 sm:rounded-[36px] sm:border sm:border-slate-200/80 sm:shadow-[0_16px_50px_rgba(0,0,0,0.12)] overflow-hidden overflow-y-auto flex flex-col no-scrollbar">
-      
-      {/* ── HEADER MOCKUP matching my-app ── */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3 shadow-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-[#0F522B] ring-1 ring-[#0F522B]/20">
-            {finalLogoUrl ? (
-              <img
-                src={resolveImageUrl(finalLogoUrl)}
-                alt={restaurantName}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-white">
-                <Utensils size={20} />
+    <div className="min-h-screen w-full bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-950/40 via-slate-900 to-slate-950 flex flex-col items-center justify-center sm:py-8 sm:px-4 font-sans text-slate-800 selection:bg-emerald-100">
+      {/* ── FLAGSHIP SMARTPHONE DEVICE FRAME MOCKUP ── */}
+      <div className="relative w-full max-w-[430px] min-h-screen sm:min-h-[860px] sm:max-h-[92vh] bg-[#FAF9F6] pb-36 sm:rounded-[44px] sm:border-[8px] sm:border-slate-800/90 sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),0_0_30px_rgba(16,185,129,0.15)] overflow-hidden overflow-y-auto flex flex-col no-scrollbar">
+        
+        {/* Dynamic Island Notch Pill (Desktop Mockup) */}
+        <div className="hidden sm:flex shrink-0 justify-center pt-2 pb-1 bg-white z-40">
+          <div className="h-4 w-28 bg-slate-900 rounded-full flex items-center justify-end px-2.5 gap-1.5 shadow-inner">
+            <div className="h-2 w-2 rounded-full bg-emerald-500/80 animate-pulse" />
+            <div className="h-1.5 w-1.5 rounded-full bg-slate-800" />
+          </div>
+        </div>
+
+        {/* ── HEADER MOCKUP ── */}
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-100/80 bg-white/90 backdrop-blur-md px-4 py-3 shadow-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-[#0F522B] ring-1 ring-[#0F522B]/20 shadow-xs">
+              {finalLogoUrl ? (
+                <img
+                  src={resolveImageUrl(finalLogoUrl)}
+                  alt={restaurantName}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-white">
+                  <Utensils size={20} />
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <div className="font-khmer truncate text-sm font-bold text-slate-900 leading-snug">
+                {restaurantName}
               </div>
-            )}
-          </div>
-
-          <div className="min-w-0">
-            <div className="font-khmer truncate text-sm font-bold text-slate-900 leading-snug">
-              {restaurantName}
-            </div>
-            <div className="mt-0.5 text-xs font-semibold text-[#0F522B]">
-              Table {tableName} • Active
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-[#0F522B]">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                </span>
+                <span>Table {tableName} • Active</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Language Switcher Pill */}
-        <div className="relative flex h-8 w-20 shrink-0 rounded-full bg-[#F2F2F7] p-0.5">
-          <div
-            className={`absolute top-0.5 bottom-0.5 w-9 rounded-full bg-[#7ace7a] transition-all duration-300 ease-out z-0 ${
-              locale === "EN" ? "left-0.5" : "left-[39px]"
-            }`}
-          />
-          <button
-            type="button"
-            onClick={() => setLocale("EN")}
-            className={`relative z-10 flex-1 text-[11px] font-extrabold transition-colors ${
-              locale === "EN" ? "text-[#0F522B]" : "text-slate-400"
-            }`}
-          >
-            EN
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocale("KH")}
-            className={`relative z-10 flex-1 text-[11px] font-extrabold transition-colors ${
-              locale === "KH" ? "text-[#0F522B]" : "text-slate-400"
-            }`}
-          >
-            KH
-          </button>
-        </div>
-      </header>
+          {/* Language Switcher Pill */}
+          <div className="relative flex h-8 w-20 shrink-0 rounded-full bg-[#F2F2F7] p-0.5 shadow-inner">
+            <div
+              className={`absolute top-0.5 bottom-0.5 w-9 rounded-full bg-[#7ace7a] transition-all duration-300 ease-out z-0 shadow-xs ${
+                locale === "EN" ? "left-0.5" : "left-[39px]"
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setLocale("EN")}
+              className={`relative z-10 flex-1 text-[11px] font-extrabold transition-colors ${
+                locale === "EN" ? "text-[#0F522B]" : "text-slate-400"
+              }`}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocale("KH")}
+              className={`relative z-10 flex-1 text-[11px] font-extrabold transition-colors ${
+                locale === "KH" ? "text-[#0F522B]" : "text-slate-400"
+              }`}
+            >
+              KH
+            </button>
+          </div>
+        </header>
 
       {/* ERROR ALERT TOAST */}
       {error && (
@@ -913,10 +928,11 @@ export default function TableQrPage({
 
       {/* ── FLOATING ORDER BAR ── */}
       {totalItems > 0 && activePage === "menu" && !isReadOnly && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] bg-[#0F522B] rounded-2xl p-3.5 px-5 flex items-center justify-between text-white shadow-xl shadow-[#0F522B]/30 z-30">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-[398px] bg-[#0F522B] rounded-2xl p-3.5 px-5 flex items-center justify-between text-white shadow-[0_12px_30px_-5px_rgba(15,82,43,0.4)] z-30 animate-[slideFromBottom_300ms_cubic-bezier(0.16,1,0.3,1)]">
           <div>
-            <div className="font-bold text-xs">
-              {totalItems} {t("Items Selected", "មុខទំនិញ")}
+            <div className="font-bold text-xs flex items-center gap-1.5">
+              <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{totalItems}</span>
+              <span>{t("Items Selected", "មុខទំនិញជ្រើសរើស")}</span>
             </div>
             <div className="text-[11px] opacity-90 mt-0.5">
               {t("Total", "សរុប")}: {formatDualTotal(totalPrice)}
@@ -925,15 +941,16 @@ export default function TableQrPage({
           <button
             type="button"
             onClick={() => navigateToPage("order")}
-            className="bg-white text-[#0F522B] rounded-xl px-4 py-2 text-xs font-extrabold hover:bg-emerald-50 active:scale-95 transition-all shadow-sm"
+            className="bg-white text-[#0F522B] rounded-xl px-4 py-2 text-xs font-extrabold hover:bg-emerald-50 active:scale-95 transition-all shadow-xs flex items-center gap-1"
           >
-            {t("View Order →", "មើលការបញ្ជាទិញ →")}
+            <span>{t("View Order", "មើលការបញ្ជាទិញ")}</span>
+            <ArrowRight size={13} />
           </button>
         </div>
       )}
 
-      {/* ── ENFORCED BOTTOM NAVIGATION BAR matching my-app ── */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-around py-3 z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+      {/* ── ENFORCED BOTTOM NAVIGATION BAR ── */}
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around py-2.5 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         {[
           { icon: Utensils, label: t("Menu", "ម៉ឺនុយ"), page: "menu" as PageTab },
           { icon: ShoppingBag, label: t("My Order", "ការកម្មង់"), page: "order" as PageTab },
@@ -950,14 +967,21 @@ export default function TableQrPage({
               disabled={!allowed}
               type="button"
               onClick={() => navigateToPage(nav.page)}
-              className={`flex flex-col items-center gap-1 transition-all active:scale-95 duration-200 ${
+              className={`relative flex flex-col items-center gap-1 transition-all active:scale-95 duration-200 px-3 py-0.5 ${
                 allowed ? "opacity-100 cursor-pointer" : "opacity-30 cursor-not-allowed"
               }`}
             >
-              <Icon
-                size={20}
-                className={`transition-all duration-200 ${isActive ? "text-[#0F522B] scale-105" : "text-slate-400"}`}
-              />
+              <div className="relative">
+                <Icon
+                  size={20}
+                  className={`transition-all duration-200 ${isActive ? "text-[#0F522B] scale-110" : "text-slate-400"}`}
+                />
+                {nav.page === "order" && totalItems > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-emerald-600 text-white text-[9.5px] font-black h-4 px-1.5 rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                    {totalItems}
+                  </span>
+                )}
+              </div>
               <span
                 className={`font-khmer text-[10.5px] ${
                   isActive ? "font-bold text-[#0F522B]" : "font-semibold text-slate-400"

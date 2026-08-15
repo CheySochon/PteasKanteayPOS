@@ -33,11 +33,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     let active = true;
 
     async function verifySession() {
-      if (pathname === "/login") {
-        return;
-      }
-
-      if (!protectedRoute) {
+      if (pathname === "/login" || !protectedRoute) {
         return;
       }
 
@@ -61,73 +57,58 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }
 
         let staffPermissions: Record<string, boolean> = {};
-        if (user.role && typeof user.role === "object" && Array.isArray(user.role.permissions)) {
-          user.role.permissions.forEach((item: any) => {
-            staffPermissions[item.key] = item.view;
-            staffPermissions[`${item.key}_create`] = item.create;
-            staffPermissions[`${item.key}_edit`] = item.edit;
-            staffPermissions[`${item.key}_delete`] = item.delete;
-          });
+        const storedPermsRaw = typeof window !== "undefined" ? localStorage.getItem("pos_staff_permissions") : null;
+        if (storedPermsRaw) {
+          try {
+            staffPermissions = JSON.parse(storedPermsRaw);
+          } catch {}
         } else {
-          const settings = await getSettings().catch(() => null);
-          staffPermissions = permissionsForUser(user.id, settings?.staffPermissions);
+          staffPermissions = permissionsForUser(user.id, (await getSettings()).staffPermissions);
         }
 
-        localStorage.setItem("pos_logged_in", "true");
-        localStorage.setItem("pos_user", JSON.stringify(user));
-        localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
-        window.dispatchEvent(new Event("pos-auth-change"));
-        window.dispatchEvent(new Event("pos-permissions-change"));
+        if (!active) return;
 
-        if (!canAccessPath(pathname, roleName(user), staffPermissions)) {
-          if (active) setDenied(true);
-          router.replace(firstAllowedPathForRole(roleName(user), staffPermissions));
+        const uRole = roleName(user);
+        if (!canAccessPath(pathname, uRole, staffPermissions)) {
+          setDenied(true);
+          router.replace(firstAllowedPathForRole(uRole, staffPermissions));
           return;
         }
 
-        if (active) {
-          setDenied(false);
-          setAuthorizedPath(pathname);
-        }
+        setDenied(false);
+        setAuthorizedPath(pathname);
       } catch {
+        if (!active) return;
         localStorage.removeItem("pos_logged_in");
         localStorage.removeItem("pos_token");
         localStorage.removeItem("pos_user");
-        window.dispatchEvent(new Event("pos-auth-change"));
-        if (active) {
-          router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-        }
+        router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
       }
     }
 
-    void verifySession();
-
-    return () => {
-      active = false;
-    };
-  }, [pathname, protectedRoute, router]);
-
-  useEffect(() => {
-    if (!protectedRoute) return;
+    verifySession();
 
     const socket = getSocket();
     if (!socket) return;
 
-    function handlePermissionsUpdated(payload: { staffPermissions?: Record<string, unknown> }) {
-      const currentUser = parseStoredUser(localStorage.getItem("pos_user"));
-      const staffPermissions = permissionsForUser(currentUser.id, payload.staffPermissions);
-
+    function handlePermissionsUpdated(settings: any) {
+      if (!settings || !settings.staffPermissions) return;
+      const storedUserRaw = typeof window !== "undefined" ? localStorage.getItem("pos_user") : null;
+      let currentUser: any = null;
+      if (storedUserRaw) {
+        try { currentUser = JSON.parse(storedUserRaw); } catch {}
+      }
+      const staffPermissions = permissionsForUser(currentUser?.id, settings.staffPermissions);
       localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
       window.dispatchEvent(new Event("pos-permissions-change"));
 
-      if (!canAccessPath(pathname, currentUser.role, staffPermissions)) {
+      if (!canAccessPath(pathname, roleName(currentUser), staffPermissions)) {
         setDenied(true);
-        router.replace(firstAllowedPathForRole(currentUser.role, staffPermissions));
-        return;
+        router.replace(firstAllowedPathForRole(roleName(currentUser), staffPermissions));
+      } else {
+        setDenied(false);
+        setAuthorizedPath(pathname);
       }
-
-      setDenied(false);
-      setAuthorizedPath(pathname);
     }
 
     function handleRolesUpdated() {
@@ -160,10 +141,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     socket.on("roles:updated", handleRolesUpdated);
 
     return () => {
+      active = false;
       socket.off("permissions:updated", handlePermissionsUpdated);
       socket.off("roles:updated", handleRolesUpdated);
     };
   }, [pathname, protectedRoute, router]);
+
+  // ALL HOOKS EXECUTED UNCONDITIONALLY ──
+
+  // For public non-protected routes (/qr, /login, /), render children immediately!
+  if (!protectedRoute) {
+    return <>{children}</>;
+  }
 
   if (!mounted) {
     return (
@@ -175,23 +164,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
+  const hasSession = typeof window !== "undefined" && (!!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token"));
 
   if (protectedRoute && !hasSession) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
         <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
-          Checking session...
+          Redirecting to login...
         </div>
       </main>
     );
   }
 
-  if (protectedRoute && denied) {
+  if (denied) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
-        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
-          Redirecting to an allowed page...
+        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-rose-500 shadow-sm">
+          Access Denied. Redirecting...
         </div>
       </main>
     );

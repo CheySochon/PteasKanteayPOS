@@ -21,8 +21,26 @@ import type {
 } from "./types";
 import { saveToCache, getFromCache, addOfflineOrder } from "./db";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
-const API_ORIGIN = API_URL.replace(/\/api$/, "");
+export function getApiBaseUrl() {
+  const envUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    try {
+      const parsed = new URL(envUrl, window.location.href);
+      if (parsed.hostname === "localhost" && window.location.hostname !== "localhost") {
+        parsed.hostname = window.location.hostname;
+      }
+      return parsed.toString().replace(/\/$/, "");
+    } catch {}
+  }
+  return envUrl;
+}
+
+export function getApiOrigin() {
+  return getApiBaseUrl().replace(/\/api$/, "");
+}
+
+export const apiBaseUrl = typeof window !== "undefined" ? getApiBaseUrl() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
+export const apiOrigin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -63,16 +81,17 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const currentApiUrl = getApiBaseUrl();
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${currentApiUrl}${path}`, {
       method: options.method || "GET",
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       credentials: "include",
     });
   } catch (err: any) {
-    throw new Error(err?.message || `Failed to connect to API server at ${API_URL}`);
+    throw new Error(err?.message || `Failed to connect to API server at ${currentApiUrl}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
@@ -117,8 +136,6 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return payload as T;
 }
 
-export const apiBaseUrl = API_URL;
-export const apiOrigin = API_ORIGIN;
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
 export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
@@ -298,7 +315,8 @@ export async function uploadProductImage(file: File) {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}/products/upload-image`, {
+  const currentApiUrl = getApiBaseUrl();
+  const response = await fetch(`${currentApiUrl}/products/upload-image`, {
     method: "POST",
     headers,
     body: formData,
@@ -322,7 +340,8 @@ export async function uploadRestaurantImage(file: File) {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}/settings/upload-image`, {
+  const currentApiUrl = getApiBaseUrl();
+  const response = await fetch(`${currentApiUrl}/settings/upload-image`, {
     method: "POST",
     headers,
     body: formData,
@@ -346,7 +365,8 @@ export async function uploadUserImage(file: File) {
   const headers: HeadersInit = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}/users/upload-image`, {
+  const currentApiUrl = getApiBaseUrl();
+  const response = await fetch(`${currentApiUrl}/users/upload-image`, {
     method: "POST",
     headers,
     body: formData,
@@ -562,7 +582,7 @@ export const getTopProducts = async (date?: string, period = "month"): Promise<T
     return [];
   }
 };
-export const exportReportsCsv = (date?: string, period = "month") => date ? `${API_URL}/reports/export-csv?date=${date}&period=${period}` : `${API_URL}/reports/export-csv`;
+export const exportReportsCsv = (date?: string, period = "month") => date ? `${getApiBaseUrl()}/reports/export-csv?date=${date}&period=${period}` : `${getApiBaseUrl()}/reports/export-csv`;
 
 const DEFAULT_DEMO_USERS: User[] = [
   { id: 1, name: "Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Admin" }, roleName: "ADMIN", isActive: true },
@@ -833,7 +853,8 @@ export async function downloadBackup(latest = false) {
     const headers: HeadersInit = {};
     if (token) headers.Authorization = `Bearer ${token}`;
 
-    const response = await fetch(`${API_URL}/backups/${latest ? "latest" : "download"}`, {
+    const currentApiUrl = getApiBaseUrl();
+    const response = await fetch(`${currentApiUrl}/backups/${latest ? "latest" : "download"}`, {
       headers,
       credentials: "include",
     });

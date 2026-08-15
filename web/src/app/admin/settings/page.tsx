@@ -641,7 +641,7 @@ export default function SettingsPage() {
         />
 
         {/* Secondary Sub-Navigation Bar */}
-        <div className={`px-5 py-3 border-b flex flex-wrap items-center gap-2 text-xs font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
+        <div className={`px-3.5 sm:px-4 py-3 border-b flex flex-wrap items-center gap-2 text-xs font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
         }`}>
           {/* 1. Store Details */}
@@ -725,7 +725,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="w-full">
 
 

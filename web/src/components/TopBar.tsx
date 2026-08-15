@@ -365,7 +365,13 @@ export default function TopBar({
         if (order && order.id) {
           setClearedKeys((prev) => {
             const next = new Set(prev);
-            next.delete(String(order.id));
+            const targetId = String(order.id);
+            next.delete(targetId);
+            next.delete(`topbar-order-${targetId}`);
+            next.delete(`order-${targetId}`);
+            for (const key of Array.from(next)) {
+              if (key.includes(`-${targetId}`)) next.delete(key);
+            }
             try {
               localStorage.setItem("pos_cleared_notification_keys", JSON.stringify([...next]));
             } catch {}
@@ -420,7 +426,8 @@ export default function TopBar({
 
     return uniqueList.filter((item) => {
       const oId = item.orderId ? String(item.orderId) : "";
-      return !clearedKeys.has(item.id) && (!oId || !clearedKeys.has(oId));
+      if (oId && (clearedKeys.has(oId) || clearedKeys.has(`topbar-order-${oId}`))) return false;
+      return !clearedKeys.has(item.id);
     });
   }, [notifications, internalNotifications, clearedKeys]);
 

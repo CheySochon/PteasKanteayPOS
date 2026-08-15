@@ -523,8 +523,8 @@ export default function UsersPage() {
           dark={dark}
         />
 
-        <div className="flex-1 overflow-y-auto px-5 pt-3 pb-6">
-          <div className="mx-auto w-full max-w-[1600px]">
+        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
+          <div className="mx-auto w-full max-w-[1720px]">
 
             {/* Floating Top Success/Error Toast Alerts */}
             <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
