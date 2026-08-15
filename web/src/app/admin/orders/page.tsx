@@ -526,6 +526,20 @@ export default function OrdersPage() {
         />
 
         <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5">
+          {/* Orders Page Header Title Block */}
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
+              <ReceiptText size={20} />
+            </div>
+            <div>
+              <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
+                {t.title}
+              </h1>
+              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+                {t.subtitle}
+              </p>
+            </div>
+          </div>
           {message && (
             <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
               {message}

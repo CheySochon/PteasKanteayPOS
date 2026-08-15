@@ -719,7 +719,7 @@ export default function TopBar({
             </button>
 
             {notificationsOpen && (
-              <div className={`absolute right-0 top-full mt-2.5 z-50 w-80 sm:w-88 rounded-2xl border p-3.5 shadow-2xl ${dropdownSurface} animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
+              <div className={`absolute right-0 top-full mt-2.5 z-50 w-80 sm:w-88 rounded-2xl border p-3.5 shadow-none ${dropdownSurface} animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
                 <div className={`mb-3 flex items-center justify-between px-1 text-sm font-bold ${textPrimary} ${kmClass}`}>
                   <span>{t.notifications}</span>
                   {activeNotifications.length > 0 ? (

@@ -37,6 +37,10 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   ClipboardList,
+  Armchair,
+  User,
+  CreditCard,
+  ChevronUp,
   Pencil,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
@@ -53,6 +57,7 @@ import {
   getSettings,
   getTables,
   getOrders,
+  deleteOrder,
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import type { Category, DiningTable, Product, OrderStatus } from "../../lib/types";
@@ -153,7 +158,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   
   // Payment State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "qr">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "qr" | "card">("cash");
   const [cashReceived, setCashReceived] = useState(0);
   const [lastReceipt, setLastReceipt] = useState<any>(null);
 
@@ -179,10 +184,15 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [draftRefInput, setDraftRefInput] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
+  // Payment Modal Discount Controls
+  const [discountType, setDiscountType] = useState<"fixed" | "percentage">("fixed");
+  const [discountValInput, setDiscountValInput] = useState<string>("");
+
   // QR Menu Orders Real-time State
   const [qrOrdersModalOpen, setQrOrdersModalOpen] = useState(false);
   const [qrOrders, setQrOrders] = useState<any[]>([]);
   const [qrOrdersFilter, setQrOrdersFilter] = useState<"all" | "pending" | "preparing" | "completed">("all");
+  const [deleteQrOrderTarget, setDeleteQrOrderTarget] = useState<any | null>(null);
 
   const pendingQrCount = useMemo(() => {
     return qrOrders.filter((o) => o.status === "pending" || !o.status).length;
@@ -368,13 +378,25 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       setQrOrders((current) => current.map((o) => (o.id === order.id ? { ...o, ...order } : o)));
     }
 
+    function handleOrderDeleted(payload: any) {
+      const deletedId = typeof payload === "object" ? payload.id || payload.orderId : payload;
+      if (!deletedId) return;
+      setQrOrders((current) => current.filter((o) => Number(o.id) !== Number(deletedId)));
+    }
+
     socket.on("order:created", handleOrderCreated);
     socket.on("order:new", handleOrderCreated);
     socket.on("order:updated", handleOrderUpdated);
+    socket.on("order:deleted", handleOrderDeleted);
+    socket.on("order:delete", handleOrderDeleted);
+    socket.on("order:removed", handleOrderDeleted);
     return () => {
       socket.off("order:created", handleOrderCreated);
       socket.off("order:new", handleOrderCreated);
       socket.off("order:updated", handleOrderUpdated);
+      socket.off("order:deleted", handleOrderDeleted);
+      socket.off("order:delete", handleOrderDeleted);
+      socket.off("order:removed", handleOrderDeleted);
     };
   }, []);
 
@@ -813,15 +835,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0">
               <button
                 type="button"
-                className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
-                  dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
-                }`}
-              >
-                <LayoutGrid size={14} />
-                Dual Screen
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   saveCurrentTableState(tableId, orderingMode);
                   setCart([]);
@@ -1125,7 +1138,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               <div className="space-y-1.5">
                 <SummaryRow label="Sub total :" value={money(subtotal)} dark={dark} />
                 {discountPercent > 0 && (
-                  <SummaryRow label={`Discount (${discountPercent}%):`} value={`-${money(discountAmount)}`} dark={dark} />
+                  <SummaryRow label="Discount :" value={`-${money(discountAmount)}`} dark={dark} />
                 )}
                 {serviceFee > 0 && <SummaryRow label="Service Fee :" value={money(serviceFee)} dark={dark} />}
                 {vat > 0 && <SummaryRow label="VAT :" value={money(vat)} dark={dark} />}
@@ -1262,113 +1275,208 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         </div>
       )}
 
-      {/* Payment Modal */}
+      {/* ── Collect Payment & Send to Kitchen Modal ── */}
       {paymentModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out]">
-            <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3">
-              <h3 className="text-base font-black text-slate-800">Complete Payment</h3>
-            </div>
-            
-            <div className="p-5">
-              <div className="mb-4 text-center">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Due</p>
-                <p className="text-3xl font-black text-[#696cff] leading-none mt-1.5">{money(total)}</p>
-                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(total * 4100).toLocaleString()} ៛</p>
-              </div>
-
-              <div className="mb-4 flex gap-2">
-                <button 
-                  onClick={() => setPaymentMethod("cash")}
-                  className={`flex-1 rounded-xl border-2 py-3 font-bold transition-all ${paymentMethod === 'cash' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
-                >
-                  💵 Cash
-                </button>
-                <button 
-                  onClick={() => setPaymentMethod("qr")}
-                  className={`flex-1 rounded-xl border-2 py-3 font-bold transition-all ${paymentMethod === 'qr' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
-                >
-                  📱 KHQR
-                </button>
-              </div>
-
-              {paymentMethod === "cash" && (
-                <div className="space-y-3 animate-[usersPageIn_200ms_ease-out]">
-                  <div>
-                    <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500">Cash Received</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
-                      <input 
-                        type="number"
-                        min={total}
-                        value={cashReceived || ""}
-                        onChange={(e) => setCashReceived(Number(e.target.value))}
-                        className="h-10 w-full rounded-xl border-2 border-slate-200 bg-slate-50 pl-7 pr-3 text-base font-black text-slate-800 outline-none focus:border-[#696cff] focus:bg-white transition-all"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {[10, 20, 50, 100].map(amt => (
-                      <button 
-                        key={amt}
-                        onClick={() => setCashReceived(amt)}
-                        className="rounded-lg border border-slate-200 bg-white py-1.5 text-xs font-bold text-slate-600 hover:border-[#696cff] hover:text-[#696cff] transition-all"
-                      >
-                        ${amt}
-                      </button>
-                    ))}
-                    {[10000, 20000, 50000, 100000].map(amt => (
-                      <button 
-                        key={amt}
-                        onClick={() => setCashReceived(amt / 4100)}
-                        className="rounded-lg border border-slate-200 bg-white py-1.5 text-[10px] font-bold text-slate-600 hover:border-[#696cff] hover:text-[#696cff] transition-all"
-                      >
-                        {amt / 1000}k ៛
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Change</span>
-                    <div className="text-right">
-                      <div className={`text-lg leading-none font-black ${cashReceived - total >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {money(Math.max(0, cashReceived - total))}
-                      </div>
-                      <div className="text-[10px] font-bold text-slate-400 mt-0.5">
-                        ~ {(Math.max(0, cashReceived - total) * 4100).toLocaleString()} ៛
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === "qr" && (
-                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-6 animate-[usersPageIn_200ms_ease-out]">
-                  <div className="mb-3 rounded-xl bg-white p-2 shadow-sm">
-                    {/* Placeholder for real QR code */}
-                    <div className="h-32 w-32 bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=KHQR')] bg-contain bg-center bg-no-repeat opacity-80" />
-                  </div>
-                  <p className="text-xs font-bold text-slate-500">Scan to pay with KHQR</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-5">
-              <button 
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
+            {/* Header: Title + Circular Close Button */}
+            <div className="flex items-center justify-between pb-4">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-800">
+                Collect Payment &amp; Send to Kitchen
+              </h3>
+              <button
+                type="button"
                 onClick={() => setPaymentModalOpen(false)}
-                className="flex-1 rounded-xl bg-white px-3 py-2.5 text-sm font-bold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-all"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-100 transition-colors cursor-pointer"
               >
-                Cancel
-              </button>
-              <button 
-                onClick={processCheckout}
-                disabled={loading || (paymentMethod === 'cash' && cashReceived < total)}
-                className="flex-[2] rounded-xl bg-[#696cff] px-3 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#5f61e6] active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all"
-              >
-                {loading ? "Processing..." : "Confirm & Print"}
+                <X size={16} />
               </button>
             </div>
+
+            {/* Top Summary Breakdown Card */}
+            <div className="rounded-2xl bg-slate-50 border border-slate-100/90 p-4.5 space-y-2 text-xs font-semibold text-slate-500">
+              <div className="flex justify-between items-center">
+                <span>Items Net Total</span>
+                <span className="font-bold text-slate-700">{money(subtotal)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Discount Total</span>
+                <span className="font-bold text-slate-700">
+                  {discountAmount > 0 ? `-${money(discountAmount)}` : money(0)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Tax Total</span>
+                <span className="font-bold text-slate-700">
+                  {vat > 0 ? `+${money(vat)}` : money(0)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Service Charge Total</span>
+                <span className="font-bold text-slate-700">
+                  {serviceFee > 0 ? `+${money(serviceFee)}` : money(0)}
+                </span>
+              </div>
+
+              {/* Divider & Payable Total */}
+              <div className="pt-2.5 border-t border-slate-200/60 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-800 flex items-center gap-1">
+                  Payable Total <ChevronUp size={15} className="text-slate-600" />
+                </span>
+                <span className="text-2xl font-black text-[#55a060]">
+                  {money(total)}
+                </span>
+              </div>
+            </div>
+
+            {/* Apply Discount Control Card */}
+            <div className="mt-3.5 rounded-2xl bg-slate-50 border border-slate-100/90 p-3.5 space-y-2">
+              <span className="block text-xs font-semibold text-slate-500">Apply Discount</span>
+              <div className="flex items-center gap-2">
+                {/* Fixed vs Percentage Toggle */}
+                <div className="inline-flex p-1 rounded-xl bg-white border border-slate-200/80 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("fixed")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      discountType === "fixed"
+                        ? "bg-[#55a060] text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("percentage")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      discountType === "percentage"
+                        ? "bg-[#55a060] text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    Percentage
+                  </button>
+                </div>
+
+                {/* Amount / Value Input */}
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 50"
+                  value={discountValInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDiscountValInput(val);
+                    const num = Number(val) || 0;
+                    if (discountType === "percentage") {
+                      setDiscountPercent(Math.min(100, num));
+                    } else {
+                      if (subtotal > 0) {
+                        setDiscountPercent(Math.min(100, (num / subtotal) * 100));
+                      }
+                    }
+                  }}
+                  className="h-9 flex-1 rounded-xl border border-slate-200/80 bg-white px-3.5 text-xs font-semibold text-slate-800 outline-none focus:border-[#55a060] placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            {/* Payment Method Selector Grid (3 Cards) */}
+            <div className="grid grid-cols-3 gap-3 my-4">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("qr")}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl transition-all cursor-pointer ${
+                  paymentMethod === "qr"
+                    ? "border-2 border-[#55a060] bg-[#55a060]/5 text-[#55a060] shadow-2xs font-bold"
+                    : "border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 font-semibold"
+                }`}
+              >
+                <QrCode size={22} />
+                <span className="text-xs">Qr</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("cash")}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl transition-all cursor-pointer ${
+                  paymentMethod === "cash"
+                    ? "border-2 border-[#55a060] bg-[#55a060]/5 text-[#55a060] shadow-2xs font-bold"
+                    : "border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 font-semibold"
+                }`}
+              >
+                <Banknote size={22} />
+                <span className="text-xs">Cash</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("card")}
+                className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl transition-all cursor-pointer ${
+                  paymentMethod === "card"
+                    ? "border-2 border-[#55a060] bg-[#55a060]/5 text-[#55a060] shadow-2xs font-bold"
+                    : "border border-slate-200/80 bg-white text-slate-600 hover:border-slate-300 font-semibold"
+                }`}
+              >
+                <CreditCard size={22} />
+                <span className="text-xs">Card</span>
+              </button>
+            </div>
+
+            {/* If Cash selected: Cash Received + Change breakdown */}
+            {paymentMethod === "cash" && (
+              <div className="mb-4 space-y-2.5 rounded-2xl bg-slate-50 border border-slate-100 p-3.5 animate-[usersPageIn_180ms_ease-out]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Cash Received</span>
+                  <div className="relative w-36">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                    <input
+                      type="number"
+                      min={total}
+                      value={cashReceived || ""}
+                      onChange={(e) => setCashReceived(Number(e.target.value))}
+                      className="h-8 w-full rounded-xl border border-slate-200 bg-white pl-6 pr-2 text-xs font-bold text-slate-800 outline-none focus:border-[#55a060]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5 pt-1">
+                  {[10, 20, 50, 100].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setCashReceived(amt)}
+                      className="rounded-lg border border-slate-200 bg-white py-1 text-[11px] font-bold text-slate-600 hover:border-[#55a060] hover:text-[#55a060]"
+                    >
+                      ${amt}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                  <span className="text-xs font-semibold text-slate-500">Change Due</span>
+                  <span className={`text-sm font-bold ${cashReceived - total >= 0 ? "text-[#55a060]" : "text-rose-500"}`}>
+                    {money(Math.max(0, cashReceived - total))}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Primary Split Green Button */}
+            <button
+              type="button"
+              onClick={processCheckout}
+              disabled={loading || (paymentMethod === "cash" && cashReceived < total)}
+              className="w-full rounded-2xl bg-[#55a060] hover:bg-[#46894f] active:scale-[0.99] text-white flex items-center justify-between px-6 py-3.5 shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <span className="text-sm font-bold">
+                {loading ? "Processing Order..." : "Collect Payment & Send order to Kitchen"}
+              </span>
+              <div className="flex items-center justify-center border-l border-white/25 pl-3 ml-2">
+                <ChevronUp size={18} />
+              </div>
+            </button>
           </div>
         </div>
       )}
@@ -2034,202 +2142,177 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
       {/* ── Real-Time QR Menu Orders Modal ── */}
       {qrOrdersModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-hidden rounded-3xl border shadow-2xl animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] flex flex-col ${
-            dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
-          }`}>
-            {/* Modal Header */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
-              dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-100 bg-slate-50/60"
-            }`}>
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
-                  <QrCode size={18} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                      {language === "km" ? "ការកុម្ម៉ង់តាម QR Menu (Real-time)" : "QR Menu Orders"}
-                    </h2>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Live
-                    </span>
-                  </div>
-                  <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
-                    {language === "km" ? "ការកុម្ម៉ង់ផ្ទាល់ពីរថែប្លេត ឬទូរស័ព្ទអតិថិជន" : "Incoming customer orders placed via QR code scan"}
-                  </p>
-                </div>
-              </div>
-
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
+          <div className="w-full max-w-xl overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <h3 className="text-xl font-bold text-slate-800">
+                QR Orders
+              </h3>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     getOrders().then((data) => { if (Array.isArray(data)) setQrOrders(data); });
                   }}
-                  className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                    dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-100 transition-colors cursor-pointer"
+                  title="Filter / Refresh"
                 >
-                  <RotateCw size={13} />
-                  Refresh
+                  <SlidersHorizontal size={16} />
                 </button>
-                <button
+                <button 
                   type="button"
                   onClick={() => setQrOrdersModalOpen(false)}
-                  className={`rounded-xl p-1.5 transition-colors cursor-pointer ${
-                    dark ? "text-slate-400 hover:bg-[#34354e] hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  }`}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                  title="Close"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
+            
+            {/* Orders Grid Content */}
+            <div>
+              {qrOrders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-12 text-center text-xs font-semibold text-slate-400">
+                  <QrCode size={32} className="mx-auto mb-2 text-slate-300" />
+                  <span>No QR Menu orders found.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[440px] overflow-y-auto pr-1">
+                  {qrOrders.map((order: any) => {
+                    const items = Array.isArray(order.items) ? order.items : [];
+                    const totalQty = items.reduce((sum: number, i: any) => sum + Number(i.quantity || 1), 0);
+                    const tableName = order.table?.name || (order.tableId ? `P${order.tableId}` : "P2");
+                    const customerName = order.customerName || order.userName || order.refName || "WALKIN";
 
-            {/* Filter Tabs */}
-            <div className={`flex items-center gap-2 px-6 py-3 border-b text-xs font-semibold shrink-0 ${
-              dark ? "border-[#3b3c54] bg-[#232333]/50" : "border-slate-100 bg-slate-50/30"
-            }`}>
-              {(["all", "pending", "preparing", "completed"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setQrOrdersFilter(tab)}
-                  className={`px-3.5 py-1.5 rounded-xl capitalize transition-all cursor-pointer ${
-                    qrOrdersFilter === tab
-                      ? "bg-[#55a060] text-white font-bold shadow-xs"
-                      : dark
-                      ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
-                      : "bg-white border border-slate-200/80 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {tab === "all" ? `All (${qrOrders.length})` : `${tab} (${qrOrders.filter(o => o.status === tab).length})`}
-                </button>
-              ))}
-            </div>
-
-            {/* Orders Content List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[500px]">
-              {(() => {
-                const list = qrOrders.filter((o) => qrOrdersFilter === "all" || o.status === qrOrdersFilter);
-                if (list.length === 0) {
-                  return (
-                    <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-                      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
-                        dark ? "bg-[#232333] text-slate-500" : "bg-slate-100 text-slate-400"
-                      }`}>
-                        <QrCode size={28} />
-                      </div>
-                      <p className={`text-sm font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
-                        {language === "km" ? "មិនទាន់មានការកុម្ម៉ង់ QR Menu ឡើយ" : "No QR Menu orders found"}
-                      </p>
-                      <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
-                        {language === "km" ? "នៅពេលអតិថិជនស្កែន QR ធ្វើការកុម្ម៉ង់ វានឹងបង្ហាញនៅទីនេះភ្លាមៗ" : "Incoming QR orders will appear here automatically in real time"}
-                      </p>
-                    </div>
-                  );
-                }
-
-                return list.map((order) => {
-                  const items = Array.isArray(order.items) ? order.items : [];
-                  const orderNum = order.orderNumber || `#${order.id}`;
-                  const tableName = order.table?.name || (order.tableId ? `Table ${order.tableId}` : "Takeaway / QR");
-                  const orderTotal = Number(order.totalAmount || order.total || items.reduce((sum: number, i: any) => sum + Number(i.unitPrice || 0) * Number(i.quantity || 1), 0));
-                  const isPending = order.status === "pending" || !order.status;
-
-                  return (
-                    <div
-                      key={order.id}
-                      className={`rounded-2xl border p-4 transition-all ${
-                        dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200/80 bg-slate-50/50"
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/40 dark:border-slate-700/40">
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-extrabold text-sm text-[#55a060]">
-                            {orderNum}
-                          </span>
-                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-lg border ${
-                            dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-200" : "bg-white border-slate-200 text-slate-700"
-                          }`}>
-                            {tableName}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[11px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
-                            isPending
-                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                              : order.status === "preparing"
-                              ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                              : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                          }`}>
-                            {order.status || "pending"}
-                          </span>
-                          <span className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
-                            {order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Just now"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Items list */}
-                      <div className="py-3 space-y-1.5">
-                        {items.map((item: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-700"}`}>
-                              <span className="font-bold text-[#55a060]">{item.quantity}×</span> {item.product?.name || item.name || `Item #${item.productId}`}
-                              {item.notes && <span className="text-slate-400 italic ml-1.5">({item.notes})</span>}
-                            </span>
-                            <span className={`font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
-                              {money(Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1))}
-                            </span>
+                    return (
+                      <div 
+                        key={order.id}
+                        className="rounded-2xl border border-slate-200/80 bg-white p-3.5 flex items-center justify-between gap-3 shadow-3xs hover:border-emerald-300 transition-all group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Circular Gray Clipboard Icon */}
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                            <ClipboardList size={22} />
                           </div>
-                        ))}
-                      </div>
 
-                      {/* Total & Action Footer */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/40 dark:border-slate-700/40">
-                        <div className="text-xs">
-                          <span className={dark ? "text-slate-400" : "text-slate-500"}>Total: </span>
-                          <span className="text-sm font-black text-[#55a060]">{money(orderTotal)}</span>
+                          {/* Info Column */}
+                          <div className="min-w-0 space-y-0.5">
+                            {/* Table */}
+                            <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 truncate">
+                              <Armchair size={13} className="shrink-0 text-slate-400" />
+                              <span className="truncate">{tableName}</span>
+                            </div>
+                            {/* Customer */}
+                            <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 truncate">
+                              <User size={13} className="shrink-0 text-slate-400" />
+                              <span className="truncate">{customerName}</span>
+                            </div>
+                            {/* Cart Items count */}
+                            <div className="text-xs font-semibold text-slate-500">
+                              {totalQty} Cart Item{totalQty > 1 ? 's' : ''}
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {/* Right Action Icons Column */}
+                        <div className="flex flex-col gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() => handleLoadQrOrderToCart(order)}
-                            className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                              dark
-                                ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]"
-                                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
-                            }`}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-emerald-100 hover:text-emerald-700 active:scale-95 transition-all cursor-pointer"
+                            title="Load to Cart / Edit"
                           >
-                            <ShoppingBag size={13} className="text-[#55a060]" />
-                            {language === "km" ? "បញ្ចូលក្នុង Cart" : "Load to Cart"}
+                            <Pencil size={13} />
                           </button>
-
                           <button
                             type="button"
-                            onClick={() => {
-                              const socket = getSocket();
-                              if (socket) {
-                                socket.emit("order:update", { id: order.id, status: "preparing" });
-                              }
-                              setQrOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: "preparing" } : o)));
-                              setMessage(`Order ${orderNum} sent to Kitchen!`);
-                            }}
-                            className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
+                            onClick={() => setDeleteQrOrderTarget(order)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 active:scale-95 transition-all cursor-pointer"
+                            title="Delete Order"
                           >
-                            <ChefHat size={13} />
-                            {language === "km" ? "ផ្ញើទៅចុងភៅ" : "Send to Kitchen"}
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
-                    </div>
-                  );
-                });
-              })()}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cancel QR Order Confirmation Modal ── */}
+      {deleteQrOrderTarget && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
+            {/* Header / Alert Icon + Title */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3.5">
+                {/* Red warning triangle icon container */}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-500 border border-red-100/60">
+                  <AlertTriangle size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 leading-snug">
+                    Cancel QR Order
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-400 mt-1">
+                    Are you sure? This process is irreversible!
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setDeleteQrOrderTarget(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-6 mt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteQrOrderTarget(null)}
+                className="rounded-xl bg-slate-50 border border-slate-100 px-6 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (deleteQrOrderTarget) {
+                    const targetId = deleteQrOrderTarget.id;
+                    setQrOrders((prev) => prev.filter((o) => o.id !== targetId));
+                    setDeleteQrOrderTarget(null);
+                    try {
+                      await deleteOrder(targetId);
+                      const socket = getSocket();
+                      if (socket) {
+                        socket.emit("order:delete", { id: targetId });
+                        socket.emit("order:deleted", { id: targetId });
+                        socket.emit("order:removed", { id: targetId });
+                      }
+                    } catch (err) {
+                      console.error("Delete order failed", err);
+                    }
+                    if (typeof window !== "undefined") {
+                      window.dispatchEvent(new Event("pos-order-deleted"));
+                    }
+                    setMessage(`Order ${deleteQrOrderTarget.orderNumber || `#${targetId}`} cancelled successfully.`);
+                  }
+                }}
+                className="rounded-xl bg-red-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-red-700 active:scale-95 transition-all cursor-pointer"
+              >
+                Yes, Delete!
+              </button>
             </div>
           </div>
         </div>

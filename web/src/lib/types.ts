@@ -13,7 +13,7 @@ export type AuthResult = {
 export type Money = number | string;
 export type OrderStatus = "pending" | "accepted" | "preparing" | "ready" | "served" | "completed" | "cancelled";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
-export type PaymentMethod = "cash" | "qr";
+export type PaymentMethod = "cash" | "qr" | "card";
 export type TableZone = "indoor" | "outdoor" | "vip";
 export type StockMovementType = "in" | "out" | "adjustment";
 export type ShiftStatus = "open" | "closed";
@@ -156,8 +156,10 @@ export type Order = {
   subtotal: Money;
   discountAmount: Money;
   taxAmount: Money;
+  serviceFee?: Money;
   totalAmount: Money;
   notes?: string | null;
+  userName?: string | null;
   items?: OrderItem[];
   payments?: Payment[];
   createdBy?: User | null;

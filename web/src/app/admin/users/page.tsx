@@ -599,9 +599,7 @@ export default function UsersPage() {
                       return (
                         <div
                           key={user.id}
-                          className={`w-full max-w-[320px] rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
-                            isAdmin ? "min-h-[260px]" : "min-h-[440px]"
-                          } ${
+                          className={`w-full max-w-[320px] min-h-[440px] h-[440px] rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
                             dark
                               ? "border-[#3b3c54] bg-[#2b2c40]"
                               : "border-slate-200/80 bg-white"

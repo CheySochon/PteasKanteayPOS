@@ -31,6 +31,7 @@ import {
   UserRound,
   Boxes,
   ChefHat,
+  FileText,
 } from "lucide-react";
 import { apiOrigin, getSettings, logoutApi } from "../lib/api";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
@@ -56,6 +57,7 @@ const NAV_MAIN = [
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
   { label: "Kitchen", href: "/kds", icon: KitchenIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
+  { label: "Invoices", href: "/admin/invoices", icon: InvoicesIcon, badge: undefined },
 ];
 
 const NAV_MANAGEMENT = [
@@ -107,6 +109,7 @@ const TEXT = {
       Inventory: "Inventory",
       Reports: "Reports",
       Tables: "Tables",
+      Invoices: "Invoices",
       Users: "Users",
       "Staff & Roles": "Staff & Roles",
       Permissions: "Permissions",
@@ -134,6 +137,7 @@ const TEXT = {
       Inventory: "ស្តុក",
       Reports: "របាយការណ៍",
       Tables: "តុ",
+      Invoices: "វិក្កយបត្រ",
       Users: "អ្នកប្រើប្រាស់",
       "Staff & Roles": "បុគ្គលិក និងតួនាទី",
       Settings: "ការកំណត់",
@@ -732,8 +736,8 @@ function MenuSubNavItem({
       className={`group flex h-9 items-center gap-2 rounded-lg px-3 transition duration-200 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
-            ? "bg-[#0F522B]/20 font-bold text-emerald-400 border border-[#0F522B]/30"
-            : "bg-[#dcecdb] font-bold text-[#09391D] border border-[#09391D]/15"
+            ? "bg-[#0F522B]/20 font-bold text-emerald-400"
+            : "bg-[#dcecdb] font-bold text-[#09391D]"
           : dark 
             ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-emerald-400 font-normal"
             : "text-slate-700 hover:bg-[#dcecdb] hover:text-[#09391D] font-normal"
@@ -1031,6 +1035,10 @@ function ReportsIcon({ active = false }: IconProps) {
 
 function TablesIcon({ active = false }: IconProps) {
   return <Armchair size={18} strokeWidth={1.75} color="currentColor" />;
+}
+
+function InvoicesIcon({ active = false }: IconProps) {
+  return <FileText size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function StaffIcon({ active = false }: IconProps) {

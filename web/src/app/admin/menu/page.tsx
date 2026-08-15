@@ -380,7 +380,7 @@ export default function MenuPage() {
   const canEdit = isAdmin || Boolean(staffPermissions.menu_edit === true);
   const canDelete = isAdmin || Boolean(staffPermissions.menu_delete === true);
 
-  const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#696cff] focus:ring-4 focus:ring-[#696cff]/10 transition-all duration-150 ${
+  const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#55a060] focus:ring-4 focus:ring-[#55a060]/10 transition-all duration-150 ${
     dark
       ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
       : "border-[#d9dee3] bg-white text-[#566a7f]"
@@ -820,7 +820,7 @@ export default function MenuPage() {
         searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
       />
       
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
+      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
         <div className="mx-auto w-full max-w-[1720px]">
 
         {error && (
@@ -935,7 +935,7 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={createNewCategory}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
                 >
                   <Plus size={14} />
                   {t.createCategory}
@@ -1021,7 +1021,7 @@ export default function MenuPage() {
                                 <button
                                   type="button"
                                   onClick={() => editCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all duration-200 hover:scale-105 active:scale-95"
+                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#55a060]/10 hover:text-[#55a060] transition-all duration-200 hover:scale-105 active:scale-95"
                                   title={`Edit ${category.name}`}
                                 >
                                   <Pencil size={14} />
@@ -1048,7 +1048,7 @@ export default function MenuPage() {
           ) : (
             <>
               {/* Single Integrated Toolbar: Category Tabs (Left) + Actions (Right) */}
-              <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b pb-4 border-slate-200/80 dark:border-[#4e4f6e]">
+              <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <FilterButton
                     active={selectedCategory === "all"}
@@ -1091,7 +1091,7 @@ export default function MenuPage() {
                     <button
                       type="button"
                       onClick={createNewProduct}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
                     >
                       <Plus size={14} />
                       Add New Product
@@ -1554,7 +1554,7 @@ function CategoryEditor({
             </button>
           )}
 
-          <button className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 text-sm font-bold text-white hover:bg-violet-800">
+          <button className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#55a060] px-4 text-sm font-bold text-white hover:bg-[#488c52] transition-colors cursor-pointer">
             <Save size={17} />
             {categoryForm.id ? text.updateCategory : text.saveCategory}
           </button>
@@ -1831,7 +1831,7 @@ function NotificationBell({
             <div className="space-y-2">
               {notifications.slice(0, 5).map((item) => (
                 <div key={item.id} className="flex gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#55a060]/10 text-[#55a060]">
                     <ShoppingBag size={15} />
                   </div>
                   <div className="min-w-0">
@@ -1908,7 +1908,7 @@ function FilterButton({
       onClick={onClick}
       className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
-          ? "bg-[#696cff] text-white shadow-sm shadow-[#696cff]/25"
+          ? "bg-[#55a060] text-white shadow-sm shadow-[#55a060]/25"
           : dark
             ? "bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
             : "bg-[#eceef1]/60 text-[#8592a3] hover:bg-[#eceef1]/90"

@@ -541,6 +541,29 @@ export const updateOrderStatus = async (id: number, status: Order["status"]): Pr
 export const addOrderItem = (id: number, body: CreateOrderInput["items"] extends Array<infer Item> ? Item : never) => request<Order>(`/orders/${id}/items`, { method: "POST", body });
 export const splitBill = (id: number, splits: { label: string; amount: number }[]) => request<{ orderId: number; totalAmount: number; splits: { label: string; amount: number }[] }>(`/orders/${id}/split-bill`, { method: "POST", body: { splits } });
 
+export const deleteOrder = async (id: number): Promise<void> => {
+  try {
+    await request<void>(`/orders/${id}`, { method: "DELETE" });
+  } catch (err) {}
+
+  if (typeof window !== "undefined") {
+    try {
+      const storedOverrides = localStorage.getItem("pos_order_status_overrides");
+      if (storedOverrides) {
+        const overrides: Record<string, string> = JSON.parse(storedOverrides);
+        delete overrides[String(id)];
+        localStorage.setItem("pos_order_status_overrides", JSON.stringify(overrides));
+      }
+    } catch {}
+
+    const cached = (await getFromCache("orders")) as Order[] | null;
+    if (cached && Array.isArray(cached)) {
+      const updatedList = cached.filter((o) => o.id !== id);
+      saveToCache("orders", updatedList).catch(console.error);
+    }
+  }
+};
+
 export const getPayments = async (): Promise<Payment[]> => {
   try {
     return await request<Payment[]>("/payments");

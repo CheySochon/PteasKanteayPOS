@@ -641,14 +641,14 @@ export default function SettingsPage() {
         />
 
         {/* Secondary Sub-Navigation Bar */}
-        <div className={`px-3.5 sm:px-4 py-3 border-b flex flex-wrap items-center gap-2 text-xs font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
+        <div className={`px-3.5 sm:px-4 py-3 border-b flex flex-wrap items-center gap-2.5 text-sm font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
         }`}>
           {/* 1. Store Details */}
           <button
             type="button"
             onClick={() => setActiveTab("general")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "general"
                 ? "bg-[#55a060] text-white font-bold shadow-xs"
                 : dark
@@ -656,7 +656,7 @@ export default function SettingsPage() {
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
-            <Info size={15} />
+            <Info size={17} />
             <span>{language === "km" ? "ព័ត៌មានហាង" : "Store Details"}</span>
           </button>
 
@@ -664,7 +664,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("printers")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "printers"
                 ? "bg-[#55a060] text-white font-bold shadow-xs"
                 : dark
@@ -672,7 +672,7 @@ export default function SettingsPage() {
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
-            <Printer size={15} />
+            <Printer size={17} />
             <span>{language === "km" ? "ការកំណត់ការបោះពុម្ព" : "Print Settings"}</span>
           </button>
 
@@ -680,7 +680,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("billing")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "billing"
                 ? "bg-[#55a060] text-white font-bold shadow-xs"
                 : dark
@@ -688,7 +688,7 @@ export default function SettingsPage() {
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
-            <ReceiptText size={15} />
+            <ReceiptText size={17} />
             <span>{language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}</span>
           </button>
 
@@ -696,7 +696,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("integrations")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "integrations"
                 ? "bg-[#55a060] text-white font-bold shadow-xs"
                 : dark
@@ -704,7 +704,7 @@ export default function SettingsPage() {
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
-            <SendHorizontal size={15} />
+            <SendHorizontal size={17} />
             <span>{language === "km" ? "ការភ្ជាប់ទំនាក់ទំនង" : "Integrations"}</span>
           </button>
 
@@ -712,7 +712,7 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setActiveTab("security")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
               activeTab === "security"
                 ? "bg-[#55a060] text-white font-bold shadow-xs"
                 : dark
@@ -720,12 +720,12 @@ export default function SettingsPage() {
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
-            <Database size={15} />
+            <Database size={17} />
             <span>{language === "km" ? "ប្រព័ន្ធ & ការចម្លងទុក" : "System & Backups"}</span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 pb-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <div className="w-full">
 
 
@@ -782,7 +782,7 @@ export default function SettingsPage() {
               {activeTab === "general" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
                   {/* Page heading */}
-                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>Store Details</h2>
+                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>Store Details</h2>
 
                   <div className="flex flex-col lg:flex-row gap-6">
                     {/* LEFT: Store Image Card */}
@@ -831,7 +831,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* RIGHT: Form fields */}
-                    <div className={`flex-1 rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
+                    <div className={`flex-1 max-w-5xl rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
                       {/* Store Name */}
                       <div className="space-y-1.5">
                         <label className={`block text-xs font-semibold ${textSecondary}`}>Store Name</label>
@@ -918,7 +918,7 @@ export default function SettingsPage() {
               {/* TAB 2: TAX SETUP */}
               {activeTab === "billing" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
-                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>
+                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>
                     {language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}
                   </h2>
 
@@ -1078,8 +1078,8 @@ export default function SettingsPage() {
               {activeTab === "printers" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
                   {/* Page heading + Add button */}
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className={`text-2xl font-bold ${textPrimary}`}>
+                  <div className="flex items-center justify-between mb-5">
+                    <h2 className={`text-2xl font-normal ${textPrimary}`}>
                       {language === "km" ? "ការកំណត់ម៉ាស៊ីនបោះពុម្ព" : "Print Settings"}
                     </h2>
                     <button
@@ -1180,7 +1180,7 @@ export default function SettingsPage() {
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
 
                   {/* Page heading */}
-                  <h2 className={`text-2xl font-bold mb-6 ${textPrimary}`}>
+                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>
                     {language === "km" ? "ការភ្ជាប់ទំនាក់ទំនង" : "Integrations"}
                   </h2>
 
@@ -1320,7 +1320,7 @@ export default function SettingsPage() {
                 <div className="animate-[printerFadeIn_200ms_ease-out] space-y-6">
 
                   {/* Page heading */}
-                  <h2 className={`text-2xl font-bold ${textPrimary}`}>
+                  <h2 className={`text-2xl font-normal ${textPrimary}`}>
                     {language === "km" ? "ប្រព័ន្ធ និងការចម្លងទុក" : "System & Backups"}
                   </h2>
 

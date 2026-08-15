@@ -13,6 +13,7 @@ type UserLike = {
 export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   dashboard: true,
   orders: true,
+  invoices: true,
   menu: true,
   inventory: true,
   tables: true,
@@ -26,6 +27,7 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
 export const STAFF_PERMISSION_PAGES = [
   { key: "dashboard", label: "Dashboard", href: "/admin" },
   { key: "orders", label: "Orders", href: "/admin/orders" },
+  { key: "invoices", label: "Invoices", href: "/admin/invoices" },
   { key: "menu", label: "Menu", href: "/admin/menu" },
   { key: "inventory", label: "Inventory", href: "/admin/inventory" },
   { key: "tables", label: "Tables", href: "/admin/tables" },
@@ -45,6 +47,7 @@ const routeRoles: { prefix: string; roles: AppRole[]; staffKey?: string }[] = [
   { prefix: "/admin/inventory", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "inventory" },
   { prefix: "/admin/menu", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "menu" },
   { prefix: "/admin/tables", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "tables" },
+  { prefix: "/admin/invoices", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "invoices" },
   { prefix: "/admin/orders", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "orders" },
   { prefix: "/admin", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "dashboard" },
   { prefix: "/pos", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "pos" },

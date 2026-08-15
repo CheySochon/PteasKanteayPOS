@@ -901,7 +901,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setShowExport((value) => !value)}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-sm shadow-[#696cff]/20"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] active:scale-95 transition-all shadow-sm shadow-[#55a060]/20 cursor-pointer"
               >
                 <Download size={14} />
                 <span>{t.export}</span>
@@ -918,11 +918,11 @@ export default function ReportsPage() {
                       setShowExport(false);
                       void downloadCsv(exportCsvUrl, exportCsvName).catch((err) => setError(err.message));
                     }}
-                    className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#696cff] ${
+                    className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-xs font-semibold hover:bg-[#f5f5f9] hover:text-[#55a060] ${
                       dark ? "hover:bg-[#232333]" : ""
                     } ${textPrimary}`}
                   >
-                    <Download size={14} className="text-[#696cff]" />
+                    <Download size={14} className="text-[#55a060]" />
                     <span>{t.downloadCsv}</span>
                   </button>
 
