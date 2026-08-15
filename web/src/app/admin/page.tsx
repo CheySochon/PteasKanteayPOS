@@ -863,7 +863,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-[1600px] px-5 pt-2.5 pb-5">
+        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5">
           {/* Dashboard Page Header */}
           <div className="mb-5 flex items-center gap-3 dash-animate dash-delay-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#48cf38]/10 text-[#48cf38]">
@@ -913,7 +913,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`h-[230px] min-w-0 rounded-xl border p-4 ${borderCol} ${softSurface}`}
+                className="h-[230px] min-w-0 pt-2 pb-1"
               >
                 <Line data={salesTrendChartData} options={salesChartOptions} plugins={[verticalLinePlugin]} />
               </div>
@@ -927,7 +927,7 @@ export default function DashboardPage() {
               </div>
 
               <div
-                className={`flex-1 min-w-0 rounded-xl border p-4 flex flex-col justify-between ${borderCol} ${softSurface}`}
+                className="flex-1 min-w-0 flex flex-col justify-between pt-1"
               >
                 <div className="relative h-[125px] flex items-center justify-center">
                   <Doughnut data={orderStatusChartData} options={doughnutOptions} plugins={[centerTextPlugin]} />
@@ -1091,7 +1091,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div
-                    className={`min-w-0 rounded border p-4 flex-1 flex flex-col justify-center items-center ${borderCol} ${softSurface}`}
+                    className="min-w-0 flex-1 flex flex-col justify-center items-center pt-1"
                   >
                     <div className="w-full h-[220px] relative">
                       <Line data={topProductChartData} options={topProductChartOptions} />

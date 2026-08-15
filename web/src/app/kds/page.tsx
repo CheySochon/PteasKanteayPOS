@@ -274,20 +274,20 @@ export default function KdsPage() {
           dark={dark}
         />
         <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-white"} select-none pb-12`}>
-          <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[menuPageIn_520ms_ease-out]">
+          <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 animate-[menuPageIn_520ms_ease-out]">
         
         {/* Sneat KDS Header Card */}
-        <div className="mb-6 pb-2 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-3 sm:mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           
           {/* Brand & Live Clock */}
           <div className="flex items-center gap-3.5">
-            <div>
-              <h1 className={`text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
+            <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+              <h1 className={`text-2xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
                 Kitchen Display System
               </h1>
-              <p className={`text-xs font-semibold mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>
+              <span className={`text-xs font-semibold ${dark ? "text-slate-400" : "text-slate-500"}`}>
                 {currentTime || "00:00:00 AM"}
-              </p>
+              </span>
             </div>
           </div>
 
@@ -346,30 +346,8 @@ export default function KdsPage() {
           </div>
         )}
 
-        {activeOrders.length === 0 ? (
-          <div className={`flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl border ${
-            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
-          }`}>
-            <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-3.5 ${
-              dark ? "bg-emerald-500/10 text-emerald-400" : "bg-[#55a060]/10 text-[#55a060]"
-            }`}>
-              <ChefHat size={28} />
-            </div>
-            <h2 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              All Kitchen Orders Clear!
-            </h2>
-            <p className={`text-xs font-medium mt-1 max-w-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>
-              New orders submitted from POS will appear here automatically in real time.
-            </p>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold mt-4 border ${
-              dark ? "bg-emerald-950/60 text-emerald-400 border-emerald-900/60" : "bg-emerald-50 text-[#55a060] border-emerald-200/60"
-            }`}>
-              <span className="h-2 w-2 rounded-full bg-[#55a060] animate-pulse" />
-              Kitchen Station Active &amp; Ready
-            </span>
-          </div>
-        ) : (
-          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(260px,280px))] items-start justify-start">
+        {activeOrders.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
             {activeOrders.map((order) => (
               <KdsOrderCard key={order.id} order={order} onUpdate={changeStatus} />
             ))}

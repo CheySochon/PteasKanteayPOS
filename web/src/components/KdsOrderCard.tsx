@@ -1,85 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Check, ChefHat, AlertCircle, CheckCircle2, Flame, UtensilsCrossed } from "lucide-react";
+import { Package, Armchair, MoreVertical, Clock } from "lucide-react";
 import type { Order, OrderStatus } from "../lib/types";
 
-const statusConfig: Record<
-  OrderStatus,
-  { label: string; bg: string; text: string; actionLabel: string; nextStatus?: OrderStatus; icon: any }
-> = {
-  pending: {
-    label: "Pending",
-    bg: "bg-[#ff9f43]/10 text-[#ff9f43]",
-    text: "text-[#ff9f43]",
-    actionLabel: "Start Preparing 🍳",
-    nextStatus: "preparing",
-    icon: Clock,
-  },
-  accepted: {
-    label: "Accepted",
-    bg: "bg-[#696cff]/10 text-[#696cff]",
-    text: "text-[#696cff]",
-    actionLabel: "Start Preparing 🍳",
-    nextStatus: "preparing",
-    icon: Flame,
-  },
-  preparing: {
-    label: "Preparing",
-    bg: "bg-[#03c3ec]/10 text-[#03c3ec]",
-    text: "text-[#03c3ec]",
-    actionLabel: "Complete Order ✅",
-    nextStatus: "completed",
-    icon: ChefHat,
-  },
-  ready: {
-    label: "Ready for Pickup",
-    bg: "bg-[#71dd37]/10 text-[#71dd37]",
-    text: "text-[#71dd37]",
-    actionLabel: "Complete Order ✅",
-    nextStatus: "completed",
-    icon: CheckCircle2,
-  },
-  served: {
-    label: "Served",
-    bg: "bg-slate-500/10 text-slate-500",
-    text: "text-slate-500",
-    actionLabel: "Completed",
-    icon: CheckCircle2,
-  },
-  completed: {
-    label: "Completed",
-    bg: "bg-slate-500/10 text-slate-500",
-    text: "text-slate-500",
-    actionLabel: "Completed",
-    icon: CheckCircle2,
-  },
-  cancelled: {
-    label: "Cancelled",
-    bg: "bg-[#ff3e1d]/10 text-[#ff3e1d]",
-    text: "text-[#ff3e1d]",
-    actionLabel: "Cancelled",
-    icon: AlertCircle,
-  },
-};
-
-function getElapsedMinutes(createdAt: string | Date) {
-  const created = new Date(createdAt).getTime();
-  if (Number.isNaN(created)) return 0;
-  return Math.max(0, Math.floor((Date.now() - created) / 60000));
-}
-
-function formatTicketNumber(order: Order) {
+function formatTokenNo(order: Order) {
   if (order.id) {
-    return `#${String(order.id).padStart(4, "0")}`;
+    return `#${order.id}`;
   }
   const raw = order.orderNumber || order.orderId || `#${order.id}`;
   if (typeof raw === "string" && raw.startsWith("ORD-")) {
     const parts = raw.split("-");
-    const lastPart = parts[parts.length - 1];
-    return `#${lastPart}`;
+    return `#${parts[parts.length - 1]}`;
   }
-  return raw;
+  return String(raw);
 }
 
 export default function KdsOrderCard({
@@ -89,126 +23,108 @@ export default function KdsOrderCard({
   order: Order;
   onUpdate: (id: number, status: OrderStatus) => void;
 }) {
-  const [completedItems, setCompletedItems] = useState<Record<number, boolean>>({});
+  const [itemStatuses, setItemStatuses] = useState<Record<number, "pending" | "preparing" | "completed">>({});
 
-  const elapsed = getElapsedMinutes(order.createdAt);
-  const config = statusConfig[order.status] || statusConfig.pending;
-  const IconComponent = config.icon;
+  const tokenNo = formatTokenNo(order);
+  const rawTable = order.tableNo || order.table?.name;
+  const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || !rawTable;
+  const orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
 
-  const isOverdue = elapsed >= 15;
-  const isWarning = elapsed >= 10 && elapsed < 15;
-  const shortTicketNo = formatTicketNumber(order);
-
-  function toggleItem(itemId: number) {
-    setCompletedItems((current) => ({
-      ...current,
-      [itemId]: !current[itemId],
+  function handleItemAction(itemId: number, currentItemStatus: string) {
+    const nextStatus = currentItemStatus === "preparing" ? "completed" : "preparing";
+    setItemStatuses((prev) => ({
+      ...prev,
+      [itemId]: nextStatus,
     }));
+
+    if (order.status === "pending" && nextStatus === "preparing") {
+      onUpdate(order.id, "preparing");
+    }
+
+    const allItems = order.items || [];
+    const willBeAllCompleted = allItems.every((item) => {
+      const status = item.id === itemId ? nextStatus : (itemStatuses[item.id] || (order.status === "preparing" ? "preparing" : "pending"));
+      return status === "completed";
+    });
+
+    if (willBeAllCompleted) {
+      onUpdate(order.id, "completed");
+    }
   }
 
   return (
-    <article className="group relative flex w-full max-w-[280px] flex-col justify-between overflow-hidden rounded-xl bg-white dark:bg-[#2b2c40] p-3.5 shadow-[0_2px_6px_0_rgba(67,89,113,0.12)] dark:shadow-[0_2px_6px_0_rgba(0,0,0,0.2)] border border-slate-200/80 dark:border-[#4e4f6e] transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-[#696cff]/15 hover:border-[#696cff]/30">
-      {/* Top Accent Color Bar */}
-      <div className={`absolute inset-x-0 top-0 h-1 ${isOverdue ? "bg-[#ff3e1d] animate-pulse" : "bg-[#696cff]"}`} />
-
+    <article className="flex w-full flex-col justify-between rounded-2xl bg-white dark:bg-[#2b2c40] p-4.5 pb-5 min-h-[175px] shadow-none border border-slate-200/80 dark:border-[#3b3c54] transition-all">
       <div>
-        {/* Compact Ticket Header */}
-        <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-[#3a3b53]">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-black text-[#566a7f] dark:text-[#c9d4ea] tracking-tight">
-                {shortTicketNo}
-              </span>
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${config.bg}`}>
-                <IconComponent size={11} />
-                {config.label}
-              </span>
+        {/* Card Header matching screenshot */}
+        <div className="flex items-center justify-between gap-2 pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              {isTakeaway ? <Package size={20} /> : <Armchair size={20} />}
             </div>
-
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-[#8592a3]">
-              <span className="inline-flex items-center rounded bg-slate-100 dark:bg-[#34355a] px-1.5 py-0.5 text-[10px] text-[#566a7f] dark:text-slate-300">
-                {order.tableNo || order.table?.name || "Walk-in"}
-              </span>
-              <span>•</span>
-              <span className="uppercase tracking-wider text-[10px]">{order.orderType || "Dine-in"}</span>
-            </div>
+            <span className="text-sm font-normal text-slate-800 dark:text-slate-100 tracking-tight">
+              {orderTypeLabel}
+            </span>
           </div>
 
-          {/* Wait Time Timer */}
-          <div
-            className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-black shadow-sm shrink-0 ${
-              isOverdue
-                ? "bg-[#ff3e1d] text-white animate-bounce"
-                : isWarning
-                ? "bg-[#ff9f43]/20 text-[#ff9f43]"
-                : "bg-slate-100 dark:bg-[#34355a] text-[#566a7f] dark:text-slate-200"
-            }`}
-            title="Elapsed wait time"
-          >
-            <Clock size={12} />
-            <span>{elapsed}m</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-normal text-slate-600 dark:text-slate-300">
+              Token: <span className="text-sm font-normal text-slate-900 dark:text-white">{tokenNo}</span>
+            </span>
+            <button
+              type="button"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+            >
+              <MoreVertical size={16} />
+            </button>
           </div>
         </div>
 
-        {/* Compact Itemized Order List */}
-        <div className="mt-3 space-y-1.5 min-h-[70px]">
+        {/* Itemized Order List matching screenshot */}
+        <div className="space-y-3 py-1 min-h-[95px]">
           {(order.items || []).length === 0 ? (
-            <div className="py-5 text-center flex flex-col items-center justify-center gap-1 text-[#a1acb8] bg-[#f8fafc] dark:bg-[#232333] rounded-lg border border-dashed border-slate-200 dark:border-[#3a3b53]">
-              <UtensilsCrossed size={16} className="opacity-40" />
-              <span className="text-[11px] font-bold">Standard Order Ticket</span>
-              <span className="text-[10px] text-slate-400">Items preparing at station</span>
+            <div className="py-4 text-center text-xs font-normal text-slate-400">
+              Standard Order Ticket
             </div>
           ) : (
             order.items?.map((item) => {
-              const isChecked = Boolean(completedItems[item.id]);
+              const currentStatus = itemStatuses[item.id] || (order.status === "preparing" ? "preparing" : "pending");
+              const isCompleted = currentStatus === "completed";
+              const isPreparing = currentStatus === "preparing";
 
               return (
-                <div
-                  key={item.id}
-                  onClick={() => toggleItem(item.id)}
-                  className={`flex items-center justify-between rounded-lg p-2 cursor-pointer transition-all border ${
-                    isChecked
-                      ? "bg-[#71dd37]/10 border-[#71dd37]/30 text-slate-400 line-through"
-                      : "bg-[#f8fafc] dark:bg-[#232333] border-slate-200/80 dark:border-[#34355a] hover:border-[#696cff]/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-black ${
-                      isChecked
-                        ? "bg-[#71dd37] text-white"
-                        : "bg-[#696cff]/10 text-[#696cff] dark:bg-[#696cff]/20 dark:text-[#8587ff]"
-                    }`}>
-                      {isChecked ? <Check size={12} /> : `${item.quantity}x`}
-                    </span>
-                    <span className="text-xs font-bold text-[#566a7f] dark:text-slate-200 truncate">
-                      {item.product?.name || item.name || `Item #${item.productId}`}
-                    </span>
+                <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className={`font-normal ${isCompleted ? "text-slate-400 line-through" : "text-slate-800 dark:text-slate-200"}`}>
+                      {item.product?.name || item.name || `Item #${item.productId}`} <span className="font-normal text-slate-500">x {item.quantity}</span>
+                    </div>
+
+                    {item.notes && (
+                      <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                        <Clock size={12} className="shrink-0" />
+                        <span>Notes: {item.notes}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {item.notes && (
-                    <span className="text-[10px] font-bold text-[#ff9f43] bg-[#ff9f43]/10 px-1.5 py-0.5 rounded truncate max-w-[90px]">
-                      {item.notes}
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleItemAction(item.id, currentStatus)}
+                    className={`shrink-0 rounded-lg px-3 py-1 text-xs font-normal transition-colors border cursor-pointer ${
+                      isCompleted
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
+                        : isPreparing
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 hover:bg-slate-200"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/70 hover:bg-slate-200/80"
+                    }`}
+                  >
+                    {isCompleted ? "Complete" : isPreparing ? "Complete" : "Start Making"}
+                  </button>
                 </div>
               );
             })
           )}
         </div>
       </div>
-
-      {/* Sleek Bump Button Footer */}
-      {config.nextStatus && (
-        <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-[#3a3b53]">
-          <button
-            type="button"
-            onClick={() => onUpdate(order.id, config.nextStatus!)}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[#696cff] px-3 text-xs font-bold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] active:scale-95 transition-all"
-          >
-            {config.actionLabel}
-          </button>
-        </div>
-      )}
     </article>
   );
 }

@@ -642,14 +642,28 @@ export default function ReportsPage() {
       .join(",");
   }, [categories, categoryTotal, t.noSales]);
 
-  const itemRows = topProducts.slice(0, 3).map((item, index) => ({
-    name: item.productName,
-    category: item.categoryName || t.uncategorized,
-    orders: item.quantity,
-    revenue: money(item.totalSales),
-    rating: index === 0 ? "4.9/5" : index === 1 ? "4.7/5" : "4.5/5",
-    status: index === 0 ? "Trending" : index === 1 ? "Stable" : "High Margin",
-  }));
+  const itemRows = topProducts.slice(0, 5).map((item, index) => {
+    const sales = Number(item.totalSales || 0);
+    const qty = Number(item.quantity || 0);
+    
+    // Dynamic status badge based on real sales rank and volume
+    let statusText = "High Margin";
+    if (index === 0 && qty > 0) statusText = "Best Seller";
+    else if (index === 1 && qty > 0) statusText = "Trending";
+    else if (qty > 10) statusText = "Stable";
+
+    // Dynamic rating calculation based on sales popularity (4.5 to 5.0 scale)
+    const computedRating = (4.5 + Math.min(0.5, (qty / 100) * 0.5)).toFixed(1);
+
+    return {
+      name: item.productName,
+      category: item.categoryName || t.uncategorized,
+      orders: qty,
+      revenue: money(sales),
+      rating: `${computedRating}/5`,
+      status: statusText,
+    };
+  });
 
   const visibleItemRows = itemRows.length
     ? itemRows
@@ -695,14 +709,14 @@ export default function ReportsPage() {
       />
       
       {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
-      <div className={`px-4 pt-4 lg:px-8 flex border-b shrink-0 print:hidden ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
-        <div className="mx-auto w-full max-w-[1600px] flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="px-3.5 sm:px-4 pt-3.5 flex shrink-0 print:hidden">
+        <div className="mx-auto w-full max-w-[1720px] flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex items-center gap-2">
-              {/* Funnel Filter Icon Button (Screenshot 1) */}
+              {/* Funnel Filter Icon Button with Text */}
               <button
                 type="button"
                 onClick={() => setShowCalendar((value) => !value)}
-                className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all active:scale-95 ${
+                className={`flex h-9 items-center justify-center gap-2 px-3 rounded-lg border text-xs font-semibold transition-all active:scale-95 cursor-pointer ${
                   dark
                     ? "border-[#4e4f6e] bg-[#2b2c40] text-slate-300 hover:bg-[#34354f]"
                     : "border-slate-200 bg-white text-slate-650 hover:bg-slate-50"
@@ -711,8 +725,8 @@ export default function ReportsPage() {
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
+                  width="15"
+                  height="15"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -723,6 +737,7 @@ export default function ReportsPage() {
                 >
                   <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                 </svg>
+                <span>{language === "km" ? "តម្រង" : "Filter"}</span>
               </button>
 
               {showCalendar && (
@@ -955,8 +970,8 @@ export default function ReportsPage() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto px-5 py-5">
-        <div className="mx-auto w-full max-w-[1600px]" id="report-printable-area">
+      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mx-auto w-full max-w-[1720px]" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
               {error}

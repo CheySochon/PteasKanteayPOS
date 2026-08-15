@@ -55,7 +55,7 @@ import {
   getOrders,
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
-import type { Category, DiningTable, Product } from "../../lib/types";
+import type { Category, DiningTable, Product, OrderStatus } from "../../lib/types";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 
 const SERVICE_RATE = 0.1;
@@ -244,31 +244,52 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
   const handleSendToKitchen = async () => {
     if (cart.length === 0) return;
-    const key = tableId ? `table-${tableId}` : "takeaway";
-    setTableIsSent((prev) => ({ ...prev, [key]: true }));
+    setLoading(true);
+    try {
+      const key = tableId ? `table-${tableId}` : "takeaway";
+      setTableIsSent((prev) => ({ ...prev, [key]: true }));
 
-    const socket = getSocket();
-    if (socket) {
       const payload = {
         tableId,
         orderNumber: ticketNumber,
-        status: "pending",
+        status: "pending" as OrderStatus,
         totalAmount: total,
+        discountAmount,
+        taxAmount: serviceFee + vat,
+        userName: currentUserName,
+        createdBy: { name: currentUserName },
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
           name: i.name,
           unitPrice: i.unitPrice,
+          notes: i.notes || "",
         })),
         table: selectedTable ? { name: selectedTable.name } : null,
       };
-      socket.emit("order:new", payload);
-    }
 
-    setShowKitchenToast(true);
-    setTimeout(() => {
-      setShowKitchenToast(false);
-    }, 3000);
+      const createdOrder = await createOrder(payload);
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("order:created", createdOrder);
+        socket.emit("order:new", createdOrder);
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("pos-order-created"));
+      }
+
+      setSendKitchenModalOpen(false);
+      setShowKitchenToast(true);
+      setTimeout(() => {
+        setShowKitchenToast(false);
+      }, 3000);
+    } catch (err: any) {
+      alert(err?.message || "Failed to send order to kitchen");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -507,6 +528,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
   const [heldModalOpen, setHeldModalOpen] = useState(false);
+  const [sendKitchenModalOpen, setSendKitchenModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -782,11 +804,13 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
       <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0">
           {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
-          <header className={`flex items-center justify-between pt-3 pb-3 px-6 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
-            <h1 className={`text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              POS &ndash; Point of Sale
-            </h1>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <header className={`flex flex-col md:flex-row items-stretch md:items-center justify-between pt-3 pb-3 px-3.5 sm:px-4 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+            <div className="flex items-center justify-between w-full md:w-auto">
+              <h1 className={`text-lg sm:text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                POS &ndash; Point of Sale
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-1 md:pb-0">
               <button
                 type="button"
                 className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
@@ -896,19 +920,19 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
           </header>
 
-          <div className={`flex flex-1 overflow-hidden w-full min-h-0 pt-0 px-6 pb-6 gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+          <div className={`flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden w-full min-h-0 pt-0 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-4 sm:gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             {/* LEFT: Product Catalogue */}
             <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
               dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
             }`}>
 
             {/* ── Category Pills + Search row ── */}
-            <div className={`flex items-center justify-between gap-3 px-5 py-3.5 border-b shrink-0 min-w-0 ${
+            <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 ${
               dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"
             }`}>
               {/* Left Scrollable Pills Wrapper with Blur Fade Overlay */}
               <div
-                className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-12"
+                className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-2 sm:pr-12"
                 style={{
                   WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 98%)',
                   maskImage: 'linear-gradient(to right, black 80%, transparent 98%)'
@@ -917,7 +941,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 <button
                   type="button"
                   onClick={() => setCategoryId("all")}
-                  className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-normal transition-all cursor-pointer ${
+                  className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-normal transition-all cursor-pointer ${
                     categoryId === "all"
                       ? "bg-[#55a060] text-white shadow-sm"
                       : dark
@@ -932,7 +956,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     key={category.id}
                     type="button"
                     onClick={() => setCategoryId(category.id)}
-                    className={`shrink-0 h-10 px-5 rounded-full text-[13px] font-normal transition-all cursor-pointer whitespace-nowrap ${
+                    className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-normal transition-all cursor-pointer whitespace-nowrap ${
                       categoryId === category.id
                         ? "bg-[#55a060] text-white shadow-sm"
                         : dark
@@ -946,9 +970,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               </div>
 
               {/* Right Fixed Search & Layout Grid Wrapper */}
-              <div className="shrink-0 flex items-center justify-end gap-2 pl-4">
+              <div className="shrink-0 flex items-center justify-end gap-2 pl-0 sm:pl-4 w-full sm:w-auto">
                 {/* Search bar */}
-                <div className="relative w-[180px] sm:w-[240px] md:w-[280px]">
+                <div className="relative flex-1 sm:flex-none sm:w-[220px] md:w-[260px] lg:w-[280px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                   <input
                     value={query}
@@ -980,7 +1004,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
 
             {/* ── Product Grid / List ── */}
-            <div className={`flex-1 overflow-y-auto px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
+            <div className={`flex-1 overflow-y-auto px-3.5 sm:px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
               {filteredProducts.length === 0 ? (
                 <div className={`rounded-2xl border border-dashed p-12 text-center text-sm font-semibold text-slate-400 ${
                   dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200 bg-white"
@@ -989,13 +1013,13 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   No matching menu selections found.
                 </div>
               ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
                     <ProductCard key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3.5">
                   {filteredProducts.map((product) => (
                     <ProductListItem key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
                   ))}
@@ -1005,7 +1029,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className={`w-[340px] lg:w-[350px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+          <aside className={`w-full lg:w-[340px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-[560px] lg:h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
             dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
           }`}>
 
@@ -1127,7 +1151,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 </button>
                 <button
                   type="button"
-                  onClick={handleSendToKitchen}
+                  onClick={() => setSendKitchenModalOpen(true)}
                   disabled={cart.length === 0}
                   className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -1148,6 +1172,78 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </aside>
         </div>
       </div>
+      {/* Send Order to Kitchen Confirmation Modal */}
+      {sendKitchenModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-[1px] print:hidden p-4">
+          <div className={`w-full max-w-[490px] overflow-hidden rounded-2xl p-7 shadow-2xl animate-[dashboardPageIn_200ms_ease-out] ${
+            dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3.5 mb-5 border-b border-slate-100 dark:border-slate-700/60">
+              <h3 className={`text-xl font-normal tracking-tight ${dark ? "text-slate-100" : "text-slate-900"}`}>
+                Send Order to Kitchen
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSendKitchenModalOpen(false)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors cursor-pointer ${
+                  dark ? "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200" : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                }`}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body: Summary Rows */}
+            <div className="space-y-4 text-base font-normal">
+              <div className="flex items-center justify-between">
+                <span className={dark ? "text-slate-300" : "text-slate-500"}>Items Net Total</span>
+                <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>{money(subtotal)}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className={dark ? "text-slate-300" : "text-slate-500"}>Discount Total</span>
+                <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>-{money(discountAmount)}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className={dark ? "text-slate-300" : "text-slate-500"}>Tax Total</span>
+                <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>{money(vat)}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className={dark ? "text-slate-300" : "text-slate-500"}>Service Charge Total</span>
+                <span className={`font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>+{money(serviceFee)}</span>
+              </div>
+
+              <div className="my-3.5 border-t border-slate-100 dark:border-slate-700/60" />
+
+              <div className="flex items-center justify-between pt-1">
+                <span className={`text-lg font-normal ${dark ? "text-slate-100" : "text-slate-900"}`}>Payable Total</span>
+                <span className="text-2xl font-bold text-[#55a060]">{money(total)}</span>
+              </div>
+            </div>
+
+            {/* Confirm Send Button */}
+            <button
+              type="button"
+              onClick={handleSendToKitchen}
+              disabled={loading}
+              className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#55a060] hover:bg-[#478851] text-base font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <>
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                "Send to Kitchen"
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastNotification && (
         <div className="fixed bottom-6 right-6 z-[9999] w-full max-w-xs animate-[dashboardPageIn_0.3s_ease-out] rounded-xl bg-white p-3 shadow-[0_4px_20px_0_rgba(67,89,113,0.15)] ring-1 ring-slate-100 print:hidden">
@@ -2162,7 +2258,7 @@ function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolea
       type="button"
       onClick={onAdd}
       disabled={unavailable}
-      className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between ${
+      className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-sm active:scale-[0.97] transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between cursor-pointer ${
         dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
       }`}
     >
@@ -2181,7 +2277,7 @@ function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolea
             src={imageUrl}
             alt={product.name}
             onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+            className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
           />
         ) : (
           <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
@@ -2192,7 +2288,7 @@ function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolea
 
         {/* Plus Button Overlay */}
         {!unavailable && (
-          <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-xs hover:scale-110 active:scale-90 transition-all">
+          <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-2xs hover:bg-[#439150] active:scale-90 transition-all">
             <Plus size={13} className="stroke-[3]" />
           </span>
         )}
@@ -2256,7 +2352,7 @@ function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: bo
   const [imgFailed, setImgFailed] = useState(false);
 
   return (
-    <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs hover:shadow-md transition-all duration-200 ease-out h-[105px] ${
+    <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-colors duration-150 ease-out h-[105px] ${
       dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
     }`}>
       {/* Product Image Cover (Left Side) */}
@@ -2274,7 +2370,7 @@ function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: bo
             src={imageUrl}
             alt={product.name}
             onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+            className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
           />
         ) : (
           <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>

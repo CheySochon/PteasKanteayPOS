@@ -525,7 +525,7 @@ export default function OrdersPage() {
           dark={dark}
         />
 
-        <div className="mx-auto w-full max-w-[1400px] px-5 py-5">
+        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5">
           {message && (
             <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
               {message}

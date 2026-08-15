@@ -308,7 +308,6 @@ export default function TopBar({
         if (raw) setClearedKeys(new Set(JSON.parse(raw)));
       } catch {}
       setInternalNotifications([]);
-      setToastNotification(null);
     }
     window.addEventListener("pos-notifications-cleared", handleClearedEvent);
     return () => window.removeEventListener("pos-notifications-cleared", handleClearedEvent);
@@ -349,6 +348,9 @@ export default function TopBar({
 
     fetchNotifications();
 
+    // 3-second background polling backup for guaranteed notifications updates
+    const pollInterval = setInterval(fetchNotifications, 3000);
+
     function handleLocalOrderEvent() {
       fetchNotifications();
     }
@@ -375,7 +377,6 @@ export default function TopBar({
 
       function handleNotificationsCleared() {
         setInternalNotifications([]);
-        setToastNotification(null);
       }
 
       socket.on("order:created", handleNewOrder);
@@ -384,6 +385,7 @@ export default function TopBar({
 
       return () => {
         mounted = false;
+        clearInterval(pollInterval);
         window.removeEventListener("pos-order-created", handleLocalOrderEvent);
         window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
         window.removeEventListener("storage", handleLocalOrderEvent);
@@ -395,6 +397,7 @@ export default function TopBar({
 
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       window.removeEventListener("pos-order-created", handleLocalOrderEvent);
       window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
       window.removeEventListener("storage", handleLocalOrderEvent);
@@ -402,8 +405,20 @@ export default function TopBar({
   }, []);
 
   const activeNotifications = useMemo(() => {
-    const rawList = notifications && notifications.length > 0 ? notifications : internalNotifications;
-    return rawList.filter((item) => {
+    // Combine both props notifications and internalNotifications cleanly without duplicates
+    const combined = [...(notifications || []), ...(internalNotifications || [])];
+    const seen = new Set<string>();
+    const uniqueList: NotificationItem[] = [];
+
+    for (const item of combined) {
+      const key = item.orderId ? `order-${item.orderId}` : item.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueList.push(item);
+      }
+    }
+
+    return uniqueList.filter((item) => {
       const oId = item.orderId ? String(item.orderId) : "";
       return !clearedKeys.has(item.id) && (!oId || !clearedKeys.has(oId));
     });
@@ -411,25 +426,11 @@ export default function TopBar({
 
   const unreadCount = activeNotifications.length;
 
-  const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
   const [mounted, setMounted] = useState(false);
-  const prevNotificationsCount = useRef(notifications.length);
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (notifications.length > prevNotificationsCount.current) {
-      const newNotif = notifications[0]; 
-      if (newNotif) {
-        setToastNotification(newNotif);
-        const timer = setTimeout(() => setToastNotification(null), 5000);
-        return () => clearTimeout(timer);
-      }
-    }
-    prevNotificationsCount.current = notifications.length;
-  }, [notifications]);
 
   const bgCard = dark ? "bg-[#2b2c40]" : "bg-white";
   const surface = isDark ? "border-[#2a2f3d] bg-[#171a23]" : "border-slate-200 bg-white";
@@ -442,7 +443,7 @@ export default function TopBar({
   const allowedQuickLinks = quickLinks.filter(({ href }) => canSeeHref(href, user.role, staffPermissions));
 
   return (
-    <header className={`sticky top-0 z-20 border-b border-slate-200/60 px-5 backdrop-blur-md ${isDark ? "bg-[#171a23]/80" : "bg-white/80"}`}>
+    <header className={`sticky top-0 z-20 border-b border-slate-200/60 px-3 sm:px-4 backdrop-blur-md ${isDark ? "bg-[#171a23]/80" : "bg-white/80"}`}>
       <div className="flex h-[62px] items-center justify-between gap-3">
         {/* Left Section: Search Bar */}
         <div className="flex flex-1 items-center gap-3">
@@ -1033,52 +1034,6 @@ export default function TopBar({
           </div>
         </div>,
         document.body
-      )}
-
-      {/* Toast Popup */}
-      {toastNotification && !clearedKeys.has(toastNotification.id) && (!toastNotification.orderId || !clearedKeys.has(String(toastNotification.orderId))) && (
-        <div className={`fixed bottom-6 right-6 z-[9999] w-full max-w-sm rounded-lg p-4 shadow-xl ring-1 animate-[dashboardPageIn_0.3s_ease-out] ${bgCard} ${dark ? 'ring-white/10' : 'ring-black/5'}`}>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#696cff]/10 text-[#696cff]">
-              <Bell size={20} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className={`text-sm font-bold ${textPrimary}`}>{toastNotification.title}</p>
-              <p className={`mt-1 text-sm line-clamp-2 ${textSecondary}`}>{toastNotification.detail}</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedNotification(toastNotification);
-                    setToastNotification(null);
-                  }}
-                  className="text-sm font-semibold text-[#696cff] hover:text-[#5f61e6]"
-                >
-                  {t.notifications || "View"}
-                </button>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                if (toastNotification) {
-                  const newKeys = new Set(clearedKeys);
-                  newKeys.add(toastNotification.id);
-                  if (toastNotification.orderId) newKeys.add(String(toastNotification.orderId));
-                  setClearedKeys(newKeys);
-                  try {
-                    localStorage.setItem("pos_cleared_notification_keys", JSON.stringify([...newKeys]));
-                  } catch {}
-                }
-                setToastNotification(null);
-              }}
-              className={`flex-shrink-0 ml-4 ${textSecondary} hover:${textPrimary}`}
-            >
-              <span className="sr-only">Close</span>
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </div>
-        </div>
       )}
 
     </header>

@@ -91,57 +91,30 @@ export default function AdminKitchenPage() {
         dark={dark}
       />
 
-      <main className="p-4 sm:p-6 space-y-6 flex-1 max-w-[1400px] w-full mx-auto">
-        {/* Header Action Row */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-1">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-[#55a060]/10 dark:bg-emerald-500/20 text-[#55a060] dark:text-emerald-400 flex items-center justify-center font-bold">
-              <ChefHat size={22} />
-            </div>
-            <div>
-              <h2 className={`text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                {language === "km" ? "កន្លែងធ្វើម្ហូបរហ័ស" : "Live Kitchen Queue"}
-              </h2>
-              <p className={`text-xs font-medium ${dark ? "text-slate-400" : "text-slate-500"}`}>
-                {kitchenOrders.length} {language === "km" ? "ការបញ្ជាទិញកំពុងរង់ចាំ" : "active orders in queue"}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto">
+        {/* Header Action Row matching screenshot */}
+        <div className="flex items-center justify-between gap-4 pb-2">
+          <div className="flex items-center gap-3.5">
+            <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              {language === "km" ? "ផ្ទះបាយ" : "Kitchen"}
+            </h1>
             <button
               type="button"
               onClick={loadOrders}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer border ${
                 dark
-                  ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  ? "bg-[#2b2c40] border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                  : "bg-slate-100/90 border-slate-200/80 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              <RefreshCw size={14} className={refreshing ? "animate-spin text-[#0F522B]" : ""} />
+              <RefreshCw size={13} className={refreshing ? "animate-spin text-[#55a060]" : ""} />
               <span>{language === "km" ? "ថ្មីឡើងវិញ" : "Refresh"}</span>
             </button>
           </div>
         </div>
 
         {/* Order Cards Grid */}
-        {kitchenOrders.length === 0 ? (
-          <div className={`flex flex-col items-center justify-center py-16 px-6 text-center rounded-2xl border ${
-            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
-          }`}>
-            <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-3.5 ${
-              dark ? "bg-emerald-500/10 text-emerald-400" : "bg-[#55a060]/10 text-[#55a060]"
-            }`}>
-              <CheckCircle2 size={28} />
-            </div>
-            <h3 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              {language === "km" ? "គ្មានការបញ្ជាទិញរង់ចាំឡើយ" : "Kitchen Queue is Clear"}
-            </h3>
-            <p className={`text-xs font-medium mt-1 ${dark ? "text-slate-400" : "text-slate-500"}`}>
-              {language === "km" ? "រាល់ការបញ្ជាទិញទាំងអស់ត្រូវបានធ្វើរួចរាល់" : "All orders have been prepared and served."}
-            </p>
-          </div>
-        ) : (
+        {kitchenOrders.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {kitchenOrders.map((order) => (
               <KdsOrderCard
