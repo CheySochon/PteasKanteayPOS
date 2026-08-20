@@ -42,6 +42,7 @@ import {
   CreditCard,
   ChevronUp,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
@@ -1056,7 +1057,14 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
             {/* ── Product Grid / List ── */}
             <div className={`flex-1 overflow-y-auto px-3.5 sm:px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
-              {filteredProducts.length === 0 ? (
+              {initialLoading ? (
+                <div className="flex h-96 w-full flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#55a060]" />
+                  <span className="text-xs font-bold text-slate-400">
+                    {language === "km" ? "កំពុងផ្ទុកបញ្ជីមុខម្ហូប..." : "Loading POS menu..."}
+                  </span>
+                </div>
+              ) : filteredProducts.length === 0 ? (
                 <div className={`rounded-2xl border border-dashed p-12 text-center text-sm font-semibold text-slate-400 ${
                   dark ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200 bg-white"
                 }`}>
@@ -2016,16 +2024,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               </div>
               <div className="pt-0.5">
                 <h3 className="text-sm font-bold text-slate-800 leading-snug">
-                  ចាកចេញពីគណនី / Confirm Logout
+                  Confirm Logout
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  តើអ្នកពិតជាចង់ចាកចេញ ឬ ប្តូរកុងស៊ុយបុគ្គលិកមែនទេ?
+                  Are you sure you want to log out of your session?
                 </p>
               </div>
             </div>
 
             {/* ── Actions ────────────────────────────────────────────── */}
-            <div className="flex flex-col gap-2 px-6 py-5">
+            <div className="flex flex-col gap-2.5 px-6 py-5">
               {/* Primary — Logout */}
               <button
                 type="button"
@@ -2036,35 +2044,19 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
                   window.location.href = "/login";
                 }}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-red-700 active:scale-[0.98]"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-red-700 active:scale-[0.98] cursor-pointer"
               >
                 <LogOut size={14} className="shrink-0" />
-                ចាកចេញ / Logout &amp; Lock Station
-              </button>
-
-              {/* Secondary — Switch account */}
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem("pos_logged_in");
-                  localStorage.removeItem("pos_token");
-                  localStorage.removeItem("pos_user");
-                  localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
-                  window.location.href = "/login";
-                }}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 transition-colors duration-150 hover:bg-slate-50 active:scale-[0.98]"
-              >
-                <span>🔄</span>
-                ប្តូរបុគ្គលិក / Switch Staff Account
+                Logout
               </button>
 
               {/* Cancel */}
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(false)}
-                className="h-8 w-full rounded-lg text-xs font-medium text-slate-400 transition-colors duration-150 hover:text-slate-600"
+                className="flex h-9 w-full items-center justify-center rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors duration-150 cursor-pointer"
               >
-                បោះបង់ / Cancel
+                Cancel
               </button>
             </div>
           </div>

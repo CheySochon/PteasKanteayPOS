@@ -139,6 +139,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
+export const resetPasswordApi = (email: string, newPassword: string) => request<{ success: boolean; message: string }>("/auth/reset-password", { method: "POST", body: { email, newPassword } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
 export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
 export const loginPin = (pin: string) => request<AuthResult>("/auth/login-pin", { method: "POST", body: { pin } });
@@ -626,14 +627,14 @@ let inMemoryDeletedUserIds: number[] = [];
 let inMemoryCreatedUsers: User[] = [];
 
 export const getUsers = async (): Promise<User[]> => {
-  let list: User[] = [];
   try {
     const apiUsers = await request<User[]>("/users");
-    if (Array.isArray(apiUsers)) list = apiUsers;
-    else list = [...DEFAULT_DEMO_USERS];
-  } catch (err) {
-    list = [...DEFAULT_DEMO_USERS];
-  }
+    if (Array.isArray(apiUsers)) {
+      return apiUsers;
+    }
+  } catch (err) {}
+
+  let list = [...DEFAULT_DEMO_USERS];
 
   if (typeof window !== "undefined") {
     try {

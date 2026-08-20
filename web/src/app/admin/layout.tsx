@@ -27,35 +27,46 @@ export default function AdminLayout({
 
   // Strict Synchronous-Guard for /admin pages
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const storedUser = localStorage.getItem("pos_user");
-    if (!storedUser) {
-      setAuthorized(false);
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      const user = JSON.parse(storedUser);
-      const uRole = roleName(user).trim().toLowerCase();
-
-      if (["super admin", "admin", "administrator", "manager"].includes(uRole)) {
-        setAuthorized(true);
-      } else {
+    function checkAuth() {
+      if (typeof window === "undefined") return;
+      const storedUser = localStorage.getItem("pos_user");
+      if (!storedUser) {
         setAuthorized(false);
-        if (uRole === "cashier") {
-          router.replace("/pos");
-        } else if (uRole === "staff" || uRole === "kitchen") {
-          router.replace("/kds");
-        } else {
-          router.replace("/pos");
-        }
+        window.location.href = "/login";
+        return;
       }
-    } catch {
-      setAuthorized(false);
-      router.replace("/login");
+
+      try {
+        const user = JSON.parse(storedUser);
+        const uRole = roleName(user).trim().toLowerCase();
+
+        if (["super admin", "admin", "administrator", "manager"].includes(uRole)) {
+          setAuthorized(true);
+        } else {
+          setAuthorized(false);
+          if (uRole === "cashier") {
+            window.location.href = "/pos";
+          } else if (uRole === "staff" || uRole === "kitchen") {
+            window.location.href = "/kds";
+          } else {
+            window.location.href = "/pos";
+          }
+        }
+      } catch {
+        setAuthorized(false);
+        window.location.href = "/login";
+      }
     }
-  }, [pathname, router]);
+
+    checkAuth();
+
+    window.addEventListener("pos-auth-change", checkAuth);
+    window.addEventListener("storage", checkAuth);
+    return () => {
+      window.removeEventListener("pos-auth-change", checkAuth);
+      window.removeEventListener("storage", checkAuth);
+    };
+  }, [pathname]);
 
   // Check login alert once on mount
   useEffect(() => {
@@ -130,6 +141,9 @@ export default function AdminLayout({
 
   // Block rendering ANY admin UI until authorized is confirmed true!
   if (authorized !== true) {
+    if (typeof window !== "undefined" && !localStorage.getItem("pos_user")) {
+      return null;
+    }
     return (
       <div className={`flex h-screen w-screen items-center justify-center ${bg}`}>
         <div className="flex flex-col items-center gap-3">
@@ -152,7 +166,7 @@ export default function AdminLayout({
 
       {/* ADMIN LOGIN SUCCESS POP-UP TOAST */}
       {loginSuccessToast && (
-        <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
+        <div className="fixed top-6 inset-x-0 z-[99999] flex justify-center pointer-events-none px-4">
           <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-850 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
             <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
               <Check size={11} strokeWidth={4.5} className="text-white" />

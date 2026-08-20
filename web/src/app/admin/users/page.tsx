@@ -31,6 +31,7 @@ import {
   Camera,
   Mail,
   Lock,
+  KeyRound,
   Phone,
   Briefcase,
   Sliders,
@@ -41,6 +42,7 @@ import {
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
+import AnimatedToast from "../../../components/AnimatedToast";
 import { getSocket } from "../../../lib/socket";
 import {
   createUser,
@@ -64,6 +66,7 @@ import {
   profileRoleClass,
 } from "../../../lib/profile";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
+import { getCookie } from "../../../lib/cookies";
 
 type UserForm = {
   id?: number;
@@ -81,22 +84,15 @@ type UserForm = {
 const ALL_PERMISSIONS_LIST = [
   { key: "dashboard", label: "Dashboard Overview" },
   { key: "pos", label: "Point of Sale (POS)" },
-  { key: "customer_display", label: "Customer Facing Display" },
-  { key: "kds", label: "Kitchen Display System (KDS)" },
-  { key: "order_status", label: "Order Status Board" },
-  { key: "order_stage", label: "Order Stage Updates" },
   { key: "orders", label: "Orders Management" },
-  { key: "kitchen_workflow", label: "Kitchen Workflow" },
-  { key: "reservations", label: "Reservations Module" },
-  { key: "view_bookings", label: "View Bookings" },
-  { key: "manage_bookings", label: "Manage Bookings" },
-  { key: "customer_directory", label: "Customer Directory" },
-  { key: "view_customer_profiles", label: "View Customer Profiles" },
-  { key: "manage_customer_profiles", label: "Manage Customer Profiles" },
+  { key: "kds", label: "Kitchen Display System (KDS)" },
+  { key: "tables", label: "Tables Management" },
   { key: "invoices", label: "Invoices & Billing" },
-  { key: "void_invoices", label: "Void Invoices" },
-  { key: "invoice_audit", label: "Invoice Audit Log" },
-  { key: "loyalty", label: "Loyalty & Memberships" },
+  { key: "menu", label: "Menu Catalog" },
+  { key: "inventory", label: "Inventory & Stock" },
+  { key: "reports", label: "Reports & Analytics" },
+  { key: "users", label: "Staff & Roles" },
+  { key: "settings", label: "System Settings" },
 ];
 
 const EMPTY_FORM: UserForm = {
@@ -183,6 +179,9 @@ export default function UsersPage() {
       }
       function handleUserUpdated(user: User) {
         setUsers((current) => current.map((u) => (u.id === user.id ? { ...u, ...user } : u)));
+        if (user.role && typeof user.role === "object") {
+          setRoles((prevRoles) => prevRoles.map((r) => (r.id === (user.role as any).id ? (user.role as any) : r)));
+        }
       }
       function handleUserDeleted(data: { id: number }) {
         setUsers((current) => current.filter((u) => u.id !== data.id));
@@ -299,17 +298,15 @@ export default function UsersPage() {
     setMessage("");
     setError("");
 
-    // ── Token Guard: ensure real JWT before calling API ──────────────
-    const currentToken = typeof window !== "undefined" ? localStorage.getItem("pos_token") : null;
-    const isRealToken = currentToken && currentToken.startsWith("eyJ");
-    if (!isRealToken) {
-      setError("⚠️ Session expired or invalid. Please login with your Admin Email & Password at /login to perform this action.");
-      setSaving(false);
-      return;
-    }
-    // ─────────────────────────────────────────────────────────────────
+
 
     try {
+      const isStaffRole = !String(form.roleName || "").toLowerCase().includes("admin");
+      if (!isStaffRole && form.password && form.password.length < 8) {
+        setError(language === "km" ? "🛑 ពាក្យសម្ងាត់ Admin ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ" : "🛑 Admin password must be at least 8 characters long.");
+        return;
+      }
+
       const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
 
       const rawRole = form.roleName || "Cashier";
@@ -336,16 +333,24 @@ export default function UsersPage() {
           role: targetRole,
           roleName: targetRole,
           isActive: form.isActive,
-          pin: form.pin || "1234",
+          pin: form.password || form.pin || "1234",
           imageUrl: form.imageUrl || "",
           permissions: formattedPermissions,
-          ...(form.password ? { password: form.password } : {}),
+          ...(form.password ? { password: form.password, pin: form.password } : {}),
         };
 
         const updated = await updateUser(form.id, body as any);
 
+        const fullUpdatedUser = {
+          ...updated,
+          permissions: formattedPermissions,
+          role: typeof updated.role === "object" && updated.role !== null
+            ? { ...updated.role, permissions: formattedPermissions }
+            : { name: targetRole, permissions: formattedPermissions },
+        };
+
         setUsers((current) =>
-          current.map((user) => (user.id === updated.id ? updated : user)),
+          current.map((user) => (user.id === fullUpdatedUser.id ? (fullUpdatedUser as any) : user)),
         );
 
         // Update local session if the user edited their own account details
@@ -354,11 +359,11 @@ export default function UsersPage() {
           if (currentUserRaw) {
             try {
               const cur = JSON.parse(currentUserRaw);
-              if (cur.id === updated.id || (cur.email && cur.email.trim().toLowerCase() === updated.email.trim().toLowerCase())) {
+              if (cur.id === fullUpdatedUser.id || (cur.email && cur.email.trim().toLowerCase() === fullUpdatedUser.email.trim().toLowerCase())) {
                 const mergedUser = { 
                   ...cur, 
-                  ...updated,
-                  role: typeof updated.role === "string" ? updated.role : updated.role?.name || updated.roleName || cur.role
+                  ...fullUpdatedUser,
+                  role: typeof fullUpdatedUser.role === "string" ? fullUpdatedUser.role : fullUpdatedUser.role?.name || cur.role
                 };
                 localStorage.setItem("pos_user", JSON.stringify(mergedUser));
                 window.dispatchEvent(new Event("pos-auth-change"));
@@ -367,8 +372,16 @@ export default function UsersPage() {
           }
         }
 
+        setRoles((prevRoles) =>
+          prevRoles.map((r) =>
+            r.name === targetRole || (typeof fullUpdatedUser.role === "object" && r.id === (fullUpdatedUser.role as any).id)
+              ? { ...r, permissions: formattedPermissions }
+              : r
+          )
+        );
+
         const socket = getSocket();
-        if (socket) socket.emit("user:updated", updated);
+        if (socket) socket.emit("user:updated", fullUpdatedUser);
 
         setMessage("User updated successfully.");
       } else {
@@ -385,6 +398,15 @@ export default function UsersPage() {
         } as any);
 
         setUsers((current) => [created, ...current]);
+        if (created.role && typeof created.role === "object") {
+          setRoles((prevRoles) => {
+            const exists = prevRoles.some((r) => r.id === (created.role as any).id);
+            if (exists) {
+              return prevRoles.map((r) => (r.id === (created.role as any).id ? (created.role as any) : r));
+            }
+            return [...prevRoles, created.role as any];
+          });
+        }
 
         const socket = getSocket();
         if (socket) socket.emit("user:created", created);
@@ -483,27 +505,41 @@ export default function UsersPage() {
       imageUrl: user.imageUrl || "",
     });
 
-    const userRoleObj = roles.find((r) => r.name === uRole);
-    const initialPerms = [
-      { key: "dashboard", view: userRoleObj?.permissions?.find((x: any) => x.key === "dashboard")?.view },
-      { key: "pos", view: userRoleObj?.permissions?.find((x: any) => x.key === "menu")?.view },
-      { key: "orders", view: userRoleObj?.permissions?.find((x: any) => x.key === "orders")?.view },
-      { key: "customer_display", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("cashier") },
-      { key: "kds", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("staff") || uRole.toLowerCase().includes("chef") },
-      { key: "order_status", view: true },
-      { key: "order_stage", view: true },
-      { key: "kitchen_workflow", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("staff") || uRole.toLowerCase().includes("chef") },
-      { key: "reservations", view: true },
-      { key: "view_bookings", view: true },
-      { key: "manage_bookings", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
-      { key: "customer_directory", view: true },
-      { key: "view_customer_profiles", view: true },
-      { key: "manage_customer_profiles", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
-      { key: "invoices", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") || uRole.toLowerCase().includes("cashier") },
-      { key: "void_invoices", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
-      { key: "invoice_audit", view: uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("manager") },
-      { key: "loyalty", view: true },
-    ].filter(x => x.view).map(x => x.key);
+    let userPermsArray =
+      (user as any).permissions ||
+      (typeof user.role === "object" && user.role !== null ? (user.role as any).permissions : null) ||
+      roles.find((r) => r.name === uRole || r.id === (user as any).roleId)?.permissions;
+
+    if (typeof userPermsArray === "string") {
+      try {
+        userPermsArray = JSON.parse(userPermsArray);
+      } catch {}
+    }
+
+    let initialPerms: string[] = [];
+
+    if (Array.isArray(userPermsArray)) {
+      userPermsArray.forEach((p: any) => {
+        if (typeof p === "string") {
+          initialPerms.push(p);
+        } else if (p && typeof p === "object") {
+          if (p.view) initialPerms.push(p.key);
+          if (p.edit || p.create) initialPerms.push(`${p.key}_edit`);
+          if (p.delete) initialPerms.push(`${p.key}_delete`);
+        }
+      });
+    } else {
+      const rLower = uRole.toLowerCase();
+      if (rLower.includes("admin") || rLower.includes("manager")) {
+        ALL_PERMISSIONS_LIST.forEach((p) => {
+          initialPerms.push(p.key, `${p.key}_edit`, `${p.key}_delete`);
+        });
+      } else if (rLower.includes("cashier")) {
+        initialPerms = ["dashboard", "pos", "orders", "orders_edit", "tables", "invoices", "invoices_edit", "menu"];
+      } else {
+        initialPerms = ["kds", "orders", "menu"];
+      }
+    }
 
     setSelectedPerms(initialPerms);
     setMessage("");
@@ -517,7 +553,7 @@ export default function UsersPage() {
     setMessage("");
     setError("");
     setShowModalPassword(false);
-    setSelectedPerms(["pos", "orders", "customer_display", "order_status", "invoices", "loyalty"]); // Default Cashier
+    setSelectedPerms(["dashboard", "pos", "orders", "tables", "invoices", "menu"]); // Default Cashier
     setIsUserModalOpen(true);
   }
 
@@ -580,24 +616,9 @@ export default function UsersPage() {
           <div className="mx-auto w-full max-w-[1720px] dash-animate">
 
             {/* Floating Top Success/Error Toast Alerts */}
-            <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
-              {message && (
-                <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-200/50 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-                  <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
-                    <Check size={11} strokeWidth={4.5} className="text-white" />
-                  </div>
-                  <span>{message}</span>
-                </div>
-              )}
-
-              {error && (
-                <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-200/50 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-                  <div className="h-5 w-5 rounded-full bg-[#f43f5e] flex items-center justify-center text-white shrink-0">
-                    <X size={11} strokeWidth={4.5} className="text-white" />
-                  </div>
-                  <span>{error}</span>
-                </div>
-              )}
+            <div className="fixed top-6 inset-x-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+              <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
+              <AnimatedToast message={error} onClose={() => setError("")} type="error" />
             </div>
 
             {/* Title & "+ New" Button Header */}
@@ -642,10 +663,21 @@ export default function UsersPage() {
                         updatedAt: user.updatedAt,
                       });
 
-                      const roleObj = roles.find((r) => r.name === uRole);
-                      const scopes = roleObj && Array.isArray(roleObj.permissions)
-                        ? roleObj.permissions.filter((p: any) => p.view).map((p: any) => String(p.key || "").toUpperCase())
-                        : ["DASHBOARD", "ORDERS", "POS", "KITCHEN_DISPLAY", "RESERVATIONS", "SETTINGS"];
+                      const userRoleObj = typeof user.role === "object" && user.role !== null ? user.role : roles.find((r) => r.name === uRole);
+                      let rawPerms = (user as any)?.permissions || (userRoleObj as any)?.permissions;
+                      if (typeof rawPerms === "string") {
+                        try { rawPerms = JSON.parse(rawPerms); } catch {}
+                      }
+                      const scopes = Array.isArray(rawPerms)
+                        ? rawPerms
+                            .filter((p: any) => typeof p === "string" || p?.view)
+                            .map((p: any) => {
+                              if (typeof p === "string") return p.replace(/_/g, " ").toUpperCase();
+                              const keyStr = String(p.key || "");
+                              const matched = ALL_PERMISSIONS_LIST.find((item) => item.key === keyStr);
+                              return matched ? matched.label.toUpperCase() : keyStr.replace(/_/g, " ").toUpperCase();
+                            })
+                        : ["POS", "ORDERS", "CUSTOMER DISPLAY", "INVOICES", "LOYALTY"];
 
                       const isAdmin = uRole.toUpperCase() === "ADMIN";
 
@@ -784,13 +816,11 @@ export default function UsersPage() {
           if (rLower.includes("manager") || rLower.includes("store") || rLower.includes("admin")) {
             keys = ALL_PERMISSIONS_LIST.map((p) => p.key);
           } else if (rLower.includes("cashier")) {
-            keys = ["pos", "orders", "customer_display", "order_status", "invoices", "loyalty"];
+            keys = ["dashboard", "pos", "orders", "tables", "invoices", "menu"];
           } else if (rLower.includes("staff") || rLower.includes("chef") || rLower.includes("kitchen")) {
-            keys = ["kds", "kitchen_workflow", "order_status", "order_stage"];
-          } else if (rLower.includes("waiter") || rLower.includes("waitstaff")) {
-            keys = ["pos", "view_bookings", "manage_bookings", "reservations"];
+            keys = ["kds", "orders", "menu"];
           } else if (rLower.includes("inventory")) {
-            keys = ["dashboard", "orders", "invoices"];
+            keys = ["dashboard", "orders", "invoices", "inventory"];
           }
           setSelectedPerms(keys);
         };
@@ -873,6 +903,16 @@ export default function UsersPage() {
               </div>
 
               <form onSubmit={submit} className="space-y-4">
+                {error && (
+                  <div className="p-3 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl animate-[fadeIn_150ms_ease-out]">
+                    {error}
+                  </div>
+                )}
+                {message && (
+                  <div className="p-3 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl animate-[fadeIn_150ms_ease-out]">
+                    {message}
+                  </div>
+                )}
                 
                 {/* DETAILS & CREDENTIALS SECTION */}
                 <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 px-5 py-4 bg-white dark:bg-[#1e293b] space-y-4">
@@ -881,85 +921,7 @@ export default function UsersPage() {
                     Details & Credentials
                   </div>
 
-                  {/* Profile image upload matching mockup */}
-                  <div className="flex flex-col items-center justify-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-3 bg-[#f8f9fa] dark:bg-[#232333]/30 w-full max-w-[240px] mx-auto">
-                    <div className="relative mb-2 group">
-                      {uploadingImage ? (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-[#232333]">
-                          <Loader2 className="animate-spin text-[#696cff]" size={16} />
-                        </div>
-                      ) : form.imageUrl ? (
-                        <img
-                          src={resolveImageUrl(form.imageUrl)}
-                          alt="Avatar Preview"
-                          className="h-12 w-12 rounded-full object-cover border border-[#696cff]/20 shadow-sm"
-                        />
-                      ) : (
-                        <div className={`flex h-12 w-12 items-center justify-center rounded-full text-base font-black text-white ${profileAvatarClass(form.roleName)}`}>
-                          {initials(form.name || "User")}
-                        </div>
-                      )}
-                      <label className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950/40 text-white cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera size={14} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingImage}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setUploadingImage(true);
-                            setError("");
-                            try {
-                              const res = await uploadUserImage(file);
-                              setForm((current) => ({ ...current, imageUrl: res.imageUrl }));
-                            } catch (err: any) {
-                              setError(err?.message || "Failed to upload image.");
-                            } finally {
-                              setUploadingImage(false);
-                            }
-                          }}
-                        />
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <label className="cursor-pointer rounded-xl bg-slate-150/70 dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-650 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
-                        {uploadingImage ? "Uploading..." : "Change Image"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploadingImage}
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setUploadingImage(true);
-                            setError("");
-                            try {
-                              const res = await uploadUserImage(file);
-                              setForm((current) => ({ ...current, imageUrl: res.imageUrl }));
-                            } catch (err: any) {
-                              setError(err?.message || "Failed to upload image.");
-                            } finally {
-                              setUploadingImage(false);
-                            }
-                          }}
-                        />
-                      </label>
-                      {form.imageUrl && (
-                        <button
-                          type="button"
-                          disabled={uploadingImage}
-                          onClick={() => setForm((current) => ({ ...current, imageUrl: "" }))}
-                          className="rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100 transition-all disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
@@ -987,7 +949,6 @@ export default function UsersPage() {
                           <Mail size={13} className="stroke-[1.8]" />
                         </div>
                         <input
-                          required
                           type="email"
                           value={form.email}
                           onChange={(e) => setForm((curr) => ({ ...curr, email: e.target.value }))}
@@ -998,22 +959,26 @@ export default function UsersPage() {
                     </div>
                   </div>
 
-                  {/* Password, Phone, Designation */}
+                  {/* Password / PIN Code, Phone, Designation */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        Password - {form.id ? "(Optional)" : "(Required)"}
+                        {!String(form.roleName || "").toLowerCase().includes("admin") ? "PIN Code" : "Password"} - {form.id ? "(Optional)" : "(Required)"}
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Lock size={13} className="stroke-[1.8]" />
+                          {!String(form.roleName || "").toLowerCase().includes("admin") ? (
+                            <KeyRound size={13} className="stroke-[1.8]" />
+                          ) : (
+                            <Lock size={13} className="stroke-[1.8]" />
+                          )}
                         </div>
                         <input
                           required={!form.id}
                           type={showModalPassword ? "text" : "password"}
                           value={form.password}
                           onChange={(e) => setForm((curr) => ({ ...curr, password: e.target.value }))}
-                          placeholder="Enter Password here..."
+                          placeholder={!String(form.roleName || "").toLowerCase().includes("admin") ? "Enter 4-digit PIN Code here..." : "Enter Password here..."}
                           className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-9 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
                         />
                         <button
@@ -1208,6 +1173,7 @@ export default function UsersPage() {
                   </button>
 
                   <button
+                    type="submit"
                     disabled={saving}
                     className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-emerald-750/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >

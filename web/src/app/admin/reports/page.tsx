@@ -805,7 +805,7 @@ export default function ReportsPage() {
                   >
                     {/* Modal container */}
                     <div
-                      className={`relative w-full max-w-[500px] rounded-[24px] border ${borderCol} ${surface} p-5 shadow-2xl flex flex-col gap-4 animate-[scaleIn_200ms_ease-out]`}
+                      className={`relative w-full max-w-[500px] rounded-2xl border ${borderCol} ${surface} p-5 shadow-2xl flex flex-col gap-4 animate-[scaleIn_200ms_ease-out]`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* Modal Header */}

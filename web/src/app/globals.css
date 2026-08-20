@@ -236,3 +236,13 @@ main::-webkit-scrollbar {
     color: #0f172a !important;
   }
 }
+
+@keyframes dropFromTop {
+  0% { transform: translateY(-100%) scale(0.92); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes liftToTop {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-100%) scale(0.92); opacity: 0; }
+}

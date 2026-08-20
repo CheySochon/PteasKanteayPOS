@@ -451,7 +451,7 @@ export default function TopBar({
 
   return (
     <header className={`sticky top-0 z-20 border-b border-slate-200/60 px-3 sm:px-4 backdrop-blur-md ${isDark ? "bg-[#171a23]/80" : "bg-white/80"}`}>
-      <div className="flex h-[62px] items-center justify-between gap-3">
+      <div className="flex h-[56px] items-center justify-between gap-3">
         {/* Left Section: Search Bar */}
         <div className="flex flex-1 items-center gap-3">
           <button
@@ -470,11 +470,11 @@ export default function TopBar({
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="relative flex items-center flex-1 max-w-[260px] text-left cursor-pointer border-none bg-transparent"
+            className="relative flex items-center flex-1 max-w-[250px] text-left cursor-pointer border-none bg-transparent"
           >
-            <Search size={18} className={`absolute left-4.5 ${isDark ? "text-slate-400" : "text-slate-550"}`} />
+            <Search size={16} className={`absolute left-3.5 ${isDark ? "text-slate-400" : "text-slate-550"}`} />
             <div
-              className={`h-11 w-full rounded-full border pl-12 pr-4 text-sm font-normal flex items-center select-none ${
+              className={`h-[38px] w-full rounded-full border pl-10.5 pr-4 text-[13px] font-normal flex items-center select-none ${
                 isDark
                   ? "border-slate-700/80 bg-[#232333] text-slate-400"
                   : "border-slate-200/50 bg-[#eef2ee] text-slate-550"
@@ -803,13 +803,13 @@ export default function TopBar({
             <button
               type="button"
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className={`h-11 rounded-full flex items-center gap-2.5 pl-1 pr-3.5 border border-transparent hover:border-slate-200/55 transition-all ${
+              className={`h-[38px] rounded-full flex items-center gap-2 pl-1 pr-3 border border-transparent hover:border-slate-200/55 transition-all ${
                 isDark ? "bg-[#232333] text-slate-100" : "bg-[#eef2ee] text-slate-800"
               } cursor-pointer`}
             >
               <ProfileAvatar user={user} />
-              <span className="text-sm font-normal tracking-tight hidden sm:inline-block">{user.name}</span>
-              <ChevronDown size={15} className="text-slate-500 shrink-0" />
+              <span className="text-[13px] font-normal tracking-tight hidden sm:inline-block">{user.name}</span>
+              <ChevronDown size={14} className="text-slate-500 shrink-0" />
             </button>
 
             {/* Dropdown Menu */}
@@ -871,7 +871,7 @@ export default function TopBar({
                       localStorage.removeItem("pos_token");
                       localStorage.removeItem("pos_user");
                       window.dispatchEvent(new Event("pos-auth-change"));
-                      router.replace("/login");
+                      window.location.href = "/login";
                     }}
                     className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/10 text-left transition-colors border-none bg-transparent cursor-pointer w-full"
                   >
@@ -1105,18 +1105,18 @@ function ProfileAvatar({ user }: { user: ReturnType<typeof parseUserSnapshot> })
       <img
         src={image}
         alt={user.name}
-        className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200/80"
+        className="h-[30px] w-[30px] rounded-full object-cover ring-1 ring-slate-200/80"
       />
     );
   }
 
   return (
     <span
-      className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black text-white ${profileAvatarClass(
+      className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-black text-white ${profileAvatarClass(
         user.role,
       )}`}
     >
-      {user.name ? initials(user.name) : <UserRound size={16} />}
+      {user.name ? initials(user.name) : <UserRound size={15} />}
     </span>
   );
 }

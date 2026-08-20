@@ -86,14 +86,54 @@ export function parseStoredUser(snapshot: string | null): { id?: number; name: s
   }
 }
 
-export function normalizeStaffPermissions(permissions?: Record<string, unknown> | null): StaffPermissions {
-  const source = permissions || {};
+export function normalizeStaffPermissions(permissions?: any): StaffPermissions {
+  if (typeof permissions === "string") {
+    try {
+      permissions = JSON.parse(permissions);
+    } catch {}
+  }
 
-  return Object.keys(DEFAULT_STAFF_PERMISSIONS).reduce<StaffPermissions>((normalized, permissionKey) => {
-    normalized[permissionKey] =
-      permissionKey in source ? Boolean(source[permissionKey]) : DEFAULT_STAFF_PERMISSIONS[permissionKey];
-    return normalized;
-  }, {});
+  if (!permissions) return { ...DEFAULT_STAFF_PERMISSIONS };
+
+  // Case 1: Array of permissions [{ key: "kds", view: false }, ...]
+  if (Array.isArray(permissions)) {
+    const result: StaffPermissions = {
+      dashboard: false,
+      orders: false,
+      invoices: false,
+      menu: false,
+      inventory: false,
+      tables: false,
+      reports: false,
+      users: false,
+      settings: false,
+      pos: false,
+      kds: false,
+    };
+
+    permissions.forEach((item: any) => {
+      if (typeof item === "string") {
+        result[item] = true;
+      } else if (item && typeof item === "object" && item.key) {
+        result[item.key] = Boolean(item.view);
+        result[`${item.key}_view`] = Boolean(item.view);
+        result[`${item.key}_edit`] = Boolean(item.edit || item.create);
+        result[`${item.key}_delete`] = Boolean(item.delete);
+      }
+    });
+    return result;
+  }
+
+  // Case 2: Dictionary object { kds: false, pos: true, ... }
+  if (typeof permissions === "object") {
+    const result: StaffPermissions = { ...DEFAULT_STAFF_PERMISSIONS };
+    Object.entries(permissions).forEach(([key, val]) => {
+      result[key] = Boolean(val);
+    });
+    return result;
+  }
+
+  return { ...DEFAULT_STAFF_PERMISSIONS };
 }
 
 export function normalizePermissionSettings(settings?: StaffPermissionSettings | Record<string, unknown> | null) {
@@ -137,8 +177,6 @@ export function permissionsForUser(
 export function canAccessPath(pathname: string, role: string, staffPermissions?: StaffPermissions | null) {
   const normalizedRole = (role || "").trim().toLowerCase();
   if (["super admin", "admin", "administrator"].includes(normalizedRole)) return true;
-  if (normalizedRole === "cashier" && (pathname === "/pos" || pathname.startsWith("/pos/"))) return true;
-  if ((normalizedRole === "staff" || normalizedRole === "kitchen") && (pathname === "/kds" || pathname.startsWith("/kds/"))) return true;
 
   const rule = routeRoles
     .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
@@ -148,7 +186,9 @@ export function canAccessPath(pathname: string, role: string, staffPermissions?:
 
   if (rule.staffKey) {
     const perms = normalizeStaffPermissions(staffPermissions);
-    return Boolean(perms[rule.staffKey]);
+    if (rule.staffKey in perms) {
+      return Boolean(perms[rule.staffKey]);
+    }
   }
 
   return rule.roles.some((r) => r.toLowerCase() === normalizedRole);
@@ -175,4 +215,66 @@ export function firstAllowedPathForRole(role: string, staffPermissions?: StaffPe
 
   if (allowedPage) return allowedPage.href;
   return "/pos";
+}
+
+/**
+ * Dynamic Feature Permission Checker
+ * Checks granular permissions (view, edit, delete) directly from user object or stored permissions
+ */
+export function hasFeaturePermission(
+  user: any,
+  featureKey: string,
+  action: "view" | "edit" | "delete" = "view"
+): boolean {
+  if (!user) return false;
+
+  const role = roleName(user).toLowerCase();
+  if (["super admin", "admin", "administrator"].includes(role)) {
+    return true;
+  }
+
+  // 1. Check user.role.permissions array from PostgreSQL DB
+  if (user.role && typeof user.role === "object" && Array.isArray(user.role.permissions)) {
+    const matched = user.role.permissions.find((p: any) => p.key === featureKey);
+    if (matched) {
+      if (action === "view") return Boolean(matched.view);
+      if (action === "edit") return Boolean(matched.edit || matched.create);
+      if (action === "delete") return Boolean(matched.delete);
+    }
+  }
+
+  // 2. Fallback to localStorage pos_staff_permissions
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("pos_staff_permissions");
+      if (stored) {
+        const perms = JSON.parse(stored);
+        const permKey = action === "view" ? featureKey : `${featureKey}_${action}`;
+        if (permKey in perms) {
+          return Boolean(perms[permKey]);
+        }
+        if (featureKey in perms) {
+          return Boolean(perms[featureKey]);
+        }
+      }
+    } catch {}
+  }
+
+  // Default fallback rules for standard roles
+  if (action === "view") {
+    return true;
+  }
+  return false;
+}
+
+export function canViewFeature(user: any, featureKey: string): boolean {
+  return hasFeaturePermission(user, featureKey, "view");
+}
+
+export function canEditFeature(user: any, featureKey: string): boolean {
+  return hasFeaturePermission(user, featureKey, "edit");
+}
+
+export function canDeleteFeature(user: any, featureKey: string): boolean {
+  return hasFeaturePermission(user, featureKey, "delete");
 }

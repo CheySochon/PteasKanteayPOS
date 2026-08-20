@@ -11,6 +11,7 @@ import {
   Search,
   SlidersHorizontal,
   X,
+  ChevronDown,
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
 import { getOrders } from "../../../lib/api";
@@ -42,6 +43,16 @@ function formatDate(iso: string) {
   }
 }
 
+function dayInputValue(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function monthInputValue(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function InvoicesPage() {
   const language = useAppLanguage();
   const [theme] = useAppTheme();
@@ -51,6 +62,14 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+  
+  // Date filter states matching Report page 100%
+  const [selectedPeriod, setSelectedPeriod] = useState<"day" | "month" | "year">("month");
+  const [selectedDay, setSelectedDay] = useState(() => dayInputValue(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(() => monthInputValue(new Date()));
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
+  
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
 
@@ -102,17 +121,62 @@ export default function InvoicesPage() {
     }
   }, []);
 
+  const computedFromDateStr = useMemo(() => {
+    if (selectedPeriod === "day") return selectedDay;
+    if (selectedPeriod === "year") return `${selectedYear}-01-01`;
+    return `${selectedMonth}-01`;
+  }, [selectedPeriod, selectedDay, selectedMonth, selectedYear]);
+
+  const computedToDateStr = useMemo(() => {
+    if (selectedPeriod === "day") return selectedDay;
+    if (selectedPeriod === "year") return `${selectedYear}-12-31`;
+    const parts = selectedMonth.split("-");
+    const year = parseInt(parts[0], 10) || new Date().getFullYear();
+    const month = parseInt(parts[1], 10) || (new Date().getMonth() + 1);
+    const lastDay = new Date(year, month, 0).getDate();
+    return `${selectedMonth}-${String(lastDay).padStart(2, "0")}`;
+  }, [selectedPeriod, selectedDay, selectedMonth]);
+
   const filteredInvoices = useMemo(() => {
     const term = (activeSearch || searchQuery).trim().toLowerCase();
-    if (!term) return orders;
+    const startObj = new Date(computedFromDateStr);
+    startObj.setHours(0, 0, 0, 0);
+
+    const endObj = new Date(computedToDateStr);
+    endObj.setHours(23, 59, 59, 999);
 
     return orders.filter((order) => {
-      const idStr = String(order.id);
-      const numStr = String(order.orderNumber || "");
-      const custStr = String(order.userName || order.createdBy?.name || "WALKIN").toLowerCase();
-      return idStr.includes(term) || numStr.toLowerCase().includes(term) || custStr.includes(term);
+      // 1. Text Search Filter
+      if (term) {
+        const idStr = String(order.id);
+        const numStr = String(order.orderNumber || "");
+        const custStr = String(order.userName || order.createdBy?.name || "WALKIN").toLowerCase();
+        const matchesText = idStr.includes(term) || numStr.toLowerCase().includes(term) || custStr.includes(term);
+        if (!matchesText) return false;
+      }
+
+      // 2. Date Range Filter (Report Page 100% logic)
+      if (order.createdAt) {
+        const orderDate = new Date(order.createdAt);
+        if (!isNaN(orderDate.getTime())) {
+          if (orderDate < startObj || orderDate > endObj) return false;
+        }
+      }
+
+      return true;
     });
-  }, [orders, activeSearch, searchQuery]);
+  }, [orders, activeSearch, searchQuery, computedFromDateStr, computedToDateStr]);
+
+  const isFiltered = searchQuery !== "" || activeSearch !== "";
+
+  function resetAllFilters() {
+    setSearchQuery("");
+    setActiveSearch("");
+    setSelectedPeriod("month");
+    setSelectedDay(dayInputValue(new Date()));
+    setSelectedMonth(monthInputValue(new Date()));
+    setSelectedYear(String(new Date().getFullYear()));
+  }
 
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
@@ -169,21 +233,44 @@ export default function InvoicesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setActiveSearch("");
-                }}
-                className={`h-9 w-9 flex items-center justify-center rounded-xl border transition-all cursor-pointer ${
-                  dark
+                onClick={() => setShowFilterModal(!showFilterModal)}
+                className={`h-9 px-3.5 flex items-center gap-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  showFilterModal || isFiltered
+                    ? "border-[#55a060] bg-[#55a060]/10 text-[#55a060]"
+                    : dark
                     ? "border-[#3b3c54] bg-[#2b2c40] text-slate-400 hover:text-slate-200"
-                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                 }`}
-                title="Filter / Reset"
+                title="Filter Invoices"
               >
                 <Filter size={15} />
+                <span>{language === "km" ? "តម្រង" : "Filter"}</span>
+                {isFiltered && <span className="h-2 w-2 rounded-full bg-[#55a060] animate-pulse" />}
               </button>
             </div>
           </div>
+
+          {/* Active Filter Badges Indicator Bar */}
+          {isFiltered && (
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <span className="text-xs font-semibold text-slate-400">Filters:</span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50">
+                Period: {selectedPeriod}
+              </span>
+              {searchQuery && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50">
+                  Search: "{searchQuery}"
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={resetAllFilters}
+                className="text-xs font-bold text-red-500 hover:underline ml-1"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
 
           {/* Invoices Table Container */}
           <div className={`mt-4 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"}`}>
@@ -343,6 +430,146 @@ export default function InvoicesPage() {
           </div>
         </div>
       </div>
+
+      {/* DYNAMIC FILTER BACKDROP MODAL OVERLAY (100% identical to Report page filter) */}
+      {showFilterModal && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-900/40 flex items-center justify-center p-4 animate-[fadeIn_200ms_ease-out]"
+          onClick={() => setShowFilterModal(false)}
+        >
+          {/* Modal container */}
+          <div
+            className={`relative w-full max-w-[500px] rounded-2xl border ${
+              dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200 bg-white"
+            } p-5 shadow-2xl flex flex-col gap-4 animate-[scaleIn_200ms_ease-out]`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className={`flex items-center gap-2 text-lg font-semibold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-slate-550"
+              >
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              <span>Filter</span>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex flex-col gap-4">
+              {/* Period select dropdown */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-500">
+                  Filter
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedPeriod}
+                    onChange={(event) => {
+                      const period = event.target.value as "day" | "month" | "year";
+                      setSelectedPeriod(period);
+                      if (period === "day") {
+                        setSelectedDay(dayInputValue(new Date()));
+                      } else if (period === "month") {
+                        setSelectedMonth(monthInputValue(new Date()));
+                      } else {
+                        setSelectedYear(String(new Date().getFullYear()));
+                      }
+                    }}
+                    className={`h-10 w-full rounded-lg border ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
+                    } px-3 pr-10 text-sm font-normal outline-none focus:border-[#55a060] transition-all cursor-pointer appearance-none`}
+                  >
+                    <option value="day">Today</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <ChevronDown size={14} />
+                  </div>
+                </div>
+              </div>
+
+              {/* From & To inputs side-by-side displaying computed dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-500">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={computedFromDateStr}
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      if (!val) return;
+                      if (selectedPeriod === "day") {
+                        setSelectedDay(val);
+                      } else if (selectedPeriod === "month") {
+                        setSelectedMonth(val.substring(0, 7));
+                      } else {
+                        setSelectedYear(val.substring(0, 4));
+                      }
+                    }}
+                    className={`h-10 w-full rounded-lg border ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
+                    } px-3 text-sm font-normal outline-none focus:border-[#55a060] transition-all cursor-pointer`}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-500">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={computedToDateStr}
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      if (!val) return;
+                      if (selectedPeriod === "day") {
+                        setSelectedDay(val);
+                      } else if (selectedPeriod === "month") {
+                        setSelectedMonth(val.substring(0, 7));
+                      } else {
+                        setSelectedYear(val.substring(0, 4));
+                      }
+                    }}
+                    className={`h-10 w-full rounded-lg border ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
+                    } px-3 text-sm font-normal outline-none focus:border-[#55a060] transition-all cursor-pointer`}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-2.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowFilterModal(false)}
+                  className="h-10 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-100/85 px-5 text-sm font-medium text-slate-600 transition-all cursor-pointer outline-none active:scale-[0.98]"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFilterModal(false)}
+                  className="h-10 rounded-lg bg-[#55a060] hover:bg-[#498c53] px-5 text-sm font-medium text-white transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98]"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invoice Detail Modal */}
       {selectedInvoice && (

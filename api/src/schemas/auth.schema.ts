@@ -14,7 +14,7 @@ export const registerSchema = z.object({
 
   password: z
     .string({ error: "Password is required" })
-    .min(4, { error: "Password must be at least 4 characters" })
+    .min(8, { error: "Password must be at least 8 characters" })
     .max(64, { error: "Password must be max 64 characters" }),
 
   name: z
@@ -49,7 +49,7 @@ export const updatePasswordSchema = z
 
     newPassword: z
       .string({ error: "New password is required" })
-      .min(4, { error: "New password must be at least 4 characters" })
+      .min(8, { error: "New password must be at least 8 characters" })
       .max(64, { error: "New password must be max 64 characters" }),
 
     confirmPassword: z

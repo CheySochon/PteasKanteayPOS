@@ -1,11 +1,37 @@
 import { prisma } from "../config/prisma.js";
 
 function slugify(value: string): string {
-  return String(value)
+  const cleaned = String(value)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+
+  if (!cleaned) {
+    return `cat-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+  }
+  return cleaned;
+}
+
+async function uniqueCategorySlug(value: string, excludeId?: number): Promise<string> {
+  const base = slugify(value);
+  let slug = base;
+  let suffix = 2;
+
+  while (
+    await prisma.category.findFirst({
+      where: {
+        slug,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    })
+  ) {
+    slug = `${base}-${suffix}`;
+    suffix += 1;
+  }
+
+  return slug;
 }
 
 export const listCategories = async () => {
@@ -20,10 +46,43 @@ export const createCategory = async (data: {
   slug?: string;
   description?: string;
 }) => {
+  const cleanName = data.name.trim();
+  const baseSlug = data.slug || cleanName;
+  const targetSlug = slugify(baseSlug);
+
+  // Check if active or soft-deleted category with same name or slug exists
+  const existing = await prisma.category.findFirst({
+    where: {
+      OR: [
+        { name: { equals: cleanName, mode: "insensitive" } },
+        { slug: targetSlug },
+      ],
+    },
+  });
+
+  if (existing) {
+    if (existing.deletedAt !== null) {
+      return prisma.category.update({
+        where: { id: existing.id },
+        data: {
+          name: cleanName,
+          description: data.description,
+          deletedAt: null,
+        },
+      });
+    }
+    // If active category with same name exists, return it
+    if (existing.name.toLowerCase() === cleanName.toLowerCase()) {
+      return existing;
+    }
+  }
+
+  const slug = await uniqueCategorySlug(baseSlug);
+
   return prisma.category.create({
     data: {
-      name: data.name,
-      slug: data.slug ?? slugify(data.name),
+      name: cleanName,
+      slug,
       description: data.description,
     },
   });
@@ -37,11 +96,17 @@ export const updateCategory = async (
     description?: string;
   },
 ) => {
+  const cleanName = data.name?.trim();
+  const slug =
+    data.slug ?? cleanName
+      ? await uniqueCategorySlug((data.slug ?? cleanName)!, id)
+      : undefined;
+
   return prisma.category.update({
     where: { id },
     data: {
-      name: data.name,
-      slug: data.slug ?? (data.name ? slugify(data.name) : undefined),
+      ...(cleanName ? { name: cleanName } : {}),
+      ...(slug ? { slug } : {}),
       description: data.description,
     },
   });

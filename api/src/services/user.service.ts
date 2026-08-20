@@ -86,10 +86,17 @@ export const createUser = async (data: {
   const selectedRole = data.roleName ?? data.role ?? "Cashier";
   const roleRecord = await findOrCreateRole(selectedRole);
 
-  if (data.permissions && Array.isArray(data.permissions) && data.permissions.length > 0) {
+  let parsedPerms: any = data.permissions;
+  if (typeof parsedPerms === "string") {
+    try {
+      parsedPerms = JSON.parse(parsedPerms);
+    } catch {}
+  }
+
+  if (parsedPerms && Array.isArray(parsedPerms)) {
     await prisma.role.update({
       where: { id: roleRecord.id },
-      data: { permissions: data.permissions },
+      data: { permissions: parsedPerms },
     });
   }
 
@@ -146,20 +153,30 @@ export const updateUser = async (
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
   if (data.password) updateData.password = await hashPassword(data.password);
 
+  let targetRoleId = existing.roleId;
+
   const selectedRole = data.roleName !== undefined ? data.roleName : data.role;
   if (selectedRole !== undefined) {
     const roleRecord = await findOrCreateRole(selectedRole);
     updateData.roleId = roleRecord.id;
-
-    if (data.permissions && Array.isArray(data.permissions) && data.permissions.length > 0) {
-      await prisma.role.update({
-        where: { id: roleRecord.id },
-        data: { permissions: data.permissions },
-      });
-    }
+    targetRoleId = roleRecord.id;
   }
 
-  return prisma.user.update({
+  let parsedPerms: any = data.permissions;
+  if (typeof parsedPerms === "string") {
+    try {
+      parsedPerms = JSON.parse(parsedPerms);
+    } catch {}
+  }
+
+  if (parsedPerms && Array.isArray(parsedPerms)) {
+    await prisma.role.update({
+      where: { id: targetRoleId },
+      data: { permissions: parsedPerms },
+    });
+  }
+
+  const updated = await prisma.user.update({
     where: { id },
     data: updateData,
     select: {
@@ -174,6 +191,12 @@ export const updateUser = async (
       updatedAt: true,
     },
   });
+
+  if (parsedPerms && Array.isArray(parsedPerms) && updated.role) {
+    (updated.role as any).permissions = parsedPerms;
+  }
+
+  return updated;
 };
 
 export const deleteUser = async (id: number) => {

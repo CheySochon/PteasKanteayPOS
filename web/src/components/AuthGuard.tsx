@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { getMe, getSettings } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { getCookie, eraseCookie } from "../lib/cookies";
-import { canAccessPath, firstAllowedPathForRole, parseStoredUser, permissionsForUser, roleName } from "../lib/permissions";
+import { canAccessPath, firstAllowedPathForRole, parseStoredUser, permissionsForUser, roleName, normalizeStaffPermissions } from "../lib/permissions";
 
 const PROTECTED_PREFIXES = ["/admin", "/pos", "/kds"];
 const PUBLIC_PREFIXES = ["/login", "/qr"];
@@ -57,15 +57,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           user = await getMe();
         }
 
-        let staffPermissions: Record<string, boolean> = {};
-        const storedPermsRaw = typeof window !== "undefined" ? localStorage.getItem("pos_staff_permissions") : null;
-        if (storedPermsRaw) {
-          try {
-            staffPermissions = JSON.parse(storedPermsRaw);
-          } catch {}
-        } else {
-          staffPermissions = permissionsForUser(user.id, (await getSettings()).staffPermissions);
-        }
+        const userRawPerms = (user as any)?.permissions || (user as any)?.role?.permissions || (user as any)?.roleObj?.permissions;
+        const staffPermissions = normalizeStaffPermissions(userRawPerms);
 
         if (!active) return;
 
@@ -140,13 +133,47 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }).catch(() => null);
     }
 
+    function handleUserUpdated(updatedUser: any) {
+      if (!updatedUser) return;
+      const storedUserRaw = typeof window !== "undefined" ? localStorage.getItem("pos_user") : null;
+      let currentUser: any = null;
+      if (storedUserRaw) {
+        try { currentUser = JSON.parse(storedUserRaw); } catch {}
+      }
+      if (currentUser && (currentUser.id === updatedUser.id || (currentUser.email && currentUser.email.toLowerCase() === updatedUser.email?.toLowerCase()))) {
+        let staffPermissions: Record<string, boolean> = {};
+        if (updatedUser.role && typeof updatedUser.role === "object" && Array.isArray(updatedUser.role.permissions)) {
+          updatedUser.role.permissions.forEach((item: any) => {
+            staffPermissions[item.key] = item.view;
+            staffPermissions[`${item.key}_create`] = item.create;
+            staffPermissions[`${item.key}_edit`] = item.edit;
+            staffPermissions[`${item.key}_delete`] = item.delete;
+          });
+        }
+        localStorage.setItem("pos_user", JSON.stringify(updatedUser));
+        localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
+        window.dispatchEvent(new Event("pos-auth-change"));
+        window.dispatchEvent(new Event("pos-permissions-change"));
+
+        if (!canAccessPath(pathname, roleName(updatedUser), staffPermissions)) {
+          setDenied(true);
+          router.replace(firstAllowedPathForRole(roleName(updatedUser), staffPermissions));
+        } else {
+          setDenied(false);
+          setAuthorizedPath(pathname);
+        }
+      }
+    }
+
     socket.on("permissions:updated", handlePermissionsUpdated);
     socket.on("roles:updated", handleRolesUpdated);
+    socket.on("user:updated", handleUserUpdated);
 
     return () => {
       active = false;
       socket.off("permissions:updated", handlePermissionsUpdated);
       socket.off("roles:updated", handleRolesUpdated);
+      socket.off("user:updated", handleUserUpdated);
     };
   }, [pathname, protectedRoute, router]);
 

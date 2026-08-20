@@ -83,7 +83,6 @@ async function main() {
       where: { name: r.name },
       update: {
         description: r.description,
-        permissions: r.permissions as any,
       },
       create: {
         name: r.name,

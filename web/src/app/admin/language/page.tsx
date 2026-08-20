@@ -22,8 +22,8 @@ export default function LanguagePage() {
     } catch {}
   }, []);
 
-  const bg = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
-  const cardBg = dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-100";
+  const bg = dark ? "bg-[#232333]" : "bg-white";
+  const cardBg = dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90 shadow-xs";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
 
   return (

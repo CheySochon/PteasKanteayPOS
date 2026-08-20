@@ -372,7 +372,7 @@ export default function Sidebar({
     localStorage.removeItem("pos_user");
     localStorage.setItem("pos_logout_success_alert", JSON.stringify({ timestamp: Date.now() }));
     window.dispatchEvent(new Event("pos-auth-change"));
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   function isNavItemActive(label: string, href: string) {
@@ -427,9 +427,6 @@ export default function Sidebar({
             <div className={`overflow-hidden transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
               <div className={`font-khmer whitespace-nowrap leading-5 tracking-normal ${brandNameClass} ${language === "km" ? "text-[14px] font-bold" : "text-[13px] font-black"}`}>
                 {restaurantName}
-              </div>
-              <div className={`whitespace-nowrap uppercase tracking-[0.08em] ${brandSubtitleClass} ${language === "km" ? "text-[10.5px] font-semibold" : "text-[10px]"}`}>
-                {t.restaurantAdmin}
               </div>
             </div>
           )}
@@ -681,18 +678,18 @@ function SideNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group w-full flex items-center gap-3.5 rounded-full border-none cursor-pointer mb-1.5 transition-all duration-200 relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
-        ${collapsed ? "justify-center p-3.5" : "justify-start px-4.5 py-3"}
+      className={`group w-full flex items-center gap-4 rounded-full border-none cursor-pointer mb-1 transition-all duration-200 relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
+        ${collapsed ? "justify-center p-3.5" : "justify-start pl-5 pr-4 py-2.5"}
         ${
           active
             ? dark
-              ? "bg-[#0F522B] text-white font-medium shadow-sm"
-              : "bg-[#dcecdb] text-[#09391D] font-medium"
+              ? "bg-[#0F522B] text-white font-semibold shadow-sm"
+              : "bg-[#dcecdb] text-[#09391D] font-semibold"
             : dark
               ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-white"
               : "text-slate-800 hover:bg-[#dcecdb] hover:text-[#09391D]"
         }
-        ${isKhmer ? "font-medium text-[15px] leading-relaxed" : active ? "font-medium text-[15px]" : "font-normal text-[15px]"}
+        ${isKhmer ? "font-medium text-[15.5px] leading-normal" : active ? "font-semibold text-[15.5px]" : "font-normal text-[15.5px]"}
       `}
     >
       <span className={`shrink-0 transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-slate-800 group-hover:text-[#09391D]"}`}>
@@ -700,13 +697,13 @@ function SideNavItem({
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-medium" : "text-[#09391D] font-medium") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-800 group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15px]" : "text-[15px]"}`}>
+        <span className={`flex-1 whitespace-nowrap truncate transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-semibold" : "text-[#09391D] font-semibold") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-800 group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}>
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#8592a3] group-hover:text-[#09391D]"}`}>{trailing}</span>
+        <span className={`shrink-0 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#8592a3] group-hover:text-[#09391D]"}`}>{trailing}</span>
       )}
     </Link>
   );

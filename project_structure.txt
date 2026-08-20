@@ -1,0 +1,105 @@
+================================================================================
+                    PROJECT STRUCTURE & FOLDER EXPLANATION
+                     គម្រោង Thesis POS Management System
+================================================================================
+
+[1. សេចក្តីផ្តើមទូទៅ (OVERVIEW)]
+--------------------------------------------------------------------------------
+គម្រោងនេះជាប្រព័ន្ធគ្រប់គ្រងការលក់ (Point of Sale - POS System) ដែលត្រូវបានអភិវឌ្ឍជា
+Full-stack Web Application ដោយបែងចែកជា ២ ផ្នែកធំៗ៖
+1. API (Backend Server): អភិវឌ្ឍជាមួយ Node.js, Express, TypeScript, Prisma ORM (PostgreSQL), និង Socket.IO (Real-time)
+2. WEB (Frontend UI): អភិវឌ្ឍជាមួយ Next.js (App Router), React 19, TypeScript, និង Tailwind CSS
+
+
+[2. រចនាសម្ព័ន្ធ FOLDER ទាំងមូល (PROJECT TREE)]
+--------------------------------------------------------------------------------
+ThesisPosManagerment/
+└── pos-newflow/
+    ├── api/                     # Backend API Service (Express + Prisma + PostgreSQL)
+    │   ├── backups/             # ឯកសារ Backup Database / Exports
+    │   ├── coverage/            # របាយការណ៍ Test Coverage (Vitest)
+    │   ├── dist/                # កូដ JavaScript ដែលត្រូវបាន Compile ចេញពី TypeScript (Production Build)
+    │   ├── prisma/              # ការកំណត់ Database ORM (Prisma)
+    │   │   ├── migrations/      # ប្រវត្តិ Database Schema Migrations
+    │   │   ├── schema.prisma    # ឯកសារកំណត់ Database Tables (Models & Relations)
+    │   │   └── seed.ts          # Script បញ្ចូលទិន្នន័យដំបូង/តេស្ត (Initial Data Seeding)
+    │   ├── public/              # Static files / Uploaded image assets (ឧ. រូបភាពទំនិញ, User avatars)
+    │   ├── scratch/             # Scratch scripts សម្រាប់ធ្វើតេស្តមុខងារបណ្តោះអាសន្ន
+    │   ├── scripts/             # Testing scripts (Stress test, Scalability test, Stability test)
+    │   ├── src/                 # កូដប្រភពដើមនៃ Backend API
+    │   │   ├── config/          # System configurations (Prisma client, Environment settings)
+    │   │   ├── controllers/     # Controller logic ទទួលសំណើ Request ពី Frontend និងផ្ញើ Response
+    │   │   ├── middlewares/     # Middlewares (Auth check, Security headers, Rate limit, Errors)
+    │   │   ├── prisma/          # Generated Prisma Client Instance
+    │   │   ├── routers/         # API Routes mapping (ឧ. /api/users, /api/orders, /api/products)
+    │   │   ├── schemas/         # Data Validation Schemas ប្រើប្រាស់ Zod
+    │   │   ├── services/        # Business logic & Direct Database Operations
+    │   │   ├── types/           # TypeScript Types & Interfaces Declarations
+    │   │   ├── utils/           # Utility functions (Password Hashing, Tokens, Helpers)
+    │   │   ├── app.ts           # Express Application configuration
+    │   │   └── server.ts        # Entry point ចាប់ផ្តើមដំណើរការ API Server & Socket.IO
+    │   ├── tests/               # Automated Tests (Unit & Integration tests)
+    │   ├── .env                 # Environment variables (Database URL, JWT Secret, Port)
+    │   ├── eslint.config.ts     # Code Linting Configuration
+    │   ├── package.json         # Backend Dependencies & NPM Scripts
+    │   ├── tsconfig.json        # TypeScript Compiler Settings
+    │   └── vitest.config.ts     # Testing Framework Configuration
+    │
+    └── web/                     # Frontend Application (Next.js App Router)
+        ├── public/              # Public Assets សម្រាប់ Frontend (Logos, Icons, Fonts)
+        ├── src/                 # កូដប្រភពដើមនៃ Frontend UI
+        │   ├── app/             # Next.js App Router Pages & Layouts
+        │   │   ├── admin/       # Dashboard សម្រាប់អ្នកគ្រប់គ្រង (Admin, Users, Inventory, Reports)
+        │   │   │   ├── invoices/    # ទំព័រគ្រប់គ្រង និងមើលវិក្កយបត្រ
+        │   │   │   ├── inventory/   # ទំព័រគ្រប់គ្រងស្តុកទំនិញ
+        │   │   │   ├── menu/        # ទំព័រគ្រប់គ្រងមុខម្ហូប/ទំនិញ (Menu Catalog)
+        │   │   │   ├── orders/      # ទំព័រគ្រប់គ្រង Order
+        │   │   │   ├── permissions/ # ទំព័រគ្រប់គ្រងសិទ្ធិបុគ្គលិក និង Roles (RBAC Matrix)
+        │   │   │   ├── reports/     # ទំព័ររបាយការណ៍លក់ (Sales Analytics)
+        │   │   │   ├── settings/    # ទំព័រការកំណត់ប្រព័ន្ធ (App Settings)
+        │   │   │   ├── tables/      # ទំព័រគ្រប់គ្រងតុអាហារ (Dining Tables & QR Tokens)
+        │   │   │   └── users/       # ទំព័រគ្រប់គ្រងគណនីបុគ្គលិក (Staff Accounts)
+        │   │   ├── api/         # Frontend Server-side API Endpoints (ឧ. Email Sending)
+        │   │   ├── kds/         # ទំព័រ Kitchen Display System សម្រាប់ចុងភៅមើល Order ក្នុងផ្ទះបាយ
+        │   │   ├── login/       # ទំព័រ Login ចូលប្រព័ន្ធ
+        │   │   ├── pos/         # ទំព័រប្រព័ន្ធ POS សម្រាប់អ្នកគិតលុយ (Cashier Order Entry)
+        │   │   ├── qr/          # ទំព័រ/មុខងារ ស្កែន QR Code Order ឬទូទាត់ប្រាក់ (Bakong KHQR)
+        │   │   ├── globals.css  # Global CSS & Tailwind CSS Integration
+        │   │   ├── layout.tsx   # Root Layout នៃ Frontend App
+        │   │   └── page.tsx     # Navigation Landing Page ដើម
+        │   ├── components/      # UI Components ដែលប្រើឡើងវិញបាន (Reusable Components)
+        │   │   ├── AuthGuard.tsx        # Component ផ្ទៀងផ្ទាត់សិទ្ធិចូលប្រើប្រាស់ Page
+        │   │   ├── CartPanel.tsx        # កន្ត្រកទំនិញសម្រាប់ POS
+        │   │   ├── KdsOrderCard.tsx     # កាតបង្ហាញ Order សម្រាប់ផ្ទះបាយ
+        │   │   ├── OrderStatusBadge.tsx # Badge បង្ហាញស្ថានភាព Order
+        │   │   ├── PaymentModal.tsx     # បង្អួចទទាត់ប្រាក់
+        │   │   ├── ProductGrid.tsx      # បញ្ជីបង្ហាញមុខទំនិញ
+        │   │   ├── Sidebar.tsx          # របារ Navigation ខាងឆ្វេង
+        │   │   ├── TableSelector.tsx    # ប្រអប់ជ្រើសរើសតុ
+        │   │   └── TopBar.tsx           # របារ Navigation ខាងលើ
+        │   └── lib/             # Helper Functions, State, Services សម្រាប់ Frontend
+        │       ├── api.ts          # API Client សម្រាប់ទាក់ទងជាមួយ Backend Services
+        │       ├── db.ts           # IndexedDB Local Caching (Offline Data)
+        │       ├── language.ts     # ការផ្លាស់ប្តូរភាសា (Khmer / English Support)
+        │       ├── permissions.ts  # Logic ផ្ទៀងផ្ទាត់សិទ្ធិ (Route Roles & Permission Checks)
+        │       ├── socket.ts       # Client Connection ទៅ Socket.IO Backend
+        │       ├── theme.ts        # Dark / Light Theme Controller
+        │       └── types.ts        # TypeScript Type Definitions
+        ├── .env.local           # Frontend Local Environment Variables
+        ├── eslint.config.mjs    # ESLint Configuration
+        ├── next.config.ts       # Next.js Build & Server Configuration
+        ├── package.json         # Frontend Dependencies & NPM Scripts
+        ├── postcss.config.mjs   # PostCSS Setup (Tailwind CSS)
+        └── tsconfig.json        # TypeScript Configuration
+
+
+[3. ព័ត៌មានបន្ថែមអំពី SYSTEM ARCHITECTURE]
+--------------------------------------------------------------------------------
+- Database Engine: PostgreSQL
+- Authentication: JWT (JSON Web Tokens) & Password Hashing (bcrypt)
+- Real-time Features: Socket.IO (ផ្សាយដំណឹងពេលមាន Order ថ្មី, ប្តូរ狀態 Order, គិតលុយរួច)
+- Security & Permissions: Role-Based Access Control (RBAC) ជាមួយ Dynamic Permissions
+  រក្សាទុកក្នុង Database Table `Role.permissions` (JSON) និង Cache លើ Frontend `localStorage`
+- Payment Integration: Bakong KHQR QR Code Support
+
+================================================================================
