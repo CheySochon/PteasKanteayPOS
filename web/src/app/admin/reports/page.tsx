@@ -29,6 +29,7 @@ import {
   exportReportsCsv,
   getDailySales,
   getMonthlySales,
+  getSettings,
   getTopProducts,
 } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
@@ -220,6 +221,7 @@ async function downloadCsv(url: string, filename: string) {
 
 function exportPdfDirect({
   restaurantName,
+  preparedBy,
   dateRange,
   totalRevenue,
   totalOrders,
@@ -228,6 +230,7 @@ function exportPdfDirect({
   filename,
 }: {
   restaurantName: string;
+  preparedBy?: string;
   dateRange: string;
   totalRevenue: number;
   totalOrders: number;
@@ -242,28 +245,28 @@ function exportPdfDirect({
     format: "a4",
   });
 
-  // Top Accent Line
-  doc.setFillColor(105, 108, 255);
-  doc.rect(14, 10, 182, 2, "F");
+  // Top Accent Bar (Brand Green #55a060)
+  doc.setFillColor(85, 160, 96);
+  doc.rect(14, 10, 182, 2.5, "F");
 
-  // Centered Restaurant Name
-  doc.setTextColor(43, 44, 64);
+  // Centered Header Title
+  doc.setTextColor(30, 41, 59);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(restaurantName.toUpperCase(), 105, 20, { align: "center" });
+  doc.text((restaurantName || "POS RESTAURANT").toUpperCase(), 105, 20, { align: "center" });
 
-  // Centered Subtitle
-  doc.setFontSize(9);
+  // Subtitle
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(105, 108, 255);
+  doc.setTextColor(85, 160, 96);
   doc.text("OFFICIAL FINANCIAL & ANALYTICS REPORT", 105, 26, { align: "center" });
 
-  // Centered Metadata
+  // Date Range & Metadata
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 116, 139);
   doc.text(
-    `Report Period: ${dateRange}   |   Printed Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+    `Report Period: ${dateRange}   |   Generated Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
     105,
     32,
     { align: "center" },
@@ -274,55 +277,56 @@ function exportPdfDirect({
   doc.setLineWidth(0.4);
   doc.line(14, 36, 196, 36);
 
-  // Executive Summary Cards
+  // Executive Summary KPI Cards (3 Equal Columns)
   const cardY = 42;
-  const cardH = 26;
+  const cardH = 25;
+  const cardW = 57;
 
   const drawCard = (
     x: number,
-    width: number,
     label: string,
     valueStr: string,
     subText: string,
-    accentRgb: [number, number, number],
+    indicatorRgb: [number, number, number],
   ) => {
-    // Soft card background & border
+    // Card Background & Soft Border
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, cardY, width, cardH, 2.5, 2.5, "FD");
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, cardY, cardW, cardH, 3, 3, "FD");
 
-    // Top Accent Color Line
-    doc.setFillColor(...accentRgb);
-    doc.rect(x + 2, cardY, width - 4, 1.5, "F");
+    // Left Vertical Indicator Pill
+    doc.setFillColor(...indicatorRgb);
+    doc.roundedRect(x, cardY, 2.5, cardH, 1, 1, "F");
 
-    // Label
+    // Metric Label
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text(label, x + 6, cardY + 9);
+    doc.text(label, x + 7, cardY + 8);
 
     // Primary Value
-    doc.setFontSize(14);
+    doc.setFontSize(13.5);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 23, 42);
-    doc.text(valueStr, x + 6, cardY + 18);
+    doc.text(valueStr, x + 7, cardY + 16.5);
 
     // Secondary Subtext
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(148, 163, 184);
-    doc.text(subText, x + 6, cardY + 23);
+    doc.text(subText, x + 7, cardY + 21.5);
   };
 
-  drawCard(14, 57, "TOTAL REVENUE", `$${totalRevenue.toFixed(2)}`, "+ $0.00 Today", [113, 221, 55]);
-  drawCard(76, 57, "TOTAL ORDERS", `${totalOrders} Orders`, "Completed Orders", [105, 108, 255]);
-  drawCard(138, 58, "AVERAGE TICKET", `$${averageTicket.toFixed(2)}`, "Avg per Order", [255, 171, 0]);
+  drawCard(14, "TOTAL REVENUE", `$${totalRevenue.toFixed(2)}`, "Gross Period Revenue", [85, 160, 96]);
+  drawCard(76.5, "TOTAL ORDERS", `${totalOrders} Orders`, "Completed Orders", [59, 130, 246]);
+  drawCard(139, "AVERAGE TICKET", `$${averageTicket.toFixed(2)}`, "Avg Revenue per Order", [245, 158, 11]);
 
   // Section Title
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 41, 59);
-  doc.text("Item Performance & Revenue Breakdown", 14, 78);
+  doc.text("Item Performance & Revenue Breakdown", 14, 77);
 
   // Data Table
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -338,33 +342,47 @@ function exportPdfDirect({
   ]);
 
   autoTable(doc, {
-    startY: 82,
+    startY: 81,
     head: [["Item Name", "Category", "Orders Sold", "Total Revenue", "Avg Rating", "Status"]],
     body: tableRows.length
       ? tableRows
       : [["No product sales recorded for this period", "-", "-", "$0.00", "-", "-"]],
-    theme: "striped",
+    theme: "grid",
     headStyles: {
-      fillColor: [105, 108, 255],
+      fillColor: [85, 160, 96], // Brand Green #55a060
       textColor: [255, 255, 255],
-      fontSize: 9,
+      fontSize: 8.5,
       fontStyle: "bold",
+      halign: "left",
+      cellPadding: 3,
+    },
+    columnStyles: {
+      0: { halign: "left", fontStyle: "bold" },
+      1: { halign: "left" },
+      2: { halign: "center" },
+      3: { halign: "right", fontStyle: "bold" },
+      4: { halign: "center" },
+      5: { halign: "center" },
     },
     bodyStyles: {
-      fontSize: 8.5,
+      fontSize: 8,
       textColor: [30, 41, 59],
+      cellPadding: 2.8,
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252],
+      fillColor: [250, 252, 251],
     },
+    tableLineWidth: 0.2,
+    tableLineColor: [226, 232, 240],
     margin: { left: 14, right: 14 },
   });
 
   // Signature Block
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 22 : 180;
+  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 18 : 180;
 
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
   doc.line(14, finalY, 196, finalY);
 
   doc.setFontSize(8.5);
@@ -372,28 +390,35 @@ function exportPdfDirect({
   doc.setTextColor(71, 85, 105);
 
   // Prepared By
-  doc.text("Prepared By:", 24, finalY + 12);
-  doc.line(24, finalY + 26, 84, finalY + 26);
+  doc.text("Prepared By:", 24, finalY + 10);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text(preparedBy || "Admin", 24, finalY + 17.5);
+
+  doc.setDrawColor(203, 213, 225);
+  doc.line(24, finalY + 24, 84, finalY + 24);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text("Signature & Name", 24, finalY + 31);
+  doc.text("Signature & Name", 24, finalY + 29);
 
   // Approved By
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text("Approved By (Store Manager):", 126, finalY + 12);
-  doc.line(126, finalY + 26, 186, finalY + 26);
+  doc.text("Approved By (Store Manager):", 126, finalY + 10);
+  doc.setDrawColor(203, 213, 225);
+  doc.line(126, finalY + 24, 186, finalY + 24);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text("Signature & Stamp", 126, finalY + 31);
+  doc.text("Signature & Stamp", 126, finalY + 29);
 
-  // Footer
+  // Footer Notice
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
-  doc.text(`© ${new Date().getFullYear()} POS Restaurant Management System. Confidential Document.`, 14, 287);
+  doc.text(`© ${new Date().getFullYear()} ${restaurantName || "POS Restaurant"}. Confidential Financial Report. Page 1 of 1`, 105, 287, { align: "center" });
 
   doc.save(filename);
 }
@@ -431,6 +456,37 @@ export default function ReportsPage() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showTrendDropdown, setShowTrendDropdown] = useState(false);
+
+  const [restaurantName, setRestaurantName] = useState("ផ្ទះកន្ត្រាយ");
+  const [preparedByName, setPreparedByName] = useState("Admin");
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("pos_user");
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u?.name) setPreparedByName(u.name);
+      }
+    } catch {}
+
+    getSettings()
+      .then((settings) => {
+        if (settings?.restaurantName || (settings as any)?.name) {
+          setRestaurantName(settings.restaurantName || (settings as any).name);
+        }
+      })
+      .catch(() => {
+        try {
+          const storedSettings = localStorage.getItem("pos_settings");
+          if (storedSettings) {
+            const s = JSON.parse(storedSettings);
+            if (s?.name || s?.restaurantName) {
+              setRestaurantName(s.restaurantName || s.name);
+            }
+          }
+        } catch {}
+      });
+  }, []);
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -931,7 +987,8 @@ export default function ReportsPage() {
                     onClick={() => {
                       setShowExport(false);
                       exportPdfDirect({
-                        restaurantName: "POS RESTAURANT",
+                        restaurantName: restaurantName || "ផ្ទះកន្ត្រាយ",
+                        preparedBy: preparedByName || "Admin",
                         dateRange,
                         totalRevenue,
                         totalOrders,
@@ -971,7 +1028,7 @@ export default function ReportsPage() {
       </div>
       
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto w-full max-w-[1720px]" id="report-printable-area">
+        <div className="mx-auto w-full max-w-[1720px] dash-animate" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
               {error}
@@ -981,10 +1038,14 @@ export default function ReportsPage() {
           {/* Print-Only Official Report Header */}
           <div className="hidden print:block mb-6 border-b-2 border-slate-800 pb-4 text-center">
             <div className="flex items-center justify-center gap-2.5 mb-1">
-              <div className="h-8 w-8 rounded-lg bg-[#696cff] text-white flex items-center justify-center font-black text-lg">P</div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">POS RESTAURANT MANAGEMENT</h1>
+              <div className="h-8 w-8 rounded-lg bg-[#55a060] text-white flex items-center justify-center font-black text-lg">
+                {(restaurantName || "P")[0].toUpperCase()}
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                {(restaurantName || "POS RESTAURANT").toUpperCase()}
+              </h1>
             </div>
-            <h2 className="text-xs font-extrabold text-[#696cff] uppercase tracking-widest mb-1.5">
+            <h2 className="text-xs font-extrabold text-[#55a060] uppercase tracking-widest mb-1.5">
               {language === "km" ? "របាយការណ៍ហិរញ្ញវត្ថុ និងការវិភាគប្រតិបត្តិការផ្លូវការ" : "Official Financial & Analytics Report"}
             </h2>
             <div className="text-xs text-slate-500 font-medium">
@@ -1218,7 +1279,8 @@ export default function ReportsPage() {
           <div className="hidden print:block mt-12 pt-8 border-t border-slate-300 page-break-inside-avoid">
             <div className="flex items-center justify-between px-8 text-xs font-semibold text-slate-700">
               <div className="text-center">
-                <div className="mb-14">{language === "km" ? "អ្នករៀបចំរបាយការណ៍ (Prepared By)" : "Prepared By"}</div>
+                <div className="mb-2 font-bold text-slate-800">{language === "km" ? "អ្នករៀបចំរបាយការណ៍ (Prepared By)" : "Prepared By"}</div>
+                <div className="mb-8 text-sm font-bold text-slate-900">{preparedByName || "Admin"}</div>
                 <div className="w-48 border-b border-slate-400 mx-auto" />
                 <div className="mt-1 text-[11px] text-slate-500 font-normal">{language === "km" ? "ហត្ថលេខា និង ឈ្មោះ" : "Signature & Name"}</div>
               </div>

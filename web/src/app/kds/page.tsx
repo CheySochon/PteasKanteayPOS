@@ -23,7 +23,7 @@ import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../lib/language";
 
-const visibleStatuses: OrderStatus[] = ["pending", "preparing"];
+const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing", "ready"];
 
 let globalAudioCtx: AudioContext | null = null;
 
@@ -215,8 +215,8 @@ export default function KdsPage() {
 
   const activeOrders = useMemo(() => {
     let rows = orders.filter((order) => {
-      const s = (order.status || "pending").toLowerCase() as OrderStatus;
-      return visibleStatuses.includes(s);
+      const s = (order.status || "pending").toLowerCase();
+      return s !== "cancelled" && s !== "served";
     });
 
     if (statusFilter !== "all") {

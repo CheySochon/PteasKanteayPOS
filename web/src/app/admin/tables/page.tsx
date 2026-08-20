@@ -385,6 +385,7 @@ export default function TablesPage() {
 
   const zoneCounts = useMemo(() => {
     return {
+      tables: tables.filter((t) => t.zone !== "vip").length,
       all: tables.length,
       indoor: tables.filter((t) => t.zone === "indoor").length,
       outdoor: tables.filter((t) => t.zone === "outdoor").length,
@@ -433,15 +434,14 @@ export default function TablesPage() {
         />
 
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-          <div className="mx-auto w-full max-w-[1720px]">
+          <div className="mx-auto w-full max-w-[1720px] dash-animate">
 
             {/* Single Integrated Toolbar: Zone Tabs (Left) + Actions (Right) */}
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 {[
                   { id: "all", label: language === "km" ? "តុ & បន្ទប់ទាំងអស់" : "All Tables & Rooms", count: zoneCounts.all, icon: Layers },
-                  { id: "indoor", label: language === "km" ? "សាលធំ (Indoor)" : "Indoor Hall", count: zoneCounts.indoor, icon: Store },
-                  { id: "outdoor", label: language === "km" ? "យ៉រ/ខាងក្រៅ (Outdoor)" : "Outdoor Area", count: zoneCounts.outdoor, icon: MapPin },
+                  { id: "indoor", label: language === "km" ? "តុ (Table)" : "Table", count: zoneCounts.indoor, icon: Armchair },
                   { id: "vip", label: language === "km" ? "បន្ទប់ VIP (VIP Rooms)" : "VIP Rooms", count: zoneCounts.vip, icon: Crown },
                 ].map((tab) => {
                   const Icon = tab.icon;
@@ -666,17 +666,17 @@ export default function TablesPage() {
             className="absolute inset-0 cursor-default"
           />
 
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[500px] overflow-y-auto rounded-[24px] p-8 shadow-2xl border-none animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e202f]`}>
-            <div className="mb-6">
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[480px] overflow-y-auto rounded-2xl p-7 shadow-2xl border-none animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e202f]`}>
+            <div className="mb-5">
               <h2 className={`text-xl font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
                 {tableForm.id ? (language === "km" ? "កែសម្រួលតុ" : "Edit Table") : (language === "km" ? "បន្ថែមតុថ្មី" : "Add New Table")}
               </h2>
             </div>
 
-            <form onSubmit={submit} className="space-y-5">
+            <form onSubmit={submit} className="space-y-4.5">
               {/* Row 1: Title */}
               <label className="block">
-                <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
                   {language === "km" ? "ឈ្មោះតុ" : "Title"}
                 </span>
                 <input
@@ -684,14 +684,14 @@ export default function TablesPage() {
                   value={tableForm.name}
                   onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))}
                   placeholder={language === "km" ? "បញ្ចូលឈ្មោះតុ" : "Enter Table Title"}
-                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
                 />
               </label>
 
               {/* Row 2: Floor and Seating Capacity */}
-              <div className="grid gap-4 grid-cols-2">
+              <div className="grid gap-3.5 grid-cols-2">
                 <label className="block">
-                  <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
                     {language === "km" ? "ជាន់ / តំបន់" : "Floor"}
                   </span>
                   <select
@@ -699,7 +699,7 @@ export default function TablesPage() {
                     onChange={(event) =>
                       setTableForm((current) => ({ ...current, zone: event.target.value as TableZone }))
                     }
-                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20 cursor-pointer"
                   >
                     <option value="indoor">{language === "km" ? "សាលខាងក្នុង (Indoor)" : "Indoor"}</option>
                     <option value="outdoor">{language === "km" ? "យ៉រខាងក្រៅ (Outdoor)" : "Outdoor"}</option>
@@ -708,7 +708,7 @@ export default function TablesPage() {
                 </label>
 
                 <label className="block">
-                  <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
                     {language === "km" ? "ចំនួនកៅអី" : "Seating Capacity"}
                   </span>
                   <input
@@ -717,26 +717,26 @@ export default function TablesPage() {
                     value={tableForm.capacity}
                     onChange={(event) => setTableForm((current) => ({ ...current, capacity: event.target.value }))}
                     placeholder={language === "km" ? "បញ្ចូលចំនួនកៅអី" : "Enter Seating Capacity"}
-                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
                   />
                 </label>
               </div>
 
               {/* Row 3: QR Token (Optional) */}
               <label className="block">
-                <span className={`text-[13px] font-medium text-slate-400/90 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
                   {language === "km" ? "កូដ QR Token (មិនតម្រូវ)" : "QR Token (Optional)"}
                 </span>
                 <input
                   value={tableForm.qrToken}
                   onChange={(event) => setTableForm((current) => ({ ...current, qrToken: event.target.value }))}
                   placeholder={language === "km" ? "ឧ. table-t5" : "Optional, e.g. table-t5"}
-                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
                 />
               </label>
 
               {/* Row 4: Enable Guest Ordering */}
-              <label className="flex items-center justify-between rounded-xl bg-[#f4f5f7]/60 dark:bg-[#2b2c40]/60 px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-transparent">
+              <label className="flex items-center justify-between rounded-xl bg-[#f4f5f7]/60 dark:bg-[#2b2c40]/60 px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-transparent">
                 <span className={language === "km" ? "font-khmer" : ""}>
                   {language === "km" ? "អនុញ្ញាតឱ្យភ្ញៀវកម្ម៉ង់ផ្ទាល់ខ្លួន" : "Enable Guest Ordering"}
                 </span>
@@ -744,22 +744,22 @@ export default function TablesPage() {
                   type="checkbox"
                   checked={tableForm.isActive}
                   onChange={(event) => setTableForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-4.5 w-4.5 accent-[#6bbd75] cursor-pointer"
+                  className="h-4.5 w-4.5 accent-[#55a060] cursor-pointer"
                 />
               </label>
 
               {/* Row 5: Action Buttons */}
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={closeTableModal}
-                  className="rounded-2xl border border-slate-100 dark:border-slate-850 bg-[#f4f5f7] dark:bg-[#232333] px-6 py-2.5 font-bold text-sm text-slate-600 dark:text-slate-350 hover:bg-[#e9ebed] dark:hover:bg-[#2b2c40] transition-all cursor-pointer"
+                  className="rounded-xl border border-slate-100 dark:border-slate-800 bg-[#f4f5f7] dark:bg-[#232333] px-5 py-2.5 font-bold text-xs text-slate-600 dark:text-slate-350 hover:bg-[#e9ebed] dark:hover:bg-[#2b2c40] transition-all cursor-pointer"
                 >
                   {language === "km" ? "បិទ" : "Close"}
                 </button>
-                 <button
+                <button
                   type="submit"
-                  className="rounded-2xl bg-[#6bbd75] hover:bg-[#5aaf64] px-6 py-2.5 font-bold text-sm text-white shadow-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5"
+                  className="rounded-xl bg-[#55a060] hover:bg-[#46894f] px-5 py-2.5 font-bold text-xs text-white shadow-xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
                 >
                   {tableForm.id ? <Save size={14} /> : <Plus size={14} />}
                   <span>{tableForm.id ? (language === "km" ? "ធ្វើបច្ចុប្បន្នភាព" : "Update") : (language === "km" ? "រក្សាទុក" : "Save")}</span>

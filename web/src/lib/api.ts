@@ -70,9 +70,11 @@ export type RestoreBackupResult = {
   };
 };
 
+import { getCookie } from "./cookies";
+
 function getStoredToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("pos_token") || localStorage.getItem("token") || null;
+  return localStorage.getItem("pos_token") || localStorage.getItem("token") || getCookie("pos_token") || null;
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

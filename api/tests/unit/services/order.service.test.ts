@@ -158,6 +158,7 @@ describe("order.service", () => {
 
   describe("updateOrderStatus", () => {
     it("should update and return the formatted order", async () => {
+      mockOrderFindUnique.mockResolvedValue(fakeRawOrder);
       mockOrderUpdate.mockResolvedValue({ ...fakeRawOrder, status: "accepted" });
 
       const result = await updateOrderStatus(1, "accepted");
@@ -172,6 +173,7 @@ describe("order.service", () => {
     });
 
     it("should normalize unknown status to 'pending'", async () => {
+      mockOrderFindUnique.mockResolvedValue(fakeRawOrder);
       mockOrderUpdate.mockResolvedValue(fakeRawOrder);
 
       await updateOrderStatus(1, "unknown");
@@ -181,6 +183,8 @@ describe("order.service", () => {
       );
     });
   });
+
+
 
   // ─── deleteOrder ───────────────────────────────────────────────────────────
 

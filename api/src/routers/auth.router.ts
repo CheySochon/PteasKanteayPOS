@@ -16,12 +16,14 @@ import {
   resetPassword,
   getPublicStaff,
   loginPin,
+  refreshToken,
 } from "../controllers/auth.controller.js";
 
 const router = Router();
 
 router.post("/register", validate(registerSchema), asyncHandler(register));
 router.post("/login", validate(loginSchema), asyncHandler(login));
+router.post("/refresh", asyncHandler(refreshToken));
 router.post("/logout", asyncHandler(logout));
 router.post("/reset-password", asyncHandler(resetPassword));
 router.get("/staff", asyncHandler(getPublicStaff));

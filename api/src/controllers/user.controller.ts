@@ -20,6 +20,8 @@ export const list = asyncHandler(async (_req: Request, res: Response) => {
 export const create = asyncHandler(
   async (req: Request<object, object, CreateUserBody>, res: Response) => {
     const user = await createUser(req.body);
+    const io = req.app.get("io");
+    if (io) io.emit("user:created", user);
     res.status(201).json({ success: true, message: "User created", data: user });
   },
 );
@@ -32,6 +34,8 @@ export const update = asyncHandler(
       return;
     }
     const user = await updateUser(idVal, req.body);
+    const io = req.app.get("io");
+    if (io) io.emit("user:updated", user);
     res.json({ success: true, message: "User updated", data: user });
   },
 );
@@ -44,6 +48,8 @@ export const remove = asyncHandler(
       return;
     }
     await deleteUser(idVal);
+    const io = req.app.get("io");
+    if (io) io.emit("user:deleted", { id: idVal });
     res.json({ success: true, message: "User deleted" });
   },
 );

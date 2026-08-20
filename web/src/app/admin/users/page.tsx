@@ -78,6 +78,27 @@ type UserForm = {
   designation?: string;
 };
 
+const ALL_PERMISSIONS_LIST = [
+  { key: "dashboard", label: "Dashboard Overview" },
+  { key: "pos", label: "Point of Sale (POS)" },
+  { key: "customer_display", label: "Customer Facing Display" },
+  { key: "kds", label: "Kitchen Display System (KDS)" },
+  { key: "order_status", label: "Order Status Board" },
+  { key: "order_stage", label: "Order Stage Updates" },
+  { key: "orders", label: "Orders Management" },
+  { key: "kitchen_workflow", label: "Kitchen Workflow" },
+  { key: "reservations", label: "Reservations Module" },
+  { key: "view_bookings", label: "View Bookings" },
+  { key: "manage_bookings", label: "Manage Bookings" },
+  { key: "customer_directory", label: "Customer Directory" },
+  { key: "view_customer_profiles", label: "View Customer Profiles" },
+  { key: "manage_customer_profiles", label: "Manage Customer Profiles" },
+  { key: "invoices", label: "Invoices & Billing" },
+  { key: "void_invoices", label: "Void Invoices" },
+  { key: "invoice_audit", label: "Invoice Audit Log" },
+  { key: "loyalty", label: "Loyalty & Memberships" },
+];
+
 const EMPTY_FORM: UserForm = {
   name: "",
   email: "",
@@ -222,6 +243,17 @@ export default function UsersPage() {
   // Apply filters
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
+      // Remove Bong Thim, Kong, POP, and Ahdeth user cards
+      const nameLower = user.name?.toLowerCase() || "";
+      const emailLower = user.email?.toLowerCase() || "";
+      if (
+        nameLower === "ahdeth" || emailLower.includes("kjgkjg") ||
+        nameLower === "pop" || emailLower.includes("pop@") ||
+        nameLower === "kong" || emailLower.includes("kong@") ||
+        nameLower.includes("bong thim") || nameLower.includes("bongthim") || emailLower.includes("bongthom@")
+      ) {
+        return false;
+      }
       const uRole = roleName(user);
       const matchesRole = !filterRole || uRole === filterRole;
       const matchesStatus =
@@ -280,14 +312,33 @@ export default function UsersPage() {
     try {
       const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
 
+      const rawRole = form.roleName || "Cashier";
+      const targetRole = rawRole === "Custom" ? (form.id ? "Cashier" : "Cashier") : rawRole;
+
+      const formattedPermissions = ALL_PERMISSIONS_LIST.map((p) => {
+        const hasView = selectedPerms.includes(p.key);
+        const hasEdit = selectedPerms.includes(`${p.key}_edit`);
+        const hasDelete = selectedPerms.includes(`${p.key}_delete`);
+        return {
+          key: p.key,
+          label: p.label,
+          view: hasView,
+          create: hasEdit,
+          edit: hasEdit,
+          delete: hasDelete,
+        };
+      });
+
       if (form.id) {
         const body = {
           name: form.name,
           email: userEmail,
-          roleName: form.roleName,
+          role: targetRole,
+          roleName: targetRole,
           isActive: form.isActive,
           pin: form.pin || "1234",
           imageUrl: form.imageUrl || "",
+          permissions: formattedPermissions,
           ...(form.password ? { password: form.password } : {}),
         };
 
@@ -325,10 +376,12 @@ export default function UsersPage() {
           name: form.name,
           email: userEmail,
           password: form.password || "password123",
-          roleName: form.roleName,
+          role: targetRole,
+          roleName: targetRole,
           isActive: form.isActive,
           pin: form.pin || "1234",
           imageUrl: form.imageUrl || "",
+          permissions: formattedPermissions,
         } as any);
 
         setUsers((current) => [created, ...current]);
@@ -524,7 +577,7 @@ export default function UsersPage() {
         />
 
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-          <div className="mx-auto w-full max-w-[1720px]">
+          <div className="mx-auto w-full max-w-[1720px] dash-animate">
 
             {/* Floating Top Success/Error Toast Alerts */}
             <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
@@ -599,7 +652,7 @@ export default function UsersPage() {
                       return (
                         <div
                           key={user.id}
-                          className={`w-full max-w-[320px] min-h-[440px] h-[440px] rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
+                          className={`w-full max-w-[320px] ${isAdmin ? "h-auto py-6" : "min-h-[440px] h-[440px]"} rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
                             dark
                               ? "border-[#3b3c54] bg-[#2b2c40]"
                               : "border-slate-200/80 bg-white"
@@ -724,33 +777,12 @@ export default function UsersPage() {
 
       {/* Redesigned User Modal Create/Edit matching mock */}
       {isUserModalOpen && (() => {
-        const allPermissionsList = [
-          { key: "dashboard", label: "Dashboard Overview" },
-          { key: "pos", label: "Point of Sale (POS)" },
-          { key: "customer_display", label: "Customer Facing Display" },
-          { key: "kds", label: "Kitchen Display System (KDS)" },
-          { key: "order_status", label: "Order Status Board" },
-          { key: "order_stage", label: "Order Stage Updates" },
-          { key: "orders", label: "Orders Management" },
-          { key: "kitchen_workflow", label: "Kitchen Workflow" },
-          { key: "reservations", label: "Reservations Module" },
-          { key: "view_bookings", label: "View Bookings" },
-          { key: "manage_bookings", label: "Manage Bookings" },
-          { key: "customer_directory", label: "Customer Directory" },
-          { key: "view_customer_profiles", label: "View Customer Profiles" },
-          { key: "manage_customer_profiles", label: "Manage Customer Profiles" },
-          { key: "invoices", label: "Invoices & Billing" },
-          { key: "void_invoices", label: "Void Invoices" },
-          { key: "invoice_audit", label: "Invoice Audit Log" },
-          { key: "loyalty", label: "Loyalty & Memberships" },
-        ];
-
         const handleRoleSelect = (roleName: string) => {
           setForm((curr) => ({ ...curr, roleName }));
           let keys: string[] = [];
           const rLower = roleName.toLowerCase();
           if (rLower.includes("manager") || rLower.includes("store") || rLower.includes("admin")) {
-            keys = allPermissionsList.map((p) => p.key);
+            keys = ALL_PERMISSIONS_LIST.map((p) => p.key);
           } else if (rLower.includes("cashier")) {
             keys = ["pos", "orders", "customer_display", "order_status", "invoices", "loyalty"];
           } else if (rLower.includes("staff") || rLower.includes("chef") || rLower.includes("kitchen")) {
@@ -763,25 +795,47 @@ export default function UsersPage() {
           setSelectedPerms(keys);
         };
 
-        const togglePerm = (key: string) => {
+        const toggleGranularPerm = (baseKey: string, type: "view" | "edit" | "delete") => {
+          const permKey = type === "view" ? baseKey : `${baseKey}_${type}`;
           setSelectedPerms((curr) => {
-            const next = curr.includes(key) ? curr.filter((k) => k !== key) : [...curr, key];
-            return next;
+            if (curr.includes(permKey)) {
+              return curr.filter((k) => k !== permKey);
+            } else {
+              const added = [permKey];
+              if (type !== "view" && !curr.includes(baseKey)) {
+                added.push(baseKey);
+              }
+              return [...curr, ...added];
+            }
           });
-          setForm((curr) => ({ ...curr, roleName: "Custom" }));
         };
 
-        const selectAll = () => {
-          setSelectedPerms(allPermissionsList.map((p) => p.key));
-          setForm((curr) => ({ ...curr, roleName: "Custom" }));
+        const setViewOnlyAll = () => {
+          setSelectedPerms(ALL_PERMISSIONS_LIST.map((p) => p.key));
+        };
+
+        const setCanEditAll = () => {
+          const keys: string[] = [];
+          ALL_PERMISSIONS_LIST.forEach((p) => {
+            keys.push(p.key, `${p.key}_edit`);
+          });
+          setSelectedPerms(keys);
+        };
+
+        const setFullAccessAll = () => {
+          const keys: string[] = [];
+          ALL_PERMISSIONS_LIST.forEach((p) => {
+            keys.push(p.key, `${p.key}_edit`, `${p.key}_delete`);
+          });
+          setSelectedPerms(keys);
         };
 
         const deselectAll = () => {
           setSelectedPerms([]);
-          setForm((curr) => ({ ...curr, roleName: "Custom" }));
         };
 
         const rolesList = [
+          { id: "admin", label: "Admin", role: "Admin", icon: ShieldCheck },
           { id: "cashier", label: "Cashier", role: "Cashier", icon: CreditCard },
           { id: "kitchen_chef", label: "Kitchen Chef", role: "Staff", icon: ChefHat },
         ];
@@ -789,7 +843,7 @@ export default function UsersPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
             <div
-              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-[28px] shadow-2xl border px-12 py-6 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
+              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-[28px] shadow-2xl border px-6 py-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none"
@@ -821,7 +875,7 @@ export default function UsersPage() {
               <form onSubmit={submit} className="space-y-4">
                 
                 {/* DETAILS & CREDENTIALS SECTION */}
-                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 px-10 py-4 bg-white dark:bg-[#1e293b] space-y-4">
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 px-5 py-4 bg-white dark:bg-[#1e293b] space-y-4">
                   <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
                     <UserRound size={12} className="stroke-[2.5]" />
                     Details & Credentials
@@ -1020,7 +1074,7 @@ export default function UsersPage() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 max-w-md mt-2">
+                  <div className="grid grid-cols-3 gap-3 max-w-lg mt-2">
                     {rolesList.map((item) => {
                       const IconComp = item.icon;
                       const isSelected = form.roleName === item.role;
@@ -1049,22 +1103,23 @@ export default function UsersPage() {
                     <div className="flex items-center gap-2.5">
                       <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                         <ShieldCheck size={12} className="stroke-[2.5]" />
-                        Permissions & Scopes
+                        Permissions & Granular Scopes
                       </div>
                       <span className="rounded bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600">
-                        {selectedPerms.length} / {allPermissionsList.length} Selected
+                        {selectedPerms.length} Scopes Active
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-emerald-600 font-semibold select-none">
-                      <button type="button" onClick={selectAll} className="hover:underline cursor-pointer">Select All</button>
-                      <span className="text-slate-200">|</span>
-                      <button type="button" onClick={deselectAll} className="hover:underline cursor-pointer">Deselect All</button>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold select-none">
+                      <button type="button" onClick={setViewOnlyAll} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all cursor-pointer">👁️ View Only</button>
+                      <button type="button" onClick={setCanEditAll} className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-all cursor-pointer">✏️ Can Edit</button>
+                      <button type="button" onClick={setFullAccessAll} className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer">⚡ Full Access</button>
+                      <button type="button" onClick={deselectAll} className="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 transition-all cursor-pointer">✕ Clear All</button>
                     </div>
                   </div>
 
                   <div
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[250px] overflow-y-auto no-scrollbar pr-1"
+                    className="space-y-2 max-h-[280px] overflow-y-auto no-scrollbar pr-1"
                     style={{
                       scrollbarWidth: "none",
                       msOverflowStyle: "none"
@@ -1075,26 +1130,67 @@ export default function UsersPage() {
                         display: none;
                       }
                     `}</style>
-                    {allPermissionsList.map((perm) => {
-                      const isChecked = selectedPerms.includes(perm.key);
+                    {ALL_PERMISSIONS_LIST.map((perm) => {
+                      const hasView = selectedPerms.includes(perm.key);
+                      const hasEdit = selectedPerms.includes(`${perm.key}_edit`);
+                      const hasDelete = selectedPerms.includes(`${perm.key}_delete`);
+
                       return (
                         <div
                           key={perm.key}
-                          onClick={() => togglePerm(perm.key)}
-                          className={`flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all cursor-pointer select-none ${
-                            isChecked
-                              ? "border-emerald-500/70 bg-emerald-50/20 text-emerald-600 dark:text-emerald-450 font-medium"
-                              : "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-white dark:bg-[#1e293b]/20 hover:bg-slate-50/80"
+                          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2 rounded-xl border transition-all select-none gap-2 ${
+                            hasView || hasEdit || hasDelete
+                              ? "border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"
+                              : "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-[#1e293b]/20"
                           }`}
                         >
-                          <div className={`h-3.5 w-3.5 rounded-full flex items-center justify-center border transition-all shrink-0 ${
-                            isChecked
-                              ? "border-emerald-500 bg-emerald-500 text-white"
-                              : "border-slate-355 bg-white dark:bg-slate-800 text-transparent"
-                          }`}>
-                            <Check size={8} strokeWidth={5.0} className="text-white" />
+                          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                            {perm.label}
+                          </span>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* View Action Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => toggleGranularPerm(perm.key, "view")}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                                hasView
+                                  ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100 shadow-xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                              }`}
+                            >
+                              <span>👁️</span>
+                              <span>View</span>
+                            </button>
+
+                            {/* Edit Action Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => toggleGranularPerm(perm.key, "edit")}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                                hasEdit
+                                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-300"
+                              }`}
+                            >
+                              <span>✏️</span>
+                              <span>Edit</span>
+                            </button>
+
+                            {/* Delete Action Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => toggleGranularPerm(perm.key, "delete")}
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                                hasDelete
+                                  ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-rose-300"
+                              }`}
+                            >
+                              <span>🗑️</span>
+                              <span>Remove</span>
+                            </button>
                           </div>
-                          <span className="text-[10px] font-semibold">{perm.label}</span>
                         </div>
                       );
                     })}

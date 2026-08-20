@@ -129,7 +129,7 @@ export default function InvoicesPage() {
       />
 
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-        <div className="mx-auto w-full max-w-[1720px]">
+        <div className="mx-auto w-full max-w-[1720px] dash-animate">
           
           {/* Header Title + Controls Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
@@ -180,7 +180,7 @@ export default function InvoicesPage() {
                 }`}
                 title="Filter / Reset"
               >
-                <SlidersHorizontal size={15} />
+                <Filter size={15} />
               </button>
             </div>
           </div>

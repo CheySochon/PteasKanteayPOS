@@ -19,6 +19,51 @@ export const listUsers = async () => {
   });
 };
 
+async function findOrCreateRole(targetRoleName?: string) {
+  const selectedRole = (targetRoleName || "Cashier").trim();
+  let roleRecord = await prisma.role.findUnique({
+    where: { name: selectedRole },
+  });
+
+  if (!roleRecord) {
+    roleRecord = await prisma.role.findFirst({
+      where: { name: { equals: selectedRole, mode: "insensitive" } },
+    });
+  }
+
+  if (!roleRecord) {
+    try {
+      roleRecord = await prisma.role.create({
+        data: {
+          name: selectedRole,
+          description: `${selectedRole} Role`,
+          permissions: [],
+        },
+      });
+    } catch {
+      roleRecord = await prisma.role.findFirst({
+        where: { name: { equals: selectedRole, mode: "insensitive" } },
+      });
+    }
+  }
+
+  if (!roleRecord) {
+    roleRecord = await prisma.role.findFirst({
+      where: { name: { equals: "Staff", mode: "insensitive" } },
+    });
+  }
+
+  if (!roleRecord) {
+    roleRecord = await prisma.role.findFirst();
+  }
+
+  if (!roleRecord) {
+    throw new Error("Invalid role: No roles found in system");
+  }
+
+  return roleRecord;
+}
+
 export const createUser = async (data: {
   email: string;
   password: string;
@@ -28,6 +73,7 @@ export const createUser = async (data: {
   isActive?: boolean;
   pin?: string;
   imageUrl?: string;
+  permissions?: any[];
 }) => {
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
 
@@ -37,13 +83,14 @@ export const createUser = async (data: {
 
   const hashedPassword = await hashPassword(data.password);
 
-  const selectedRole = data.roleName ?? data.role ?? "Staff";
-  const roleRecord = await prisma.role.findUnique({
-    where: { name: selectedRole },
-  });
+  const selectedRole = data.roleName ?? data.role ?? "Cashier";
+  const roleRecord = await findOrCreateRole(selectedRole);
 
-  if (!roleRecord) {
-    throw new Error("Invalid role");
+  if (data.permissions && Array.isArray(data.permissions) && data.permissions.length > 0) {
+    await prisma.role.update({
+      where: { id: roleRecord.id },
+      data: { permissions: data.permissions },
+    });
   }
 
   return prisma.user.create({
@@ -81,6 +128,7 @@ export const updateUser = async (
     isActive?: boolean;
     pin?: string;
     imageUrl?: string;
+    permissions?: any[];
   },
 ) => {
   const existing = await prisma.user.findUnique({ where: { id } });
@@ -100,13 +148,15 @@ export const updateUser = async (
 
   const selectedRole = data.roleName !== undefined ? data.roleName : data.role;
   if (selectedRole !== undefined) {
-    const roleRecord = await prisma.role.findUnique({
-      where: { name: selectedRole },
-    });
-    if (!roleRecord) {
-      throw new Error("Invalid role");
-    }
+    const roleRecord = await findOrCreateRole(selectedRole);
     updateData.roleId = roleRecord.id;
+
+    if (data.permissions && Array.isArray(data.permissions) && data.permissions.length > 0) {
+      await prisma.role.update({
+        where: { id: roleRecord.id },
+        data: { permissions: data.permissions },
+      });
+    }
   }
 
   return prisma.user.update({

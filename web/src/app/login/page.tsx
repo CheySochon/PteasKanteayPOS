@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiOrigin, getSettings, getUsers, login, logAuditEntry, loginPin, getPublicStaff } from "../../lib/api";
+import { setCookie } from "../../lib/cookies";
 import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
@@ -40,27 +41,8 @@ export default function LoginPage() {
   // Cashier PIN Pad Mode State
   const [loginMethod, setLoginMethod] = useState<"pin" | "email">("pin");
   const [pin, setPin] = useState("");
-  const [staffPresets, setStaffPresets] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("pos_public_staff_cache");
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return [];
-  });
-  const [selectedStaff, setSelectedStaff] = useState<any>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("pos_public_staff_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-        }
-      } catch {}
-    }
-    return null;
-  });
+  const [staffPresets, setStaffPresets] = useState<any[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<any>(null);
 
   // 2FA / OTP & Reset Password State
   const [step, setStep] = useState<"login" | "2fa" | "forgot_email" | "forgot_reset">("login");
@@ -121,6 +103,17 @@ export default function LoginPage() {
 
   // Fetch Dynamic Real Users List from API & Local Database
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem("pos_public_staff_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setStaffPresets(parsed);
+          setSelectedStaff(parsed[0]);
+        }
+      }
+    } catch {}
+
     async function loadDynamicUsers() {
       try {
         const users = await getPublicStaff();
@@ -362,6 +355,9 @@ export default function LoginPage() {
       localStorage.setItem("pos_login_timestamp", Date.now().toString());
       localStorage.setItem("pos_token", res.token);
       localStorage.setItem("pos_user", JSON.stringify(userPayload));
+
+      setCookie("pos_token", res.token, 7);
+      setCookie("pos_logged_in", "true", 7);
 
       // Store temporary login alert info for layout
       localStorage.setItem(
@@ -694,86 +690,84 @@ export default function LoginPage() {
           <div className="w-full space-y-4 my-auto">
             {/* Logo Header (Vertically Stacked) */}
             {!(step === "login" && loginMethod === "pin" && selectedStaff) && (
-              <div className="flex flex-col items-center text-center mb-6">
+              <div className="flex flex-col items-center text-center mb-4">
                 {restaurantImageUrl && !imageError ? (
                   <img
                     src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
                     alt="Restaurant Logo"
-                    className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 ring-4 ring-emerald-500/10 shadow-xs mb-3"
+                    className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 ring-4 ring-emerald-500/10 shadow-xs mb-1"
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <div className="h-16 w-16 rounded-full bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/10 dark:text-emerald-400 ring-4 ring-emerald-500/10 flex items-center justify-center font-bold shadow-xs mb-3">
+                  <div className="h-16 w-16 rounded-full bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/10 dark:text-emerald-400 ring-4 ring-emerald-500/10 flex items-center justify-center font-bold shadow-xs mb-1">
                     <Store size={26} />
                   </div>
                 )}
-                <h2 className="font-khmer text-base font-black tracking-normal leading-tight text-slate-800 dark:text-slate-100">
-                  {posName}
-                </h2>
               </div>
             )}
 
-            {/* Header Title (Centered) */}
-            <div className="text-center">
-
-          {step === "2fa" && (
-            <>
-              <div className="relative flex items-center justify-center mb-1">
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
-                  2-Step Verification
-                </h1>
+            {/* Header Title (Centered for Sub-steps) */}
+            {step !== "login" && (
+              <div className="text-center">
+                {step === "2fa" && (
+                  <>
+                    <div className="relative flex items-center justify-center mb-1">
+                      <button
+                        type="button"
+                        onClick={() => setStep("login")}
+                        className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      >
+                        <ArrowLeft size={16} />
+                      </button>
+                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                        2-Step Verification
+                      </h1>
+                    </div>
+                    <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
+                      We sent a 6-digit verification code to <strong className="text-[#6ab070] dark:text-emerald-400">{email}</strong>.
+                    </p>
+                  </>
+                )}
+                {step === "forgot_email" && (
+                  <>
+                    <div className="relative flex items-center justify-center mb-1">
+                      <button
+                        type="button"
+                        onClick={() => setStep("login")}
+                        className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      >
+                        <ArrowLeft size={16} />
+                      </button>
+                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                        Reset Password
+                      </h1>
+                    </div>
+                    <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
+                      Enter your Admin Email to receive a 6-digit recovery OTP.
+                    </p>
+                  </>
+                )}
+                {step === "forgot_reset" && (
+                  <>
+                    <div className="relative flex items-center justify-center mb-1">
+                      <button
+                        type="button"
+                        onClick={() => setStep("forgot_email")}
+                        className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+                      >
+                        <ArrowLeft size={16} />
+                      </button>
+                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                        New Password
+                      </h1>
+                    </div>
+                    <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
+                      Enter the 6-digit OTP sent to <strong className="text-[#6ab070] dark:text-emerald-400">{resetEmail}</strong> and your new password.
+                    </p>
+                  </>
+                )}
               </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
-                We sent a 6-digit verification code to <strong className="text-[#6ab070] dark:text-emerald-400">{email}</strong>.
-              </p>
-            </>
-          )}
-          {step === "forgot_email" && (
-            <>
-              <div className="relative flex items-center justify-center mb-1">
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
-                  Reset Password
-                </h1>
-              </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
-                Enter your Admin Email to receive a 6-digit recovery OTP.
-              </p>
-            </>
-          )}
-          {step === "forgot_reset" && (
-            <>
-              <div className="relative flex items-center justify-center mb-1">
-                <button
-                  type="button"
-                  onClick={() => setStep("forgot_email")}
-                  className="absolute left-0 p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-                <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
-                  New Password
-                </h1>
-              </div>
-              <p className="text-[11.5px] text-slate-400 dark:text-slate-400 font-normal leading-relaxed mt-0.5 text-center">
-                Enter the 6-digit OTP sent to <strong className="text-[#6ab070] dark:text-emerald-400">{resetEmail}</strong> and your new password.
-              </p>
-            </>
-          )}
-        </div>
+            )}
 
 
 
@@ -967,8 +961,8 @@ export default function LoginPage() {
                 }}
                 onFocus={() => setError("")}
                 type="email"
-                placeholder="Enter Your email here..."
-                className="w-full h-11 rounded-2xl border-none bg-slate-100 dark:bg-slate-800 px-5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                placeholder="Enter your email here..."
+                className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 px-4.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
                 required
               />
             </div>
@@ -1001,8 +995,8 @@ export default function LoginPage() {
                   }}
                   onFocus={() => setError("")}
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter Your Password here..."
-                  className="w-full h-11 rounded-2xl border-none bg-slate-100 dark:bg-slate-800 pl-5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                  placeholder="Enter your password here..."
+                  className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4.5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
                   required
                 />
                 <button
@@ -1020,7 +1014,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 rounded-2xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
+                className="w-full h-11 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
               >
                 {loading ? <Loader2 className="animate-spin" size={16} /> : null}
                 {loading ? "Verifying Credentials..." : "Login"}
@@ -1222,11 +1216,6 @@ export default function LoginPage() {
             </div>
           </form>
         )}
-          </div>
-
-          {/* Bottom Right Copyright Footer */}
-          <div className="pt-6 text-center text-[11px] text-slate-400 dark:text-slate-500 font-normal">
-            © 2026 POS Management System
           </div>
         </div>
       </div>

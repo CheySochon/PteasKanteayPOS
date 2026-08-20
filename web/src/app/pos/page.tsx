@@ -280,21 +280,38 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
       const createdOrder = await createOrder(payload);
 
+      const fullOrder = {
+        id: createdOrder?.id || Date.now(),
+        createdAt: createdOrder?.createdAt || new Date().toISOString(),
+        orderNumber: createdOrder?.orderNumber || ticketNumber,
+        status: createdOrder?.status || "pending",
+        totalAmount: total,
+        items: (createdOrder?.items && createdOrder.items.length > 0) ? createdOrder.items : payload.items,
+        table: createdOrder?.table || payload.table,
+        tableName: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Takeaway",
+        ...createdOrder,
+      };
+
       const socket = getSocket();
       if (socket) {
-        socket.emit("order:created", createdOrder);
-        socket.emit("order:new", createdOrder);
+        socket.emit("order:create", fullOrder);
+        socket.emit("order:created", fullOrder);
+        socket.emit("order:new", fullOrder);
       }
 
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pos-order-created"));
       }
 
+      setCart([]);
+      setDiscountPercent(0);
+      setOrderNote("");
       setSendKitchenModalOpen(false);
       setShowKitchenToast(true);
       setTimeout(() => {
         setShowKitchenToast(false);
       }, 3000);
+      setMessage(`Order ${fullOrder.orderNumber || `#${fullOrder.id}`} sent to kitchen!`);
     } catch (err: any) {
       alert(err?.message || "Failed to send order to kitchen");
     } finally {
@@ -699,6 +716,25 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       };
 
       const order = await createOrder(payload);
+
+      const fullOrder = {
+        id: order?.id || Date.now(),
+        createdAt: order?.createdAt || new Date().toISOString(),
+        orderNumber: order?.orderNumber || ticketNumber,
+        status: order?.status || "pending",
+        totalAmount: total,
+        items: (order?.items && order.items.length > 0) ? order.items : cart.map((i) => ({ productId: i.productId, quantity: i.quantity, name: i.name, unitPrice: i.unitPrice, notes: i.notes || "" })),
+        table: order?.table || (selectedTable ? { name: selectedTable.name } : null),
+        tableName: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Walk-in / Takeaway",
+        ...order,
+      };
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("order:create", fullOrder);
+        socket.emit("order:created", fullOrder);
+        socket.emit("order:new", fullOrder);
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pos-order-created"));
       }
@@ -779,6 +815,8 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     }
   }
 
+
+
   function handlePayClick() {
     if (cart.length === 0) return;
     setCashReceived(total);
@@ -824,7 +862,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       )}
 
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
-      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0">
+      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0 dash-animate">
           {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
           <header className={`flex flex-col md:flex-row items-stretch md:items-center justify-between pt-3 pb-3 px-3.5 sm:px-4 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             <div className="flex items-center justify-between w-full md:w-auto">
@@ -2396,7 +2434,7 @@ function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolea
             </div>
           )}
 
-          <h3 className={`line-clamp-1 text-[12.5px] font-bold group-hover:text-[#55a060] transition-colors leading-snug ${
+          <h3 className={`line-clamp-1 text-[12.5px] font-bold group-hover:text-[#55a060] transition-colors leading-snug font-khmer ${
             dark ? "text-slate-100" : "text-slate-800"
           }`}>
             {product.name}
@@ -2475,7 +2513,7 @@ function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: bo
       <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
         {/* Header Row: Title & Price */}
         <div className="flex items-start justify-between gap-2">
-          <h3 className={`line-clamp-1 text-xs font-bold group-hover:text-[#55a060] transition-colors leading-snug ${
+          <h3 className={`line-clamp-1 text-xs font-bold group-hover:text-[#55a060] transition-colors leading-snug font-khmer ${
             dark ? "text-slate-100" : "text-slate-800"
           }`}>
             {product.name}

@@ -17,7 +17,7 @@ import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
 
-const visibleStatuses: OrderStatus[] = ["pending", "preparing"];
+const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing", "ready"];
 
 export default function AdminKitchenPage() {
   const [theme] = useAppTheme();
@@ -76,7 +76,10 @@ export default function AdminKitchenPage() {
 
   const kitchenOrders = useMemo(() => {
     return orders
-      .filter((o) => visibleStatuses.includes(o.status))
+      .filter((o) => {
+        const s = (o.status || "pending").toLowerCase();
+        return s !== "cancelled" && s !== "served";
+      })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [orders]);
 
@@ -91,7 +94,7 @@ export default function AdminKitchenPage() {
         dark={dark}
       />
 
-      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto">
+      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto dash-animate">
         {/* Header Action Row matching screenshot */}
         <div className="flex items-center justify-between gap-4 pb-2">
           <div className="flex items-center gap-3.5">

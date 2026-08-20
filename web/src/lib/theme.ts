@@ -32,7 +32,11 @@ export function setStoredTheme(value: SetStateAction<Theme>) {
 }
 
 export function useAppTheme(): [Theme, Dispatch<SetStateAction<Theme>>] {
-  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+  const [theme, setThemeState] = useState<Theme>("light");
+
+  useEffect(() => {
+    setThemeState(getStoredTheme());
+  }, []);
 
   useEffect(() => {
     applyTheme(theme);

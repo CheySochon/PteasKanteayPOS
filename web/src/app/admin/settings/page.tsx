@@ -1558,36 +1558,7 @@ export default function SettingsPage() {
       </div>
     </div>
 
-    {/* Sticky Floating Save Toast Bar (When settings modified) */}
-    {isDirty && (
-      <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 flex items-center gap-4 rounded-2xl bg-[#1f2130] px-5 py-3 text-xs font-bold text-white shadow-2xl border border-slate-700 animate-[printerScaleIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]">
-        <div className="flex items-center gap-2 text-amber-400">
-          <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-          <span>{language === "km" ? "អ្នកមានទិន្នន័យមិនទាន់រក្សាទុក" : "Unsaved changes detected"}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={resetFormSettings}
-            className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            {language === "km" ? "កំណត់ឡើងវិញ" : "Reset"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const form = document.getElementById("settingsForm") as HTMLFormElement;
-              if (form) form.requestSubmit();
-            }}
-            disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#696cff] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#5f61e6] active:scale-95 transition-all shadow-md shadow-[#696cff]/25"
-          >
-            {saving ? <Loader2 className="animate-spin" size={13} /> : <Save size={13} />}
-            {language === "km" ? "រក្សាទុក" : "Save Changes"}
-          </button>
-        </div>
-      </div>
-    )}
+
 
       {/* Printer Modal */}
       {printerModal.isOpen && (

@@ -1236,43 +1236,36 @@ export default function MenuPage() {
               <div
                 onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer animate-[confirmFadeIn_180ms_ease-out]"
-                style={{ background: "rgba(10,12,24,0.65)", backdropFilter: "blur(2px)" }}
+                style={{ background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(3px)" }}
               >
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl animate-[confirmScaleIn_180ms_ease_both]"
-                  style={{
-                    background: "linear-gradient(160deg, #1c1e30 0%, #14161f 100%)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-                  }}
+                  className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl bg-white dark:bg-[#181920] border border-slate-200/80 dark:border-slate-800 shadow-2xl animate-[confirmScaleIn_180ms_ease_both]"
                 >
                   {/* Header */}
-                  <div className="px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "#dc2626", boxShadow: "0 2px 8px rgba(220,38,38,0.25)" }}>
+                  <div className="px-6 pt-6 pb-5 border-b border-slate-100 dark:border-slate-800/80">
+                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/20">
                       <Trash2 size={20} className="text-white" />
                     </div>
-                    <h3 className="text-[15px] font-bold text-white leading-snug">{confirmModal.title}</h3>
-                    <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <h3 className="text-[15px] font-bold text-slate-900 dark:text-white leading-snug">{confirmModal.title}</h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                       {confirmModal.message}
                     </p>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2.5 px-6 py-5">
+                  <div className="flex gap-2.5 px-6 py-5 bg-slate-50/60 dark:bg-slate-900/30">
                     <button
                       type="button"
                       onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
-                      className="flex-1 h-10 rounded-xl text-xs font-medium transition-colors duration-150 hover:bg-white/10"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.65)" }}
+                      className="flex-1 h-10 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors shadow-2xs cursor-pointer"
                     >
                       {language === "km" ? "បោះបង់" : "Cancel"}
                     </button>
                     <button
                       type="button"
                       onClick={() => { void confirmModal.onConfirm(); }}
-                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white transition-opacity duration-150 hover:opacity-90 active:opacity-75"
-                      style={{ background: "#dc2626", boxShadow: "0 2px 6px rgba(220,38,38,0.2)" }}
+                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-opacity duration-150 shadow-md shadow-rose-600/20 cursor-pointer"
                     >
                       {language === "km" ? "លុប" : "Delete"}
                     </button>
@@ -1373,10 +1366,10 @@ function MenuCard({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors">
+              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors font-khmer">
                 {product.name}
               </h3>
-              <p className="mt-1 truncate text-xs font-semibold text-[#a1acb8]">
+              <p className="mt-1 truncate text-xs font-semibold text-[#a1acb8] font-khmer">
                 {product.category?.name || text.noDescription}
               </p>
             </div>

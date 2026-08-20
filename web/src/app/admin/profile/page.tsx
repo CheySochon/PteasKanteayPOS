@@ -179,7 +179,7 @@ export default function ProfilePage() {
         {/* Profile details grid */}
         <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
           {/* Avatar / Photo Panel */}
-          <div className={`rounded-2xl border shadow-sm p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
+          <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
             <div className="relative group">
               {previewImage ? (
                 <img

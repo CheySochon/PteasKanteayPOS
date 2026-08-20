@@ -7,8 +7,10 @@ import {
   readBackupFile,
   validateBackup,
   backupSummary,
+  restoreBackupData,
   type Backup,
 } from "../services/backup.service.js";
+import { createAuditLog } from "../services/audit.service.js";
 
 export const download = asyncHandler(async (req: Request, res: Response) => {
   const backup = await createBackup(req.user);
@@ -60,15 +62,46 @@ export const restore = asyncHandler(async (req: Request, res: Response) => {
   const backup = req.body as unknown as Backup;
   validateBackup(backup);
 
+  // 1. Save safety backup before performing database wipe & restore
   const safetyBackup = await createBackup(req.user);
   const saved = await saveBackupFile(safetyBackup, "before-restore");
 
+  // 2. Perform full relational database restore
+  await restoreBackupData(backup);
+
+  // 3. Log audit event
+  if (req.user) {
+    await createAuditLog({
+      userId: req.user.userId,
+      userName: `Admin (ID: ${req.user.userId})`,
+      userRole: req.user.role,
+      action: "RESTORE_DATABASE",
+      ipAddress: req.ip || "Localhost",
+      userAgent: req.headers["user-agent"] || "Unknown",
+      status: "SUCCESS",
+      details: `Restored database backup. Safety backup saved as ${saved.filename}`,
+    });
+  }
+
+
+  // 4. Emit real-time Socket.io event to notify all connected clients
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const io = req.app.get("io");
+  if (io) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+    io.emit("system:restored", {
+      restoredAt: new Date().toISOString(),
+      summary: backupSummary(backup),
+    });
+  }
+
   res.json({
     success: true,
-    message: "Backup validated — restore logic pending full schema",
+    message: "Database backup restored successfully",
     data: {
       restored: backupSummary(backup),
       safetyBackup: { filename: saved.filename },
     },
   });
 });
+

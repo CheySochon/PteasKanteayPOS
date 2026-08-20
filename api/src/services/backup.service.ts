@@ -14,12 +14,89 @@ const TABLES = [
   { key: "categories", model: "category" },
   { key: "diningTables", model: "diningTable" },
   { key: "products", model: "product" },
+  { key: "inventories", model: "inventory" },
+  { key: "stockTransactions", model: "stockTransaction" },
   { key: "orders", model: "order" },
   { key: "orderItems", model: "orderItem" },
   { key: "payments", model: "payment" },
   { key: "shifts", model: "shift" },
   { key: "notifications", model: "notification" },
+  { key: "auditLogs", model: "auditLog" },
 ] as const;
+
+const DELETE_ORDER = [
+  "auditLog",
+  "notification",
+  "payment",
+  "orderItem",
+  "order",
+  "stockTransaction",
+  "inventory",
+  "product",
+  "diningTable",
+  "category",
+  "shift",
+  "user",
+  "role",
+  "appSetting",
+] as const;
+
+const RESTORE_ORDER = [
+  { key: "roles", model: "role" },
+  { key: "users", model: "user" },
+  { key: "appSettings", model: "appSetting" },
+  { key: "shifts", model: "shift" },
+  { key: "categories", model: "category" },
+  { key: "diningTables", model: "diningTable" },
+  { key: "products", model: "product" },
+  { key: "inventories", model: "inventory" },
+  { key: "stockTransactions", model: "stockTransaction" },
+  { key: "orders", model: "order" },
+  { key: "orderItems", model: "orderItem" },
+  { key: "payments", model: "payment" },
+  { key: "notifications", model: "notification" },
+  { key: "auditLogs", model: "auditLog" },
+] as const;
+
+const DATE_FIELDS = new Set([
+  "createdAt",
+  "updatedAt",
+  "deletedAt",
+  "paidAt",
+  "lockedUntil",
+  "startTime",
+  "endTime",
+  "sentAt",
+]);
+
+const DB_TABLE_NAMES: Record<string, string> = {
+  role: "Role",
+  user: "User",
+  appSetting: "AppSetting",
+  category: "Category",
+  diningTable: "DiningTable",
+  product: "Product",
+  order: "Order",
+  orderItem: "OrderItem",
+  payment: "Payment",
+  shift: "Shift",
+  notification: "Notification",
+  auditLog: "audit_logs",
+  inventory: "Inventory",
+  stockTransaction: "StockTransaction",
+};
+
+function parseDates(row: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(row)) {
+    if (val !== null && val !== undefined && DATE_FIELDS.has(key) && typeof val === "string") {
+      result[key] = new Date(val);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
+}
 
 type BackupData = Record<string, unknown[]>;
 
@@ -127,3 +204,46 @@ export const backupSummary = (backup: Backup) => {
     counts,
   };
 };
+
+export const restoreBackupData = async (backup: Backup): Promise<void> => {
+  validateBackup(backup);
+
+  await prisma.$transaction(
+    async (tx) => {
+      // 1. Clear existing data in reverse dependency order
+      for (const model of DELETE_ORDER) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (tx as any)[model].deleteMany({});
+      }
+
+      // 2. Insert backup records in parent-to-child dependency order
+      for (const table of RESTORE_ORDER) {
+        const rows = backup.data[table.key] || [];
+        for (const row of rows) {
+          if (row && typeof row === "object") {
+            const parsed = parseDates(row as Record<string, unknown>);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (tx as any)[table.model].create({
+              data: parsed,
+            });
+          }
+        }
+      }
+
+      // 3. Reset PostgreSQL autoincrement sequences
+      for (const [, tableName] of Object.entries(DB_TABLE_NAMES)) {
+        try {
+          await tx.$executeRawUnsafe(
+            `SELECT setval(pg_get_serial_sequence('"${tableName}"', 'id'), COALESCE((SELECT MAX(id) FROM "${tableName}"), 1));`
+          );
+        } catch {
+          // Ignore table sequence reset errors
+        }
+      }
+    },
+    {
+      timeout: 60000,
+    }
+  );
+};
+

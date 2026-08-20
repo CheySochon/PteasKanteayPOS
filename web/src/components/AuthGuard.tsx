@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getMe, getSettings } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { getCookie, eraseCookie } from "../lib/cookies";
 import { canAccessPath, firstAllowedPathForRole, parseStoredUser, permissionsForUser, roleName } from "../lib/permissions";
 
 const PROTECTED_PREFIXES = ["/admin", "/pos", "/kds"];
@@ -37,7 +38,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token");
+      const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token") || !!getCookie("pos_token");
       if (!hasSession) {
         router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
         return;
@@ -82,6 +83,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("pos_logged_in");
         localStorage.removeItem("pos_token");
         localStorage.removeItem("pos_user");
+        eraseCookie("pos_token");
+        eraseCookie("pos_logged_in");
         router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
       }
     }

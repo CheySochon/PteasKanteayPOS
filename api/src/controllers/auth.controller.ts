@@ -373,3 +373,52 @@ export const loginPin = async (
     });
   }
 };
+
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    let token = req.cookies?.refresh_token as string | undefined;
+    if (!token && req.headers.authorization) {
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: "Refresh token required" });
+    }
+
+    const { verifyRefreshToken, signToken } = await import("../utils/jwt.js");
+    const decoded = verifyRefreshToken(token);
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: { role: true },
+    });
+
+    if (!user || user.deletedAt || !user.isActive) {
+      return res.status(401).json({ success: false, message: "User disabled or not found" });
+    }
+
+    const userRoleStr = typeof user.role === "string" ? user.role : user.role?.name || "Cashier";
+    const newToken = signToken({
+      userId: user.id,
+      role: userRoleStr,
+    });
+
+    res.cookie("access_token", newToken, cookieOptions);
+
+    return res.json({
+      success: true,
+      token: newToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: userRoleStr,
+      },
+    });
+  } catch (_err) {
+    return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
+  }
+};

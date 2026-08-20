@@ -83,9 +83,13 @@ app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
  */
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: process.env.NODE_ENV === "production" ? 100 : 10000,
+  limit: process.env.NODE_ENV === "production" ? 15 : 50,
   standardHeaders: true,
   legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many authentication attempts. Please try again after 15 minutes.",
+  },
 });
 
 /**
