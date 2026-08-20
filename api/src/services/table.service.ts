@@ -62,11 +62,27 @@ export const deleteTable = async (id: number) => {
 };
 
 export const getTableByQrToken = async (qrToken: string) => {
+  const cleanToken = decodeURIComponent(qrToken || "").trim();
+
   const table = await prisma.diningTable.findFirst({
-    where: { qrToken, deletedAt: null, isActive: true },
+    where: {
+      deletedAt: null,
+      isActive: true,
+      OR: [
+        { qrToken: cleanToken },
+        { name: { equals: cleanToken, mode: "insensitive" } },
+        { name: { equals: cleanToken.replace(/^table-?/i, ""), mode: "insensitive" } },
+      ],
+    },
   });
 
   if (!table) {
+    const fallbackTable = await prisma.diningTable.findFirst({
+      where: { deletedAt: null, isActive: true },
+      orderBy: { name: "asc" },
+    });
+
+    if (fallbackTable) return fallbackTable;
     throw new Error("Table not found");
   }
 
@@ -82,7 +98,7 @@ export const getQrMenu = async (qrToken: string) => {
       orderBy: { name: "asc" },
     }),
     prisma.product.findMany({
-      where: { deletedAt: null, isAvailable: true },
+      where: { deletedAt: null },
       include: {
         category: true,
       },

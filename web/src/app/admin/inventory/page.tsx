@@ -302,14 +302,12 @@ export default function InventoryPage() {
     }
   }, [error]);
 
-  // Click outside or scroll to close action menu
+  // Click outside to close action menu
   useEffect(() => {
     const handleClose = () => setActionMenuOpen(null);
     window.addEventListener("click", handleClose);
-    window.addEventListener("scroll", handleClose, true);
     return () => {
       window.removeEventListener("click", handleClose);
-      window.removeEventListener("scroll", handleClose, true);
     };
   }, []);
 
@@ -650,10 +648,10 @@ export default function InventoryPage() {
                 <Package size={18} />
               </div>
               <div>
-                <div className={`text-sm font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                <div className={`text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                   {t.allStock}
                 </div>
-                <div className={`text-2xl font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>{metrics.total}</div>
+                <div className={`text-xl font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>{metrics.total}</div>
               </div>
             </div>
 
@@ -668,10 +666,10 @@ export default function InventoryPage() {
                 <Leaf size={18} />
               </div>
               <div>
-                <div className={`text-sm font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                <div className={`text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                   {t.available}
                 </div>
-                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{metrics.available}</div>
+                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{metrics.available}</div>
               </div>
             </div>
 
@@ -686,10 +684,10 @@ export default function InventoryPage() {
                 <AlertCircle size={18} />
               </div>
               <div>
-                <div className={`text-sm font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                <div className={`text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                   {t.lowStock}
                 </div>
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{metrics.low}</div>
+                <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{metrics.low}</div>
               </div>
             </div>
 
@@ -704,10 +702,10 @@ export default function InventoryPage() {
                 <MinusCircle size={18} />
               </div>
               <div>
-                <div className={`text-sm font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                <div className={`text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                   {t.outOfStock}
                 </div>
-                <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{metrics.out}</div>
+                <div className="text-xl font-bold text-rose-600 dark:text-rose-400">{metrics.out}</div>
               </div>
             </div>
           </div>
@@ -717,30 +715,30 @@ export default function InventoryPage() {
         {loading ? (
           <div className="flex h-96 w-full flex-col items-center justify-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-[#696cff]" />
-            <span className="text-sm font-bold text-slate-400">{t.loading}</span>
+            <span className="text-xs font-bold text-slate-400">{t.loading}</span>
           </div>
         ) : (
           <>
             {activeTab === "dashboard" ? (
               /* Products Stock Level List Table */
               <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54]" : "border-slate-200/80"} ${surface}`}>
-                <div className="overflow-auto max-h-[480px]">
+                <div className="overflow-auto max-h-[540px] min-h-[240px] pb-24 no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 z-10">
-                      <tr className={`${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"} border-b text-xs font-semibold`}>
-                        <th className="px-6 py-4">#</th>
-                        <th className="px-6 py-4">{t.colItem}</th>
-                        <th className="px-6 py-4">{t.colCurrent}</th>
-                        <th className="px-6 py-4">{t.colMin}</th>
-                        <th className="px-6 py-4">{t.colStatus}</th>
-                        <th className="px-6 py-4">{t.colUpdated}</th>
-                        <th className="px-6 py-4 text-right">{t.colActions}</th>
+                      <tr className={`${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"} border-b text-[11px] font-bold uppercase tracking-wider whitespace-nowrap`}>
+                        <th className="px-5 py-3 w-12 text-center">#</th>
+                        <th className="px-6 py-3 min-w-[180px]">{t.colItem}</th>
+                        <th className="px-6 py-3 min-w-[130px]">{t.colCurrent}</th>
+                        <th className="px-6 py-3 min-w-[130px]">{t.colMin}</th>
+                        <th className="px-6 py-3 min-w-[140px]">{t.colStatus}</th>
+                        <th className="px-6 py-3 min-w-[160px]">{t.colUpdated}</th>
+                        <th className="px-6 py-3 min-w-[120px] text-right pr-6">{t.colActions}</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
                       {filteredProducts.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-sm font-semibold text-slate-400">
+                          <td colSpan={7} className="px-6 py-10 text-center text-xs font-medium text-slate-400">
                             {searchQuery ? t.noProducts : (language === "km" ? "មិនទាន់មានទំនិញក្នុងស្តុកនៅឡើយទេ។ សូមចុច \"+ បន្ថែមទំនិញក្នុងស្តុក\" ដើម្បីចុះឈ្មោះទំនិញថ្មី។" : "No stock items found. Click \"+ Add Stock Items\" to register new stock.")}
                           </td>
                         </tr>
@@ -749,18 +747,19 @@ export default function InventoryPage() {
                           const status = getProductStockStatus(p);
                           const qty = p.inventory?.quantity !== undefined ? Number(p.inventory.quantity) : 0;
                           const min = p.inventory?.minStock !== undefined ? Number(p.inventory.minStock) : 0;
+                          const isBottomRow = idx > 0 && idx >= filteredProducts.length - 2;
 
                           return (
                             <tr key={p.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
-                              <td className={`px-6 py-4.5 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
+                              <td className={`px-6 py-3 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
                                 {products.length - idx}
                               </td>
-                              <td className="px-6 py-4.5">
-                                <div className={`font-semibold text-sm ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                              <td className="px-6 py-3">
+                                <div className={`font-semibold text-xs ${dark ? "text-slate-100" : "text-slate-800"}`}>
                                   {p.name}
                                 </div>
                               </td>
-                              <td className={`px-6 py-4.5 text-sm ${dark ? "text-slate-200" : "text-slate-600"}`}>
+                              <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>
                                 {p.trackStock ? (
                                   <span>
                                     {qty.toFixed(4)} {p.unit}
@@ -769,7 +768,7 @@ export default function InventoryPage() {
                                   <span className="text-slate-400 text-xs italic">Unlimited</span>
                                 )}
                               </td>
-                              <td className={`px-6 py-4.5 text-sm ${dark ? "text-slate-200" : "text-slate-600"}`}>
+                              <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>
                                 {p.trackStock ? (
                                   <span>
                                     {min.toFixed(4)} {p.unit}
@@ -778,95 +777,96 @@ export default function InventoryPage() {
                                   <span className="text-slate-400 text-xs">—</span>
                                 )}
                               </td>
-                              <td className="px-6 py-4.5">
+                              <td className="px-6 py-3">
                                 {!p.trackStock ? (
-                                  <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                                  <span className={`inline-flex items-center rounded-lg px-2 py-0.5 text-[11px] font-semibold ${
                                     dark ? "bg-[#3b3c54] text-slate-300" : "bg-slate-100 text-slate-500"
                                   }`}>
                                     No Tracking
                                   </span>
                                 ) : status === "available" ? (
-                                  <span className="inline-flex items-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                  <span className="inline-flex items-center rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                                     {t.inStockBadge}
                                   </span>
                                 ) : status === "low" ? (
-                                  <span className="inline-flex items-center rounded-lg bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                  <span className="inline-flex items-center rounded-lg bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                                     {t.lowStockBadge}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center rounded-lg bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 animate-pulse">
+                                  <span className="inline-flex items-center rounded-lg bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 text-[11px] font-semibold text-rose-600 dark:text-rose-400 animate-pulse">
                                     {t.outOfStockBadge}
                                   </span>
                                 )}
                               </td>
-                              <td className={`px-6 py-4.5 text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
+                              <td className={`px-6 py-3 text-[11px] font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                                 {p.inventory?.updatedAt ? formatDate(p.inventory.updatedAt) : formatDate(p.updatedAt)}
                               </td>
-                              <td className="px-6 py-4.5 text-right relative">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (actionMenuOpen === p.id) {
-                                      setActionMenuOpen(null);
-                                    } else {
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      const dropHeight = 126;
-                                      const top = rect.bottom + 4 + dropHeight > window.innerHeight ? rect.top - 4 - dropHeight : rect.bottom + 4;
-                                      const left = rect.right - 200;
-                                      setDropdownCoords({ top, left });
-                                      setActionMenuOpen(p.id);
-                                    }
-                                  }}
-                                  className={`rounded-lg p-1.5 transition-colors ${
-                                    dark ? "text-slate-400 hover:bg-[#34354c] hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                                  }`}
-                                >
-                                  <MoreVertical size={16} />
-                                </button>
-
-                                {/* Fixed Viewport-Relative Dropdown Menu */}
-                                {actionMenuOpen === p.id && dropdownCoords && (
-                                  <div
-                                    style={{
-                                      position: "fixed",
-                                      top: `${dropdownCoords.top}px`,
-                                      left: `${dropdownCoords.left}px`,
+                              <td className="px-6 py-3 text-center min-w-[120px] whitespace-nowrap relative">
+                                <div className="relative inline-block text-left">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActionMenuOpen(actionMenuOpen === p.id ? null : p.id);
                                     }}
-                                    className={`z-50 w-[200px] rounded-2xl border p-1.5 text-left shadow-xl animate-[printerScaleIn_100ms_ease-out] ${
-                                      dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-slate-50"
+                                    className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                                      dark ? "text-slate-400 hover:bg-[#34354c] hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                                     }`}
                                   >
-                                    <button
-                                      type="button"
-                                      onClick={() => openAdjustModal(p)}
-                                      className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap ${
-                                        dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-white"
+                                    <MoreVertical size={16} />
+                                  </button>
+
+                                  {actionMenuOpen === p.id && (
+                                    <div
+                                      className={`absolute right-0 ${
+                                        isBottomRow ? "bottom-full mb-1" : "top-full mt-1"
+                                      } z-[99999] w-[190px] rounded-2xl border p-1.5 text-left shadow-xl ${
+                                        dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
                                       }`}
                                     >
-                                      <Plus size={14} className="text-slate-400 stroke-[2.5]" />
-                                      {language === "km" ? "បញ្ចូល/ដកស្តុក" : "Add Stock Movement"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => openSettingsModal(p)}
-                                      className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap ${
-                                        dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-white"
-                                      }`}
-                                    >
-                                      <Pencil size={12} className="text-slate-400" />
-                                      {language === "km" ? "កែប្រែព័ត៌មាន" : "Update Item"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteItem(p.id, p.name)}
-                                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors whitespace-nowrap"
-                                    >
-                                      <Trash2 size={13} className="text-red-400" />
-                                      {language === "km" ? "លុបទំនិញ" : "Delete Item"}
-                                    </button>
-                                  </div>
-                                )}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActionMenuOpen(null);
+                                          openAdjustModal(p);
+                                        }}
+                                        className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
+                                          dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <Plus size={14} className="text-slate-400 stroke-[2.5]" />
+                                        {language === "km" ? "បញ្ចូល/ដកស្តុក" : "Add Stock Movement"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActionMenuOpen(null);
+                                          openSettingsModal(p);
+                                        }}
+                                        className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
+                                          dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <Pencil size={12} className="text-slate-400" />
+                                        {language === "km" ? "កែប្រែព័ត៌មាន" : "Update Item"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActionMenuOpen(null);
+                                          handleDeleteItem(p.id, p.name);
+                                        }}
+                                        className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors whitespace-nowrap cursor-pointer"
+                                      >
+                                        <Trash2 size={13} className="text-red-400" />
+                                        {language === "km" ? "លុបទំនិញ" : "Delete Item"}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -879,23 +879,23 @@ export default function InventoryPage() {
             ) : (
               /* Stock Movements Log Table */
               <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54]" : "border-slate-200/80"} ${surface}`}>
-                <div className="overflow-x-auto">
+                <div className="overflow-auto max-h-[540px] no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className={`border-b text-xs font-semibold ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
-                        <th className="px-6 py-4">#</th>
-                        <th className="px-6 py-4">Item</th>
-                        <th className="px-6 py-4">Quantity</th>
-                        <th className="px-6 py-4">Movement</th>
-                        <th className="px-6 py-4">Date &amp; Time</th>
-                        <th className="px-6 py-4">Remarks</th>
-                        <th className="px-6 py-4">Updated By</th>
+                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
+                        <th className="px-6 py-3">#</th>
+                        <th className="px-6 py-3">Item</th>
+                        <th className="px-6 py-3">Quantity</th>
+                        <th className="px-6 py-3">Movement</th>
+                        <th className="px-6 py-3">Date &amp; Time</th>
+                        <th className="px-6 py-3">Remarks</th>
+                        <th className="px-6 py-3">Updated By</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
                       {movements.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-sm font-semibold text-slate-400">
+                          <td colSpan={7} className="px-6 py-10 text-center text-xs font-medium text-slate-400">
                             {t.noMovements}
                           </td>
                         </tr>
@@ -905,39 +905,39 @@ export default function InventoryPage() {
                           const isPositive = quantityVal > 0;
 
                           return (
-                            <tr key={move.id} className={`transition-colors text-sm ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
-                              <td className={`px-6 py-4.5 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
+                            <tr key={move.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
+                              <td className={`px-6 py-3 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
                                 {movements.length - idx}
                               </td>
-                              <td className="px-6 py-4.5">
-                                <div className={`font-semibold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                              <td className="px-6 py-3">
+                                <div className={`font-semibold text-xs ${dark ? "text-slate-100" : "text-slate-800"}`}>
                                   {move.product?.name || "Deleted Product"}
                                 </div>
                               </td>
-                              <td className="px-6 py-4.5">
-                                <span className={`font-semibold ${dark ? "text-slate-200" : "text-slate-700"}`}>
+                              <td className="px-6 py-3">
+                                <span className={`font-semibold text-xs ${dark ? "text-slate-200" : "text-slate-700"}`}>
                                   {parseFloat(Math.abs(quantityVal).toFixed(4))}
                                 </span>{" "}
-                                <span className="text-xs text-slate-400 font-medium ml-0.5">{move.product?.unit}</span>
+                                <span className="text-[11px] text-slate-400 font-medium ml-0.5">{move.product?.unit}</span>
                               </td>
-                              <td className="px-6 py-4.5">
+                              <td className="px-6 py-3">
                                 {isPositive ? (
-                                  <span className="inline-flex items-center rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400 px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
                                     IN
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 px-3 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
                                     OUT
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-4.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                              <td className="px-6 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-400">
                                 {formatDate(move.createdAt)}
                               </td>
-                              <td className="px-6 py-4.5 text-xs text-slate-500 dark:text-slate-400 font-medium max-w-xs truncate">
+                              <td className="px-6 py-3 text-[11px] text-slate-500 dark:text-slate-400 font-medium max-w-xs truncate">
                                 {move.notes || move.referenceId || "-"}
                               </td>
-                              <td className="px-6 py-4.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                              <td className="px-6 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">
                                 {move.user?.email || move.user?.name || "System"}
                               </td>
                             </tr>

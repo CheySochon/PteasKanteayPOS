@@ -688,6 +688,7 @@ export default function MenuPage() {
         isAvailable: productForm.isAvailable,
       };
 
+      const socket = getSocket();
       if (productForm.id) {
         const updated = await updateProduct(productForm.id, payload);
 
@@ -695,10 +696,21 @@ export default function MenuPage() {
           current.map((product) => (product.id === updated.id ? updated : product)),
         );
 
+        if (socket) {
+          socket.emit("product:updated", updated);
+          socket.emit("menu:updated");
+        }
+
         setMessage("Product updated successfully.");
       } else {
         const created = await createProduct(payload);
         setProducts((current) => [created, ...current]);
+
+        if (socket) {
+          socket.emit("product:created", created);
+          socket.emit("menu:updated");
+        }
+
         setMessage("Product created successfully.");
       }
 
@@ -727,6 +739,12 @@ export default function MenuPage() {
           await deleteProduct(product.id);
           setProducts((current) => current.filter((entry) => entry.id !== product.id));
 
+          const socket = getSocket();
+          if (socket) {
+            socket.emit("product:deleted", { id: product.id });
+            socket.emit("menu:updated");
+          }
+
           if (productForm.id === product.id) resetProductForm();
 
           setMessage("Product deleted successfully.");
@@ -754,6 +772,12 @@ export default function MenuPage() {
       setProducts((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry)),
       );
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("product:updated", updated);
+        socket.emit("menu:updated");
+      }
     } catch (err) {
       setError(
         err instanceof Error

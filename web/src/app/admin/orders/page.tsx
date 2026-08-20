@@ -643,23 +643,23 @@ export default function OrdersPage() {
                     {/* FLOATING POPOVER FILTER CARD */}
                     {showFilters && (
                       <div
-                        className={`absolute right-0 top-11 z-30 w-72 rounded-2xl border p-4 shadow-2xl animate-[printerScaleIn_150ms_ease-out] ${
-                          dark ? "border-[#4e4f6e] bg-[#1f2130] text-slate-100" : "border-slate-200 bg-white text-slate-800"
+                        className={`absolute right-0 top-10 z-30 w-52 rounded-xl border p-2.5 shadow-lg animate-[printerScaleIn_150ms_ease-out] ${
+                          dark ? "border-[#4e4f6e] bg-[#1f2130] text-slate-100" : "border-slate-200/90 bg-white text-slate-800"
                         }`}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 mb-3">
-                          <span className="text-xs font-black uppercase tracking-wider text-slate-400">{t.filter}</span>
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.filter}</span>
                           <button
                             onClick={() => setShowFilters(false)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5"
                           >
-                            <X size={16} />
+                            <X size={13} />
                           </button>
                         </div>
 
-                        <div className="space-y-3.5 text-xs">
+                        <div className="space-y-2 text-[11px]">
                           <div>
-                            <label className="mb-1 block font-bold text-slate-400 uppercase text-[10px] tracking-wider">
+                            <label className="mb-0.5 block font-semibold text-slate-400 uppercase text-[9px] tracking-wider">
                               {t.status}
                             </label>
                             <select
@@ -668,7 +668,7 @@ export default function OrdersPage() {
                                 setStatusFilter(event.target.value as "all" | OrderStatus);
                                 setPage(1);
                               }}
-                              className={`h-9 w-full rounded-xl border px-3 text-xs font-bold outline-none cursor-pointer ${
+                              className={`h-7.5 w-full rounded-lg border px-2 text-[11px] font-medium outline-none cursor-pointer ${
                                 dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                               }`}
                             >
@@ -682,7 +682,7 @@ export default function OrdersPage() {
                           </div>
 
                           <div>
-                            <label className="mb-1 block font-bold text-slate-400 uppercase text-[10px] tracking-wider">
+                            <label className="mb-0.5 block font-semibold text-slate-400 uppercase text-[9px] tracking-wider">
                               {t.orderType}
                             </label>
                             <select
@@ -691,7 +691,7 @@ export default function OrdersPage() {
                                 setTypeFilter(event.target.value as OrderTypeFilter);
                                 setPage(1);
                               }}
-                              className={`h-9 w-full rounded-xl border px-3 text-xs font-bold outline-none cursor-pointer ${
+                              className={`h-7.5 w-full rounded-lg border px-2 text-[11px] font-medium outline-none cursor-pointer ${
                                 dark ? "border-slate-700 bg-slate-800 text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                               }`}
                             >
@@ -707,9 +707,9 @@ export default function OrdersPage() {
                                 resetFilters();
                                 setShowFilters(false);
                               }}
-                              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 py-2 text-xs font-bold text-red-600 hover:bg-red-100 transition-all mt-2"
+                              className="flex w-full items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-100 transition-all mt-1"
                             >
-                              <X size={14} />
+                              <X size={12} />
                               {t.reset}
                             </button>
                           )}
@@ -904,34 +904,49 @@ export default function OrdersPage() {
 
                             {openActionId === order.id && (
                               <div
-                                className={`absolute right-4 z-20 w-44 overflow-hidden rounded-xl border py-1 text-left shadow-xl ${
+                                className={`absolute right-4 z-30 w-44 rounded-2xl border p-1.5 text-left shadow-xl animate-[printerScaleIn_150ms_ease-out] ${
                                   dark
-                                    ? "border-slate-700 bg-[#111827]"
-                                    : "border-slate-200 bg-white"
+                                    ? "border-[#4e4f6e] bg-[#1f2130] text-slate-100"
+                                    : "border-slate-200/90 bg-white text-slate-800"
                                 } ${index >= 3 && index >= visibleOrders.length - 2 ? "bottom-10" : "top-10"}`}
                               >
-                                <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800/80 mb-1">
                                   {t.changeStatus}
                                 </div>
-                                {statusOptions.map((status) => (
-                                  <button
-                                    key={status}
-                                    onClick={() => {
-                                      changeStatus(order, status);
-                                      setOpenActionId(null);
-                                    }}
-                                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold capitalize transition-colors ${
-                                      order.status === status
-                                        ? "bg-[#696cff] text-white font-bold"
-                                        : dark
-                                          ? "text-slate-200 hover:bg-slate-800"
+                                {statusOptions.map((status) => {
+                                  const isActive = order.status === status;
+                                  const dotColor =
+                                    status === "pending"
+                                      ? "bg-amber-500"
+                                      : status === "preparing"
+                                      ? "bg-blue-500"
+                                      : status === "completed"
+                                      ? "bg-emerald-500"
+                                      : "bg-rose-500";
+
+                                  return (
+                                    <button
+                                      key={status}
+                                      onClick={() => {
+                                        changeStatus(order, status);
+                                        setOpenActionId(null);
+                                      }}
+                                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold capitalize rounded-xl transition-all cursor-pointer ${
+                                        isActive
+                                          ? "bg-[#696cff]/10 text-[#696cff] font-bold"
+                                          : dark
+                                          ? "text-slate-200 hover:bg-[#2b2c40]"
                                           : "text-slate-700 hover:bg-slate-50"
-                                    }`}
-                                  >
-                                    <span>{status}</span>
-                                    {order.status === status && <CheckCircle2 size={13} className="text-white shrink-0" />}
-                                  </button>
-                                ))}
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} />
+                                        <span>{status}</span>
+                                      </div>
+                                      {isActive && <CheckCircle2 size={13} className="text-[#696cff] shrink-0" />}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
                           </td>
@@ -952,24 +967,24 @@ export default function OrdersPage() {
                 {t.of} {filteredOrders.length} {t.orders}
               </p>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={currentPage === 1}
-                  className={`flex h-8 w-8 items-center justify-center rounded border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${borderCol} ${softSurface} ${textSecondary} hover:bg-slate-100 dark:hover:bg-[#34354e]`}
                   aria-label="Previous page"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={15} />
                 </button>
 
                 {pageButtons.map((pageNumber) => (
                   <button
                     key={pageNumber}
                     onClick={() => setPage(pageNumber)}
-                    className={`h-8 w-8 rounded text-xs font-semibold ${
+                    className={`h-8 w-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       currentPage === pageNumber
-                        ? "bg-[#696cff] text-white"
-                        : `${borderCol} ${softSurface} ${textSecondary} border hover:text-blue-600`
+                        ? "bg-[#55a060] text-white shadow-xs shadow-[#55a060]/40"
+                        : `${borderCol} ${softSurface} ${textSecondary} border hover:bg-[#55a060]/10 hover:text-[#55a060] hover:border-[#55a060]/30`
                     }`}
                   >
                     {pageNumber}
@@ -978,11 +993,11 @@ export default function OrdersPage() {
 
                 <button
                   onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                  disabled={currentPage === totalPages}
-                  className={`flex h-8 w-8 items-center justify-center rounded border disabled:opacity-40 ${borderCol} ${softSurface} ${textSecondary}`}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${borderCol} ${softSurface} ${textSecondary} hover:bg-slate-100 dark:hover:bg-[#34354e]`}
                   aria-label="Next page"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={15} />
                 </button>
               </div>
             </div>
@@ -994,7 +1009,7 @@ export default function OrdersPage() {
         {selectedOrder && (
           <div
             onClick={() => setSelectedOrder(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-[usersPageIn_200ms_ease-out]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[1.5px] p-4 animate-[usersPageIn_200ms_ease-out]"
           >
             <div
               onClick={(e) => e.stopPropagation()}
@@ -1005,15 +1020,15 @@ export default function OrdersPage() {
               {/* Modal Header */}
               <div className={`flex items-center justify-between border-b px-6 py-4 ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50/80"}`}>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0F522B] text-white font-bold shadow-md">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060] text-white font-bold shadow-md shadow-[#55a060]/20">
                     <ReceiptText size={18} />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold tracking-tight">
+                    <h3 className="text-base font-medium tracking-normal text-slate-800 dark:text-slate-100">
                       Order {selectedOrder.orderNumber || selectedOrder.orderId}
                     </h3>
-                    <p className="text-xs text-slate-400 font-medium">
-                      {orderType(selectedOrder)} • Table: <strong className="text-[#0F522B] dark:text-emerald-400">{tableLabel(selectedOrder)}</strong>
+                    <p className="text-xs text-slate-400 font-normal">
+                      {orderType(selectedOrder)} • Table: <span className="text-[#55a060] dark:text-[#55a060] font-semibold">{tableLabel(selectedOrder)}</span>
                     </p>
                   </div>
                 </div>
@@ -1021,7 +1036,7 @@ export default function OrdersPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedOrder(null)}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors"
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <X size={18} />
                 </button>
@@ -1032,18 +1047,18 @@ export default function OrdersPage() {
                 {/* Order Status & Time */}
                 <div className={`flex items-center justify-between rounded-xl p-3.5 border ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50"}`}>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Status</span>
                     <OrderStatusBadge status={selectedOrder.status} />
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Created</span>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{dateTimeLabel(selectedOrder.createdAt)}</span>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Created</span>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{dateTimeLabel(selectedOrder.createdAt)}</span>
                   </div>
                 </div>
 
                 {/* Ordered Dishes List */}
                 <div>
-                  <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2.5">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
                     Ordered Dishes ({selectedOrder.items?.length || 0})
                   </h4>
                   {selectedOrder.items && selectedOrder.items.length > 0 ? (
@@ -1056,15 +1071,15 @@ export default function OrdersPage() {
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0F522B]/10 text-[#0F522B] dark:text-emerald-400 font-extrabold text-xs">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#55a060]/10 text-[#55a060] dark:text-[#55a060] font-bold text-xs">
                               {item.quantity}x
                             </span>
                             <div>
-                              <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.product?.name || item.name}</div>
+                              <div className="text-xs font-medium text-slate-800 dark:text-slate-100 font-khmer">{item.product?.name || item.name}</div>
                               {item.notes && <div className="text-[11px] text-amber-600 font-medium">Note: {item.notes}</div>}
                             </div>
                           </div>
-                          <div className="text-xs font-black text-[#0F522B] dark:text-emerald-400">
+                          <div className="text-xs font-bold text-[#55a060] dark:text-[#55a060]">
                             {money(item.totalPrice || item.price * item.quantity)}
                           </div>
                         </div>
@@ -1079,16 +1094,16 @@ export default function OrdersPage() {
               {/* Modal Footer: Total & Actions */}
               <div className={`flex items-center justify-between border-t px-6 py-4 ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50"}`}>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Amount</span>
-                  <div className="text-lg font-black text-[#0F522B] dark:text-emerald-400">
-                    {money(selectedOrder.totalAmount)} <span className="text-xs font-bold text-slate-400">({moneyRiel(selectedOrder.totalAmount)})</span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Total Amount</span>
+                  <div className="text-lg font-bold text-[#55a060] dark:text-[#55a060]">
+                    {money(selectedOrder.totalAmount)} <span className="text-xs font-medium text-slate-400">({moneyRiel(selectedOrder.totalAmount)})</span>
                   </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setSelectedOrder(null)}
-                  className="h-9 rounded-xl bg-[#0F522B] hover:bg-[#09391D] px-5 text-xs font-bold text-white transition-colors shadow-md shadow-[#0F522B]/20"
+                  className="h-9 rounded-xl bg-[#55a060] hover:bg-[#45864f] px-5 text-xs font-semibold text-white transition-colors shadow-md shadow-[#55a060]/20 cursor-pointer"
                 >
                   Close
                 </button>

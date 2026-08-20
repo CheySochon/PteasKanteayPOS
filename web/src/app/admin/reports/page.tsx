@@ -1124,28 +1124,26 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              <div
-                className={`relative h-[220px] rounded-lg border ${borderCol} ${softSurface}`}
-              >
+              <div className="relative h-[220px] w-full bg-transparent">
                 <div
-                  className={`absolute inset-x-0 top-1/3 border-t ${borderCol}`}
+                  className={`absolute inset-x-0 top-1/3 border-t ${dark ? "border-slate-800/40" : "border-slate-100"}`}
                 />
                 <div
-                  className={`absolute inset-x-0 top-2/3 border-t ${borderCol}`}
+                  className={`absolute inset-x-0 top-2/3 border-t ${dark ? "border-slate-800/40" : "border-slate-100"}`}
                 />
 
                 <div className="absolute inset-x-2 bottom-7 top-4 flex items-end justify-between gap-1 sm:gap-2">
                   {trendRows.map((bar, index) => (
                     <div key={index} className="flex h-full flex-1 flex-col justify-end group relative">
                       <div
-                        className={`rounded-t-md mx-auto w-full max-w-[36px] transition-all duration-300 group-hover:opacity-80 ${
+                        className={`rounded-t-md mx-auto w-full max-w-[28px] transition-all duration-300 group-hover:opacity-90 ${
                           bar.peak
-                            ? "bg-[#696cff] shadow-[0_-4px_12px_rgba(105,108,255,0.3)]"
+                            ? "bg-[#696cff] shadow-xs shadow-[#696cff]/30"
                             : dark
-                              ? "bg-[#696cff]/40 hover:bg-[#696cff]/60"
-                              : "bg-[#696cff]/20 hover:bg-[#696cff]/40"
+                              ? "bg-[#696cff]/50 hover:bg-[#696cff]/70"
+                              : "bg-[#696cff]/35 hover:bg-[#696cff]/60"
                         }`}
-                        style={{ height: `${bar.height}%` }}
+                        style={{ height: `${Math.max(bar.height, 4)}%` }}
                       />
                       <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-lg">
                         {money(bar.total)}

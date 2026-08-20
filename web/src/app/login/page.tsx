@@ -20,18 +20,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [posName, setPosName] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("pos_restaurant_name") || DEFAULT_POS_NAME;
-    }
-    return DEFAULT_POS_NAME;
-  });
-  const [restaurantImageUrl, setRestaurantImageUrl] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("pos_restaurant_image_url") || "";
-    }
-    return "";
-  });
+  const [mounted, setMounted] = useState(false);
+  const [posName, setPosName] = useState<string>(DEFAULT_POS_NAME);
+  const [restaurantImageUrl, setRestaurantImageUrl] = useState<string>("");
   const [imageError, setImageError] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -47,18 +38,7 @@ export default function LoginPage() {
   // Cashier PIN Pad Mode State
   const [loginMethod, setLoginMethod] = useState<"pin" | "email">("pin");
   const [pin, setPin] = useState("");
-  const [staffPresets, setStaffPresets] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("pos_public_staff_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {}
-    }
-    return STAFF_PRESETS;
-  });
+  const [staffPresets, setStaffPresets] = useState<any[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<any>(null);
 
   // 2FA / OTP & Reset Password State
@@ -120,6 +100,7 @@ export default function LoginPage() {
 
   // Fetch Dynamic Real Users List from API & Local Database
   useEffect(() => {
+    setMounted(true);
     try {
       const cached = localStorage.getItem("pos_public_staff_cache");
       if (cached) {
@@ -393,8 +374,16 @@ export default function LoginPage() {
 
       window.dispatchEvent(new Event("pos-auth-change"));
 
-      const targetPath = firstAllowedPathForRole(targetRole);
-      router.replace(targetPath);
+      // Display instant green Toast success alert on Login screen
+      const successMsg = language === "km"
+        ? `ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${res.user.name}`
+        : `Sign in successful! Welcome back, ${res.user.name}`;
+      setMessage(successMsg);
+
+      setTimeout(() => {
+        const targetPath = firstAllowedPathForRole(targetRole);
+        router.replace(targetPath);
+      }, 450);
     } catch (err: any) {
       const errText = err instanceof Error ? err.message : "Invalid PIN";
       let localizedMsg = errText;
@@ -471,6 +460,10 @@ export default function LoginPage() {
       }).catch(() => undefined);
 
       setStep("2fa");
+      const verifiedMsg = language === "km"
+        ? "ពាក្យសម្ងាត់ត្រឹមត្រូវ! សូមបញ្ចូលកូដ OTP ៦ខ្ទង់"
+        : "Password verified! Please enter 6-digit OTP code.";
+      setMessage(verifiedMsg);
     } catch (err: any) {
       const errText = err instanceof Error ? err.message : "Login failed";
       let localizedMsg = errText;
@@ -589,7 +582,7 @@ export default function LoginPage() {
     setLoading(false);
     setEmail(resetEmail.trim());
     setPassword(newPassword);
-    setMessage("✅ Password updated successfully! Sign in with your new password.");
+    setMessage(language === "km" ? "ប្តូរពាក្យសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ដោយប្រើពាក្យសម្ងាត់ថ្មី" : "Password updated successfully! Sign in with your new password.");
     setStep("login");
     setLoginMethod("email");
   }
@@ -691,7 +684,15 @@ export default function LoginPage() {
         }
         targetPath = firstAllowedPathForRole(role, userPerms);
       }
-      window.location.href = targetPath;
+
+      const successMsg = language === "km"
+        ? `ចូលប្រើប្រាស់ជោគជ័យ! សូមស្វាគមន៍ ${userPayload.name || email}`
+        : `Sign in successful! Welcome back, ${userPayload.name || email}`;
+      setMessage(successMsg);
+
+      setTimeout(() => {
+        window.location.href = targetPath;
+      }, 450);
     } else {
       setError("Invalid 6-digit 2FA verification code. Please try again.");
     }
@@ -734,15 +735,9 @@ export default function LoginPage() {
 
       {/* CENTER LAYOUT CONTAINER */}
       <div className="w-full flex items-center justify-center z-10">
-        {step === "login" && loginMethod === "pin" && !selectedStaff && staffPresets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3.5 text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-[#55a060]" />
-            <span className="text-xs font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">Loading Staff Data...</span>
-          </div>
-        ) : (
-          /* Login Card */
-          <div className="w-full max-w-[400px] rounded-3xl bg-white dark:bg-[#181920] border border-slate-200/60 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] flex flex-col p-7 sm:p-8 relative overflow-hidden transition-all duration-300">
-            <div className="w-full my-auto">
+        {/* Login Card */}
+        <div suppressHydrationWarning className="w-full max-w-[400px] sm:max-w-[420px] rounded-2xl bg-white dark:bg-[#181920] border border-slate-200/60 dark:border-slate-800/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] flex flex-col p-7 sm:p-8 relative overflow-hidden transition-all duration-300">
+          <div className="w-full my-auto">
             {/* Logo Header (Vertically Stacked) */}
             {!(step === "login" && loginMethod === "pin" && selectedStaff) && (
               <div className="flex flex-col items-center text-center mb-5">
@@ -763,10 +758,10 @@ export default function LoginPage() {
 
             {/* Header Title (Centered for Sub-steps) */}
             {step !== "login" && (
-              <div className="text-center mb-5">
+              <div className="text-center mb-4 w-full">
                 {step === "2fa" && (
                   <>
-                    <div className="relative flex items-center justify-center mb-2">
+                    <div className="relative flex items-center justify-center w-full mb-1">
                       <button
                         type="button"
                         onClick={() => setStep("login")}
@@ -774,18 +769,18 @@ export default function LoginPage() {
                       >
                         <ArrowLeft size={18} />
                       </button>
-                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                      <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
                         2-Step Verification
                       </h1>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-1.5 text-center px-2">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-1 text-center">
                       We sent a 6-digit verification code to <strong className="text-[#6ab070] dark:text-emerald-400 font-semibold">{email}</strong>.
                     </p>
                   </>
                 )}
                 {step === "forgot_email" && (
                   <>
-                    <div className="relative flex items-center justify-center mb-2">
+                    <div className="relative flex items-center justify-center w-full mb-1.5">
                       <button
                         type="button"
                         onClick={() => setStep("login")}
@@ -793,18 +788,18 @@ export default function LoginPage() {
                       >
                         <ArrowLeft size={18} />
                       </button>
-                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                      <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
                         Reset Password
                       </h1>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-1.5 text-center px-2">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-2 text-center">
                       Enter your Admin Email to receive a 6-digit recovery OTP.
                     </p>
                   </>
                 )}
                 {step === "forgot_reset" && (
                   <>
-                    <div className="relative flex items-center justify-center mb-2">
+                    <div className="relative flex items-center justify-center w-full mb-1">
                       <button
                         type="button"
                         onClick={() => setStep("forgot_email")}
@@ -812,11 +807,11 @@ export default function LoginPage() {
                       >
                         <ArrowLeft size={18} />
                       </button>
-                      <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+                      <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
                         New Password
                       </h1>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-1.5 text-center px-2">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-1 text-center">
                       Enter the 6-digit OTP sent to <strong className="text-[#6ab070] dark:text-emerald-400 font-semibold">{resetEmail}</strong> and your new password.
                     </p>
                   </>
@@ -853,33 +848,33 @@ export default function LoginPage() {
                   <img
                     src={selectedStaff.imageUrl.startsWith("http") ? selectedStaff.imageUrl : `${apiOrigin}${selectedStaff.imageUrl}`}
                     alt={selectedStaff.name}
-                    className="h-11 w-11 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
+                    className="h-13 w-13 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
                   />
                 ) : (
-                  <div className={`h-11 w-11 rounded-2xl ${selectedStaff.avatarBg} text-white flex items-center justify-center text-sm font-black shadow-sm mb-2 ring-4 ring-emerald-500/10`}>
+                  <div className={`h-13 w-13 rounded-2xl ${selectedStaff.avatarBg} text-white flex items-center justify-center text-base font-black shadow-sm mb-2 ring-4 ring-emerald-500/10`}>
                     {selectedStaff.initial}
                   </div>
                 )}
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight leading-tight">
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
                   {selectedStaff.name}
                 </h3>
-                <span className="inline-block mt-1 text-[9.5px] font-extrabold uppercase tracking-wide bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 px-2.5 py-0.5 rounded-full">
+                <span className="inline-block mt-1 text-[10.5px] font-bold uppercase tracking-wide bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 px-3 py-0.5 rounded-full">
                   {selectedStaff.role}
                 </span>
               </div>
 
               {/* Subtle PIN label */}
-              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium text-center shrink-0 pt-0.5">
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-normal text-center shrink-0 pt-1">
                 Enter your 4-digit PIN
               </p>
 
               {/* 4-Pill Circular PIN Indicator */}
-              <div className="flex items-center justify-center py-1 shrink-0">
+              <div className="flex items-center justify-center py-1.5 shrink-0">
                 <div className="flex items-center gap-3">
                   {[0, 1, 2, 3].map((idx) => (
                     <div
                       key={idx}
-                      className={`h-3 w-3 rounded-full transition-all duration-200 ${
+                      className={`h-3.5 w-3.5 rounded-full transition-all duration-200 ${
                         pin.length > idx
                           ? "bg-[#55a060] border-2 border-[#55a060] shadow-sm shadow-[#55a060]/40 scale-110"
                           : "bg-slate-100 dark:bg-slate-800 border-2 border-slate-200/80 dark:border-slate-700"
@@ -889,8 +884,8 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* 3x4 Touch Numpad — Clean */}
-              <div className="grid grid-cols-3 gap-y-2 gap-x-3.5 max-w-[210px] w-full mx-auto justify-items-center pt-1">
+              {/* 3x4 Touch Numpad — Clean & Enlarged */}
+              <div className="grid grid-cols-3 gap-y-2.5 gap-x-4 max-w-[240px] w-full mx-auto justify-items-center pt-1">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "⌫"].map((btn) => (
                   <button
                     key={btn}
@@ -911,7 +906,7 @@ export default function LoginPage() {
                         }
                       }
                     }}
-                    className={`w-12 h-12 rounded-full text-base font-bold flex items-center justify-center transition-all cursor-pointer duration-150 active:scale-90 shadow-2xs ${
+                    className={`w-13.5 h-13.5 sm:w-14 sm:h-14 rounded-full text-lg font-bold flex items-center justify-center transition-all cursor-pointer duration-150 active:scale-90 shadow-2xs ${
                       btn === "⌫"
                         ? "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 border border-slate-200/60 dark:border-slate-700"
                         : btn === "C"
@@ -938,11 +933,11 @@ export default function LoginPage() {
             </div>
           ) : (
             // Select Staff Screen View
-            <div className="w-full">
+            <div className="space-y-4 w-full">
               <div className="text-center mb-4">
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 tracking-tight">
-                  Select your staff account to sign in
-                </p>
+                <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
+                  Select Staff Account
+                </h1>
               </div>
 
               {staffPresets.length === 0 ? (
@@ -951,7 +946,7 @@ export default function LoginPage() {
                   <span className="text-xs font-normal text-slate-400">Loading staff accounts...</span>
                 </div>
               ) : (
-                <div className="space-y-3 max-w-[350px] mx-auto w-full">
+                <div className="space-y-3 w-full">
                   {staffPresets.map((staff) => (
                     <button
                       key={staff.id}
@@ -961,22 +956,22 @@ export default function LoginPage() {
                         setPin("");
                         setError("");
                       }}
-                      className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/50 hover:bg-emerald-50/50 dark:hover:bg-slate-800/90 hover:border-[#55a060]/50 dark:hover:border-emerald-500/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-left group"
+                      className="w-full flex items-center gap-3.5 p-3 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/50 hover:bg-emerald-50/50 dark:hover:bg-slate-800/90 hover:border-[#55a060]/50 dark:hover:border-emerald-500/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-left group"
                     >
                       {staff.imageUrl ? (
                         <img
                           src={staff.imageUrl.startsWith("http") ? staff.imageUrl : `${apiOrigin}${staff.imageUrl}`}
                           alt={staff.name}
-                          className="h-11 w-11 rounded-2xl object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
+                          className="h-10.5 w-10.5 rounded-lg object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
                         />
                       ) : (
-                        <div className={`h-11 w-11 rounded-2xl ${staff.avatarBg} text-white flex items-center justify-center text-sm font-black shadow-xs shrink-0 group-hover:scale-105 transition-transform`}>
+                        <div className={`h-10.5 w-10.5 rounded-lg ${staff.avatarBg} text-white flex items-center justify-center text-sm font-bold shadow-xs shrink-0 group-hover:scale-105 transition-transform`}>
                           {staff.initial}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
-                        <span className="inline-block mt-1 text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2.5 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
+                        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
+                        <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
                       </div>
                       <ChevronRight size={18} className="text-slate-400 group-hover:text-[#55a060] dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 mr-0.5" />
                     </button>
@@ -985,7 +980,7 @@ export default function LoginPage() {
               )}
 
               {/* Switch to Admin Email Mode */}
-              <div className="pt-5 pb-1 text-center w-full">
+              <div className="pt-3 text-center w-full">
                 <button
                   type="button"
                   onClick={() => { setLoginMethod("email"); setError(""); }}
@@ -1004,8 +999,8 @@ export default function LoginPage() {
           <form onSubmit={handlePrimarySubmit} className="space-y-4 w-full">
             {/* Header Row (Login on left, Restaurant Logo on right) */}
             {/* Centered screen title for Admin login */}
-            <div className="text-center mb-3">
-              <h1 className="font-sans text-lg font-normal tracking-tight text-slate-900 dark:text-white">
+            <div className="text-center mb-4">
+              <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
                 Admin Sign In
               </h1>
             </div>
@@ -1024,7 +1019,7 @@ export default function LoginPage() {
                 onFocus={() => setError("")}
                 type="email"
                 placeholder="Enter your email here..."
-                className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 px-4.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                className="w-full h-11 sm:h-12 rounded-lg border-none bg-slate-100 dark:bg-slate-800 px-4 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
                 required
               />
             </div>
@@ -1058,7 +1053,7 @@ export default function LoginPage() {
                   onFocus={() => setError("")}
                   type={showPassword ? "text" : "password"}
                   placeholder={language === "km" ? "បញ្ចូលពាក្យសម្ងាត់ (យ៉ាងហោច ៨ តួអក្សរ)..." : "Enter your password (min 8 characters)..."}
-                  className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4.5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                  className="w-full h-11 sm:h-12 rounded-lg border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
                   required
                 />
                 <button
@@ -1072,11 +1067,11 @@ export default function LoginPage() {
             </div>
 
             {/* Green Login Button */}
-            <div className="pt-2">
+            <div className="pt-2.5">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
+                className="w-full h-11 sm:h-12 rounded-lg bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
               >
                 {loading ? <Loader2 className="animate-spin" size={16} /> : null}
                 {loading ? "Verifying Credentials..." : "Login"}
@@ -1100,16 +1095,16 @@ export default function LoginPage() {
 
         {/* STEP 2: 6-DIGIT OTP VERIFICATION FORM */}
         {step === "2fa" && (
-          <form onSubmit={handleVerifyOtp} className="space-y-4 w-full">
+          <form onSubmit={handleVerifyOtp} className="space-y-5 w-full">
             {/* 6 Digit Input Boxes */}
-            <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2">
               {otpDigits.map((digit, idx) => (
                 <input
                   key={idx}
                   id={`otp-digit-${idx}`}
                   type="text"
                   inputMode="numeric"
-                  maxLength={6}
+                  maxLength={1}
                   value={digit}
                   onChange={(e) => handleDigitInput(idx, e.target.value)}
                   onKeyDown={(e) => {
@@ -1118,28 +1113,28 @@ export default function LoginPage() {
                       prev?.focus();
                     }
                   }}
-                  className="h-11 w-11 text-center text-base font-bold rounded-xl border-none bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 outline-none transition-all"
+                  className="h-11 sm:h-12 w-11 sm:w-12 text-center text-base sm:text-lg font-bold rounded-lg border-none bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 outline-none transition-all"
                 />
               ))}
             </div>
 
-            <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400 pt-1">
+            <div className="flex items-center justify-between text-xs font-normal text-slate-500 dark:text-slate-400 pt-1.5 px-0.5">
               <span>Code expires in: <strong className="text-[#6ab070] font-bold">{formatTimer(timerSeconds)}</strong></span>
               <button
                 type="button"
                 onClick={resendOtp}
                 disabled={timerSeconds > 120}
-                className="inline-flex items-center gap-1.5 text-xs text-[#6ab070] font-semibold hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer border-none bg-transparent"
+                className="inline-flex items-center gap-1.5 text-xs text-[#6ab070] font-medium hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer border-none bg-transparent"
               >
                 <RefreshCw size={13} /> Resend OTP
               </button>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-3.5 sm:pt-4">
               <button
                 type="submit"
                 disabled={loading || otpDigits.join("").length < 6}
-                className="w-full h-11 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
+                className="w-full h-11 sm:h-12 rounded-lg bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
               >
                 {loading ? <Loader2 className="animate-spin" size={16} /> : <KeyRound size={16} />}
                 {loading ? "Authenticating..." : "Verify & Sign In"}
@@ -1150,8 +1145,8 @@ export default function LoginPage() {
 
         {/* STEP 3: FORGOT PASSWORD EMAIL FORM */}
         {step === "forgot_email" && (
-          <form onSubmit={handleSendResetOtp} className="space-y-4 w-full">
-            <div className="space-y-2">
+          <form onSubmit={handleSendResetOtp} className="space-y-5 w-full">
+            <div className="space-y-2.5">
               <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
                 Admin Email Address
               </label>
@@ -1161,17 +1156,17 @@ export default function LoginPage() {
                   onChange={(e) => setResetEmail(e.target.value)}
                   type="email"
                   placeholder="Enter your admin email address..."
-                  className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 px-4.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                  className="w-full h-11 sm:h-12 rounded-lg border-none bg-slate-100 dark:bg-slate-800 px-4 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
                   required
                 />
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-3.5 sm:pt-4">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
+                className="w-full h-11 sm:h-12 rounded-lg bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={16} />
@@ -1198,7 +1193,7 @@ export default function LoginPage() {
                     id={`otp-digit-${idx}`}
                     type="text"
                     inputMode="numeric"
-                    maxLength={6}
+                    maxLength={1}
                     value={digit}
                     onChange={(e) => handleDigitInput(idx, e.target.value)}
                     onKeyDown={(e) => {
@@ -1227,7 +1222,7 @@ export default function LoginPage() {
                   onFocus={() => setError("")}
                   type={showNewPassword ? "text" : "password"}
                   placeholder={language === "km" ? "បញ្ចូលពាក្យសម្ងាត់ថ្មី (យ៉ាងហោច ៨ តួអក្សរ)..." : "Enter new password (min 8 characters)..."}
-                  className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4.5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                  className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
                   required
                 />
                 <button
@@ -1254,7 +1249,7 @@ export default function LoginPage() {
                   onFocus={() => setError("")}
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Re-enter new password..."
-                  className="w-full h-11 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4.5 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all"
+                  className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
                   required
                 />
                 <button
@@ -1267,11 +1262,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2.5">
               <button
                 type="submit"
                 disabled={loading || otpDigits.join("").length < 6}
-                className="w-full h-11 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-sm flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
+                className="w-full h-11 sm:h-12 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
               >
                 {loading ? <Loader2 className="animate-spin" size={16} /> : <KeyRound size={16} />}
                 {loading ? "Updating Password..." : "Reset & Update Password"}
@@ -1281,7 +1276,6 @@ export default function LoginPage() {
         )}
           </div>
         </div>
-        )}
       </div>
 
       <style jsx>{`

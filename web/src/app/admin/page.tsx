@@ -14,7 +14,7 @@ import {
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import { useAppTheme } from "../../lib/theme";
-import { BellRing, CheckCircle2, Clock, DollarSign, Grid2X2, ShoppingBag, TrendingUp, X } from "lucide-react";
+import { BellRing, CheckCircle2, Clock, DollarSign, Grid2X2, ShoppingBag, TrendingUp, X, ChevronDown, CalendarDays } from "lucide-react";
 import type {
   DailySalesReport,
   Order,
@@ -680,12 +680,93 @@ export default function DashboardPage() {
     ],
   };
 
+  const [trendRange, setTrendRange] = useState<"today" | "yesterday" | "7days" | "month">("7days");
+  const [trendMenuOpen, setTrendMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClose = () => setTrendMenuOpen(false);
+    window.addEventListener("click", handleClose);
+    return () => window.removeEventListener("click", handleClose);
+  }, []);
+
+  const salesTrendData = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+
+    if (trendRange === "today") {
+      const hoursArray = Array.from({ length: 24 }, (_, h) => ({
+        label: hourLabel(h),
+        total: 0,
+      }));
+      orders.forEach((o) => {
+        const d = new Date(o.createdAt);
+        if (!Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (o.status || "").toLowerCase() !== "cancelled") {
+          const hour = d.getHours();
+          if (hour >= 0 && hour < 24) {
+            hoursArray[hour].total += Number(o.totalAmount || 0);
+          }
+        }
+      });
+      return hoursArray.slice(7, 23);
+    }
+
+    if (trendRange === "yesterday") {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      const yestStr = yest.toDateString();
+      const hoursArray = Array.from({ length: 24 }, (_, h) => ({
+        label: hourLabel(h),
+        total: 0,
+      }));
+      orders.forEach((o) => {
+        const d = new Date(o.createdAt);
+        if (!Number.isNaN(d.getTime()) && d.toDateString() === yestStr && (o.status || "").toLowerCase() !== "cancelled") {
+          const hour = d.getHours();
+          if (hour >= 0 && hour < 24) {
+            hoursArray[hour].total += Number(o.totalAmount || 0);
+          }
+        }
+      });
+      return hoursArray.slice(7, 23);
+    }
+
+    if (trendRange === "month") {
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      return Array.from({ length: daysInMonth }, (_, i) => {
+        const dayNum = i + 1;
+        const d = new Date(year, month, dayNum);
+        const dayStr = d.toDateString();
+        const dateLabel = d.toLocaleDateString(language === "km" ? "km-KH" : "en-US", {
+          month: "short",
+          day: "numeric",
+        });
+
+        const total = orders
+          .filter((o) => {
+            const createdAt = new Date(o.createdAt);
+            return (
+              !Number.isNaN(createdAt.getTime()) &&
+              createdAt.toDateString() === dayStr &&
+              (o.status || "").toLowerCase() !== "cancelled"
+            );
+          })
+          .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+
+        return { label: dateLabel, total };
+      });
+    }
+
+    return salesByDay;
+  }, [trendRange, orders, language, salesByDay]);
+
   const salesTrendChartData = {
-    labels: salesByDay.map((item) => item.label),
+    labels: salesTrendData.map((item) => item.label),
     datasets: [
       {
         label: "Revenue",
-        data: salesByDay.map((item) => item.total),
+        data: salesTrendData.map((item) => item.total),
         yAxisID: "y",
         fill: true,
         tension: 0.45,
@@ -711,16 +792,30 @@ export default function DashboardPage() {
     ],
   };
 
+  const KHMER_CHART_FONT = "'Kantumruy Pro', 'Battambang', 'Noto Sans Khmer', 'Plus Jakarta Sans', sans-serif";
+
   const commonTooltip = {
-    backgroundColor: "#22252a",
+    backgroundColor: dark ? "#1e1f2e" : "#22252a",
     titleColor: "#ffffff",
     bodyColor: "#ffffff",
-    borderColor: "#3a3d45",
+    borderColor: dark ? "#3b3c54" : "#3a3d45",
     borderWidth: 1,
-    padding: 10,
-    boxPadding: 4,
-    cornerRadius: 8,
+    padding: 12,
+    boxPadding: 6,
+    cornerRadius: 10,
     usePointStyle: true,
+    titleFont: {
+      family: KHMER_CHART_FONT,
+      size: 13,
+      weight: "normal" as const,
+      lineHeight: 1.4,
+    },
+    bodyFont: {
+      family: KHMER_CHART_FONT,
+      size: 12,
+      weight: 400,
+      lineHeight: 1.4,
+    },
   };
 
   const salesChartOptions: ChartOptions<"line"> = {
@@ -749,7 +844,7 @@ export default function DashboardPage() {
           maxRotation: 0,
           autoSkip: true,
           autoSkipPadding: 18,
-          font: { family: "'Public Sans', sans-serif", size: 11 },
+          font: { family: KHMER_CHART_FONT, size: 11 },
         },
         grid: {
           display: false,
@@ -769,7 +864,7 @@ export default function DashboardPage() {
             if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
             return `$${num.toFixed(0)}`;
           },
-          font: { family: "'Public Sans', sans-serif", size: 11 },
+          font: { family: KHMER_CHART_FONT, size: 11 },
           padding: 8,
         },
         grid: {
@@ -781,8 +876,6 @@ export default function DashboardPage() {
     },
   };
 
-
-
   const topProductChartOptions: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -790,13 +883,22 @@ export default function DashboardPage() {
       legend: {
         display: false,
       },
-      tooltip: commonTooltip,
+      tooltip: {
+        ...commonTooltip,
+        callbacks: {
+          title: (items: TooltipItem<"line">[]) => items[0]?.label || "",
+          label: (context: TooltipItem<"line">) => ` ${language === "km" ? "ចំនួនលក់:" : "Sales:"} ${context.parsed.y ?? 0}`,
+        },
+      },
     },
     scales: {
       x: {
         ticks: {
           color: dark ? "#94a3b8" : "#64748b",
-          font: { family: "'Public Sans', sans-serif", size: 10 }
+          font: { family: KHMER_CHART_FONT, size: 11.5, weight: "normal" },
+          padding: 8,
+          maxRotation: 0,
+          autoSkip: false,
         },
         grid: {
           display: false,
@@ -807,7 +909,8 @@ export default function DashboardPage() {
         beginAtZero: true,
         ticks: {
           color: dark ? "#94a3b8" : "#a1acb8",
-          font: { family: "'Public Sans', sans-serif", size: 10 }
+          font: { family: KHMER_CHART_FONT, size: 11 },
+          padding: 6,
         },
         grid: {
           color: dark ? "rgba(255, 255, 255, 0.05)" : "rgba(226, 232, 240, 0.8)",
@@ -902,12 +1005,94 @@ export default function DashboardPage() {
 
           <section className="mb-4 grid gap-4 grid-cols-1 xl:grid-cols-12">
             <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none dash-animate dash-delay-5`}>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className={`text-base font-bold ${textPrimary}`}>
                   {language === "km" ? "និន្នាការចំណូល" : "Revenue Trend"}
                 </h2>
-                <div className="text-xs text-slate-400 font-medium">
-                  {language === "km" ? "៧ ថ្ងៃចុងក្រោយ" : "Last 7 days"}
+                {/* Modern Custom Dropdown Component matching System Design */}
+                <div className="relative inline-block text-left">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTrendMenuOpen(!trendMenuOpen);
+                    }}
+                    className={`flex items-center gap-2 rounded-xl border px-3.5 py-1.5 text-xs font-semibold outline-none transition-all cursor-pointer shadow-none ${
+                      dark
+                        ? "border-[#4e4f6e] bg-[#232333] text-slate-200 hover:bg-[#34354e]"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-[#696cff] shrink-0">
+                      {trendRange === "today" || trendRange === "yesterday" ? (
+                        <Clock size={13} />
+                      ) : trendRange === "month" ? (
+                        <CalendarDays size={13} />
+                      ) : (
+                        <TrendingUp size={13} />
+                      )}
+                    </span>
+                    <span>
+                      {language === "km"
+                        ? trendRange === "today"
+                          ? "ថ្ងៃនេះ"
+                          : trendRange === "yesterday"
+                          ? "ម្សិលមិញ"
+                          : trendRange === "month"
+                          ? "ខែនេះ"
+                          : "៧ ថ្ងៃចុងក្រោយ"
+                        : trendRange === "today"
+                        ? "Today"
+                        : trendRange === "yesterday"
+                        ? "Yesterday"
+                        : trendRange === "month"
+                        ? "This Month"
+                        : "Last 7 Days"}
+                    </span>
+                    <ChevronDown size={13} className={`text-slate-400 transition-transform duration-200 ${trendMenuOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {trendMenuOpen && (
+                    <div
+                      className={`absolute right-0 top-full mt-1.5 z-50 w-44 rounded-2xl border p-1.5 text-left shadow-xl animate-[fadeIn_100ms_ease-out] ${
+                        dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+                      }`}
+                    >
+                      {[
+                        { key: "today", labelKm: "ថ្ងៃនេះ", labelEn: "Today", Icon: Clock },
+                        { key: "yesterday", labelKm: "ម្សិលមិញ", labelEn: "Yesterday", Icon: Clock },
+                        { key: "7days", labelKm: "៧ ថ្ងៃចុងក្រោយ", labelEn: "Last 7 Days", Icon: TrendingUp },
+                        { key: "month", labelKm: "ខែនេះ", labelEn: "This Month", Icon: CalendarDays },
+                      ].map((opt) => {
+                        const isActive = trendRange === opt.key;
+                        const IconComp = opt.Icon;
+                        const label = language === "km" ? opt.labelKm : opt.labelEn;
+
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTrendRange(opt.key as any);
+                              setTrendMenuOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                              isActive
+                                ? "bg-[#696cff]/10 text-[#696cff] font-bold"
+                                : dark
+                                ? "text-slate-200 hover:bg-[#34354e]"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            <IconComp size={13} className={isActive ? "text-[#696cff]" : "text-slate-400"} />
+                            <span className="flex-1 text-left">{label}</span>
+                            {isActive && <span className="h-1.5 w-1.5 rounded-full bg-[#696cff]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

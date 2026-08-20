@@ -353,7 +353,7 @@ export default function KdsPage() {
             ))}
           </div>
         ) : (
-          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-12 text-center transition-all">
+          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-[#3b3c54] bg-white dark:bg-[#2b2c40] p-12 text-center transition-all">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 mb-4 border border-emerald-100 dark:border-emerald-900/50">
               <ChefHat size={30} strokeWidth={1.8} />
             </div>

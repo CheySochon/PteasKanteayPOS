@@ -18,13 +18,66 @@ import {
   ArrowLeft,
   Check,
 } from "lucide-react";
-import { apiBaseUrl, apiOrigin, getApiBaseUrl, getApiOrigin } from "../../../lib/api";
+import { apiBaseUrl, apiOrigin, getApiBaseUrl, getApiOrigin, getCategories, getProducts } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 
-const PRIMARY = "#0F522B";
-const PRIMARY_LIGHT = "#E8F5ED";
-const PROMO_COLOR = "#D32F2F";
 const RIEL_RATE = 4100;
+
+const DEMO_FOOD_PHOTOS = [
+  "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=600&q=80",
+];
+
+const DEMO_FALLBACK_PRODUCTS: QrMenuData["products"] = [
+  {
+    id: 901,
+    name: "ជើងជ្រូកបំពង (Fried Pork Leg)",
+    basePrice: 5.0,
+    description: "Crispy skin tender fried pork leg with garlic sauce",
+    imageUrl: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+    categoryId: 1,
+    isAvailable: true,
+  },
+  {
+    id: 902,
+    name: "ឆាក្តៅអន្ទង់ (Spicy Stir-fried Eel)",
+    basePrice: 3.0,
+    description: "Traditional Khmer spicy stir-fried eel with lemongrass",
+    imageUrl: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
+    categoryId: 1,
+    isAvailable: true,
+  },
+  {
+    id: 903,
+    name: "ឆាគ្រឿងក្នុងមាន់ (Stir-fried Chicken Giblets)",
+    basePrice: 4.0,
+    description: "Savory stir-fried chicken giblets with holy basil",
+    imageUrl: "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80",
+    categoryId: 1,
+    isAvailable: true,
+  },
+  {
+    id: 904,
+    name: "គោដុតសាច់ក្រហម (Grilled Red Beef)",
+    basePrice: 2.75,
+    description: "Marinated grilled tender beef with pepper dip",
+    imageUrl: "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80",
+    categoryId: 1,
+    isAvailable: true,
+  },
+  {
+    id: 905,
+    name: "គោអាំង (Grilled Beef)",
+    basePrice: 3.0,
+    description: "Smokey grilled beef slices",
+    imageUrl: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+    categoryId: 1,
+    isAvailable: true,
+  },
+];
 
 type QrMenuData = {
   table: {
@@ -162,9 +215,42 @@ export default function TableQrPage({
         const baseUrl = getApiBaseUrl();
         const res = await fetch(`${baseUrl}/tables/${encodeURIComponent(qrToken)}/menu`);
         const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.message || "Failed to load table menu");
-        if (mounted) setMenuData(json.data);
+        
+        let fetchedProducts = (res.ok && json?.success && json?.data?.products) ? json.data.products : [];
+        let fetchedCategories = (res.ok && json?.success && json?.data?.categories) ? json.data.categories : [];
+
+        if (fetchedProducts.length === 0) {
+          try {
+            const [posProds, posCats] = await Promise.all([getProducts(), getCategories()]);
+            if (posProds && posProds.length > 0) fetchedProducts = posProds as any;
+            if (posCats && posCats.length > 0 && fetchedCategories.length === 0) fetchedCategories = posCats as any;
+          } catch {}
+        }
+
+        if (mounted) {
+          setMenuData({
+            table: json?.data?.table || { id: 1, name: "T3", capacity: 4, zone: "indoor", qrToken },
+            restaurant: json?.data?.restaurant || { name: restaurantNameState || "ផ្ទះកន្ត្រក ផ្លូវ១០", logoUrl: logoUrlState },
+            categories: fetchedCategories,
+            products: fetchedProducts,
+          });
+          setError("");
+        }
       } catch (err) {
+        try {
+          const [posProds, posCats] = await Promise.all([getProducts(), getCategories()]);
+          if (mounted && posProds && posProds.length > 0) {
+            setMenuData({
+              table: { id: 1, name: "T3", capacity: 4, zone: "indoor", qrToken },
+              restaurant: { name: restaurantNameState || "ផ្ទះកន្ត្រក ផ្លូវ១០", logoUrl: logoUrlState },
+              categories: (posCats as any) || [],
+              products: posProds as any,
+            });
+            setError("");
+            return;
+          }
+        } catch {}
+
         if (mounted) setError(err instanceof Error ? err.message : "Unable to load menu for this table.");
       } finally {
         if (mounted) setLoading(false);
@@ -191,18 +277,41 @@ export default function TableQrPage({
     fetchMenu();
     fetchActiveOrders();
 
+    // 3-second live auto-sync polling net
+    const autoSyncInterval = setInterval(() => {
+      if (mounted) {
+        fetchMenu();
+        fetchActiveOrders();
+      }
+    }, 3000);
+
     const socket = getSocket();
     if (socket) {
       if (!socket.connected) socket.connect();
       socket.on("order:created", fetchActiveOrders);
       socket.on("order:updated", fetchActiveOrders);
+      socket.on("product:created", fetchMenu);
+      socket.on("product:updated", fetchMenu);
+      socket.on("product:deleted", fetchMenu);
+      socket.on("category:created", fetchMenu);
+      socket.on("category:updated", fetchMenu);
+      socket.on("category:deleted", fetchMenu);
+      socket.on("menu:updated", fetchMenu);
     }
 
     return () => {
       mounted = false;
+      clearInterval(autoSyncInterval);
       if (socket) {
         socket.off("order:created", fetchActiveOrders);
         socket.off("order:updated", fetchActiveOrders);
+        socket.off("product:created", fetchMenu);
+        socket.off("product:updated", fetchMenu);
+        socket.off("product:deleted", fetchMenu);
+        socket.off("category:created", fetchMenu);
+        socket.off("category:updated", fetchMenu);
+        socket.off("category:deleted", fetchMenu);
+        socket.off("menu:updated", fetchMenu);
       }
     };
   }, [qrToken]);
@@ -272,15 +381,21 @@ export default function TableQrPage({
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const filteredProducts = (menuData?.products || []).filter((product) => {
+  const rawProducts = menuData?.products || [];
+
+  const filteredProducts = rawProducts.filter((product) => {
     const matchesCategory =
-      selectedCategory === "all" || product.categoryId === selectedCategory;
+      selectedCategory === "all" ||
+      String(product.categoryId) === String(selectedCategory) ||
+      (menuData?.categories.find((c) => String(c.id) === String(selectedCategory))?.name.toLowerCase() === (product as any).category?.name?.toLowerCase());
+
+    const query = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      searchQuery.trim() === "" ||
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (product.description &&
-        product.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesCategory && matchesSearch && product.isAvailable;
+      !query ||
+      product.name.toLowerCase().includes(query) ||
+      (product.description && product.description.toLowerCase().includes(query));
+
+    return matchesCategory && matchesSearch;
   });
 
   const isPageAccessible = (targetPage: PageTab): boolean => {
@@ -396,7 +511,7 @@ export default function TableQrPage({
   const finalLogoUrl = menuData?.restaurant?.logoUrl || logoUrlState || "";
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-950/40 via-slate-900 to-slate-950 flex flex-col items-center justify-center sm:py-8 sm:px-4 font-sans text-slate-800 selection:bg-emerald-100">
+    <div className="min-h-screen w-full bg-white flex flex-col items-center justify-center sm:py-8 sm:px-4 font-sans text-slate-800 selection:bg-emerald-100">
       {/* ── FLAGSHIP SMARTPHONE DEVICE FRAME MOCKUP ── */}
       <div className="relative w-full max-w-[430px] min-h-screen sm:min-h-[860px] sm:max-h-[92vh] bg-[#FAF9F6] pb-36 sm:rounded-[44px] sm:border-[8px] sm:border-slate-800/90 sm:shadow-[0_25px_70px_-15px_rgba(0,0,0,0.5),0_0_30px_rgba(16,185,129,0.15)] overflow-hidden overflow-y-auto flex flex-col no-scrollbar">
         
@@ -554,10 +669,8 @@ export default function TableQrPage({
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="flex flex-col items-center gap-1.5 text-[#0F522B]/35">
-                        <div className="p-2.5 rounded-full bg-white/60 shadow-xs backdrop-blur-xs flex items-center justify-center">
-                          <Utensils size={24} className="stroke-[1.5]" />
-                        </div>
+                      <div className="flex flex-col items-center justify-center h-full w-full text-[#0F522B]/40">
+                        <Utensils size={28} className="stroke-[1.6]" />
                       </div>
                     )}
                   </div>
