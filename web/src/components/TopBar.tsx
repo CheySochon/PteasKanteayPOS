@@ -35,6 +35,8 @@ import {
   LogOut,
   LifeBuoy,
   MonitorSmartphone,
+  Minimize,
+  Lock,
 } from "lucide-react";
 import { getOrders, getProducts, getTables, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -147,6 +149,32 @@ export default function TopBar({
   const [languageOpen, setLanguageOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
+
+  // Fullscreen State
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  }
+
+  function handleLockScreen() {
+    localStorage.setItem("pos_is_locked", "true");
+    window.location.href = "/lock";
+  }
   const languageRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -765,8 +793,28 @@ export default function TopBar({
           </div>
         , document.body)}
 
-        {/* Right Section: Notification Bell + User Menu Pill */}
+        {/* Right Section: Lock + Fullscreen + Notification Bell + User Menu Pill */}
         <div className="flex shrink-0 items-center gap-3">
+          {/* Lock Screen */}
+          <button
+            type="button"
+            onClick={handleLockScreen}
+            className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-white/10 ${textPrimary}`}
+            title="Lock Screen"
+          >
+            <Lock size={16} />
+          </button>
+
+          {/* Fullscreen Toggle */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-white/10 ${textPrimary}`}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+          </button>
+
           {/* Notification Bell */}
           <div ref={notificationsRef} className="relative flex items-center">
             <button

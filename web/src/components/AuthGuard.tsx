@@ -7,7 +7,7 @@ import { getSocket } from "../lib/socket";
 import { getCookie, eraseCookie } from "../lib/cookies";
 import { canAccessPath, firstAllowedPathForRole, parseStoredUser, permissionsForUser, roleName, normalizeStaffPermissions } from "../lib/permissions";
 
-const PROTECTED_PREFIXES = ["/admin", "/pos", "/kds"];
+const PROTECTED_PREFIXES = ["/admin", "/pos", "/kds", "/lock"];
 const PUBLIC_PREFIXES = ["/login", "/qr"];
 
 function isProtectedPath(pathname: string) {
@@ -41,6 +41,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const hasSession = !!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token") || !!getCookie("pos_token");
       if (!hasSession) {
         router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+        return;
+      }
+
+      const isLocked = localStorage.getItem("pos_is_locked") === "true";
+      if (isLocked && pathname !== "/lock") {
+        router.replace("/lock");
+        return;
+      }
+      if (!isLocked && pathname === "/lock") {
+        router.replace("/admin");
         return;
       }
 

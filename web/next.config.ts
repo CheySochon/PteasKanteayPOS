@@ -32,6 +32,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: [
+    "liver-fraction-eagle-quad.trycloudflare.com",
+    "reminder-creator-plains-efforts.trycloudflare.com"
+  ],
   async headers() {
     return [
       {

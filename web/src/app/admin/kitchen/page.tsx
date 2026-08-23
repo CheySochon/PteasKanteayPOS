@@ -78,7 +78,7 @@ export default function AdminKitchenPage() {
     return orders
       .filter((o) => {
         const s = (o.status || "pending").toLowerCase();
-        return s !== "cancelled" && s !== "served";
+        return s !== "cancelled" && s !== "served" && s !== "ready" && s !== "completed";
       })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [orders]);

@@ -169,6 +169,23 @@ export default function LoginPage() {
     loadDynamicUsers();
   }, []);
 
+  // Auto-Select Staff for Lock Screen Feature
+  useEffect(() => {
+    if (staffPresets.length > 0) {
+      try {
+        const lockedId = localStorage.getItem("pos_locked_staff_id");
+        if (lockedId) {
+          const staff = staffPresets.find((s) => s.id.toString() === lockedId);
+          if (staff) {
+            setSelectedStaff(staff);
+            setLoginMethod("pin");
+            localStorage.removeItem("pos_locked_staff_id");
+          }
+        }
+      } catch {}
+    }
+  }, [staffPresets]);
+
   useEffect(() => {
     const savedName = localStorage.getItem("pos_restaurant_name");
     const savedImage = localStorage.getItem("pos_restaurant_image_url");
@@ -585,6 +602,24 @@ export default function LoginPage() {
     setMessage(language === "km" ? "ប្តូរពាក្យសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ដោយប្រើពាក្យសម្ងាត់ថ្មី" : "Password updated successfully! Sign in with your new password.");
     setStep("login");
     setLoginMethod("email");
+  }
+
+  // Handle OTP Paste
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pastedData) {
+      const digits = pastedData.split("");
+      const newOtp = ["", "", "", "", "", ""];
+      digits.forEach((d, i) => {
+        newOtp[i] = d;
+      });
+      setOtpDigits(newOtp);
+      // focus the next empty input or the last one
+      const focusIndex = Math.min(digits.length, 5);
+      const nextEl = document.getElementById(`otp-digit-${focusIndex}`);
+      nextEl?.focus();
+    }
   }
 
   // Handle 6-Digit OTP Input Change
@@ -1106,6 +1141,7 @@ export default function LoginPage() {
                   inputMode="numeric"
                   maxLength={1}
                   value={digit}
+                  onPaste={handlePaste}
                   onChange={(e) => handleDigitInput(idx, e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Backspace" && !digit && idx > 0) {
@@ -1195,6 +1231,7 @@ export default function LoginPage() {
                     inputMode="numeric"
                     maxLength={1}
                     value={digit}
+                    onPaste={handlePaste}
                     onChange={(e) => handleDigitInput(idx, e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Backspace" && !digit && idx > 0) {
