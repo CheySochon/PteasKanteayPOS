@@ -41,7 +41,10 @@ const KdsOrderCard = memo(function KdsOrderCard({
   const orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
 
   function handleItemAction(itemId: number, currentItemStatus: string, itemName: string) {
-    const nextStatus: "pending" | "preparing" | "completed" = currentItemStatus === "completed" ? "preparing" : "completed";
+    const nextStatus: "pending" | "preparing" | "completed" =
+      currentItemStatus === "pending" ? "preparing" :
+      currentItemStatus === "preparing" ? "completed" :
+      "preparing";
     
     setItemStatuses((prev) => {
       const nextMap = { ...prev, [itemId]: nextStatus };
@@ -71,7 +74,7 @@ const KdsOrderCard = memo(function KdsOrderCard({
     });
 
     if (willBeAllCompleted) {
-      onUpdate(order.id, "ready");
+      onUpdate(order.id, "completed");
     }
   }
 

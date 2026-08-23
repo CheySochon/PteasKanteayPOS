@@ -135,19 +135,19 @@ main::-webkit-scrollbar {
 }
 
 .dash-animate {
-  animation: dashFadeIn 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dashFadeIn 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .dash-delay-0  { animation-delay: 0ms; }
-.dash-delay-1  { animation-delay: 50ms; }
-.dash-delay-2  { animation-delay: 100ms; }
-.dash-delay-3  { animation-delay: 150ms; }
-.dash-delay-4  { animation-delay: 200ms; }
-.dash-delay-5  { animation-delay: 250ms; }
-.dash-delay-6  { animation-delay: 300ms; }
-.dash-delay-7  { animation-delay: 350ms; }
-.dash-delay-8  { animation-delay: 400ms; }
-.dash-delay-9  { animation-delay: 450ms; }
-.dash-delay-10 { animation-delay: 500ms; }
+.dash-delay-1  { animation-delay: 25ms; }
+.dash-delay-2  { animation-delay: 50ms; }
+.dash-delay-3  { animation-delay: 75ms; }
+.dash-delay-4  { animation-delay: 100ms; }
+.dash-delay-5  { animation-delay: 125ms; }
+.dash-delay-6  { animation-delay: 150ms; }
+.dash-delay-7  { animation-delay: 175ms; }
+.dash-delay-8  { animation-delay: 200ms; }
+.dash-delay-9  { animation-delay: 225ms; }
+.dash-delay-10 { animation-delay: 250ms; }
 
 /* ==========================================================================
    OFFICIAL PRINT & PDF REPORT STYLING (@media print)

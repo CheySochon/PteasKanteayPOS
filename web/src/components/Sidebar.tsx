@@ -55,7 +55,7 @@ const NAV_MAIN = [
   { label: "Dashboard", href: "/admin", icon: DashboardIcon, badge: undefined },
   { label: "POS", href: "/admin/pos", icon: PosIcon, badge: undefined },
   { label: "Orders", href: "/admin/orders", icon: OrdersIcon, badge: undefined },
-  { label: "Kitchen", href: "/kds", icon: KitchenIcon, badge: undefined },
+  { label: "Kitchen", href: "/admin/kitchen", icon: KitchenIcon, badge: undefined },
   { label: "Tables", href: "/admin/tables", icon: TablesIcon, badge: undefined },
   { label: "Invoices", href: "/admin/invoices", icon: InvoicesIcon, badge: undefined },
 ];
@@ -187,6 +187,20 @@ export default function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [localActiveNav, setLocalActiveNav] = useState(() => {
+    if (activeNav) return activeNav;
+    if (pathname.startsWith("/admin/menu")) return "Menu";
+    if (pathname === "/admin") return "Dashboard";
+    if (pathname.startsWith("/admin/orders")) return "Orders";
+    if (pathname.startsWith("/kds") || pathname.startsWith("/admin/kitchen")) return "Kitchen";
+    if (pathname.startsWith("/admin/inventory")) return "Inventory";
+    if (pathname.startsWith("/admin/reports")) return "Reports";
+    if (pathname.startsWith("/admin/tables")) return "Tables";
+    if (pathname.startsWith("/admin/users") || pathname.startsWith("/admin/permissions")) return "Users";
+    if (pathname.startsWith("/admin/settings")) return "Settings";
+    if (pathname.startsWith("/pos") || pathname.startsWith("/admin/pos")) return "POS";
+    return "";
+  });
   const searchParams = useSearchParams();
   const prevPathnameRef = useRef(pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getSavedSidebarCollapsed(collapsed));
@@ -327,27 +341,27 @@ export default function Sidebar({
 
     // 2. Sync Active Nav highlight state
     if (pathname.startsWith("/admin/menu")) {
-      setActiveNav("Menu");
+      setLocalActiveNav("Menu");
     } else if (pathname === "/admin") {
-      setActiveNav("Dashboard");
+      setLocalActiveNav("Dashboard");
     } else if (pathname.startsWith("/admin/orders")) {
-      setActiveNav("Orders");
+      setLocalActiveNav("Orders");
     } else if (pathname.startsWith("/kds") || pathname.startsWith("/admin/kitchen")) {
-      setActiveNav("Kitchen");
+      setLocalActiveNav("Kitchen");
     } else if (pathname.startsWith("/admin/inventory")) {
-      setActiveNav("Inventory");
+      setLocalActiveNav("Inventory");
     } else if (pathname.startsWith("/admin/reports")) {
-      setActiveNav("Reports");
+      setLocalActiveNav("Reports");
     } else if (pathname.startsWith("/admin/tables")) {
-      setActiveNav("Tables");
+      setLocalActiveNav("Tables");
     } else if (pathname.startsWith("/admin/users")) {
-      setActiveNav("Users");
+      setLocalActiveNav("Users");
     } else if (pathname.startsWith("/admin/permissions")) {
-      setActiveNav("Permissions");
+      setLocalActiveNav("Permissions");
     } else if (pathname.startsWith("/admin/settings")) {
-      setActiveNav("Settings");
+      setLocalActiveNav("Settings");
     } else if (pathname.startsWith("/pos") || pathname.startsWith("/admin/pos")) {
-      setActiveNav("POS");
+      setLocalActiveNav("POS");
     }
   }, [pathname, setActiveNav]);
 
@@ -382,13 +396,7 @@ export default function Sidebar({
   }
 
   function isNavItemActive(label: string, href: string) {
-    if (activeNav) {
-      return activeNav === label || (label === "Menu" && pathname.startsWith("/admin/menu"));
-    }
-
-    if (href === "/admin") return pathname === "/admin";
-    if (label === "Menu") return pathname.startsWith("/admin/menu");
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return localActiveNav === label;
   }
 
   return (
@@ -480,21 +488,21 @@ export default function Sidebar({
             key={item.label}
             {...item}
             label={t.nav[item.label as keyof typeof t.nav] || item.label}
-            active={isNavItemActive(item.label, item.href)}
+            active={localActiveNav === item.label}
             collapsed={sidebarCollapsed}
             navActive={navActive}
             navHover={navHover}
             dark={dark}
             isKhmer={language === "km"}
             contentClass={contentMotionClass}
-            onClick={() => setActiveNav(item.label)}
-            icon={<item.icon active={isNavItemActive(item.label, item.href)} />}
+            onClick={() => setLocalActiveNav(item.label)}
+            icon={<item.icon active={localActiveNav === item.label} />}
           />
         ))}
 
         {allowedManagement.map((item) => {
           const isMenu = item.label === "Menu";
-          const active = isNavItemActive(item.label, item.href) || (isMenu && activeNav === "Menu");
+          const active = isNavItemActive(item.label, item.href) || (isMenu && localActiveNav === "Menu");
 
           return (
             <div key={item.label}>
@@ -509,7 +517,7 @@ export default function Sidebar({
                 isKhmer={language === "km"}
                 contentClass={contentMotionClass}
                 onClick={() => {
-                  setActiveNav(item.label);
+                  setLocalActiveNav(item.label);
                   if (isMenu) {
                     setMenuOpen((open) => !open);
                     if (!pathname.startsWith("/admin/menu")) {
@@ -552,7 +560,7 @@ export default function Sidebar({
                         isKhmer={language === "km"}
                         icon={<child.icon size={14} strokeWidth={1.9} />}
                         onClick={() => {
-                          setActiveNav("Menu");
+                          setLocalActiveNav("Menu");
                           setMenuView(child.key);
                           window.dispatchEvent(
                             new CustomEvent("pos-menu-view-change", {
@@ -585,7 +593,7 @@ export default function Sidebar({
                 isKhmer={language === "km"}
                 contentClass={contentMotionClass}
                 onClick={() => {
-                  setActiveNav(item.label);
+                  setLocalActiveNav(item.label);
                 }}
                 icon={<item.icon active={active} />}
               />

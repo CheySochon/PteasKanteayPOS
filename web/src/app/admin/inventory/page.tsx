@@ -535,7 +535,7 @@ export default function InventoryPage() {
     <main className={`flex-1 overflow-y-auto ${bgMain} ${language === "km" ? "font-khmer" : ""}`}>
 
 
-      <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-3 pb-6 dash-animate">
+      <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-3 pb-6 ">
         {/* Error Alert matching screenshot top placement */}
         {error && (
           <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/50 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-300 animate-[fadeIn_200ms_ease-out]">

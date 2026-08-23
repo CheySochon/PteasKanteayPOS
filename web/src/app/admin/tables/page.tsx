@@ -147,17 +147,20 @@ function getTableState(table: DiningTable, order?: Order): TableState {
   return "available";
 }
 
+let cachedTables: DiningTable[] | null = null;
+let cachedOrders: Order[] | null = null;
+
 export default function TablesPage() {
   const language = useAppLanguage();
   const [theme] = useAppTheme();
-  const [tables, setTables] = useState<DiningTable[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [tables, setTables] = useState<DiningTable[]>(cachedTables || []);
+  const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
   const [selectedZone, setSelectedZone] = useState<"all" | TableZone>("all");
   const [tableForm, setTableForm] = useState<TableForm>(EMPTY_TABLE_FORM);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [qrTable, setQrTable] = useState<DiningTable | null>(null);
   const [qrImageFailed, setQrImageFailed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedTables);
   const [message, setMessage] = useState("");
   useAutoDismiss(message, setMessage);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -170,12 +173,19 @@ export default function TablesPage() {
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
+  useEffect(() => {
+    cachedTables = tables;
+    cachedOrders = orders;
+  }, [tables, orders]);
+
   async function load() {
     setMessage("");
     try {
       const [tableRows, orderRows] = await Promise.all([getTables(), getOrders()]);
-      setTables(tableRows);
-      setOrders(orderRows);
+      cachedTables = tableRows;
+      cachedOrders = orderRows;
+      setTables(cachedTables);
+      setOrders(cachedOrders);
       setLastUpdated(new Date());
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to load tables");
@@ -426,7 +436,7 @@ export default function TablesPage() {
     <>
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-          <div className="mx-auto w-full max-w-[1720px] dash-animate">
+          <div className="mx-auto w-full max-w-[1720px] ">
 
             {/* Single Integrated Toolbar: Zone Tabs (Left) + Actions (Right) */}
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

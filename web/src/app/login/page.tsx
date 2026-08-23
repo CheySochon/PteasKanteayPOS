@@ -1036,7 +1036,7 @@ export default function LoginPage() {
             {/* Centered screen title for Admin login */}
             <div className="text-center mb-4">
               <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
-                Admin Sign In
+                Admin Login
               </h1>
             </div>
 

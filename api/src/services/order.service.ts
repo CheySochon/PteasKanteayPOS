@@ -62,8 +62,14 @@ async function generateOrderNumber(): Promise<string> {
 }
 
 export const listOrders = async (query: Record<string, string> = {}) => {
-  const where: Record<string, unknown> = { deletedAt: null };
-  if (query.status) where.status = normalizeStatus(query.status);
+  const where: any = { deletedAt: null };
+  if (query.status) {
+    if (query.status === "active") {
+      where.status = { in: ["pending", "accepted", "preparing", "ready"] };
+    } else {
+      where.status = normalizeStatus(query.status);
+    }
+  }
 
   const orders = await prisma.order.findMany({
     where,

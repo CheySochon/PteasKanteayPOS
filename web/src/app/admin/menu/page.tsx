@@ -297,13 +297,16 @@ function getCategoryIcon(name: string) {
   return Tags;
 }
 
+let cachedCategories: Category[] | null = null;
+let cachedProducts: Product[] | null = null;
+
 export default function MenuPage() {
   const language = useAppLanguage();
   const t = TEXT[language];
   const [menuView, setMenuView] = useState("list");
   const [theme] = useAppTheme();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>(cachedCategories || []);
+  const [products, setProducts] = useState<Product[]>(cachedProducts || []);
   const [selectedCategory, setSelectedCategory] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "hidden">("all");
   const [query, setQuery] = useState("");
@@ -316,7 +319,7 @@ export default function MenuPage() {
   const [error, setError] = useState("");
   useAutoDismiss(message, setMessage);
   useAutoDismiss(error, setError);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedCategories);
   const [saving, setSaving] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false);
@@ -401,13 +404,20 @@ export default function MenuPage() {
   }, []);
 
   useEffect(() => {
+    cachedCategories = categories;
+    cachedProducts = products;
+  }, [categories, products]);
+
+  useEffect(() => {
     let mounted = true;
 
     Promise.all([getCategories(), getProducts()])
       .then(([categoryRows, productRows]) => {
         if (!mounted) return;
-        setCategories(categoryRows);
-        setProducts(productRows);
+        cachedCategories = categoryRows;
+        cachedProducts = productRows;
+        setCategories(cachedCategories);
+        setProducts(cachedProducts);
       })
       .catch((err) => {
         if (!mounted) return;

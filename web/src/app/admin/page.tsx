@@ -157,6 +157,10 @@ function hourLabel(hour: number | string) {
   return value > 12 ? `${value - 12} PM` : `${value} AM`;
 }
 
+let cachedOrders: Order[] | null = null;
+let cachedDailySales: DailySalesReport | null = null;
+let cachedTopProducts: TopProductReport[] | null = null;
+
 function subscribeToLanguageChanges(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
   window.addEventListener("pos-language-change", onStoreChange);
@@ -220,9 +224,9 @@ export default function DashboardPage() {
     } catch {}
   }, []);
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [dailySales, setDailySales] = useState<DailySalesReport | null>(null);
-  const [topProducts, setTopProducts] = useState<TopProductReport[]>([]);
+  const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
+  const [dailySales, setDailySales] = useState<DailySalesReport | null>(cachedDailySales || null);
+  const [topProducts, setTopProducts] = useState<TopProductReport[]>(cachedTopProducts || []);
   const [orderAlerts, setOrderAlerts] = useState<NotificationItem[]>([]);
   const [toastNotification, setToastNotification] = useState<NotificationItem | null>(null);
   const [clearedNotificationIds, setClearedNotificationIds] = useState<Set<string>>(
@@ -231,7 +235,7 @@ export default function DashboardPage() {
   const [clearedActiveOrderIds, setClearedActiveOrderIds] = useState<Set<number>>(
     getClearedActiveOrderIds
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedOrders);
   const [error, setError] = useState("");
   useAutoDismiss(error, setError);
 
@@ -246,6 +250,12 @@ export default function DashboardPage() {
   const t = TEXT[language];
 
   useEffect(() => {
+    cachedOrders = orders;
+    cachedDailySales = dailySales;
+    cachedTopProducts = topProducts;
+  }, [orders, dailySales, topProducts]);
+
+  useEffect(() => {
     let mounted = true;
 
     Promise.all([
@@ -255,9 +265,9 @@ export default function DashboardPage() {
     ])
       .then(([sales, orderRows, topRows]) => {
         if (!mounted) return;
-        setDailySales(sales as any);
-        setOrders(orderRows as any);
-        setTopProducts(topRows as any);
+        cachedDailySales = sales as any; setDailySales(cachedDailySales);
+        cachedOrders = orderRows as any; setOrders(cachedOrders);
+        cachedTopProducts = topRows as any; setTopProducts(cachedTopProducts);
       })
       .catch(() => undefined)
       .finally(() => setLoading(false));
@@ -978,9 +988,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5">
+        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 dash-animate">
           {/* Dashboard Page Header */}
-          <div className="mb-5 flex items-center gap-3 dash-animate dash-delay-0">
+          <div className="mb-5 flex items-center gap-3  dash-delay-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#48cf38]/10 text-[#48cf38]">
               <Grid2X2 size={20} />
             </div>
@@ -1011,13 +1021,13 @@ export default function DashboardPage() {
                 dark={dark}
                 index={idx}
                 Icon={stat.Icon}
-                animClass={`dash-animate dash-delay-${idx + 1}`}
+                animClass={` dash-delay-${idx + 1}`}
               />
             ))}
           </section>
 
           <section className="mb-4 grid gap-4 grid-cols-1 xl:grid-cols-12">
-            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none dash-animate dash-delay-5`}>
+            <div className={`min-w-0 xl:col-span-8 ${cardClass} p-5 rounded-2xl shadow-none  dash-delay-5`}>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className={`text-base font-bold ${textPrimary}`}>
                   {language === "km" ? "និន្នាការចំណូល" : "Revenue Trend"}
@@ -1116,7 +1126,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-none flex flex-col justify-between dash-animate dash-delay-6`}>
+            <div className={`min-w-0 xl:col-span-4 ${cardClass} p-5 rounded-2xl shadow-none flex flex-col justify-between  dash-delay-6`}>
               <div className="mb-3">
                 <h2 className={`text-base font-bold ${textPrimary}`}>
                   {t.orderStatus}
@@ -1164,7 +1174,7 @@ export default function DashboardPage() {
           </section>
 
           <section className="grid gap-4 grid-cols-1 xl:grid-cols-12 items-stretch">
-            <div className={`min-w-0 xl:col-span-8 overflow-hidden ${cardClass} dash-animate dash-delay-7`}>
+            <div className={`min-w-0 xl:col-span-8 overflow-hidden ${cardClass}  dash-delay-7`}>
               <div className="flex items-center justify-between p-5">
                 <div>
                   <h2 className={`text-base font-black ${textPrimary}`}>
@@ -1274,7 +1284,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="min-w-0 xl:col-span-4 dash-animate dash-delay-8">
+            <div className="min-w-0 xl:col-span-4  dash-delay-8">
               <div className={`${cardClass} p-5 h-full flex flex-col`}>
                 <div className="mb-4">
                   <h2 className={`text-base font-bold ${textPrimary}`}>

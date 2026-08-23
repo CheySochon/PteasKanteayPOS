@@ -195,13 +195,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!mounted) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4">
-        <div className="rounded border border-[#e5e7eb] bg-white px-5 py-4 text-sm font-semibold text-[#8592a3] shadow-sm">
-          Checking session...
-        </div>
-      </main>
-    );
+    return <>{children}</>;
   }
 
   const hasSession = typeof window !== "undefined" && (!!localStorage.getItem("pos_logged_in") || !!localStorage.getItem("pos_token"));

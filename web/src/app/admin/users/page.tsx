@@ -617,7 +617,7 @@ export default function UsersPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-          <div className="mx-auto w-full max-w-[1720px] dash-animate">
+          <div className="mx-auto w-full max-w-[1720px] ">
 
             {/* Title & "+ New" Button Header */}
             <div className="flex items-center gap-3 mb-4">

@@ -1116,7 +1116,7 @@ export default function ReportsPage() {
       </div>
       
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto w-full max-w-[1720px] dash-animate" id="report-printable-area">
+        <div className="mx-auto w-full max-w-[1720px] " id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">
               {error}
@@ -1656,7 +1656,64 @@ export default function ReportsPage() {
 }
 
 function AnimatedCounter({ value }: { value?: string | number | null }) {
-  return <>{value ?? ""}</>;
+  const [displayValue, setDisplayValue] = useState(value ?? "");
+
+  useEffect(() => {
+    if (value === null || value === undefined) {
+      setDisplayValue("");
+      return;
+    }
+
+    const strValue = String(value);
+    const match = strValue.match(/[\d.]+/);
+    if (!match) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const targetNum = parseFloat(match[0]);
+    if (Number.isNaN(targetNum)) {
+      setDisplayValue(strValue);
+      return;
+    }
+
+    const prefix = strValue.slice(0, match.index);
+    const suffix = strValue.slice(match.index! + match[0].length);
+
+    const decimalParts = match[0].split(".");
+    const decimals = decimalParts.length > 1 ? decimalParts[1].length : 0;
+
+    const start = 0;
+    const duration = 800; // Animation duration in milliseconds
+    const startTime = performance.now();
+
+    let animationFrameId: number;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function: easeOutQuad
+      const easedProgress = progress * (2 - progress);
+      const currentNum = start + targetNum * easedProgress;
+
+      setDisplayValue(`${prefix}${currentNum.toFixed(decimals)}${suffix}`);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(strValue);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [value]);
+
+  return <>{displayValue}</>;
 }
 
 function MetricCard({

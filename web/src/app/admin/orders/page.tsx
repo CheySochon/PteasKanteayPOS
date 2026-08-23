@@ -311,11 +311,13 @@ function csvValue(value: string | number) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+let cachedOrders: Order[] | null = null;
+
 export default function OrdersPage() {
   const language = useAppLanguage();
   const t = TEXT[language];
   const [theme] = useAppTheme();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
   const [filter, setFilter] = useState<OrderTab>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [typeFilter, setTypeFilter] = useState<OrderTypeFilter>("all");
@@ -325,7 +327,7 @@ export default function OrdersPage() {
   const [hoveredOrder, setHoveredOrder] = useState<Order | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedOrders);
   const [message, setMessage] = useState("");
   useAutoDismiss(message, setMessage);
 
@@ -339,12 +341,19 @@ export default function OrdersPage() {
   const cardClass = `rounded-2xl border ${borderCol} ${surface} shadow-none`;
   const inputClass = `rounded border ${borderCol} ${softSurface} ${textPrimary}`;
 
-  useEffect(() => {
-    getOrders()
-      .then(setOrders)
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
-  }, []);
+    useEffect(() => {
+      cachedOrders = orders;
+    }, [orders]);
+
+    useEffect(() => {
+      getOrders()
+        .then((fetchedOrders) => {
+          cachedOrders = fetchedOrders;
+          setOrders(cachedOrders);
+        })
+        .catch(() => undefined)
+        .finally(() => setLoading(false));
+    }, []);
 
   useEffect(() => {
     const socket = getSocket();
@@ -542,7 +551,7 @@ export default function OrdersPage() {
 
   return (
     <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 dash-animate">
+        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 ">
           {/* Orders Page Header Title Block */}
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
@@ -915,7 +924,7 @@ export default function OrdersPage() {
 
                           <td 
                             onClick={(e) => e.stopPropagation()} 
-                            className="relative px-2 py-3 text-center order-action-container"
+                              className="relative px-2 py-3 text-center order-action-container"
                           >
                             <button
                               onClick={() =>

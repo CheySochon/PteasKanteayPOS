@@ -86,7 +86,7 @@ export default function AdminKitchenPage() {
   return (
     <div className={`flex-1 overflow-y-auto flex flex-col ${dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-800"}`}>
 
-      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto dash-animate">
+      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto ">
         {/* Header Action Row matching screenshot */}
         <div className="flex items-center justify-between gap-4 pb-2">
           <div className="flex items-center gap-3.5">

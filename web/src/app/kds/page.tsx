@@ -24,7 +24,7 @@ import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../lib/language";
 
-const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing", "ready"];
+const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing"];
 
 let globalAudioCtx: AudioContext | null = null;
 
@@ -88,13 +88,15 @@ function playKitchenBellSound() {
   }
 }
 
+let cachedOrders: Order[] | null = null;
+
 export default function KdsPage() {
   const [theme, setTheme] = useAppTheme();
   const language = useAppLanguage();
   const [collapsed, setCollapsed] = useState(false);
   const dark = theme === "dark";
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
+  const [initialLoading, setInitialLoading] = useState(!cachedOrders);
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
@@ -140,20 +142,23 @@ export default function KdsPage() {
     let mounted = true;
 
     function syncOrders() {
-      getOrders()
+      getOrders("active")
         .then((fetchedOrders) => {
           if (!mounted) return;
 
           setOrders((current) => {
-            // Check if there are any new orders not in current state
             const currentIds = new Set(current.map((o) => o.id));
-            const hasNew = fetchedOrders.some((o) => !currentIds.has(o.id));
+            const newOrders = fetchedOrders.filter((o) => !currentIds.has(o.id));
 
-            if (hasNew && soundEnabledRef.current) {
+            if (newOrders.length > 0 && soundEnabledRef.current) {
               playKitchenBellSound();
             }
 
-            return fetchedOrders;
+            // As requested, only append new orders. Don't overwrite existing ones
+            if (newOrders.length === 0) {
+              return current;
+            }
+            return [...current, ...newOrders];
           });
         })
         .catch((err) => {
@@ -218,10 +223,15 @@ export default function KdsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    cachedOrders = orders;
+  }, [orders]);
+
   const activeOrders = useMemo(() => {
     let rows = orders.filter((order) => {
       const s = (order.status || "pending").toLowerCase();
-      return s !== "cancelled" && s !== "served" && s !== "completed";
+      // Hide orders once they are ready, served, completed, or cancelled
+      return s !== "cancelled" && s !== "served" && s !== "completed" && s !== "ready";
     });
 
     if (statusFilter !== "all") {

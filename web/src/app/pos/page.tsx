@@ -88,14 +88,19 @@ function resolveImageUrl(value?: string | null) {
   return `${apiOrigin}${value}`;
 }
 
+let cachedCategories: Category[] | null = null;
+let cachedProducts: Product[] | null = null;
+let cachedTables: DiningTable[] | null = null;
+let cachedSettings: any = null;
+
 export default function PosPage({ isAdminView = false }: { isAdminView?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useAppTheme();
   const dark = theme === "dark";
   const language = useAppLanguage();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [tables, setTables] = useState<DiningTable[]>([]);
+  const [categories, setCategories] = useState<Category[]>(cachedCategories || []);
+  const [products, setProducts] = useState<Product[]>(cachedProducts || []);
+  const [tables, setTables] = useState<DiningTable[]>(cachedTables || []);
   const [categoryId, setCategoryId] = useState<number | "all">("all");
   const [tableId, setTableId] = useState<number | undefined>();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -140,9 +145,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     } catch {}
     return "";
   });
-  const [restaurantImageUrl, setRestaurantImageUrl] = useState("");
-  const [serviceRate, setServiceRate] = useState(SERVICE_RATE);
-  const [vatRate, setVatRate] = useState(VAT_RATE);
+  const [restaurantImageUrl, setRestaurantImageUrl] = useState(cachedSettings?.restaurantImageUrl || "");
+  const [serviceRate, setServiceRate] = useState(cachedSettings?.serviceChargeRate != null ? Number(cachedSettings.serviceChargeRate) / 100 : SERVICE_RATE);
+  const [vatRate, setVatRate] = useState(cachedSettings?.taxRate != null ? Number(cachedSettings.taxRate) / 100 : VAT_RATE);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [splitCount, setSplitCount] = useState(2);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -155,7 +160,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [message, setMessage] = useState("");
   useAutoDismiss(message, setMessage);
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(!cachedCategories);
   const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   
@@ -489,9 +494,14 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
     Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
       .then(([categoryRows, productRows, tableRows, appSettings]) => {
-        setCategories(categoryRows);
-        setProducts(productRows);
-        setTables(tableRows.filter((table: DiningTable) => table.isActive));
+        cachedCategories = categoryRows;
+        cachedProducts = productRows;
+        cachedTables = tableRows.filter((table: DiningTable) => table.isActive);
+        cachedSettings = appSettings;
+
+        setCategories(cachedCategories);
+        setProducts(cachedProducts);
+        setTables(cachedTables);
         const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
         setPosName(nextName);
         setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
@@ -528,9 +538,14 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     function reloadMenuData() {
       Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
         .then(([categoryRows, productRows, tableRows, appSettings]) => {
-          setCategories(categoryRows);
-          setProducts(productRows);
-          setTables(tableRows.filter((table: DiningTable) => table.isActive));
+          cachedCategories = categoryRows;
+          cachedProducts = productRows;
+          cachedTables = tableRows.filter((table: DiningTable) => table.isActive);
+          cachedSettings = appSettings;
+
+          setCategories(cachedCategories);
+          setProducts(cachedProducts);
+          setTables(cachedTables);
           const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
           setPosName(nextName);
           setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
@@ -870,7 +885,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     }`}>
 
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
-      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0 dash-animate">
+      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0 ">
           {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
           <header className={`flex flex-col md:flex-row items-stretch md:items-center justify-between pt-3 pb-3 px-3.5 sm:px-4 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             <div className="flex items-center justify-between w-full md:w-auto">
@@ -952,7 +967,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   }`}>
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-orange-600 text-[9px] font-black uppercase overflow-hidden border border-slate-200">
                       {currentUserImageUrl ? (
-                        <img src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
+                        <img loading="lazy" src={resolveImageUrl(currentUserImageUrl)} alt="Avatar" className="h-full w-full object-cover" />
                       ) : (
                         (currentUserName ? currentUserName.split(" ").map(w => w[0]).join("").slice(0, 2) : "AC")
                       )}
@@ -2391,7 +2406,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               {/* Logo / Store Header */}
               <div className="text-center">
                 {restaurantImageUrl ? (
-                  <img src={resolveImageUrl(restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
+                  <img loading="lazy" src={resolveImageUrl(restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
                 ) : (
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F522B] text-white font-bold text-sm mx-auto mb-1.5">
                     {posName.slice(0, 2).toUpperCase()}
@@ -2543,7 +2558,7 @@ const ProductCard = memo(
           )}
 
           {imageUrl && !imgFailed ? (
-            <img
+            <img loading="lazy"
               src={imageUrl}
               alt={product.name}
               onError={() => setImgFailed(true)}
@@ -2650,7 +2665,7 @@ const ProductListItem = memo(
           )}
 
           {imageUrl && !imgFailed ? (
-            <img
+            <img loading="lazy"
               src={imageUrl}
               alt={product.name}
               onError={() => setImgFailed(true)}

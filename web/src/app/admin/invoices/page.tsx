@@ -52,13 +52,15 @@ function monthInputValue(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
+let cachedOrders: Order[] | null = null;
+
 export default function InvoicesPage() {
   const language = useAppLanguage();
   const [theme] = useAppTheme();
   const dark = theme === "dark";
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
+  const [loading, setLoading] = useState(!cachedOrders);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   
@@ -73,11 +75,16 @@ export default function InvoicesPage() {
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
 
   useEffect(() => {
+    cachedOrders = orders;
+  }, [orders]);
+
+  useEffect(() => {
     let mounted = true;
     getOrders()
       .then((data) => {
         if (mounted && Array.isArray(data)) {
-          setOrders(data);
+          cachedOrders = data;
+          setOrders(cachedOrders);
         }
       })
       .catch(() => {})
@@ -180,7 +187,7 @@ export default function InvoicesPage() {
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-        <div className="mx-auto w-full max-w-[1720px] dash-animate">
+        <div className="mx-auto w-full max-w-[1720px] ">
           
           {/* Header Title + Controls Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
