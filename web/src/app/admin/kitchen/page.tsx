@@ -85,14 +85,6 @@ export default function AdminKitchenPage() {
 
   return (
     <div className={`flex-1 overflow-y-auto flex flex-col ${dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-800"}`}>
-      <TopBar
-        title={language === "km" ? "ផ្ទះបាយ (Kitchen)" : "Kitchen Display"}
-        subtitle={language === "km" ? "គ្រប់គ្រង និងតាមដានការបញ្ជាទិញក្នុងផ្ទះបាយ" : "Live kitchen order queue and preparation status"}
-        language={language}
-        onLanguageChange={setAppLanguage}
-        notifications={[]}
-        dark={dark}
-      />
 
       <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto dash-animate">
         {/* Header Action Row matching screenshot */}
@@ -117,7 +109,9 @@ export default function AdminKitchenPage() {
         </div>
 
         {/* Order Cards Grid */}
-        {kitchenOrders.length > 0 ? (
+        {refreshing && kitchenOrders.length === 0 ? (
+          <KdsSkeleton dark={dark} />
+        ) : kitchenOrders.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {kitchenOrders.map((order) => (
               <KdsOrderCard
@@ -143,6 +137,42 @@ export default function AdminKitchenPage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function KdsSkeleton({ dark }: { dark?: boolean }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+      {[1, 2, 3, 4].map((n) => (
+        <div
+          key={n}
+          className={`flex flex-col justify-between rounded-2xl p-4.5 min-h-[175px] border animate-pulse ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+                <div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+
+            <div className="space-y-3.5 py-1">
+              <div className="flex items-center justify-between">
+                <div className="h-3.5 w-32 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -10,8 +10,9 @@ export default function AnimatedToast({
   duration = 4000,
 }: {
   message: string;
+  title?: string;
   onClose: () => void;
-  type?: "success" | "error";
+  type?: "success" | "error" | "login" | "logout" | "kitchen";
   duration?: number;
 }) {
   const [exiting, setExiting] = useState(false);
@@ -39,9 +40,11 @@ export default function AnimatedToast({
 
   if (!message) return null;
 
+  const isError = type === "error";
+
   return (
     <div
-      className={`pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-100/80 dark:border-slate-850 transition-all duration-300 ${
+      className={`fixed top-6 left-1/2 -translate-x-1/2 z-[99999] pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-2xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-xs font-semibold shadow-lg shadow-slate-200/40 border border-slate-100/90 dark:border-slate-800 transition-all duration-300 ${
         exiting
           ? "animate-[liftToTop_280ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
           : "animate-[dropFromTop_350ms_cubic-bezier(0.16,1,0.3,1)]"
@@ -49,16 +52,18 @@ export default function AnimatedToast({
     >
       <div
         className={`h-5 w-5 rounded-full flex items-center justify-center text-white shrink-0 ${
-          type === "success" ? "bg-[#48cf38]" : "bg-rose-500"
+          isError ? "bg-rose-500" : "bg-[#48cf38]"
         }`}
       >
-        {type === "success" ? (
-          <Check size={11} strokeWidth={4.5} className="text-white" />
-        ) : (
+        {isError ? (
           <X size={11} strokeWidth={4.5} className="text-white" />
+        ) : (
+          <Check size={11} strokeWidth={4.5} className="text-white" />
         )}
       </div>
-      <span>{message}</span>
+
+      <span className="whitespace-nowrap">{message}</span>
+
       <button
         type="button"
         onClick={() => setExiting(true)}

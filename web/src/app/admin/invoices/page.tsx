@@ -13,7 +13,6 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import TopBar from "../../../components/TopBar";
 import { getOrders } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { getSocket } from "../../../lib/socket";
@@ -180,18 +179,6 @@ export default function InvoicesPage() {
 
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-      <TopBar
-        title={language === "km" ? "វិក្កយបត្រ" : "Invoices"}
-        subtitle=""
-        language={language}
-        onLanguageChange={(nextLanguage) => {
-          localStorage.setItem("pos_language", nextLanguage);
-          window.dispatchEvent(new Event("pos-language-change"));
-        }}
-        notifications={[]}
-        dark={dark}
-      />
-
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
         <div className="mx-auto w-full max-w-[1720px] dash-animate">
           
@@ -296,10 +283,8 @@ export default function InvoicesPage() {
                       <th className="px-4 py-3.5 whitespace-nowrap">CUSTOMER</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">SUBTOTAL</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">TAX</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">SERVICE CHARGE</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">DISCOUNT</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">TOTAL</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">DELIVERY TYPE</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">DATE</th>
                       <th className="px-4 py-3.5 whitespace-nowrap text-center">ACTION</th>
                     </tr>
@@ -356,11 +341,6 @@ export default function InvoicesPage() {
                             {money(tax)}
                           </td>
 
-                          {/* SERVICE CHARGE */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-400">
-                            {money(serviceCharge)}
-                          </td>
-
                           {/* DISCOUNT */}
                           <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-400">
                             {money(discount)}
@@ -369,11 +349,6 @@ export default function InvoicesPage() {
                           {/* TOTAL */}
                           <td className="px-4 py-3.5 whitespace-nowrap font-black text-slate-900 dark:text-slate-100">
                             {money(total)}
-                          </td>
-
-                          {/* DELIVERY TYPE */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-500 dark:text-slate-400">
-                            {deliveryType}
                           </td>
 
                           {/* DATE */}

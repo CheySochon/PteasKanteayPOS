@@ -553,13 +553,21 @@ export default function DashboardPage() {
   }, [dailySales, orders]);
 
   const computedTopProducts = useMemo(() => {
-    if (topProducts && topProducts.length > 0) return topProducts;
+    const stripExt = (name: string) => (name || "").replace(/\.(jpg|jpeg|png|webp|gif)$/i, "").trim();
+
+    if (topProducts && topProducts.length > 0) {
+      return topProducts.map((p) => ({
+        ...p,
+        productName: stripExt(p.productName || (p as any).name || "Item"),
+      }));
+    }
 
     const map = new Map<string, { productId: number; productName: string; totalSales: number }>();
     orders.forEach((o) => {
       if (o.status === "cancelled") return;
       (o.items || []).forEach((item: any) => {
-        const pName = item.product?.name || item.name || "Item";
+        const rawName = item.product?.name || item.name || "Item";
+        const pName = stripExt(rawName);
         const pId = item.productId || item.id || 1;
         const sales = Number(item.unitPrice || item.price || 0) * (item.quantity || 1);
         const existing = map.get(pName);
@@ -886,7 +894,13 @@ export default function DashboardPage() {
       tooltip: {
         ...commonTooltip,
         callbacks: {
-          title: (items: TooltipItem<"line">[]) => items[0]?.label || "",
+          title: (items: TooltipItem<"line">[]) => {
+            const idx = items[0]?.dataIndex;
+            if (idx !== undefined && computedTopProducts[idx]) {
+              return computedTopProducts[idx].productName;
+            }
+            return items[0]?.label || "";
+          },
           label: (context: TooltipItem<"line">) => ` ${language === "km" ? "ចំនួនលក់:" : "Sales:"} ${context.parsed.y ?? 0}`,
         },
       },
@@ -895,10 +909,17 @@ export default function DashboardPage() {
       x: {
         ticks: {
           color: dark ? "#94a3b8" : "#64748b",
-          font: { family: KHMER_CHART_FONT, size: 11.5, weight: "normal" },
+          font: { family: KHMER_CHART_FONT, size: 10.5, weight: "normal" },
           padding: 8,
-          maxRotation: 0,
-          autoSkip: false,
+          maxRotation: 20,
+          minRotation: 0,
+          autoSkip: true,
+          autoSkipPadding: 8,
+          callback: function (val: any) {
+            const label = this.getLabelForValue(Number(val));
+            if (!label) return "";
+            return label.length > 8 ? label.substring(0, 7) + "…" : label;
+          },
         },
         grid: {
           display: false,
@@ -937,14 +958,6 @@ export default function DashboardPage() {
     <main
         className={`flex-1 overflow-y-auto ${language === "km" ? "font-khmer" : ""}`}
       >
-        <TopBar
-          title={language === "km" ? `សូមស្វាគមន៍ត្រឡប់មកវិញ, ${userName}!` : `Welcome back, ${userName}!`}
-          subtitle=""
-          language={language}
-          onLanguageChange={setDashboardLanguage}
-          notifications={[]}
-          dark={dark}
-        />
 
         {toastNotification && (
           <div className="fixed top-20 right-6 z-50 flex items-center gap-3 rounded-xl border border-indigo-200/80 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3 text-sm font-semibold text-[#696cff] dark:text-indigo-300 shadow-2xl shadow-slate-900/15 backdrop-blur-md animate-[slideFromRight_250ms_cubic-bezier(0.16,1,0.3,1)]">

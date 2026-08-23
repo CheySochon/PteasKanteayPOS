@@ -10,6 +10,10 @@ export function useAutoDismiss(
   useEffect(() => {
     if (!value) return;
 
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("pos-show-toast", { detail: value }));
+    }
+
     const timer = window.setTimeout(() => {
       setValue("");
     }, delay);

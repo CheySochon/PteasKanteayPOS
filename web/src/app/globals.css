@@ -65,30 +65,7 @@ input, textarea, select, button {
   letter-spacing: -0.03em;
 }
 
-/* Global Smooth Theme Transition */
-html,
-body,
-header,
-main,
-aside,
-div,
-section,
-article,
-button,
-input,
-select,
-span,
-h1,
-h2,
-h3,
-h4,
-p,
-svg {
-  transition: background-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 350ms cubic-bezier(0.4, 0, 0.2, 1),
-              color 350ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 350ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+/* Custom Scrollbar Utilities */
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
@@ -141,32 +118,36 @@ main::-webkit-scrollbar {
   animation: loginModeSwitch 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Dashboard Slide-From-Top-Left Entrance Animation */
-@keyframes slideTopLeftToBottomRight {
+/* Clean Dashboard Top-Left to Right Slide Entrance Animation */
+@keyframes dashFadeIn {
   0% {
     opacity: 0;
-    transform: translate(-20px, -20px);
+    transform: translate(-32px, -18px) scale(0.98);
+  }
+  60% {
+    opacity: 0.95;
+    transform: translate(3px, 1px) scale(1.002);
   }
   100% {
     opacity: 1;
-    transform: translate(0, 0);
+    transform: translate(0, 0) scale(1);
   }
 }
 
 .dash-animate {
-  animation: slideTopLeftToBottomRight 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: dashFadeIn 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .dash-delay-0  { animation-delay: 0ms; }
-.dash-delay-1  { animation-delay: 25ms; }
-.dash-delay-2  { animation-delay: 50ms; }
-.dash-delay-3  { animation-delay: 75ms; }
-.dash-delay-4  { animation-delay: 100ms; }
-.dash-delay-5  { animation-delay: 125ms; }
-.dash-delay-6  { animation-delay: 150ms; }
-.dash-delay-7  { animation-delay: 175ms; }
-.dash-delay-8  { animation-delay: 200ms; }
-.dash-delay-9  { animation-delay: 225ms; }
-.dash-delay-10 { animation-delay: 250ms; }
+.dash-delay-1  { animation-delay: 50ms; }
+.dash-delay-2  { animation-delay: 100ms; }
+.dash-delay-3  { animation-delay: 150ms; }
+.dash-delay-4  { animation-delay: 200ms; }
+.dash-delay-5  { animation-delay: 250ms; }
+.dash-delay-6  { animation-delay: 300ms; }
+.dash-delay-7  { animation-delay: 350ms; }
+.dash-delay-8  { animation-delay: 400ms; }
+.dash-delay-9  { animation-delay: 450ms; }
+.dash-delay-10 { animation-delay: 500ms; }
 
 /* ==========================================================================
    OFFICIAL PRINT & PDF REPORT STYLING (@media print)
@@ -246,3 +227,107 @@ main::-webkit-scrollbar {
   0% { transform: translateY(0) scale(1); opacity: 1; }
   100% { transform: translateY(-100%) scale(0.92); opacity: 0; }
 }
+
+/* ==========================================================================
+   GLASSIC BLUR WATER WAVE SKELETON (LEFT TO RIGHT)
+   ========================================================================== */
+@keyframes waterWaveSheen {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.water-wave-glass {
+  position: relative;
+  overflow: hidden;
+  background-color: #e5e7eb;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .water-wave-glass {
+  background-color: #2b2c40;
+}
+
+.water-wave-glass::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  left: -40%;
+  width: 75%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.25) 20%,
+    rgba(255, 255, 255, 0.65) 45%,
+    rgba(255, 255, 255, 0.85) 50%,
+    rgba(255, 255, 255, 0.65) 55%,
+    rgba(255, 255, 255, 0.25) 80%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(8px);
+  animation: waterWaveSheen 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.dark .water-wave-glass::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 20%,
+    rgba(255, 255, 255, 0.18) 45%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.18) 55%,
+    rgba(255, 255, 255, 0.05) 80%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(10px);
+}
+
+.glassic-blur-skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(226, 232, 240, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .glassic-blur-skeleton {
+  background-color: rgba(43, 44, 64, 0.65);
+}
+
+.glassic-blur-skeleton::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -50%;
+  width: 60%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 40%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.4) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: waterWaveSheen 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.dark .glassic-blur-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 40%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.08) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+

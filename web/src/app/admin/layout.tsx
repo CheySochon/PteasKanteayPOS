@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
+import TopBar from "../../components/TopBar";
 import { useAppLanguage } from "../../lib/language";
 import { useAppTheme } from "../../lib/theme";
 import { roleName } from "../../lib/permissions";
@@ -20,7 +21,7 @@ export default function AdminLayout({
   const language = useAppLanguage();
   const [collapsed, setCollapsed] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [loginSuccessToast, setLoginSuccessToast] = useState<{ userName: string; role: string } | null>(null);
+
   const [userAuthToast, setUserAuthToast] = useState<{ userName: string; role: string; type: "login" | "logout" } | null>(null);
 
   const bg = theme === "dark" ? "bg-[#232333]" : "bg-white";
@@ -68,29 +69,7 @@ export default function AdminLayout({
     };
   }, [pathname]);
 
-  // Check login alert once on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("pos_login_success_alert");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.userName && Date.now() - (parsed.timestamp || 0) < 30000) {
-          const roleStr = typeof parsed.role === "object" && parsed.role ? parsed.role.name : parsed.role || "Admin";
-          setLoginSuccessToast({ userName: parsed.userName, role: roleStr });
-          localStorage.removeItem("pos_login_success_alert");
-        }
-      }
-    } catch {}
-  }, []);
 
-  // Dedicated 5s auto-close timer effect for Admin Login Success Toast
-  useEffect(() => {
-    if (!loginSuccessToast) return;
-    const timer = setTimeout(() => {
-      setLoginSuccessToast(null);
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [loginSuccessToast]);
 
   // Real-time socket listener for user login and logout alerts
   useEffect(() => {
@@ -162,19 +141,12 @@ export default function AdminLayout({
         theme={theme}
         setTheme={setTheme}
       />
-      {children}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 min-h-0">
+        <TopBar />
+        {children}
+      </div>
 
-      {/* ADMIN LOGIN SUCCESS POP-UP TOAST */}
-      {loginSuccessToast && (
-        <div className="fixed top-6 inset-x-0 z-[99999] flex justify-center pointer-events-none px-4">
-          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-850 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
-              <Check size={11} strokeWidth={4.5} className="text-white" />
-            </div>
-            <span>Login successful!</span>
-          </div>
-        </div>
-      )}
+
 
       <style jsx>{`
         @keyframes dropFromTop {

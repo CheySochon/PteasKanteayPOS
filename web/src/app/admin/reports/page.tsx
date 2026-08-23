@@ -19,6 +19,16 @@ import {
   Printer,
   FileText,
   RotateCw,
+  Boxes,
+  AlertTriangle,
+  AlertCircle,
+  Package,
+  PackageCheck,
+  PackageX,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Layers,
+  ListFilter,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -31,6 +41,7 @@ import {
   getMonthlySales,
   getSettings,
   getTopProducts,
+  request,
 } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 import type {
@@ -457,6 +468,12 @@ export default function ReportsPage() {
   const [showExport, setShowExport] = useState(false);
   const [showTrendDropdown, setShowTrendDropdown] = useState(false);
 
+  const [reportTab, setReportTab] = useState<"analytics" | "stock">("analytics");
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
+  const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
+
   const [restaurantName, setRestaurantName] = useState("ផ្ទះកន្ត្រាយ");
   const [preparedByName, setPreparedByName] = useState("Admin");
 
@@ -510,11 +527,15 @@ export default function ReportsPage() {
       getDailySales(selectedDate),
       getMonthlySales(selectedDate),
       getTopProducts(selectedDate, selectedPeriod),
+      request<any[]>("/inventory").catch(() => []),
+      request<any[]>("/inventory/transactions").catch(() => []),
     ])
-      .then(([dailyRows, monthlyRows, topRows]) => {
+      .then(([dailyRows, monthlyRows, topRows, invRows, movRows]) => {
         setDaily(dailyRows);
         setMonthly(monthlyRows);
         setTopProducts(topRows);
+        setInventoryItems(Array.isArray(invRows) ? invRows : []);
+        setStockMovements(Array.isArray(movRows) ? movRows : []);
         setLastUpdated(new Date());
         setError("");
       })
@@ -541,7 +562,7 @@ export default function ReportsPage() {
 
     const socket = getSocket();
     const onRealtimeUpdate = () => refreshReports();
-    const refreshTimer = window.setInterval(refreshReports, 15000);
+    const refreshTimer = window.setInterval(refreshReports, 60000);
 
     socket?.on("dashboard:update", onRealtimeUpdate);
     socket?.on("order:created", onRealtimeUpdate);
@@ -563,6 +584,52 @@ export default function ReportsPage() {
   const todayRevenue = Number(daily?.totalSales || 0);
   const tableTurnover =
     totalOrders > 0 ? `${Math.max(18, Math.round(720 / totalOrders))} min` : "--";
+
+  const stockMetrics = useMemo(() => {
+    let totalValuation = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    inventoryItems.forEach((item) => {
+      const qty = Number(item.inventory?.quantity || 0);
+      const minStock = Number(item.inventory?.minStock || 10);
+      const price = Number(item.basePrice || 0);
+
+      totalValuation += qty * price;
+      if (qty === 0) {
+        outOfStockCount++;
+      } else if (qty <= minStock) {
+        lowStockCount++;
+      }
+    });
+
+    return {
+      totalValuation,
+      lowStockCount,
+      outOfStockCount,
+      totalItems: inventoryItems.length,
+      totalMovements: stockMovements.length,
+    };
+  }, [inventoryItems, stockMovements]);
+
+  const filteredInventoryItems = useMemo(() => {
+    const query = stockSearch.trim().toLowerCase();
+    return inventoryItems.filter((item) => {
+      const name = (item.name || "").toLowerCase();
+      const catName = (item.category?.name || "").toLowerCase();
+      const matchesSearch = !query || name.includes(query) || catName.includes(query);
+
+      const qty = Number(item.inventory?.quantity || 0);
+      const minStock = Number(item.inventory?.minStock || 10);
+
+      const matchesFilter =
+        stockFilter === "all" ||
+        (stockFilter === "low" && qty <= minStock && qty > 0) ||
+        (stockFilter === "out" && qty === 0);
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [inventoryItems, stockFilter, stockSearch]);
 
   const now = new Date();
   const selectedRangeDate = new Date(`${selectedDate}T00:00:00`);
@@ -752,22 +819,43 @@ export default function ReportsPage() {
 
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-      <TopBar
-        title={t.title}
-        subtitle=""
-        language={language}
-        onLanguageChange={(nextLanguage) => {
-          localStorage.setItem("pos_language", nextLanguage);
-          window.dispatchEvent(new Event("pos-language-change"));
-        }}
-        notifications={[]}
-        dark={dark}
-      />
-      
       {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
       <div className="px-3.5 sm:px-4 pt-3.5 flex shrink-0 print:hidden">
         <div className="mx-auto w-full max-w-[1720px] flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex items-center gap-2">
+              {/* Report Tab Switcher */}
+              <div className={`flex items-center gap-1 p-1 rounded-xl border ${borderCol} ${softSurface}`}>
+                <button
+                  type="button"
+                  onClick={() => setReportTab("analytics")}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    reportTab === "analytics"
+                      ? "bg-[#55a060] text-white shadow-xs"
+                      : dark ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <TrendingUp size={14} />
+                  <span>{language === "km" ? "របាយការណ៍ការលក់" : "Sales & Analytics"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportTab("stock")}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    reportTab === "stock"
+                      ? "bg-[#55a060] text-white shadow-xs"
+                      : dark ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Boxes size={14} />
+                  <span>{language === "km" ? "របាយការណ៍ស្តុក (Stock Details)" : "Stock Details Report"}</span>
+                  {stockMetrics.lowStockCount > 0 && (
+                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-white px-1">
+                      {stockMetrics.lowStockCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+
               {/* Funnel Filter Icon Button with Text */}
               <button
                 type="button"
@@ -1053,7 +1141,251 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <section className="mb-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
+          {reportTab === "stock" ? (
+            <div className="space-y-6">
+              {/* 4 Stock Metric Cards */}
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  icon={<Boxes size={22} />}
+                  tone="green"
+                  label={language === "km" ? "តម្លៃស្តុកសរុប (Valuation)" : "Total Stock Valuation"}
+                  value={money(stockMetrics.totalValuation)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<AlertTriangle size={22} />}
+                  tone="orange"
+                  label={language === "km" ? "ទំនិញជិតអស់ពីស្តុក (Low Stock)" : "Low Stock Alerts"}
+                  value={loading ? "..." : String(stockMetrics.lowStockCount)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<PackageX size={22} />}
+                  tone="purple"
+                  label={language === "km" ? "ទំនិញអស់ពីស្តុក (Out of Stock)" : "Out of Stock Items"}
+                  value={loading ? "..." : String(stockMetrics.outOfStockCount)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<RotateCw size={22} />}
+                  tone="blue"
+                  label={language === "km" ? "ប្រវត្តិលំហូរស្តុកសរុប" : "Stock Transactions"}
+                  value={loading ? "..." : String(stockMetrics.totalMovements)}
+                  dark={dark}
+                />
+              </section>
+
+              {/* Inventory Stock Levels & Valuation Table */}
+              <div className={`${cardClass} p-4 sm:p-5`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className={`text-lg font-bold ${textPrimary}`}>
+                      {language === "km" ? "បញ្ជីតម្លៃ និងកម្រិតស្តុកទំនិញ (Inventory Stock & Valuation)" : "Inventory Stock & Valuation"}
+                    </h2>
+                    <p className={`text-xs ${textSecondary}`}>
+                      {language === "km" ? "សេចក្តីលម្អិតបរិមាណស្តុក ថ្លៃដើម និងតម្លៃសរុបតាមមុខទំនិញ" : "Detailed stock quantity, unit cost, and valuation per item"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* Stock Filter Buttons */}
+                    <div className={`flex items-center gap-1 p-1 rounded-xl border ${borderCol} ${softSurface}`}>
+                      <button
+                        type="button"
+                        onClick={() => setStockFilter("all")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                          stockFilter === "all" ? "bg-[#55a060] text-white" : dark ? "text-slate-300" : "text-slate-600"
+                        }`}
+                      >
+                        {language === "km" ? "ទាំងអស់" : "All"} ({inventoryItems.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStockFilter("low")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                          stockFilter === "low" ? "bg-amber-500 text-white" : dark ? "text-slate-300" : "text-slate-600"
+                        }`}
+                      >
+                        {language === "km" ? "ជិតអស់" : "Low"} ({stockMetrics.lowStockCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStockFilter("out")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                          stockFilter === "out" ? "bg-red-500 text-white" : dark ? "text-slate-300" : "text-slate-600"
+                        }`}
+                      >
+                        {language === "km" ? "អស់ស្តុក" : "Out"} ({stockMetrics.outOfStockCount})
+                      </button>
+                    </div>
+
+                    {/* Search Box */}
+                    <div className="relative min-w-[200px]">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder={language === "km" ? "ស្វែងរកស្តុកទំនិញ..." : "Search stock..."}
+                        value={stockSearch}
+                        onChange={(e) => setStockSearch(e.target.value)}
+                        className={`h-8.5 w-full rounded-lg border ${borderCol} ${softSurface} pl-9 pr-3 text-xs outline-none ${textPrimary} focus:border-[#55a060]`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                  <table className="w-full text-left text-xs">
+                    <thead className={`border-b ${borderCol} ${softSurface} font-bold uppercase tracking-wider ${textSecondary}`}>
+                      <tr>
+                        <th className="px-4 py-3">{language === "km" ? "ឈ្មោះទំនិញ" : "Product Item"}</th>
+                        <th className="px-4 py-3">{language === "km" ? "ប្រភេទ" : "Category"}</th>
+                        <th className="px-4 py-3 text-center">{language === "km" ? "កម្រិតស្តុក" : "Stock Level"}</th>
+                        <th className="px-4 py-3 text-right">{language === "km" ? "តម្លៃ/ឯកតា" : "Unit Price"}</th>
+                        <th className="px-4 py-3 text-right">{language === "km" ? "តម្លៃស្តុកសរុប" : "Total Valuation"}</th>
+                        <th className="px-4 py-3 text-center">{language === "km" ? "ស្ថានភាព" : "Status"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${borderCol}`}>
+                      {filteredInventoryItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-medium">
+                            {language === "km" ? "មិនមានទិន្នន័យស្តុកទេ" : "No stock inventory data found"}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInventoryItems.map((item) => {
+                          const qty = Number(item.inventory?.quantity || 0);
+                          const minStock = Number(item.inventory?.minStock || 10);
+                          const price = Number(item.basePrice || 0);
+                          const totalVal = qty * price;
+                          const unitStr = item.unit || "pc";
+
+                          const isOut = qty === 0;
+                          const isLow = qty > 0 && qty <= minStock;
+
+                          return (
+                            <tr key={item.id} className={`hover:bg-slate-50/60 dark:hover:bg-white/5 transition-colors`}>
+                              <td className={`px-4 py-3 font-semibold ${textPrimary}`}>
+                                {item.name}
+                              </td>
+                              <td className={`px-4 py-3 ${textSecondary}`}>
+                                {item.category?.name || "Uncategorized"}
+                              </td>
+                              <td className="px-4 py-3 text-center font-bold">
+                                <span className={`${isOut ? "text-red-500 font-black" : isLow ? "text-amber-500 font-extrabold" : textPrimary}`}>
+                                  {qty} {unitStr}
+                                </span>
+                              </td>
+                              <td className={`px-4 py-3 text-right font-medium ${textPrimary}`}>
+                                {money(price)}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-bold text-[#55a060] dark:text-emerald-400`}>
+                                {money(totalVal)}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {isOut ? (
+                                  <span className="rounded px-2.5 py-1 text-[10px] font-black uppercase bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400">
+                                    {language === "km" ? "អស់ស្តុក" : "Out of Stock"}
+                                  </span>
+                                ) : isLow ? (
+                                  <span className="rounded px-2.5 py-1 text-[10px] font-black uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                                    {language === "km" ? "ជិតអស់" : "Low Stock"}
+                                  </span>
+                                ) : (
+                                  <span className="rounded px-2.5 py-1 text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                    {language === "km" ? "មានស្តុក" : "In Stock"}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Stock Movement Log Table */}
+              <div className={`${cardClass} p-4 sm:p-5`}>
+                <div className="mb-4">
+                  <h2 className={`text-lg font-bold ${textPrimary}`}>
+                    {language === "km" ? "ប្រវត្តិលំហូរស្តុកចុងក្រោយ (Stock Movement History)" : "Recent Stock Movement History"}
+                  </h2>
+                  <p className={`text-xs ${textSecondary}`}>
+                    {language === "km" ? "កំណត់ត្រានាំចូល ដកចេញ និងការកែតម្រូវស្តុកចុងក្រោយ" : "Log of recent stock-in, stock-out, and adjustment transactions"}
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                  <table className="w-full text-left text-xs">
+                    <thead className={`border-b ${borderCol} ${softSurface} font-bold uppercase tracking-wider ${textSecondary}`}>
+                      <tr>
+                        <th className="px-4 py-3">{language === "km" ? "កាលបរិច្ឆេទ & ម៉ោង" : "Date & Time"}</th>
+                        <th className="px-4 py-3">{language === "km" ? "មុខទំនិញ" : "Product"}</th>
+                        <th className="px-4 py-3 text-center">{language === "km" ? "ប្រភេទលំហូរ" : "Movement Type"}</th>
+                        <th className="px-4 py-3 text-center">{language === "km" ? "ចំនួន" : "Quantity"}</th>
+                        <th className="px-4 py-3">{language === "km" ? "មូលហេតុ / អ្នកធ្វើ" : "Reason / User"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${borderCol}`}>
+                      {stockMovements.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400 font-medium">
+                            {language === "km" ? "មិនទាន់មានប្រវត្តិលំហូរស្តុកទេ" : "No stock movement logs recorded yet"}
+                          </td>
+                        </tr>
+                      ) : (
+                        stockMovements.slice(0, 15).map((m: any) => {
+                          const isIn = m.type === "in";
+                          const isOut = m.type === "out";
+
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-50/60 dark:hover:bg-white/5 transition-colors">
+                              <td className={`px-4 py-3 font-medium ${textSecondary}`}>
+                                {new Date(m.createdAt).toLocaleDateString(dateLocale)} {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </td>
+                              <td className={`px-4 py-3 font-bold ${textPrimary}`}>
+                                {m.product?.name || m.productName || `Product #${m.productId || m.ingredientId || ""}`}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {isIn ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-bold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                    <ArrowDownLeft size={12} />
+                                    {language === "km" ? "នាំចូល (In)" : "Stock In"}
+                                  </span>
+                                ) : isOut ? (
+                                  <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-bold uppercase bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400">
+                                    <ArrowUpRight size={12} />
+                                    {language === "km" ? "ដកចេញ (Out)" : "Stock Out"}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-bold uppercase bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-400">
+                                    <RotateCw size={12} />
+                                    {language === "km" ? "កែតម្រូវ" : "Adjust"}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center font-bold">
+                                <span className={isIn ? "text-emerald-600 font-extrabold" : isOut ? "text-rose-600 font-extrabold" : "text-sky-600"}>
+                                  {isIn ? `+${m.quantity}` : isOut ? `-${m.quantity}` : `${m.quantity}`}
+                                </span>
+                              </td>
+                              <td className={`px-4 py-3 ${textSecondary}`}>
+                                {m.reason || (m.orderId ? `Order #${m.orderId}` : "Manual Update")}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <section className="mb-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
             <MetricCard
               icon={<TrendingUp size={22} />}
               tone="green"
@@ -1272,6 +1604,8 @@ export default function ReportsPage() {
               </table>
             </div>
           </section>
+          </>
+          )}
 
           {/* Print-Only Official Signature Section */}
           <div className="hidden print:block mt-12 pt-8 border-t border-slate-300 page-break-inside-avoid">

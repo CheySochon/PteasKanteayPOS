@@ -169,7 +169,7 @@ type SideNavItemProps = {
   collapsed: boolean;
   navActive: string;
   navHover: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   icon: ReactNode;
   trailing?: ReactNode;
   contentClass?: string;
@@ -238,18 +238,18 @@ export default function Sidebar({
   );
 
   const dark = theme === "dark";
-  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-[#eef5ee] border-r border-[#d4e8d4]/80";
-  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-[#dcecdb] hover:text-[#09391D]";
+  const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-slate-200/90";
+  const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-slate-100 hover:text-slate-900";
   const navActive = dark 
-    ? "bg-[#0F522B] text-white font-extrabold shadow-sm" 
-    : "bg-[#dcecdb] text-[#09391D] font-bold";
-  const headerBorder = dark ? "border-[#4e4f6e]" : "border-[#cde4cd]/80";
-  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-[#cde4cd]/80";
-  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-[#5a7a5a] font-bold";
-  const brandNameClass = dark ? "text-white font-black" : "text-[#1a3a1a] font-black";
-  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-[#5a7a5a] font-semibold";
-  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-[#4a6a4a] hover:bg-[#0F522B]/10 hover:text-[#0F522B]";
-  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-[#cde4cd]/80";
+    ? "bg-[#55a060] text-white font-bold shadow-xs" 
+    : "bg-[#55a060] text-white font-bold shadow-xs";
+  const headerBorder = dark ? "border-[#4e4f6e]" : "border-slate-100";
+  const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-slate-150";
+  const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-slate-400 font-bold uppercase tracking-wider";
+  const brandNameClass = dark ? "text-white font-black" : "text-slate-800 font-bold";
+  const brandSubtitleClass = dark ? "text-slate-400 font-semibold" : "text-slate-500 font-medium";
+  const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
+  const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-slate-150";
   const t = TEXT[language];
   const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
   const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
@@ -273,7 +273,13 @@ export default function Sidebar({
     localStorage.setItem("pos_sidebar_collapsed", String(next));
     setCollapsed(next);
     setSidebarCollapsed(next);
-    setContentMounted(!next);
+    if (!next) {
+      setContentMounted(true);
+    } else {
+      setTimeout(() => {
+        if (sidebarCollapsedRef.current) setContentMounted(false);
+      }, 300);
+    }
   }
 
   function toggleSidebar() {
@@ -401,13 +407,9 @@ export default function Sidebar({
       }`}
     >
       {/* Logo */}
-      <div
-        className={`flex items-center min-h-[64px] ${
-          sidebarCollapsed ? "justify-center py-[18px]" : "justify-start p-[18px_16px]"
-        }`}
-      >
-        <div className="flex items-center gap-[10px] overflow-hidden">
-          <div className="w-9 h-9 rounded-[10px] bg-[#0F522B] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#0F522B]/30 shadow-md">
+      <div className="flex items-center min-h-[64px] px-5 py-4">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className="w-10 h-10 rounded-xl bg-[#55a060] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#55a060]/30 shadow-md">
             {restaurantImageUrl ? (
               <img
                 src={resolveImageUrl(restaurantImageUrl)}
@@ -418,41 +420,40 @@ export default function Sidebar({
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="8" width="18" height="12" rx="2" fill="white" opacity="0.9" />
                 <rect x="7" y="4" width="10" height="6" rx="1.5" fill="white" opacity="0.6" />
-                <rect x="9" y="5.5" width="6" height="2.5" rx="0.75" fill="#0F522B" />
+                <rect x="9" y="5.5" width="6" height="2.5" rx="0.75" fill="#55a060" />
               </svg>
             )}
           </div>
 
-          {contentMounted && (
-            <div className={`overflow-hidden transition-all duration-[260ms] ease-out ${contentMotionClass}`}>
+          {!sidebarCollapsed && (
+            <div className="min-w-0 flex-1 overflow-hidden transition-opacity duration-150">
               <div className={`font-khmer whitespace-nowrap leading-5 tracking-normal ${brandNameClass} ${language === "km" ? "text-[14px] font-bold" : "text-[13px] font-black"}`}>
                 {restaurantName}
               </div>
             </div>
           )}
         </div>
-
       </div>
 
       {/* User Profile Card under POS Header */}
-      {!sidebarCollapsed && contentMounted && (
-        <div className="px-5 pt-3.5 pb-2 flex items-center gap-3">
+      {!sidebarCollapsed && (
+        <div className="px-5 pt-3.5 pb-2 flex items-center gap-3 overflow-hidden transition-opacity duration-150">
           {getProfileImage(currentUser) ? (
             <img
               src={getProfileImage(currentUser)!}
               alt={currentUser.name}
-              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#0F522B]/20 shadow-xs shrink-0"
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#55a060]/20 shadow-xs shrink-0"
             />
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0F522B]/15 text-[#0F522B] text-xs font-black shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#55a060]/15 text-[#55a060] text-xs font-black shadow-xs">
               {initials(currentUser.name)}
             </div>
           )}
-          <div className="min-w-0 flex-1">
-            <div className={`truncate text-sm font-normal ${dark ? "text-white" : "text-[#1a3a1a]"} ${language === "km" ? "font-khmer text-xs" : ""}`}>
+          <div className="min-w-0 flex-1 whitespace-nowrap">
+            <div className={`truncate text-sm font-normal ${dark ? "text-white" : "text-slate-800"} ${language === "km" ? "font-khmer text-xs" : ""}`}>
               {currentUser.name}
             </div>
-            <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-[#5a7a5a]/80"}`}>
+            <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-400"}`}>
               {currentUser.role}
             </div>
           </div>
@@ -471,7 +472,7 @@ export default function Sidebar({
       {/* Nav */}
       <div
         className={`flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-          sidebarCollapsed ? "p-[12px_14px]" : "p-[12px_10px]"
+          sidebarCollapsed ? "px-2 py-3 flex flex-col items-center" : "px-3 py-3"
         }`}
       >
         {allowedMain.map((item) => (
@@ -480,7 +481,7 @@ export default function Sidebar({
             {...item}
             label={t.nav[item.label as keyof typeof t.nav] || item.label}
             active={isNavItemActive(item.label, item.href)}
-            collapsed={!contentMounted}
+            collapsed={sidebarCollapsed}
             navActive={navActive}
             navHover={navHover}
             dark={dark}
@@ -501,7 +502,7 @@ export default function Sidebar({
                 {...item}
                 label={t.nav[item.label as keyof typeof t.nav] || item.label}
                 active={active}
-                collapsed={!contentMounted}
+                collapsed={sidebarCollapsed}
                 navActive={navActive}
                 navHover={navHover}
                 dark={dark}
@@ -511,17 +512,14 @@ export default function Sidebar({
                   setActiveNav(item.label);
                   if (isMenu) {
                     setMenuOpen((open) => !open);
-                    setMenuView("list");
-                    window.dispatchEvent(
-                      new CustomEvent("pos-menu-view-change", {
-                        detail: "list",
-                      }),
-                    );
+                    if (!pathname.startsWith("/admin/menu")) {
+                      router.push("/admin/menu");
+                    }
                   }
                 }}
                 icon={<item.icon active={active} />}
                 trailing={
-                  isMenu && contentMounted ? (
+                  isMenu && !sidebarCollapsed ? (
                     menuExpanded ? (
                       <ChevronUp size={13} strokeWidth={2.2} />
                     ) : (
@@ -580,7 +578,7 @@ export default function Sidebar({
                 {...item}
                 label={t.nav[item.label as keyof typeof t.nav] || item.label}
                 active={active}
-                collapsed={!contentMounted}
+                collapsed={sidebarCollapsed}
                 navActive={navActive}
                 navHover={navHover}
                 dark={dark}
@@ -678,32 +676,43 @@ function SideNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group w-full flex items-center gap-4 rounded-full border-none cursor-pointer mb-1 transition-all duration-200 relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
-        ${collapsed ? "justify-center p-3.5" : "justify-start pl-5 pr-4 py-2.5"}
+      title={collapsed ? label : undefined}
+      className={`group flex items-center border-none cursor-pointer mb-1 transition-all duration-[300ms] ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
+        ${
+          collapsed
+            ? "h-10 w-10 mx-auto justify-center rounded-xl px-0"
+            : "w-full h-10 gap-2.5 rounded-xl px-1.5 justify-start"
+        }
         ${
           active
             ? dark
-              ? "bg-[#0F522B] text-white font-semibold shadow-sm"
-              : "bg-[#dcecdb] text-[#09391D] font-semibold"
+              ? "bg-[#55a060] text-white font-semibold shadow-xs"
+              : "bg-[#55a060] text-white font-semibold shadow-xs"
             : dark
-              ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-white"
-              : "text-slate-800 hover:bg-[#dcecdb] hover:text-[#09391D]"
+              ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white"
+              : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
         }
-        ${isKhmer ? "font-medium text-[15.5px] leading-normal" : active ? "font-semibold text-[15.5px]" : "font-normal text-[15.5px]"}
+        ${isKhmer ? "font-medium text-[14px] leading-normal" : active ? "font-semibold text-[14px]" : "font-normal text-[14px]"}
       `}
     >
-      <span className={`shrink-0 transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-slate-800 group-hover:text-[#09391D]"}`}>
+      <span className={`w-10 h-10 shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
         {icon}
       </span>
 
       {!collapsed && (
-        <span className={`flex-1 whitespace-nowrap truncate transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white font-semibold" : "text-[#09391D] font-semibold") : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-800 group-hover:text-[#09391D] font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}>
+        <span
+          className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 ${contentClass} ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}
+        >
           {label}
         </span>
       )}
 
       {!collapsed && trailing && (
-        <span className={`shrink-0 transition-all duration-[260ms] ease-out ${contentClass} ${active ? (dark ? "text-white" : "text-[#09391D]") : dark ? "text-slate-400 group-hover:text-white" : "text-[#8592a3] group-hover:text-[#09391D]"}`}>{trailing}</span>
+        <span
+          className={`shrink-0 pr-3 transition-opacity duration-150 ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-400 group-hover:text-slate-900"}`}
+        >
+          {trailing}
+        </span>
       )}
     </Link>
   );
@@ -730,18 +739,18 @@ function MenuSubNavItem({
     <Link
       href={href}
       onClick={onClick}
-      className={`group flex h-9 items-center gap-2 rounded-lg px-3 transition duration-200 active:scale-[0.98] active:translate-y-[0.5px] ${
+      className={`group flex h-9 items-center gap-2 rounded-xl px-3 transition duration-200 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
-            ? "bg-[#0F522B]/20 font-bold text-emerald-400"
-            : "bg-[#dcecdb] font-bold text-[#09391D]"
+            ? "bg-[#55a060]/20 font-bold text-emerald-400"
+            : "bg-emerald-50 font-bold text-[#55a060]"
           : dark 
-            ? "text-slate-300 hover:bg-[#0F522B]/20 hover:text-emerald-400 font-normal"
-            : "text-slate-700 hover:bg-[#dcecdb] hover:text-[#09391D] font-normal"
+            ? "text-slate-300 hover:bg-[#55a060]/10 hover:text-emerald-400 font-normal"
+            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-normal"
       } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#09391D] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-700 group-hover:text-[#09391D]"}`}>{icon}</span>
-      <span className={`truncate ${active ? "text-[#09391D] dark:text-emerald-400" : "group-hover:text-[#09391D]"}`}>{label}</span>
+      <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#55a060] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-500 group-hover:text-slate-900"}`}>{icon}</span>
+      <span className={`truncate ${active ? "text-[#55a060] dark:text-emerald-400" : "group-hover:text-slate-900"}`}>{label}</span>
     </Link>
   );
 }

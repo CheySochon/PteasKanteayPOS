@@ -304,15 +304,6 @@ export default function PermissionsPage() {
 
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-      <TopBar
-        title={language === "km" ? "គ្រប់គ្រងតួនាទី និងសិទ្ធិ" : "Role Management"}
-        subtitle=""
-        language={language}
-        onLanguageChange={setAppLanguage}
-        notifications={[]}
-        dark={dark}
-      />
-
       {/* Navigation Tabs */}
       <div className={`px-4 pt-4 lg:px-8 flex border-b shrink-0 ${dark ? "border-[#4e4f6e]" : "border-[#d9dee3]"}`}>
         <div className="mx-auto w-full max-w-[1600px] flex gap-6">

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Package, Armchair, MoreVertical, Clock } from "lucide-react";
 import type { Order, OrderStatus } from "../lib/types";
+import AnimatedToast from "./AnimatedToast";
 
 function formatTokenNo(order: Order) {
   if (order.id) {
@@ -16,26 +17,48 @@ function formatTokenNo(order: Order) {
   return String(raw);
 }
 
-export default function KdsOrderCard({
+const KdsOrderCard = memo(function KdsOrderCard({
   order,
   onUpdate,
 }: {
   order: Order;
   onUpdate: (id: number, status: OrderStatus) => void;
 }) {
-  const [itemStatuses, setItemStatuses] = useState<Record<number, "pending" | "preparing" | "completed">>({});
+  const [itemStatuses, setItemStatuses] = useState<Record<number, "pending" | "preparing" | "completed">>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("pos_kds_item_statuses");
+        return stored ? JSON.parse(stored) : {};
+      } catch (e) {}
+    }
+    return {};
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const tokenNo = formatTokenNo(order);
   const rawTable = order.tableNo || order.table?.name;
   const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || !rawTable;
   const orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
 
-  function handleItemAction(itemId: number, currentItemStatus: string) {
-    const nextStatus = currentItemStatus === "preparing" ? "completed" : "preparing";
-    setItemStatuses((prev) => ({
-      ...prev,
-      [itemId]: nextStatus,
-    }));
+  function handleItemAction(itemId: number, currentItemStatus: string, itemName: string) {
+    const nextStatus: "pending" | "preparing" | "completed" = currentItemStatus === "completed" ? "preparing" : "completed";
+    
+    setItemStatuses((prev) => {
+      const nextMap = { ...prev, [itemId]: nextStatus };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("pos_kds_item_statuses", JSON.stringify(nextMap));
+          window.dispatchEvent(new Event("pos-item-status-change"));
+        } catch (e) {}
+      }
+      return nextMap;
+    });
+
+    if (nextStatus === "preparing") {
+      setToastMessage(`Started making "${itemName}" (Order ${tokenNo})`);
+    } else {
+      setToastMessage(`Completed "${itemName}" (Order ${tokenNo})`);
+    }
 
     if (order.status === "pending" && nextStatus === "preparing") {
       onUpdate(order.id, "preparing");
@@ -48,7 +71,7 @@ export default function KdsOrderCard({
     });
 
     if (willBeAllCompleted) {
-      onUpdate(order.id, "completed");
+      onUpdate(order.id, "ready");
     }
   }
 
@@ -58,7 +81,7 @@ export default function KdsOrderCard({
         {/* Card Header matching screenshot */}
         <div className="flex items-center justify-between gap-2 pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-700/60">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
               {isTakeaway ? <Package size={20} /> : <Armchair size={20} />}
             </div>
             <span className="text-sm font-normal text-slate-800 dark:text-slate-100 tracking-tight">
@@ -108,13 +131,11 @@ export default function KdsOrderCard({
 
                   <button
                     type="button"
-                    onClick={() => handleItemAction(item.id, currentStatus)}
-                    className={`shrink-0 rounded-lg px-3 py-1 text-xs font-normal transition-colors border cursor-pointer ${
+                    onClick={() => handleItemAction(item.id, currentStatus, item.product?.name || item.name || `Item #${item.productId}`)}
+                    className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-semibold transition-all border cursor-pointer ${
                       isCompleted
                         ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
-                        : isPreparing
-                        ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/80 hover:bg-slate-200"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/70 hover:bg-slate-200/80"
+                        : "bg-[#f2f4f3] dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-[#c6e4cc] dark:border-slate-700 hover:bg-[#e4eae6] active:scale-95"
                     }`}
                   >
                     {isCompleted ? "Complete" : isPreparing ? "Complete" : "Start Making"}
@@ -125,6 +146,18 @@ export default function KdsOrderCard({
           )}
         </div>
       </div>
+
+      {/* Floating Animated Pill Toast Popup (Matching Table Page Design) */}
+      {toastMessage && (
+        <AnimatedToast
+          message={toastMessage}
+          onClose={() => setToastMessage(null)}
+          type="success"
+          duration={3500}
+        />
+      )}
     </article>
   );
-}
+});
+
+export default KdsOrderCard;

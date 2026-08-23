@@ -28,18 +28,6 @@ export default function LanguagePage() {
 
   return (
     <main className={`flex-1 overflow-y-auto ${bg}`}>
-      <TopBar
-        title="Change Language"
-        subtitle=""
-        language={language}
-        onLanguageChange={(lang) => {
-          setAppLanguage(lang);
-          window.dispatchEvent(new Event("storage"));
-        }}
-        notifications={[]}
-        onClearNotifications={() => {}}
-        dark={dark}
-      />
 
       <div 
         className="mx-auto w-full max-w-[1400px] px-6 pt-10 pb-20 flex flex-col items-center lang-page-container"

@@ -21,6 +21,7 @@ import {
   Sun,
   Moon,
   Eye,
+  Check,
   X,
   ChefHat,
   LayoutDashboard,
@@ -37,7 +38,7 @@ import {
 } from "lucide-react";
 import { getOrders, getProducts, getTables, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import { setAppLanguage } from "../lib/language";
+import { useAppLanguage, setAppLanguage } from "../lib/language";
 import { useAppTheme } from "../lib/theme";
 import { canSeeHref, normalizeStaffPermissions } from "../lib/permissions";
 import {
@@ -72,11 +73,11 @@ export type NotificationItem = {
 };
 
 type TopBarProps = {
-  title: string;
-  subtitle: string;
-  language: Language;
-  onLanguageChange: (language: Language) => void;
-  notifications: NotificationItem[];
+  title?: string;
+  subtitle?: string;
+  language?: Language;
+  onLanguageChange?: (language: Language) => void;
+  notifications?: NotificationItem[];
   onClearNotifications?: () => void;
   dark?: boolean;
   onMenuToggle?: () => void;
@@ -170,7 +171,7 @@ export default function TopBar({
   );
 
   const [appTheme, setAppTheme] = useAppTheme();
-  const isDark = appTheme === "dark";
+  const isDark = Boolean(dark || appTheme === "dark");
 
   const router = useRouter();
   const [internalQuery, setInternalQuery] = useState(searchQuery ?? "");
@@ -217,9 +218,9 @@ export default function TopBar({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchOpen]);
 
-  // Handle outside click for search overlay
+  // Handle outside click for search overlay & dropdowns
   useEffect(() => {
-    function handlePointerDown(event: PointerEvent) {
+    function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
 
       if (searchRef.current && !searchRef.current.contains(target)) {
@@ -239,8 +240,8 @@ export default function TopBar({
       }
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("click", handleClickOutside, { passive: true });
+    return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
   const navRoutes = [
@@ -348,8 +349,8 @@ export default function TopBar({
 
     fetchNotifications();
 
-    // 3-second background polling backup for guaranteed notifications updates
-    const pollInterval = setInterval(fetchNotifications, 3000);
+    // 30-second background polling backup for guaranteed notifications updates
+    const pollInterval = setInterval(fetchNotifications, 30000);
 
     function handleLocalOrderEvent() {
       fetchNotifications();
@@ -445,12 +446,74 @@ export default function TopBar({
   const menuHover = isDark ? "hover:bg-white/10" : "hover:bg-slate-100";
   const textPrimary = isDark ? "text-slate-100" : "text-slate-800";
   const textSecondary = isDark ? "text-slate-400" : "text-slate-500";
-  const kmClass = language === "km" ? "font-khmer" : "";
-  const t = labels[language];
-  const allowedQuickLinks = quickLinks.filter(({ href }) => canSeeHref(href, user.role, staffPermissions));
+  const hookLanguage = useAppLanguage();
+  const activeLang: Language = (language || hookLanguage || "en") as Language;
+  const kmClass = activeLang === "km" ? "font-khmer" : "";
+  const t = labels[activeLang] || labels.en;
+  const [topbarToast, setTopbarToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleShowToast(e: Event) {
+      const detail = (e as CustomEvent<string | { message: string }>).detail;
+      const msg = typeof detail === "string" ? detail : detail?.message;
+      if (msg) {
+        setTopbarToast(msg);
+      }
+    }
+
+    function handleLoginAlert() {
+      try {
+        const raw = localStorage.getItem("pos_login_success_alert");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && (parsed.userName || parsed.email || true) && Date.now() - (parsed.timestamp || 0) < 120000) {
+            setTopbarToast("Login successful!");
+            localStorage.removeItem("pos_login_success_alert");
+          }
+        }
+      } catch {}
+    }
+
+    handleLoginAlert();
+    window.addEventListener("pos-show-toast", handleShowToast);
+    return () => window.removeEventListener("pos-show-toast", handleShowToast);
+  }, []);
+
+  useEffect(() => {
+    if (!topbarToast) return;
+    const timer = setTimeout(() => {
+      setTopbarToast(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [topbarToast]);
 
   return (
-    <header className={`sticky top-0 z-20 border-b border-slate-200/60 px-3 sm:px-4 backdrop-blur-md ${isDark ? "bg-[#171a23]/80" : "bg-white/80"}`}>
+    <header className={`sticky top-0 z-20 border-b px-3 sm:px-4 backdrop-blur-md transition-colors duration-150 relative ${isDark ? "bg-[#232333]/90 border-[#4e4f6e]" : "bg-white/90 border-slate-200/80"}`}>
+      {/* GLOBAL TOP-CENTERED TOAST NOTIFICATION (PORTAL TO BODY - IGNORES SIDEBAR COMPLETELY) */}
+      {topbarToast && mounted && createPortal(
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] pointer-events-none px-4">
+          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
+            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
+              <Check size={11} strokeWidth={4.5} className="text-white" />
+            </div>
+            <span className="whitespace-nowrap">{topbarToast}</span>
+            <button
+              type="button"
+              onClick={() => setTopbarToast(null)}
+              className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <style>{`
+            @keyframes dropFromTop {
+              0% { transform: translateY(-100%); opacity: 0; }
+              100% { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
+        </div>,
+        document.body
+      )}
       <div className="flex h-[56px] items-center justify-between gap-3">
         {/* Left Section: Search Bar */}
         <div className="flex flex-1 items-center gap-3">
@@ -472,12 +535,12 @@ export default function TopBar({
             onClick={() => setSearchOpen(true)}
             className="relative flex items-center flex-1 max-w-[250px] text-left cursor-pointer border-none bg-transparent"
           >
-            <Search size={16} className={`absolute left-3.5 ${isDark ? "text-slate-400" : "text-slate-550"}`} />
+            <Search size={16} className={`absolute left-3.5 ${isDark ? "text-slate-400" : "text-slate-500"}`} />
             <div
               className={`h-[38px] w-full rounded-full border pl-10.5 pr-4 text-[13px] font-normal flex items-center select-none ${
                 isDark
                   ? "border-slate-700/80 bg-[#232333] text-slate-400"
-                  : "border-slate-200/50 bg-[#eef2ee] text-slate-550"
+                  : "border-slate-200/80 bg-slate-100 text-slate-500 hover:bg-slate-200/60"
               }`}
             >
               Search
@@ -719,7 +782,9 @@ export default function TopBar({
             </button>
 
             {notificationsOpen && (
-              <div className={`absolute right-0 top-full mt-2.5 z-50 w-80 sm:w-88 rounded-2xl border p-3.5 shadow-none ${dropdownSurface} animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
+              <div className={`absolute right-0 top-full mt-2.5 z-50 w-80 sm:w-88 rounded-2xl border p-3.5 shadow-xl ${
+                isDark ? "border-slate-800 bg-[#1a1b26]" : "border-slate-200/90 bg-white"
+              } animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
                 <div className={`mb-3 flex items-center justify-between px-1 text-sm font-bold ${textPrimary} ${kmClass}`}>
                   <span>{t.notifications}</span>
                   {activeNotifications.length > 0 ? (
@@ -751,7 +816,7 @@ export default function TopBar({
                 </div>
 
                 {activeNotifications.length === 0 ? (
-                  <div className={`rounded-xl bg-slate-50 dark:bg-[#232333] p-4 text-center text-xs font-medium ${textSecondary} ${kmClass}`}>
+                  <div className={`rounded-xl bg-white border border-slate-200/80 dark:border-slate-800 dark:bg-[#232333] p-4 text-center text-xs font-medium ${textSecondary} ${kmClass}`}>
                     {t.noNotifications}
                   </div>
                 ) : (
@@ -765,7 +830,7 @@ export default function TopBar({
                           setNotificationsOpen(false);
                         }}
                         className={`flex w-full items-center justify-between gap-3 rounded-xl p-3 text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
-                          isDark ? "bg-[#232333] hover:bg-[#2b2c40]" : "bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200/60"
+                          isDark ? "bg-[#232333] hover:bg-[#2b2c40] border border-slate-700/60" : "bg-white hover:bg-slate-50 border border-slate-200/80 shadow-xs"
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -814,7 +879,7 @@ export default function TopBar({
 
             {/* Dropdown Menu */}
             {userMenuOpen && (
-              <div className={`absolute right-0 z-50 mt-2.5 w-52 overflow-hidden rounded-[18px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1a1b26] p-1.5 shadow-xl animate-[usersPageIn_200ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
+              <div className={`absolute right-0 z-50 mt-2.5 w-52 overflow-hidden rounded-[18px] border border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1a1b26] p-1.5 shadow-xl transform-gpu animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]`}>
                 <div className="space-y-0.5">
                   {/* Admin Panel Link (Only for admins/managers) */}
                   {user && user.role && ["super admin", "admin", "administrator", "manager", "superadmin"].includes(user.role.toLowerCase()) && (

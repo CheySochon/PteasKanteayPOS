@@ -35,9 +35,10 @@ import {
   Phone,
   Briefcase,
   Sliders,
-  Package,
   Utensils,
   UserPlus,
+  Pencil,
+  Zap,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
@@ -305,6 +306,12 @@ export default function UsersPage() {
       if (!isStaffRole && form.password && form.password.length < 8) {
         setError(language === "km" ? "🛑 ពាក្យសម្ងាត់ Admin ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ" : "🛑 Admin password must be at least 8 characters long.");
         return;
+      }
+      if (isStaffRole && (!form.id || form.password)) {
+        if (form.password.length !== 4 || !/^\d{4}$/.test(form.password)) {
+          setError(language === "km" ? "🛑 PIN Code ត្រូវមាន ៤ ខ្ទង់គត់ (ជាលេខ)" : "🛑 PIN Code must be exactly 4 digits.");
+          return;
+        }
       }
 
       const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
@@ -603,23 +610,14 @@ export default function UsersPage() {
 
 
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-        <TopBar
-          title={language === "km" ? "បុគ្គលិក និងសិទ្ធិ" : "Staff & Roles"}
-          subtitle=""
-          language={language}
-          onLanguageChange={setAppLanguage}
-          notifications={[]}
-          dark={dark}
-        />
+        {/* Floating Top Success/Error Toast Alerts (Over TopBar) */}
+        <div className="fixed top-3.5 inset-x-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+          <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
+          <AnimatedToast message={error} onClose={() => setError("")} type="error" />
+        </div>
 
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
           <div className="mx-auto w-full max-w-[1720px] dash-animate">
-
-            {/* Floating Top Success/Error Toast Alerts */}
-            <div className="fixed top-6 inset-x-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
-              <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
-              <AnimatedToast message={error} onClose={() => setError("")} type="error" />
-            </div>
 
             {/* Title & "+ New" Button Header */}
             <div className="flex items-center gap-3 mb-4">
@@ -810,7 +808,11 @@ export default function UsersPage() {
       {/* Redesigned User Modal Create/Edit matching mock */}
       {isUserModalOpen && (() => {
         const handleRoleSelect = (roleName: string) => {
-          setForm((curr) => ({ ...curr, roleName }));
+          const isPin = !String(roleName || "").toLowerCase().includes("admin");
+          setForm((curr) => {
+            const cleanPin = isPin ? curr.password.replace(/\D/g, "").slice(0, 4) : curr.password;
+            return { ...curr, roleName, password: cleanPin, pin: cleanPin };
+          });
           let keys: string[] = [];
           const rLower = roleName.toLowerCase();
           if (rLower.includes("manager") || rLower.includes("store") || rLower.includes("admin")) {
@@ -871,9 +873,9 @@ export default function UsersPage() {
         ];
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
             <div
-              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-[28px] shadow-2xl border px-6 py-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
+              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-2xl shadow-xl border px-6 py-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none"
@@ -976,9 +978,15 @@ export default function UsersPage() {
                         <input
                           required={!form.id}
                           type={showModalPassword ? "text" : "password"}
+                          inputMode={!String(form.roleName || "").toLowerCase().includes("admin") ? "numeric" : "text"}
+                          maxLength={!String(form.roleName || "").toLowerCase().includes("admin") ? 4 : 64}
                           value={form.password}
-                          onChange={(e) => setForm((curr) => ({ ...curr, password: e.target.value }))}
-                          placeholder={!String(form.roleName || "").toLowerCase().includes("admin") ? "Enter 4-digit PIN Code here..." : "Enter Password here..."}
+                          onChange={(e) => {
+                            const isPin = !String(form.roleName || "").toLowerCase().includes("admin");
+                            const val = isPin ? e.target.value.replace(/\D/g, "").slice(0, 4) : e.target.value;
+                            setForm((curr) => ({ ...curr, password: val, pin: val }));
+                          }}
+                          placeholder={!String(form.roleName || "").toLowerCase().includes("admin") ? "Enter 4-digit PIN Code..." : "Enter Password here..."}
                           className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-9 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
                         />
                         <button
@@ -1076,10 +1084,10 @@ export default function UsersPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold select-none">
-                      <button type="button" onClick={setViewOnlyAll} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all cursor-pointer">👁️ View Only</button>
-                      <button type="button" onClick={setCanEditAll} className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-all cursor-pointer">✏️ Can Edit</button>
-                      <button type="button" onClick={setFullAccessAll} className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer">⚡ Full Access</button>
-                      <button type="button" onClick={deselectAll} className="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 transition-all cursor-pointer">✕ Clear All</button>
+                      <button type="button" onClick={setViewOnlyAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all cursor-pointer"><Eye size={12} className="shrink-0" /> View Only</button>
+                      <button type="button" onClick={setCanEditAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-all cursor-pointer"><Pencil size={12} className="shrink-0" /> Can Edit</button>
+                      <button type="button" onClick={setFullAccessAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer"><Zap size={12} className="shrink-0" /> Full Access</button>
+                      <button type="button" onClick={deselectAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 transition-all cursor-pointer"><X size={12} className="shrink-0" /> Clear All</button>
                     </div>
                   </div>
 
@@ -1118,13 +1126,13 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => toggleGranularPerm(perm.key, "view")}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
                                 hasView
-                                  ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100 shadow-xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                                  ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100 shadow-2xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-slate-300"
                               }`}
                             >
-                              <span>👁️</span>
+                              <Eye size={12} className="shrink-0" />
                               <span>View</span>
                             </button>
 
@@ -1132,13 +1140,13 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => toggleGranularPerm(perm.key, "edit")}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
                                 hasEdit
-                                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-300"
+                                  ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-blue-300"
                               }`}
                             >
-                              <span>✏️</span>
+                              <Pencil size={12} className="shrink-0" />
                               <span>Edit</span>
                             </button>
 
@@ -1146,13 +1154,13 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => toggleGranularPerm(perm.key, "delete")}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
                                 hasDelete
-                                  ? "bg-rose-600 text-white border-rose-600 shadow-xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-rose-300"
+                                  ? "bg-rose-600 text-white border-rose-600 shadow-2xs"
+                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-rose-300"
                               }`}
                             >
-                              <span>🗑️</span>
+                              <Trash2 size={12} className="shrink-0" />
                               <span>Remove</span>
                             </button>
                           </div>

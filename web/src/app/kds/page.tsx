@@ -12,6 +12,7 @@ import {
   Minimize2,
   ArrowLeft,
   Bell,
+  Loader2,
 } from "lucide-react";
 import KdsOrderCard from "../../components/KdsOrderCard";
 import Sidebar from "../../components/Sidebar";
@@ -93,6 +94,7 @@ export default function KdsPage() {
   const [collapsed, setCollapsed] = useState(false);
   const dark = theme === "dark";
   const [orders, setOrders] = useState<Order[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
@@ -156,14 +158,17 @@ export default function KdsPage() {
         })
         .catch((err) => {
           if (mounted) setMessage(err.message);
+        })
+        .finally(() => {
+          if (mounted) setInitialLoading(false);
         });
     }
 
     // Initial fetch
     syncOrders();
 
-    // 3-second live auto-polling safety net
-    const pollInterval = setInterval(syncOrders, 3000);
+    // 15-second live auto-polling safety net
+    const pollInterval = setInterval(syncOrders, 15000);
 
     // Socket real-time push events
     const socket = getSocket();
@@ -346,7 +351,9 @@ export default function KdsPage() {
           </div>
         )}
 
-        {activeOrders.length > 0 ? (
+        {initialLoading ? (
+          <KdsSkeleton dark={dark} />
+        ) : activeOrders.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
             {activeOrders.map((order) => (
               <KdsOrderCard key={order.id} order={order} onUpdate={changeStatus} />
@@ -370,6 +377,42 @@ export default function KdsPage() {
       </div>
     </main>
       </div>
+    </div>
+  );
+}
+
+function KdsSkeleton({ dark }: { dark?: boolean }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+      {[1, 2, 3, 4].map((n) => (
+        <div
+          key={n}
+          className={`flex flex-col justify-between rounded-2xl p-4.5 min-h-[175px] border animate-pulse ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+                <div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+            </div>
+
+            <div className="space-y-3.5 py-1">
+              <div className="flex items-center justify-between">
+                <div className="h-3.5 w-32 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="h-3.5 w-28 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-6 w-20 rounded-full bg-slate-200 dark:bg-slate-700" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

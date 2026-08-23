@@ -631,14 +631,6 @@ export default function SettingsPage() {
   return (
     <>
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-        <TopBar
-          title={language === "km" ? "ការកំណត់ប្រព័ន្ធ" : "System Settings"}
-          subtitle={language === "km" ? "គ្រប់គ្រងព័ត៌មានហាង ម៉ាស៊ីនបោះពុម្ព និងទិន្នន័យចងក្រង" : "Manage restaurant profile, network hardware, and backup files."}
-          language={language}
-          onLanguageChange={setAppLanguage}
-          notifications={[]}
-          dark={dark}
-        />
 
         {/* Secondary Sub-Navigation Bar */}
         <div className={`px-3.5 sm:px-4 py-3 border-b flex flex-wrap items-center gap-2.5 text-sm font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
@@ -731,50 +723,7 @@ export default function SettingsPage() {
 
                 <form id="settingsForm" onSubmit={submit}>
 
-              {/* FLOATING POPUP TOAST NOTIFICATIONS */}
-              {(message || error) && (
-                <div className="fixed top-20 right-6 z-[9999] flex max-w-md items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3.5 shadow-2xl shadow-slate-900/15 backdrop-blur-md animate-[slideFromRight_250ms_cubic-bezier(0.16,1,0.3,1)]">
-                  {message ? (
-                    <>
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/15 text-[#71dd37]">
-                        <CheckCircle2 size={18} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-[#71dd37]">
-                          {language === "km" ? "ជោគជ័យ" : "Success"}
-                        </div>
-                        <div className={`text-xs font-bold ${textPrimary} truncate`}>{message}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setMessage("")}
-                        className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500/15 text-rose-500">
-                        <AlertCircle size={18} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-rose-500">
-                          {language === "km" ? "កំហុស" : "Error"}
-                        </div>
-                        <div className={`text-xs font-bold ${textPrimary} truncate`}>{error}</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setError("")}
-                        className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
+
 
 
 
@@ -1562,21 +1511,21 @@ export default function SettingsPage() {
 
       {/* Printer Modal */}
       {printerModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-[1px] animate-[printerFadeIn_180ms_ease-out]">
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded-xl shadow-2xl border p-6 animate-[printerScaleIn_200ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+        <div onClick={closePrinterModal} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] animate-[printerFadeIn_180ms_ease-out]">
+          <div onClick={(e) => e.stopPropagation()} className={`relative max-h-[calc(100vh-32px)] w-full max-w-md overflow-y-auto rounded-2xl shadow-xl border p-6 animate-[printerScaleIn_200ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#55a060]">
                   {printerModal.printerId ? "Configure Printer" : "Register Printer"}
                 </p>
-                <h2 className={`mt-1 text-xl font-bold ${textPrimary}`}>
+                <h2 className={`mt-0.5 text-xl font-bold ${textPrimary}`}>
                   {printerModal.printerId ? "Edit Printer Connection" : "Add Network Printer"}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closePrinterModal}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1647,7 +1596,7 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={handleDeletePrinter}
-                    className="h-10 rounded border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 px-4 text-sm font-semibold transition-colors"
+                    className="h-10 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 px-4 text-sm font-bold transition-colors cursor-pointer"
                   >
                     Delete
                   </button>
@@ -1656,7 +1605,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={closePrinterModal}
-                  className={`h-10 flex-1 rounded border px-4 text-sm font-semibold hover:bg-slate-50 transition-colors ${
+                  className={`h-10 flex-1 rounded-xl border px-4 text-sm font-bold hover:bg-slate-50 transition-colors cursor-pointer ${
                     dark ? "border-slate-700 text-slate-300" : "border-[#d9dee3] text-[#8592a3]"
                   }`}
                 >
@@ -1665,7 +1614,7 @@ export default function SettingsPage() {
 
                 <button
                   type="submit"
-                  className="h-10 flex-1 rounded bg-[#696cff] hover:bg-[#5f61e6] px-4 text-sm font-semibold text-white shadow-sm transition-colors"
+                  className="h-10 flex-1 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-4 text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer"
                 >
                   Save Printer
                 </button>

@@ -91,6 +91,7 @@ export type Product = {
   imageUrl?: string | null;
   basePrice: Money;
   isAvailable: boolean;
+  prepTime?: number;
   unit?: string;
   trackStock?: boolean;
   inventory?: {

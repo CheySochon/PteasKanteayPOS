@@ -304,14 +304,6 @@ export default function MenuPage() {
   const [theme] = useAppTheme();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [orderAlerts, setOrderAlerts] = useState<MenuNotification[]>([]);
-  const [clearedNotificationIds, setClearedNotificationIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [clearedActiveOrderIds, setClearedActiveOrderIds] = useState<Set<number>>(
-    getClearedActiveOrderIds
-  );
   const [selectedCategory, setSelectedCategory] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "available" | "hidden">("all");
   const [query, setQuery] = useState("");
@@ -380,7 +372,7 @@ export default function MenuPage() {
   const canEdit = isAdmin || Boolean(staffPermissions.menu_edit === true);
   const canDelete = isAdmin || Boolean(staffPermissions.menu_delete === true);
 
-  const inputClass = `w-full rounded border px-3.5 py-2 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#55a060] focus:ring-4 focus:ring-[#55a060]/10 transition-all duration-150 ${
+  const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#55a060] focus:ring-4 focus:ring-[#55a060]/10 transition-all duration-150 ${
     dark
       ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
       : "border-[#d9dee3] bg-white text-[#566a7f]"
@@ -411,12 +403,11 @@ export default function MenuPage() {
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([getCategories(), getProducts(), getOrders()])
-      .then(([categoryRows, productRows, orderRows]) => {
+    Promise.all([getCategories(), getProducts()])
+      .then(([categoryRows, productRows]) => {
         if (!mounted) return;
         setCategories(categoryRows);
         setProducts(productRows);
-        setOrders(orderRows);
       })
       .catch((err) => {
         if (!mounted) return;
@@ -431,57 +422,7 @@ export default function MenuPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
 
-    function handleOrderCreated(order: Order) {
-      setClearedActiveOrderIds((current) => {
-        if (!current.has(order.id)) return current;
-
-        const next = new Set(current);
-        next.delete(order.id);
-        saveClearedActiveOrderIds(next);
-        return next;
-      });
-
-      setOrders((current) => [
-        order,
-        ...current.filter((entry) => entry.id !== order.id),
-      ]);
-
-      setOrderAlerts((current) => {
-        const label = order.orderNumber || order.orderId || `#${order.id}`;
-        const table = order.table?.name || order.tableNo;
-        const detail = table
-          ? `${label} - ${table} ${t.newOrderDetail}`
-          : `${label} ${t.newOrderDetail}`;
-
-        return [
-          {
-            id: `order-${order.id}-${Date.now()}`,
-            title: t.newOrderAlert,
-            detail,
-          },
-          ...current,
-        ].slice(0, 5);
-      });
-    }
-
-    function handleOrderUpdated(order: Order) {
-      setOrders((current) =>
-        current.map((entry) => (entry.id === order.id ? order : entry))
-      );
-    }
-
-    socket.on("order:created", handleOrderCreated);
-    socket.on("order:updated", handleOrderUpdated);
-
-    return () => {
-      socket.off("order:created", handleOrderCreated);
-      socket.off("order:updated", handleOrderUpdated);
-    };
-  }, [t.newOrderAlert, t.newOrderDetail]);
 
   const filteredCategories = useMemo(() => {
     const normalizedQuery = categoryQuery.trim().toLowerCase();
@@ -510,50 +451,19 @@ export default function MenuPage() {
     });
   }, [products, query, selectedCategory, statusFilter]);
 
-  const activeOrders = useMemo(
-    () =>
-      orders.filter(
-        (order) => !["completed", "cancelled"].includes(order.status)
-      ),
-    [orders]
-  );
-  const unseenActiveOrders = useMemo(
-    () => activeOrders.filter((order) => !clearedActiveOrderIds.has(order.id)),
-    [activeOrders, clearedActiveOrderIds]
-  );
-
-  const notifications = useMemo(() => {
-    const items: MenuNotification[] = [...orderAlerts];
-
-    if (unseenActiveOrders.length > 0) {
-      items.push({
-        id: `active-orders-${unseenActiveOrders.map((order) => order.id).join("-")}`,
-        title: t.activeOrderAlert,
-        detail: `${unseenActiveOrders.length} ${t.activeOrderDetail}`,
-      });
+  const categoryCountsMap = useMemo(() => {
+    const map: Record<number | string, number> = { all: products.length };
+    for (let i = 0; i < products.length; i++) {
+      const catId = products[i].categoryId;
+      if (catId) {
+        map[catId] = (map[catId] || 0) + 1;
+      }
     }
-
-    return items.filter((item) => !clearedNotificationIds.has(item.id));
-  }, [clearedNotificationIds, orderAlerts, t, unseenActiveOrders]);
-
-  function clearNotifications() {
-    setClearedNotificationIds((current) => {
-      const next = new Set(current);
-      notifications.forEach((item) => next.add(item.id));
-      return next;
-    });
-    setClearedActiveOrderIds((current) => {
-      const next = new Set(current);
-      activeOrders.forEach((order) => next.add(order.id));
-      saveClearedActiveOrderIds(next);
-      return next;
-    });
-    setOrderAlerts([]);
-  }
+    return map;
+  }, [products]);
 
   function categoryCount(categoryId: number | "all") {
-    if (categoryId === "all") return products.length;
-    return products.filter((product) => product.categoryId === categoryId).length;
+    return categoryCountsMap[categoryId] || 0;
   }
 
   async function submitCategory(event: FormEvent<HTMLFormElement>) {
@@ -829,48 +739,17 @@ export default function MenuPage() {
 
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-      <TopBar
-        title={isCategoriesView ? t.categories : t.title}
-        subtitle=""
-        language={language}
-        onLanguageChange={(nextLanguage) => {
-          localStorage.setItem("pos_language", nextLanguage);
-          window.dispatchEvent(new Event("pos-language-change"));
-        }}
-        notifications={[]}
-        dark={dark}
-        searchQuery={isCategoriesView ? categoryQuery : query}
-        onSearchChange={isCategoriesView ? setCategoryQuery : setQuery}
-        searchPlaceholder={isCategoriesView ? "Search categories..." : t.searchPlaceholder}
-      />
-      
+
+
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
         <div className="mx-auto w-full max-w-[1720px]">
-
-        {error && (
-          <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">
-            {error}
-          </div>
-        )}
-
-        {message && (
-          <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
-            <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-              <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
-                <Check size={11} strokeWidth={4.5} className="text-white" />
-              </div>
-              <span>{message}</span>
+          {error && (
+            <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">
+              {error}
             </div>
-            <style>{`
-              @keyframes dropFromTop {
-                0% { transform: translateY(-150%); opacity: 0; }
-                100% { transform: translateY(0); opacity: 1; }
-              }
-            `}</style>
-          </div>
-        )}
+          )}
 
-        {isCategoriesView ? (
+          {isCategoriesView ? (
           <section id="categories" className="space-y-5">
             {/* Top Stat Summary Cards */}
             <div className="grid gap-4 sm:grid-cols-3">
@@ -967,7 +846,13 @@ export default function MenuPage() {
               </div>
 
               {/* Data Table */}
-              {filteredCategories.length === 0 ? (
+              {loading ? (
+                <div className="p-5 space-y-3.5">
+                  {Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={idx} className="h-12 w-full rounded-xl water-wave-glass" />
+                  ))}
+                </div>
+              ) : filteredCategories.length === 0 ? (
                 <EmptyState className={`${panelBg} ${borderCol}`}>
                   {t.categories}
                 </EmptyState>
@@ -1126,9 +1011,26 @@ export default function MenuPage() {
 
               <section>
                 {loading ? (
-                  <EmptyState className={`${panelBg} ${borderCol}`}>
-                    {t.loading}
-                  </EmptyState>
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                    {Array.from({ length: 12 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={`overflow-hidden rounded-2xl border ${borderCol} ${surface} shadow-xs flex flex-col justify-between h-[300px]`}
+                      >
+                        <div className="w-full aspect-[1.3] water-wave-glass" />
+                        <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                          <div className="space-y-2">
+                            <div className="h-4 w-3/4 rounded-md water-wave-glass" />
+                            <div className="h-3 w-1/2 rounded-md water-wave-glass" />
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <div className="h-5 w-16 rounded-md water-wave-glass" />
+                            <div className="h-6 w-12 rounded-full water-wave-glass" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredProducts.length === 0 ? (
                   <EmptyState className={`${panelBg} ${borderCol}`}>
                     {t.empty}
@@ -1156,7 +1058,7 @@ export default function MenuPage() {
           )}
 
           {!isCategoriesView && editorOpen && (
-            <div onClick={() => { resetCategoryForm(); setCategoryEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+            <div onClick={() => { resetCategoryForm(); setCategoryEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
               <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <ProductEditor
                   open={editorOpen}
@@ -1183,8 +1085,8 @@ export default function MenuPage() {
 
           {/* Product Details View Modal */}
           {viewingProduct && (
-            <div onClick={() => setViewingProduct(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
-              <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm overflow-hidden rounded-xl shadow-2xl border p-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
+            <div onClick={() => setViewingProduct(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-sm overflow-hidden rounded-2xl shadow-xl border p-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface} ${borderCol}`}>
                 <div className="flex items-center justify-between border-b pb-3 mb-4 border-[#e5e7eb] dark:border-[#4e4f6e]">
                   <h3 className={`text-base font-bold ${textPrimary}`}>
                     {language === "km" ? "ព័ត៌មានមុខម្ហូប" : "Product Details"}
@@ -1192,13 +1094,13 @@ export default function MenuPage() {
                   <button
                     type="button"
                     onClick={() => setViewingProduct(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <X size={16} />
                   </button>
                 </div>
 
-                <div className="aspect-[1.3] w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 mb-4 border border-[#e5e7eb] dark:border-[#4e4f6e]">
+                <div className="aspect-[1.3] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 mb-4 border border-[#e5e7eb] dark:border-[#4e4f6e]">
                   {viewingProduct.imageUrl ? (
                     <img src={resolveImageUrl(viewingProduct.imageUrl)} alt={viewingProduct.name} className="h-full w-full object-cover" />
                   ) : (
@@ -1212,11 +1114,11 @@ export default function MenuPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h4 className={`text-base font-bold ${textPrimary}`}>{viewingProduct.name}</h4>
-                      <span className="mt-1 inline-flex items-center rounded-full bg-[#0F522B]/10 px-2.5 py-0.5 text-[10.5px] font-bold text-[#0F522B]">
+                      <span className="mt-1 inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 text-[10.5px] font-bold text-[#55a060] dark:text-emerald-400">
                         {viewingProduct.category?.name || "No Category"}
                       </span>
                     </div>
-                    <span className="text-lg font-bold text-[#0F522B]">{money(viewingProduct.basePrice)}</span>
+                    <span className="text-lg font-bold text-[#55a060] dark:text-emerald-400">{money(viewingProduct.basePrice)}</span>
                   </div>
 
                   <div className="flex items-center justify-between text-xs border-t border-b py-2 border-[#e5e7eb] dark:border-[#4e4f6e]">
@@ -1309,9 +1211,9 @@ export default function MenuPage() {
             </>
           )}
 
-          {isCategoriesView && categoryEditorOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
-              <div className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
+          {categoryEditorOpen && (
+            <div onClick={() => { resetCategoryForm(); setCategoryEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+              <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <CategoryEditor
                   categoryForm={categoryForm}
                   setCategoryForm={setCategoryForm}
@@ -1371,12 +1273,20 @@ function MenuCard({
   return (
     <article className={`overflow-hidden rounded-2xl ${surface} border ${borderCol} shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
       <div>
-        <div className={`relative aspect-[1.3] ${softSurface} overflow-hidden`}>
-          <img
-            src={imgSrc}
-            alt={product.name}
-            className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
-          />
+        <div className={`relative aspect-[1.3] ${softSurface} overflow-hidden flex items-center justify-center`}>
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-slate-100/80 dark:bg-slate-800/80 text-slate-300 dark:text-slate-600">
+              <Utensils size={36} />
+            </div>
+          )}
 
           {unavailable && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur-[1px]">
@@ -1485,8 +1395,8 @@ function CategoryEditor({
 }: {
   categoryForm: CategoryForm;
   setCategoryForm: React.Dispatch<React.SetStateAction<CategoryForm>>;
-  submitCategory: (event: FormEvent<HTMLFormElement>) => void;
   resetCategoryForm: () => void;
+  submitCategory: (event: FormEvent<HTMLFormElement>) => void;
   onOpenChange: (open: boolean) => void;
   onDelete: () => void;
   inputClass: string;
@@ -1498,22 +1408,23 @@ function CategoryEditor({
   text: typeof TEXT.en;
 }) {
   return (
-    <section className={`rounded-xl border shadow-sm ${panelBg} ${borderCol}`}>
-      <div className={`flex items-center justify-between gap-3 p-4 ${textPrimary}`}>
-        <span className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F522B] text-white">
-            {categoryForm.id ? <Pencil size={17} /> : <Tags size={17} />}
-          </span>
+    <section className={`overflow-hidden rounded-[24px] border shadow-2xl ${panelBg} ${borderCol}`}>
+      {/* Modal Header */}
+      <div className={`flex items-center justify-between gap-3 px-6 py-5 border-b ${borderCol} ${textPrimary}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#55a060] text-white shadow-sm shadow-[#55a060]/20">
+            {categoryForm.id ? <Pencil size={18} /> : <Tags size={18} />}
+          </div>
 
-          <span>
-            <span className="block text-sm font-bold">
+          <div>
+            <h3 className="text-base font-bold leading-snug">
               {categoryForm.id ? text.editCategory : text.createCategory}
-            </span>
-            <span className={`block text-xs ${textSecondary}`}>
+            </h3>
+            <p className={`text-xs font-medium ${textSecondary}`}>
               {categoryForm.id ? text.updateFilter : text.addFilter}
-            </span>
-          </span>
-        </span>
+            </p>
+          </div>
+        </div>
 
         <button
           type="button"
@@ -1521,29 +1432,27 @@ function CategoryEditor({
             resetCategoryForm();
             onOpenChange(false);
           }}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${textSecondary} hover:bg-slate-100`}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${textSecondary} hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0`}
           title={text.cancelCategory}
         >
-          <X size={17} />
+          <X size={18} />
         </button>
       </div>
 
-      <form onSubmit={submitCategory} className={`space-y-3 border-t p-4 ${borderCol}`}>
-        <div className={`rounded-lg p-3 ${mutedPanel}`}>
-          <Field label={text.categoryName}>
-            <input
-              required
-              value={categoryForm.name}
-              onChange={(event) =>
-                setCategoryForm((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-              className={inputClass}
-            />
-          </Field>
-        </div>
+      <form onSubmit={submitCategory} className="space-y-4 p-6">
+        <Field label={text.categoryName}>
+          <input
+            required
+            value={categoryForm.name}
+            onChange={(event) =>
+              setCategoryForm((current) => ({
+                ...current,
+                name: event.target.value,
+              }))
+            }
+            className={inputClass}
+          />
+        </Field>
 
         <Field label={text.description}>
           <textarea
@@ -1559,19 +1468,22 @@ function CategoryEditor({
           />
         </Field>
 
-        <div className="flex gap-2">
+        <div className="pt-2 flex gap-2.5">
           {categoryForm.id && (
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 cursor-pointer transition-all shadow-xs"
               title={text.deleteCategory}
             >
-              <Trash2 size={17} />
+              <Trash2 size={18} />
             </button>
           )}
 
-          <button className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#55a060] px-4 text-sm font-bold text-white hover:bg-[#488c52] transition-colors cursor-pointer">
+          <button
+            type="submit"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-bold text-white hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#55a060]/20"
+          >
             <Save size={17} />
             {categoryForm.id ? text.updateCategory : text.saveCategory}
           </button>
@@ -1619,27 +1531,27 @@ function ProductEditor({
   text: typeof TEXT.en;
 }) {
   return (
-    <section className={`rounded-xl border shadow-sm ${panelBg} ${borderCol}`}>
+    <section className={`overflow-hidden rounded-[24px] border shadow-2xl ${panelBg} ${borderCol}`}>
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
-        className={`flex w-full items-center justify-between gap-3 p-4 text-left ${textPrimary}`}
+        className={`flex w-full items-center justify-between gap-3 px-6 py-5 text-left ${textPrimary}`}
       >
-        <span className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#0F522B] text-white">
-            {productForm.id ? <Pencil size={17} /> : <ShoppingBag size={17} />}
+        <span className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#55a060] text-white shadow-sm shadow-[#55a060]/30">
+            {productForm.id ? <Pencil size={18} /> : <ShoppingBag size={18} />}
           </span>
 
-          <span className="block text-sm font-bold">
+          <span className="block text-base font-bold">
             {productForm.id ? text.editItem : text.itemCrud}
           </span>
         </span>
 
-        {open ? <X size={17} /> : <Plus size={17} />}
+        {open ? <X size={18} /> : <Plus size={18} />}
       </button>
 
       {open && (
-        <form onSubmit={submitProduct} className={`space-y-3 border-t p-4 ${borderCol}`}>
+        <form onSubmit={submitProduct} className={`space-y-4 border-t p-6 ${borderCol}`}>
           <label
             className={`mx-auto flex h-32 w-32 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed ${borderCol} ${mutedPanel}`}
           >
@@ -1737,9 +1649,9 @@ function ProductEditor({
             />
           </Field>
 
-          <label className={`flex items-center justify-between rounded-lg p-3 ${mutedPanel}`}>
+          <label className={`flex items-center justify-between rounded-xl p-3 ${mutedPanel}`}>
             <span className="flex items-center gap-2">
-              <CheckCircle2 size={17} className="text-emerald-600" />
+              <CheckCircle2 size={17} className="text-[#55a060]" />
 
               <span>
                 <span className={`block text-sm font-bold ${textPrimary}`}>
@@ -1760,7 +1672,7 @@ function ProductEditor({
                   isAvailable: event.target.checked,
                 }))
               }
-              className="h-5 w-5 accent-[#0F522B] cursor-pointer"
+              className="h-5 w-5 accent-[#55a060] cursor-pointer"
             />
           </label>
 
@@ -1768,7 +1680,7 @@ function ProductEditor({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0F522B] px-4 text-sm font-bold text-white hover:bg-[#0A3E20] active:scale-95 transition-all shadow-sm shadow-[#0F522B]/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-bold text-white hover:bg-[#46894f] active:scale-95 transition-all shadow-sm shadow-[#55a060]/20 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
             >
               {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
               {productForm.id ? text.saveItem : text.createItem}
@@ -1977,13 +1889,5 @@ function resolveImageUrl(value: string) {
 
 function getFallbackProductImage(product: Product): string {
   if (product.imageUrl) return resolveImageUrl(product.imageUrl);
-  const name = product.name.toLowerCase();
-  if (name.includes("cappuccino")) return "https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("cheesecake")) return "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("chocolate") || name.includes("frappe")) return "https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("croissant")) return "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("green tea") || name.includes("tea")) return "https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("latte")) return "https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=80";
-  if (name.includes("coffee") || name.includes("americano")) return "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80";
-  return "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80";
+  return "";
 }

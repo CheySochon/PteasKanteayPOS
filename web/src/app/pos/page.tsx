@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   Bell,
@@ -43,6 +44,7 @@ import {
   ChevronUp,
   Pencil,
   Loader2,
+  StickyNote,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
@@ -180,7 +182,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [tableIsSent, setTableIsSent] = useState<Record<string, boolean>>({});
   const [tableTicketNumbers, setTableTicketNumbers] = useState<Record<string, string>>({});
 
-  const [showKitchenToast, setShowKitchenToast] = useState(false);
   const [saveDraftModalOpen, setSaveDraftModalOpen] = useState(false);
   const [draftRefInput, setDraftRefInput] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -188,6 +189,21 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   // Payment Modal Discount Controls
   const [discountType, setDiscountType] = useState<"fixed" | "percentage">("fixed");
   const [discountValInput, setDiscountValInput] = useState<string>("");
+
+  // Thermal Print Receipt Slip Modal State
+  const [printSlipModalOpen, setPrintSlipModalOpen] = useState(false);
+  const [printSlipData, setPrintSlipData] = useState<{
+    orderNumber: string;
+    createdAt: string;
+    customer: string;
+    orderType: string;
+    items: Array<{ name: string; quantity: number; unitPrice: number; notes?: string }>;
+    subtotal: number;
+    vat: number;
+    serviceFee: number;
+    discountAmount: number;
+    total: number;
+  } | null>(null);
 
   // QR Menu Orders Real-time State
   const [qrOrdersModalOpen, setQrOrdersModalOpen] = useState(false);
@@ -304,14 +320,24 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         window.dispatchEvent(new Event("pos-order-created"));
       }
 
+      setPrintSlipData({
+        orderNumber: fullOrder.orderNumber || ticketNumber,
+        createdAt: fullOrder.createdAt || new Date().toISOString(),
+        customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
+        orderType: selectedTable ? "Dine-In" : "Takeaway",
+        items: cart.map((i) => ({ ...i })),
+        subtotal,
+        vat,
+        serviceFee,
+        discountAmount,
+        total,
+      });
+
       setCart([]);
       setDiscountPercent(0);
       setOrderNote("");
       setSendKitchenModalOpen(false);
-      setShowKitchenToast(true);
-      setTimeout(() => {
-        setShowKitchenToast(false);
-      }, 3000);
+      setPrintSlipModalOpen(true);
       setMessage(`Order ${fullOrder.orderNumber || `#${fullOrder.id}`} sent to kitchen!`);
     } catch (err: any) {
       alert(err?.message || "Failed to send order to kitchen");
@@ -675,18 +701,19 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     saveHeldOrdersToStorage(updated);
   };
 
-  function addProduct(product: Product) {
+  const handleAddProduct = useCallback((product: Product) => {
     const item = cartItemFromProduct(product);
     const key = item.productId;
 
-    const existingItem = cart.find((i: any) => i.productId === key);
-    const nextQty = (existingItem?.quantity || 0) + 1;
-    if (product.trackStock && Number(product.inventory?.quantity ?? 0) < nextQty) {
-      alert(`Insufficient stock for ${product.name}. Available: ${Number(product.inventory?.quantity).toFixed(0)} ${product.unit}`);
-      return;
-    }
-
     setCart((current) => {
+      const existingItem = current.find((i: any) => i.productId === key);
+      const nextQty = (existingItem?.quantity || 0) + 1;
+
+      if (product.trackStock && Number(product.inventory?.quantity ?? 0) < nextQty) {
+        alert(`Insufficient stock for ${product.name}. Available: ${Number(product.inventory?.quantity).toFixed(0)} ${product.unit}`);
+        return current;
+      }
+
       const exists = current.some((entry) => entry.productId === key);
       if (!exists) return [...current, item];
 
@@ -696,7 +723,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           : entry
       );
     });
-  }
+  }, []);
 
   async function processCheckout() {
     setLoading(true);
@@ -794,21 +821,30 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         });
       }
 
+      setPrintSlipData({
+        orderNumber: order.orderNumber || order.orderId || ticketNumber,
+        createdAt: new Date().toISOString(),
+        customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
+        orderType: selectedTable ? "Dine-In" : "Takeaway",
+        items: cart.map((i) => ({ ...i })),
+        subtotal,
+        vat,
+        serviceFee,
+        discountAmount,
+        total,
+      });
+
       setCart([]);
       setDiscountPercent(0);
       setSplitOpen(false);
       setDiscountOpen(false);
       setPaymentModalOpen(false);
+      setPrintSlipModalOpen(true);
       setCashReceived(0);
       setTicketNumber(String(Date.now()).slice(-4));
       setTableId(undefined);
       setOrderingMode(false); // Return to Table Map
       setMessage(`Order ${order.orderNumber || order.orderId} paid successfully.`);
-
-      // Trigger browser print dialog after DOM updates
-      setTimeout(() => {
-        window.print();
-      }, 150);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to process payment");
     } finally {
@@ -825,42 +861,13 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   }
 
   if (initialLoading) {
-    return (
-      <main className={`overflow-hidden bg-[#f5f5f9] flex flex-col items-center justify-center text-[#566a7f] ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-screen w-screen'}`}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#55a060] border-t-transparent shadow-sm"></div>
-          <p className="text-sm font-semibold tracking-wide uppercase">Loading...</p>
-        </div>
-      </main>
-    );
+    return <PosSkeleton dark={dark} isAdminView={isAdminView} />;
   }
 
   const mainContent = (
     <main className={`overflow-hidden flex flex-col print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'} ${
       dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-700"
     }`}>
-      {isAdminView && (
-        <TopBar
-          title="POS - Point of Sale"
-          subtitle="Real-time ordering and billing terminal"
-          searchPlaceholder="Search POS..."
-          language={language}
-          onLanguageChange={setAppLanguage}
-          notifications={[]}
-          dark={theme === "dark"}
-        />
-      )}
-      {/* Toast Notification for Kitchen */}
-      {showKitchenToast && (
-        <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
-          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#2b2c40] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-[#3b3c54] animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
-              <Check size={11} strokeWidth={4.5} className="text-white" />
-            </div>
-            <span>Order sent to kitchen!</span>
-          </div>
-        </div>
-      )}
 
       {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
       <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0 dash-animate">
@@ -976,14 +983,8 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 ${
               dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"
             }`}>
-              {/* Left Scrollable Pills Wrapper with Blur Fade Overlay */}
-              <div
-                className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-2 sm:pr-12"
-                style={{
-                  WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 98%)',
-                  maskImage: 'linear-gradient(to right, black 80%, transparent 98%)'
-                }}
-              >
+              {/* Left Scrollable Pills Wrapper */}
+              <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-2 sm:pr-4">
                 <button
                   type="button"
                   onClick={() => setCategoryId("all")}
@@ -1052,11 +1053,22 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             {/* ── Product Grid / List ── */}
             <div className={`flex-1 overflow-y-auto px-3.5 sm:px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
               {initialLoading ? (
-                <div className="flex h-96 w-full flex-col items-center justify-center gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#55a060]" />
-                  <span className="text-xs font-bold text-slate-400">
-                    {language === "km" ? "កំពុងផ្ទុកបញ្ជីមុខម្ហូប..." : "Loading POS menu..."}
-                  </span>
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                  {Array.from({ length: 10 }).map((_, idx) => (
+                    <div
+                      key={idx}
+                      className={`rounded-2xl border p-2.5 flex flex-col justify-between h-[210px] overflow-hidden ${
+                        dark ? "bg-[#232333] border-[#2b2c40]" : "bg-slate-50/70 border-slate-100"
+                      }`}
+                    >
+                      <div className="w-full aspect-[1.35] rounded-xl glassic-blur-skeleton mb-2" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-4 w-3/4 rounded-md glassic-blur-skeleton" />
+                        <div className="h-3 w-1/2 rounded-md glassic-blur-skeleton" />
+                      </div>
+                      <div className="h-4 w-1/3 rounded-md glassic-blur-skeleton mt-2" />
+                    </div>
+                  ))}
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className={`rounded-2xl border border-dashed p-12 text-center text-sm font-semibold text-slate-400 ${
@@ -1068,13 +1080,13 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
+                    <ProductCard key={product.id} product={product} dark={dark} onAdd={handleAddProduct} />
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3.5">
                   {filteredProducts.map((product) => (
-                    <ProductListItem key={product.id} product={product} dark={dark} onAdd={() => addProduct(product)} />
+                    <ProductListItem key={product.id} product={product} dark={dark} onAdd={handleAddProduct} />
                   ))}
                 </div>
               )}
@@ -1318,7 +1330,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       {/* ── Collect Payment & Send to Kitchen Modal ── */}
       {paymentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
-          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
             {/* Header: Title + Circular Close Button */}
             <div className="flex items-center justify-between pb-4">
               <h3 className="text-lg sm:text-xl font-bold text-slate-800">
@@ -2167,7 +2179,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       {/* ── Real-Time QR Menu Orders Modal ── */}
       {qrOrdersModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
-          <div className="w-full max-w-xl overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white p-6 shadow-none animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
               <h3 className="text-xl font-bold text-slate-800">
@@ -2272,7 +2284,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       {/* ── Cancel QR Order Confirmation Modal ── */}
       {deleteQrOrderTarget && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
             {/* Header / Alert Icon + Title */}
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3.5">
@@ -2341,6 +2353,156 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </div>
         </div>
       )}
+      {/* ── THERMAL PRINT RECEIPT & KOT SLIP MODAL (Matching User Image Format) ── */}
+      {printSlipModalOpen && printSlipData && typeof window !== "undefined" && createPortal(
+        <div 
+          onClick={() => setPrintSlipModalOpen(false)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px] animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-[380px] max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 text-slate-800 shadow-2xl transition-all font-mono"
+          >
+            {/* Modal Controls (Print & Close) */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 print:hidden font-sans">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Print Slip Preview
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#55a060] hover:bg-[#46894f] px-3 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
+                >
+                  <Printer size={14} /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintSlipModalOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Thermal Receipt Area (Soft Clean Typography) */}
+            <div id="thermal-print-area" className="text-xs text-slate-800 leading-normal font-sans font-khmer">
+              {/* Logo / Store Header */}
+              <div className="text-center">
+                {restaurantImageUrl ? (
+                  <img src={resolveImageUrl(restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F522B] text-white font-bold text-sm mx-auto mb-1.5">
+                    {posName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <h2 className="text-sm font-bold tracking-tight text-slate-800 font-khmer">{posName}</h2>
+                <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                  Av. El placer, valle hondo 2da etapa, Cabudare.
+                </p>
+                <p className="text-[11px] text-slate-500 font-normal leading-tight">
+                  Phone: 0412-464.93.35, Email: ParkFastFoodOficial@gmail.com
+                </p>
+                <div className="mt-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
+                  {printSlipData.customer}
+                </div>
+              </div>
+
+              {/* Order Metadata */}
+              <div className="mt-3.5 space-y-1 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-normal">Order Type:</span>
+                  <span className="font-semibold text-slate-800">{printSlipData.orderType}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-normal">Receipt No.:</span>
+                  <span className="font-semibold text-slate-800">{printSlipData.orderNumber}</span>
+                </div>
+                <div className="text-slate-400 text-[11px] text-right font-normal mt-0.5">
+                  {new Date(printSlipData.createdAt).toLocaleDateString("en-US", {
+                    month: "numeric",
+                    day: "numeric",
+                    year: "numeric",
+                  })},{" "}
+                  {new Date(printSlipData.createdAt).toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })}
+                </div>
+              </div>
+
+              {/* Dashed Line */}
+              <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+              {/* Dishes Itemized Breakdown */}
+              <div className="space-y-2">
+                {printSlipData.items.map((item, idx) => (
+                  <div key={idx} className="space-y-0.5">
+                    <div className="flex justify-between items-baseline text-xs font-medium text-slate-800">
+                      <span className="flex-1 pr-2 leading-snug">{item.name}</span>
+                      <span className="font-semibold text-slate-900">{money(item.unitPrice * item.quantity)}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-normal">
+                      {item.quantity}x {money(item.unitPrice)}
+                    </div>
+                    {item.notes && (
+                      <div className="text-[10.5px] text-amber-700 font-normal italic pl-1.5 border-l border-amber-300 mt-0.5">
+                        Note: {item.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Dashed Line */}
+              <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+              {/* Financial Totals */}
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between items-center text-slate-600 font-normal">
+                  <span>Subtotal (excl. tax):</span>
+                  <span className="font-semibold text-slate-800">{money(printSlipData.subtotal)}</span>
+                </div>
+                {printSlipData.vat > 0 && (
+                  <div className="flex justify-between items-center text-slate-600 font-normal">
+                    <span>Tax:</span>
+                    <span className="font-semibold text-slate-800">{money(printSlipData.vat)}</span>
+                  </div>
+                )}
+                {printSlipData.serviceFee > 0 && (
+                  <div className="flex justify-between items-center text-slate-600 font-normal">
+                    <span>Service Charge:</span>
+                    <span className="font-semibold text-slate-800">{money(printSlipData.serviceFee)}</span>
+                  </div>
+                )}
+                {printSlipData.discountAmount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-600 font-normal">
+                    <span>Discount:</span>
+                    <span className="font-semibold">-{money(printSlipData.discountAmount)}</span>
+                  </div>
+)}
+                <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
+                  <span>Total:</span>
+                  <span className="text-base text-[#55a060] font-bold">{money(printSlipData.total)}</span>
+                </div>
+                <div className="text-right text-[10.5px] text-slate-400 font-normal mt-0.5">
+                  ~ {(printSlipData.total * 4100).toLocaleString()} ៛
+                </div>
+              </div>
+
+              {/* Dashed Line & Footer Note */}
+              <div className="my-3 border-b border-dashed border-slate-200" />
+              <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
+                <p>Thanks for visit. Come again</p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </main>
   );
 
@@ -2355,200 +2517,216 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   );
 }
 
-function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: () => void }) {
-  const imageUrl = resolveImageUrl(product.imageUrl);
-  const unavailable = !product.isAvailable;
-  const [imgFailed, setImgFailed] = useState(false);
+const ProductCard = memo(
+  function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: (product: Product) => void }) {
+    const imageUrl = resolveImageUrl(product.imageUrl);
+    const unavailable = !product.isAvailable;
+    const [imgFailed, setImgFailed] = useState(false);
 
-  return (
-    <button
-      type="button"
-      onClick={onAdd}
-      disabled={unavailable}
-      className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-sm active:scale-[0.97] transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between cursor-pointer ${
-        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
-      }`}
-    >
-      {/* Product Image Cover */}
-      <div className={`w-full aspect-[1.35] relative overflow-hidden shrink-0 border-b flex items-center justify-center ${
-        dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
-      }`}>
-        {product.category && (
-          <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9.5px] font-bold px-2.5 py-1 rounded-br-lg z-10">
-            {product.category.name}
-          </span>
-        )}
-
-        {imageUrl && !imgFailed ? (
-          <img
-            src={imageUrl}
-            alt={product.name}
-            onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
-          />
-        ) : (
-          <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
-            <Utensils size={24} className="text-slate-400/80 mb-1" />
-            <span className="text-[8.5px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
-          </div>
-        )}
-
-        {/* Plus Button Overlay */}
-        {!unavailable && (
-          <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-2xs hover:bg-[#439150] active:scale-90 transition-all">
-            <Plus size={13} className="stroke-[3]" />
-          </span>
-        )}
-
-        {/* Unavailable overlay */}
-        {unavailable && (
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
-            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
-              Sold Out
+    return (
+      <button
+        type="button"
+        onClick={() => onAdd(product)}
+        disabled={unavailable}
+        className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-sm active:scale-[0.97] transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between cursor-pointer ${
+          dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
+        }`}
+      >
+        {/* Product Image Cover */}
+        <div className={`w-full aspect-[1.35] relative overflow-hidden shrink-0 border-b flex items-center justify-center ${
+          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
+        }`}>
+          {product.category && (
+            <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9.5px] font-bold px-2.5 py-1 rounded-br-lg z-10">
+              {product.category.name}
             </span>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Card Content Body */}
-      <div className="p-2.5 w-full flex-1 flex flex-col justify-between">
-        <div className="flex-1 flex flex-col justify-between">
-          <div>
-            {product.trackStock && product.inventory && Number(product.inventory.quantity) <= Number(product.inventory.minStock) && (
-              <div className="flex items-center gap-1 bg-[#fdf8e2] border border-[#fbeba5] text-[#b38f00] text-[9.5px] font-bold px-2 py-0.5 rounded mb-1.5">
-                <AlertTriangle size={9.5} className="text-[#e6b800] shrink-0" />
-                <span>Low Stock - {Number(product.inventory.quantity)} Qty</span>
+          {imageUrl && !imgFailed ? (
+            <img
+              src={imageUrl}
+              alt={product.name}
+              onError={() => setImgFailed(true)}
+              className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
+            />
+          ) : (
+            <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
+              <Utensils size={24} className="text-slate-400/80 mb-1" />
+              <span className="text-[8.5px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
+            </div>
+          )}
+
+          {/* Plus Button Overlay */}
+          {!unavailable && (
+            <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-2xs hover:bg-[#439150] active:scale-90 transition-all">
+              <Plus size={13} className="stroke-[3]" />
+            </span>
+          )}
+
+          {/* Unavailable overlay */}
+          {unavailable && (
+            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
+                Sold Out
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Card Content Body */}
+        <div className="p-2.5 w-full flex-1 flex flex-col justify-between">
+          <div className="flex-1 flex flex-col justify-between">
+            <div>
+              {product.trackStock && product.inventory && Number(product.inventory.quantity) <= Number(product.inventory.minStock) && (
+                <div className="flex items-center gap-1 bg-[#fdf8e2] border border-[#fbeba5] text-[#b38f00] text-[9.5px] font-bold px-2 py-0.5 rounded mb-1.5">
+                  <AlertTriangle size={9.5} className="text-[#e6b800] shrink-0" />
+                  <span>Low Stock - {Number(product.inventory.quantity)} Qty</span>
+                </div>
+              )}
+
+              <h3 className={`line-clamp-1 text-[12.5px] font-semibold leading-snug font-khmer ${
+                dark ? "text-slate-100" : "text-slate-800"
+              }`}>
+                {product.name}
+              </h3>
+
+              {/* Reserved Middle Slot for Stock / Variants Info */}
+              <div className="min-h-[18px] flex items-center mt-0.5">
+                {(() => {
+                  const key = product.name.toLowerCase();
+                  let text = null;
+                  if (key.includes("pizza")) text = "2 Variants • 2 Addons";
+                  else if (key.includes("fries")) text = "1 Variants • 1 Addons";
+                  else if (key.includes("burger")) text = "2 Variants • 3 Addons";
+                  else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
+                  else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
+                  else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
+                  
+                  if (!text) return null;
+                  return (
+                    <span className="text-[10.5px] text-slate-400 block font-medium">
+                      {text}
+                    </span>
+                  );
+                })()}
               </div>
-            )}
+            </div>
 
-            <h3 className={`line-clamp-1 text-[12.5px] font-semibold leading-snug font-khmer ${
+            {/* Price ALWAYS aligned at the bottom */}
+            <div className="mt-1 text-[12.5px] font-black text-[#55a060]">
+              {money(product.basePrice)}
+            </div>
+          </div>
+        </div>
+      </button>
+    );
+  },
+  (prev, next) =>
+    prev.product.id === next.product.id &&
+    prev.dark === next.dark &&
+    prev.product.isAvailable === next.product.isAvailable &&
+    prev.product.basePrice === next.product.basePrice &&
+    prev.product.name === next.product.name
+);
+
+const ProductListItem = memo(
+  function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: (product: Product) => void }) {
+    const imageUrl = resolveImageUrl(product.imageUrl);
+    const unavailable = !product.isAvailable;
+    const [imgFailed, setImgFailed] = useState(false);
+
+    return (
+      <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-colors duration-150 ease-out h-[105px] ${
+        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
+      }`}>
+        {/* Product Image Cover (Left Side) */}
+        <div className={`w-[110px] sm:w-[120px] relative overflow-hidden shrink-0 border-r flex items-center justify-center ${
+          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
+        }`}>
+          {product.category && (
+            <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9px] font-bold px-2 py-0.5 rounded-br-md z-10">
+              {product.category.name}
+            </span>
+          )}
+
+          {imageUrl && !imgFailed ? (
+            <img
+              src={imageUrl}
+              alt={product.name}
+              onError={() => setImgFailed(true)}
+              className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
+            />
+          ) : (
+            <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
+              <Utensils size={22} className="text-slate-400/80 mb-1" />
+              <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
+            </div>
+          )}
+
+          {unavailable && (
+            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
+              <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
+                Sold Out
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Content Right Side */}
+        <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
+          {/* Header Row: Title & Price */}
+          <div className="flex items-start justify-between gap-2">
+            <h3 className={`line-clamp-1 text-xs font-semibold leading-snug font-khmer ${
               dark ? "text-slate-100" : "text-slate-800"
             }`}>
               {product.name}
             </h3>
-
-            {/* Reserved Middle Slot for Stock / Variants Info */}
-            <div className="min-h-[18px] flex items-center mt-0.5">
-              {(() => {
-                const key = product.name.toLowerCase();
-                let text = null;
-                if (key.includes("pizza")) text = "2 Variants • 2 Addons";
-                else if (key.includes("fries")) text = "1 Variants • 1 Addons";
-                else if (key.includes("burger")) text = "2 Variants • 3 Addons";
-                else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
-                else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
-                else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
-                
-                if (!text) return null;
-                return (
-                  <span className="text-[10.5px] text-slate-400 block font-medium">
-                    {text}
-                  </span>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Price ALWAYS aligned at the bottom */}
-          <div className="mt-1 text-[12.5px] font-black text-[#55a060]">
-            {money(product.basePrice)}
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: () => void }) {
-  const imageUrl = resolveImageUrl(product.imageUrl);
-  const unavailable = !product.isAvailable;
-  const [imgFailed, setImgFailed] = useState(false);
-
-  return (
-    <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-colors duration-150 ease-out h-[105px] ${
-      dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
-    }`}>
-      {/* Product Image Cover (Left Side) */}
-      <div className={`w-[110px] sm:w-[120px] relative overflow-hidden shrink-0 border-r flex items-center justify-center ${
-        dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
-      }`}>
-        {product.category && (
-          <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9px] font-bold px-2 py-0.5 rounded-br-md z-10">
-            {product.category.name}
-          </span>
-        )}
-
-        {imageUrl && !imgFailed ? (
-          <img
-            src={imageUrl}
-            alt={product.name}
-            onError={() => setImgFailed(true)}
-            className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
-          />
-        ) : (
-          <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
-            <Utensils size={22} className="text-slate-400/80 mb-1" />
-            <span className="text-[8px] font-bold text-slate-400/80 uppercase tracking-widest font-brand">No Photo</span>
-          </div>
-        )}
-
-        {unavailable && (
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center">
-            <span className="rounded-full bg-red-600 px-2 py-0.5 text-[8px] font-extrabold text-white uppercase tracking-wider shadow-md">
-              Sold Out
+            <span className="text-xs font-black text-[#55a060] shrink-0">
+              {money(product.basePrice)}
             </span>
           </div>
-        )}
-      </div>
 
-      {/* Content Right Side */}
-      <div className="p-3 flex-1 min-w-0 flex flex-col justify-between">
-        {/* Header Row: Title & Price */}
-        <div className="flex items-start justify-between gap-2">
-          <h3 className={`line-clamp-1 text-xs font-semibold leading-snug font-khmer ${
-            dark ? "text-slate-100" : "text-slate-800"
-          }`}>
-            {product.name}
-          </h3>
-          <span className="text-xs font-black text-[#55a060] shrink-0">
-            {money(product.basePrice)}
-          </span>
-        </div>
+          {/* Subtitle / Variants / Addons text */}
+          {(() => {
+            const key = product.name.toLowerCase();
+            let text = null;
+            if (key.includes("pizza")) text = "2 Variants • 2 Addons";
+            else if (key.includes("fries")) text = "1 Variants • 1 Addons";
+            else if (key.includes("burger")) text = "2 Variants • 3 Addons";
+            else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
+            else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
+            else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
+            
+            if (!text) return <div className="flex-1" />;
+            return (
+              <span className="text-[10px] text-slate-400 block line-clamp-1 font-medium">
+                {text}
+              </span>
+            );
+          })()}
 
-        {/* Subtitle / Variants / Addons text */}
-        {(() => {
-          const key = product.name.toLowerCase();
-          let text = null;
-          if (key.includes("pizza")) text = "2 Variants • 2 Addons";
-          else if (key.includes("fries")) text = "1 Variants • 1 Addons";
-          else if (key.includes("burger")) text = "2 Variants • 3 Addons";
-          else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
-          else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
-          else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
-          
-          if (!text) return <div className="flex-1" />;
-          return (
-            <span className="text-[10px] text-slate-400 block line-clamp-1 font-medium">
-              {text}
-            </span>
-          );
-        })()}
-
-        {/* Bottom Action Row: ADD Button */}
-        <div className="flex items-center justify-end mt-1">
-          <button
-            type="button"
-            onClick={onAdd}
-            disabled={unavailable}
-            className="rounded-lg bg-[#55a060] px-4 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-[#439150] active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            ADD
-          </button>
+          {/* Bottom Action Row: ADD Button */}
+          <div className="flex items-center justify-end mt-1">
+            <button
+              type="button"
+              onClick={() => onAdd(product)}
+              disabled={unavailable}
+              className="rounded-lg bg-[#55a060] px-4 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-[#439150] active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ADD
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  },
+  (prev, next) =>
+    prev.product.id === next.product.id &&
+    prev.dark === next.dark &&
+    prev.product.isAvailable === next.product.isAvailable &&
+    prev.product.basePrice === next.product.basePrice &&
+    prev.product.name === next.product.name
+);
 
 function TicketItem({
   item,
@@ -2582,6 +2760,11 @@ function TicketItem({
           <span className="text-xs font-semibold text-[#55a060] block mt-0.5">
             {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
           </span>
+          {item.notes && (
+            <div className="text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate">
+              Notes: {item.notes}
+            </div>
+          )}
         </div>
         {onRemove && (
           <button
@@ -2623,39 +2806,86 @@ function TicketItem({
         {onAddNote && (
           <button
             type="button"
-            onClick={() => setIsEditingNote(!isEditingNote)}
-            className={`rounded-lg border px-2 py-1 text-[10.5px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
-              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-100 bg-slate-50/50 text-slate-500 hover:bg-slate-100"
+            onClick={() => {
+              setNoteText(item.notes || "");
+              setIsEditingNote(true);
+            }}
+            className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
             }`}
           >
-            📝 {item.notes ? `Note: "${item.notes}"` : "Add Notes"}
+            <StickyNote size={13} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
+            <span>{item.notes ? "Edit Note" : "Add Notes"}</span>
           </button>
         )}
       </div>
 
-      {/* Note input slide-down */}
-      {isEditingNote && onAddNote && (
-        <div className="mt-1 flex items-center gap-1 animate-[usersPageIn_150ms_ease-out]">
-          <input
-            type="text"
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Add note (e.g. Less sugar)..."
-            className={`h-8.5 w-full rounded border px-2 text-xs font-semibold outline-none focus:border-[#55a060] transition-all ${
-              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 focus:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 focus:bg-white"
+      {/* Add Notes Modal Popup */}
+      {isEditingNote && onAddNote && typeof window !== "undefined" && createPortal(
+        <div
+          onClick={() => setIsEditingNote(false)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-sm sm:max-w-md overflow-hidden rounded-2xl p-5.5 shadow-2xl transition-all ${
+              dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
             }`}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              onAddNote(noteText);
-              setIsEditingNote(false);
-            }}
-            className="rounded bg-[#55a060] text-white px-2 py-1 text-xs font-bold cursor-pointer"
           >
-            Save
-          </button>
-        </div>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between mb-3.5">
+              <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                Add Notes
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditingNote(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
+              >
+                <X size={15} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            {/* Note Sub-label & Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-400 block">
+                Notes (100 character max.)
+              </label>
+              <input
+                autoFocus
+                type="text"
+                maxLength={100}
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onAddNote(noteText);
+                    setIsEditingNote(false);
+                  }
+                }}
+                placeholder="e.g. Less sugar, extra ice..."
+                className={`h-10 w-full rounded-lg border px-3.5 text-sm font-semibold outline-none transition-all ${
+                  dark
+                    ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-[#55a060]"
+                    : "border-slate-200 bg-white text-slate-800 focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10"
+                }`}
+              />
+            </div>
+
+            {/* Modal Action Button */}
+            <button
+              type="button"
+              onClick={() => {
+                onAddNote(noteText);
+                setIsEditingNote(false);
+              }}
+              className="mt-4.5 w-full h-10.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] text-white text-sm font-bold shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer"
+            >
+              Save
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2760,3 +2990,26 @@ function MobileTicket({
     </div>
   );
 }
+
+function PosSkeleton({ dark, isAdminView }: { dark?: boolean; isAdminView?: boolean }) {
+  return (
+    <main className={`overflow-hidden flex flex-col ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-screen w-screen'} ${
+      dark ? "bg-[#232333] text-slate-100" : "bg-[#f5f5f9] text-slate-700"
+    }`}>
+      {/* Main Layout: Monolithic Double Panels matching User Image */}
+      <div className={`flex flex-col lg:flex-row flex-1 overflow-hidden w-full min-h-0 pt-3.5 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-3.5 sm:gap-4 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+        {/* LEFT: Big Rounded Panel Box (Matches Image 2) */}
+        <section className={`flex min-w-0 flex-1 flex-col rounded-[24px] overflow-hidden shadow-3xs water-wave-glass ${
+          dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-[#e5e7eb] border border-slate-200/60"
+        }`} />
+
+        {/* RIGHT: Cart Side Panel Box (Matches Image 2) */}
+        <aside className={`w-full lg:w-[320px] xl:w-[27%] xl:min-w-[320px] xl:max-w-[360px] shrink-0 rounded-[24px] flex flex-col h-full overflow-hidden shadow-3xs water-wave-glass ${
+          dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-[#e5e7eb] border border-slate-200/60"
+        }`} />
+      </div>
+    </main>
+  );
+}
+
+

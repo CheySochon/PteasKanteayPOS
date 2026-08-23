@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -267,6 +268,34 @@ function serverName(order: Order) {
   return "Chon (Cashier)";
 }
 
+function serverImage(order: Order): string | null {
+  const userObj = (order as any).user || order.createdBy;
+  let rawUrl = userObj?.imageUrl || userObj?.avatar || (order as any).userImageUrl || (order as any).userAvatar || "";
+
+  if (!rawUrl && typeof window !== "undefined") {
+    try {
+      const storedUser = localStorage.getItem("pos_user");
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        const name = serverName(order);
+        if (u && (u.name === name || u.email === (order as any).userEmail) && u.imageUrl) {
+          rawUrl = u.imageUrl;
+        }
+      }
+    } catch {}
+  }
+
+  if (rawUrl) {
+    if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+    const apiOrigin = process.env.NEXT_PUBLIC_API_URL
+      ? process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, "")
+      : "http://localhost:5000";
+    return `${apiOrigin}${rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`}`;
+  }
+
+  return null;
+}
+
 function initials(name: string) {
   return name
     .split(" ")
@@ -513,18 +542,6 @@ export default function OrdersPage() {
 
   return (
     <main className="flex-1 overflow-y-auto">
-        <TopBar
-          title={t.title}
-          subtitle=""
-          language={language}
-          onLanguageChange={(nextLanguage) => {
-            localStorage.setItem("pos_language", nextLanguage);
-            window.dispatchEvent(new Event("pos-language-change"));
-          }}
-          notifications={[]}
-          dark={dark}
-        />
-
         <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 dash-animate">
           {/* Orders Page Header Title Block */}
           <div className="mb-5 flex items-center gap-3">
@@ -540,11 +557,7 @@ export default function OrdersPage() {
               </p>
             </div>
           </div>
-          {message && (
-            <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
-              {message}
-            </div>
-          )}
+
 
           <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryCard
@@ -849,8 +862,22 @@ export default function OrdersPage() {
 
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
+                              {serverImage(order) ? (
+                                <img
+                                  src={serverImage(order)!}
+                                  alt={staff}
+                                  className="h-7 w-7 rounded-full object-cover ring-1 ring-emerald-600/20 shadow-xs shrink-0"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                    const next = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                    if (next) next.style.display = "flex";
+                                  }}
+                                />
+                              ) : null}
+
                               <div
-                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-xs ${
+                                style={{ display: serverImage(order) ? "none" : "flex" }}
+                                className={`h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-xs ${
                                   index % 4 === 0
                                     ? "bg-[#0F522B]"
                                     : index % 4 === 1
@@ -1053,6 +1080,27 @@ export default function OrdersPage() {
                   <div className="text-right">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Created</span>
                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{dateTimeLabel(selectedOrder.createdAt)}</span>
+                  </div>
+                </div>
+
+                {/* Staff / Server Info */}
+                <div className={`flex items-center justify-between rounded-xl p-3 border ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50"}`}>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Server / Order Taken By</span>
+                  <div className="flex items-center gap-2">
+                    {serverImage(selectedOrder) ? (
+                      <img
+                        src={serverImage(selectedOrder)!}
+                        alt={serverName(selectedOrder)}
+                        className="h-6 w-6 rounded-full object-cover ring-1 ring-emerald-600/20 shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0F522B] text-[9px] font-bold text-white shadow-xs">
+                        {initials(serverName(selectedOrder))}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {serverName(selectedOrder)}
+                    </span>
                   </div>
                 </div>
 

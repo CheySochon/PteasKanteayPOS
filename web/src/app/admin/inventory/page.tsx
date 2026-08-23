@@ -267,8 +267,8 @@ export default function InventoryPage() {
       request<StockMovement[]>("/inventory/transactions").then(setMovements).catch(console.error);
     };
 
-    // Polling backup every 3 seconds for guaranteed real-time updates
-    const interval = setInterval(handleUpdate, 3000);
+    // Polling backup every 30 seconds for guaranteed real-time updates
+    const interval = setInterval(handleUpdate, 30000);
 
     const socket = getSocket();
     if (socket) {
@@ -533,33 +533,7 @@ export default function InventoryPage() {
 
   return (
     <main className={`flex-1 overflow-y-auto ${bgMain} ${language === "km" ? "font-khmer" : ""}`}>
-      <TopBar
-        title={t.title}
-        subtitle=""
-        language={language}
-        onLanguageChange={setDashboardLanguage}
-        notifications={[]}
-        onClearNotifications={() => {}}
-        dark={dark}
-      />
 
-      {/* Success Notification Alert */}
-      {successMessage && (
-        <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center pointer-events-none px-4">
-          <div className="pointer-events-auto flex items-center gap-3 py-2.5 px-4.5 rounded-xl bg-white dark:bg-[#1e293b] text-slate-800 dark:text-slate-200 text-[13px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-100/80 dark:border-slate-800 animate-[dropFromTop_400ms_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="h-5 w-5 rounded-full bg-[#48cf38] flex items-center justify-center text-white shrink-0">
-              <Check size={11} strokeWidth={4.5} className="text-white" />
-            </div>
-            <span>{successMessage}</span>
-          </div>
-          <style>{`
-            @keyframes dropFromTop {
-              0% { transform: translateY(-150%); opacity: 0; }
-              100% { transform: translateY(0); opacity: 1; }
-            }
-          `}</style>
-        </div>
-      )}
 
       <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-3 pb-6 dash-animate">
         {/* Error Alert matching screenshot top placement */}
@@ -955,16 +929,16 @@ export default function InventoryPage() {
 
       {/* Adjust Stock Modal */}
       {isAdjustModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
-          <div className={`w-full max-w-md rounded-3xl border ${borderCol} ${surface} shadow-2xl p-7 relative`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
+          <div className={`w-full max-w-md rounded-2xl border ${borderCol} ${surface} shadow-xl p-6 relative`}>
             <button
               onClick={() => setIsAdjustModalOpen(false)}
-              className="absolute right-5 top-5 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
+              className="absolute right-4 top-4 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
             >
-              <X size={16} className="stroke-[2.5]" />
+              <X size={15} className="stroke-[2.5]" />
             </button>
 
-            <h2 className={`text-base font-black ${textPrimary} mb-5`}>
+            <h2 className={`text-base font-bold ${textPrimary} mb-4`}>
               Add New Stock Movement
             </h2>
 
@@ -978,10 +952,10 @@ export default function InventoryPage() {
                   <select
                     value={adjProductId}
                     onChange={(e) => setAdjProductId(e.target.value)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                       dark
-                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                     }`}
                     required
                   >
@@ -1003,10 +977,10 @@ export default function InventoryPage() {
                 <select
                   value={adjType}
                   onChange={(e) => setAdjType(e.target.value as any)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 >
@@ -1027,10 +1001,10 @@ export default function InventoryPage() {
                   placeholder="Enter Quantity to add..."
                   value={adjQty}
                   onChange={(e) => setAdjQty(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 />
@@ -1046,20 +1020,20 @@ export default function InventoryPage() {
                   placeholder="Shipment details, manual adjustment reason etc..."
                   value={adjNotes}
                   onChange={(e) => setAdjNotes(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                 />
               </div>
 
               {/* Submit Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-emerald-700/30 disabled:opacity-50"
+                  className="w-full rounded-xl bg-[#55a060] hover:bg-[#46894f] py-2.5 text-xs font-bold text-white shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? "Saving..." : "Save"}
                 </button>
@@ -1071,16 +1045,16 @@ export default function InventoryPage() {
 
       {/* Add Stock Item Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
-          <div className={`w-full max-w-md rounded-3xl border ${borderCol} ${surface} shadow-2xl p-7 relative`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
+          <div className={`w-full max-w-md rounded-2xl border ${borderCol} ${surface} shadow-xl p-6 relative`}>
             <button
               onClick={() => setIsAddModalOpen(false)}
-              className="absolute right-5 top-5 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
+              className="absolute right-4 top-4 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
             >
-              <X size={16} className="stroke-[2.5]" />
+              <X size={15} className="stroke-[2.5]" />
             </button>
 
-            <h2 className={`text-base font-black ${textPrimary} mb-5`}>
+            <h2 className={`text-base font-bold ${textPrimary} mb-4`}>
               Add Stock Item
             </h2>
 
@@ -1095,10 +1069,10 @@ export default function InventoryPage() {
                   placeholder="Item Name"
                   value={addName}
                   onChange={(e) => setAddName(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 />
@@ -1112,10 +1086,10 @@ export default function InventoryPage() {
                 <select
                   value={addUnit}
                   onChange={(e) => setAddUnit(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 >
@@ -1139,10 +1113,10 @@ export default function InventoryPage() {
                     placeholder="Enter Current Stock Qty..."
                     value={addQuantity}
                     onChange={(e) => setAddQuantity(e.target.value)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                       dark
-                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                     }`}
                     required
                   />
@@ -1157,10 +1131,10 @@ export default function InventoryPage() {
                     placeholder="Enter Min Stock Qty..."
                     value={addMinStock}
                     onChange={(e) => setAddMinStock(e.target.value)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                       dark
-                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                     }`}
                     required
                   />
@@ -1168,11 +1142,11 @@ export default function InventoryPage() {
               </div>
 
               {/* Full Width Submit Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-2xl bg-[#71bf73] py-3 text-sm font-bold text-white hover:bg-[#60ab62] transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] py-2.5 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
                   {submitting && <Loader2 size={14} className="animate-spin" />}
                   Save
@@ -1185,16 +1159,16 @@ export default function InventoryPage() {
 
       {/* Update Item Modal */}
       {isSettingsModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
-          <div className={`w-full max-w-md rounded-3xl border ${borderCol} ${surface} shadow-2xl p-7 relative`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
+          <div className={`w-full max-w-md rounded-2xl border ${borderCol} ${surface} shadow-xl p-6 relative`}>
             <button
               onClick={() => setIsSettingsModalOpen(false)}
-              className="absolute right-5 top-5 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
+              className="absolute right-4 top-4 rounded-full p-1.5 bg-rose-50 dark:bg-rose-950/50 text-rose-500 hover:bg-rose-100 transition-colors"
             >
-              <X size={16} className="stroke-[2.5]" />
+              <X size={15} className="stroke-[2.5]" />
             </button>
 
-            <h2 className={`text-base font-black ${textPrimary} mb-5`}>
+            <h2 className={`text-base font-bold ${textPrimary} mb-4`}>
               Update Item
             </h2>
 
@@ -1209,10 +1183,10 @@ export default function InventoryPage() {
                   placeholder="Item Name"
                   value={settingsName}
                   onChange={(e) => setSettingsName(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 />
@@ -1226,10 +1200,10 @@ export default function InventoryPage() {
                 <select
                   value={settingsUnit}
                   onChange={(e) => setSettingsUnit(e.target.value)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                     dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                   required
                 >
@@ -1253,10 +1227,10 @@ export default function InventoryPage() {
                     placeholder="Enter Current Stock Qty..."
                     value={settingsQuantity}
                     onChange={(e) => setSettingsQuantity(e.target.value)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                       dark
-                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                     }`}
                     required
                   />
@@ -1272,10 +1246,10 @@ export default function InventoryPage() {
                     placeholder="Enter Min Stock Qty..."
                     value={settingsMinStock}
                     onChange={(e) => setSettingsMinStock(e.target.value)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200 ${
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
                       dark
-                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff] focus:ring-1 focus:ring-[#696cff]"
+                        ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                     }`}
                     required
                   />
@@ -1283,11 +1257,11 @@ export default function InventoryPage() {
               </div>
 
               {/* Submit Button */}
-              <div className="pt-3">
+              <div className="pt-2">
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full rounded-2xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 hover:shadow-emerald-700/30 disabled:opacity-50"
+                  className="w-full rounded-xl bg-[#55a060] hover:bg-[#46894f] py-2.5 text-xs font-bold text-white shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? "Saving..." : "Save"}
                 </button>
@@ -1299,34 +1273,34 @@ export default function InventoryPage() {
 
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
-          <div className={`w-full max-w-md rounded-3xl border ${borderCol} ${surface} shadow-2xl p-7 relative`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
+          <div className={`w-full max-w-md rounded-2xl border ${borderCol} ${surface} shadow-xl p-6 relative`}>
             <button
               onClick={() => setIsDeleteModalOpen(false)}
-              className="absolute right-5 top-5 rounded-full p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+              className="absolute right-4 top-4 rounded-full p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
             >
-              <X size={16} className="stroke-[2.5]" />
+              <X size={15} className="stroke-[2.5]" />
             </button>
 
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0">
-                <AlertTriangle size={24} className="stroke-[2.5]" />
+            <div className="flex items-start gap-3.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 dark:bg-rose-950/30 text-rose-500 shrink-0">
+                <AlertTriangle size={22} className="stroke-[2.5]" />
               </div>
               <div className="flex-1">
-                <h2 className={`text-lg font-bold ${textPrimary} mb-1`}>
+                <h2 className={`text-base font-bold ${textPrimary} mb-1`}>
                   Delete Item
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Are you sure you want to delete this item? This action is irreversible. 🛑 ✋
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Are you sure you want to delete this item? This action is irreversible.
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3.5">
+            <div className="mt-5 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setIsDeleteModalOpen(false)}
-                className={`rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 px-6 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors`}
+                className={`rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 px-5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer`}
               >
                 Cancel
               </button>
@@ -1334,7 +1308,7 @@ export default function InventoryPage() {
                 type="button"
                 onClick={confirmDelete}
                 disabled={submitting}
-                className="rounded-2xl bg-[#e52e2e] px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-650/20 transition-all hover:bg-red-700 hover:shadow-red-700/30 disabled:opacity-50"
+                className="rounded-xl bg-[#e52e2e] hover:bg-red-700 px-5 py-2 text-xs font-bold text-white shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 {submitting ? "Deleting..." : "Yes, Delete!"}
               </button>

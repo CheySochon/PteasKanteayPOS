@@ -20,6 +20,7 @@ import {
   Loader2,
   Copy,
   ExternalLink,
+  Check,
   CheckCircle2,
   Sparkles,
   Wifi,
@@ -424,15 +425,6 @@ export default function TablesPage() {
   return (
     <>
       <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-        <TopBar
-          title={language === "km" ? "តុអាហារ" : "Floor Dining Tables"}
-          subtitle=""
-          language={language}
-          onLanguageChange={setAppLanguage}
-          notifications={[]}
-          dark={dark}
-        />
-
         <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
           <div className="mx-auto w-full max-w-[1720px] dash-animate">
 
@@ -483,21 +475,7 @@ export default function TablesPage() {
 
 
 
-            {message && (
-              <div className="fixed top-20 right-6 z-50 flex items-center gap-3 rounded-xl border border-emerald-200/80 bg-white/95 dark:bg-[#2b2c40]/95 px-4 py-3 text-sm font-semibold text-emerald-800 dark:text-emerald-300 shadow-xl shadow-slate-900/10 backdrop-blur-md animate-[usersPageIn_200ms_ease-out]">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <CheckCircle2 size={16} />
-                </div>
-                <span>{message}</span>
-                <button
-                  type="button"
-                  onClick={() => setMessage("")}
-                  className="ml-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-0.5"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            )}
+
 
             {loading ? (
               <div className={`rounded border p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
@@ -634,7 +612,7 @@ export default function TablesPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDirectRemoveTable(table)}
+                            onClick={() => setDeleteConfirmTable(table)}
                             className={`flex h-9 w-9 items-center justify-center rounded border transition-all ${
                               dark
                                 ? "border-[#4e4f6e] bg-[#232333] text-[#ff3e1d] hover:bg-[#ff3e1d]/10"
@@ -658,7 +636,7 @@ export default function TablesPage() {
 
       {/* CREATE / EDIT TABLE MODAL */}
       {isTableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-[1px] animate-[tableModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close table dialog"
@@ -666,17 +644,25 @@ export default function TablesPage() {
             className="absolute inset-0 cursor-default"
           />
 
-          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[480px] overflow-y-auto rounded-2xl p-7 shadow-2xl border-none animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e202f]`}>
-            <div className="mb-5">
-              <h2 className={`text-xl font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[460px] overflow-y-auto rounded-2xl p-6.5 shadow-xl border border-slate-100 dark:border-slate-800 animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e202f]`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <h2 className={`text-lg font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
                 {tableForm.id ? (language === "km" ? "កែសម្រួលតុ" : "Edit Table") : (language === "km" ? "បន្ថែមតុថ្មី" : "Add New Table")}
               </h2>
+              <button
+                type="button"
+                onClick={closeTableModal}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={15} />
+              </button>
             </div>
 
-            <form onSubmit={submit} className="space-y-4.5">
+            <form onSubmit={submit} className="space-y-4">
               {/* Row 1: Title */}
               <label className="block">
-                <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                <span className={`text-[12px] font-medium text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
                   {language === "km" ? "ឈ្មោះតុ" : "Title"}
                 </span>
                 <input
@@ -684,14 +670,14 @@ export default function TablesPage() {
                   value={tableForm.name}
                   onChange={(event) => setTableForm((current) => ({ ...current, name: event.target.value }))}
                   placeholder={language === "km" ? "បញ្ចូលឈ្មោះតុ" : "Enter Table Title"}
-                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
+                  className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400/80 outline-none transition-all focus:border-[#55a060] focus:bg-white dark:focus:bg-[#1e202f] focus:ring-2 focus:ring-[#55a060]/10"
                 />
               </label>
 
               {/* Row 2: Floor and Seating Capacity */}
-              <div className="grid gap-3.5 grid-cols-2">
+              <div className="grid gap-3 grid-cols-2">
                 <label className="block">
-                  <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  <span className={`text-[12px] font-medium text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
                     {language === "km" ? "ជាន់ / តំបន់" : "Floor"}
                   </span>
                   <select
@@ -699,7 +685,7 @@ export default function TablesPage() {
                     onChange={(event) =>
                       setTableForm((current) => ({ ...current, zone: event.target.value as TableZone }))
                     }
-                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20 cursor-pointer"
+                    className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none transition-all focus:border-[#55a060] focus:bg-white dark:focus:bg-[#1e202f] cursor-pointer"
                   >
                     <option value="indoor">{language === "km" ? "សាលខាងក្នុង (Indoor)" : "Indoor"}</option>
                     <option value="outdoor">{language === "km" ? "យ៉រខាងក្រៅ (Outdoor)" : "Outdoor"}</option>
@@ -708,7 +694,7 @@ export default function TablesPage() {
                 </label>
 
                 <label className="block">
-                  <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  <span className={`text-[12px] font-medium text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
                     {language === "km" ? "ចំនួនកៅអី" : "Seating Capacity"}
                   </span>
                   <input
@@ -717,26 +703,26 @@ export default function TablesPage() {
                     value={tableForm.capacity}
                     onChange={(event) => setTableForm((current) => ({ ...current, capacity: event.target.value }))}
                     placeholder={language === "km" ? "បញ្ចូលចំនួនកៅអី" : "Enter Seating Capacity"}
-                    className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
+                    className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400/80 outline-none transition-all focus:border-[#55a060] focus:bg-white dark:focus:bg-[#1e202f] focus:ring-2 focus:ring-[#55a060]/10"
                   />
                 </label>
               </div>
 
               {/* Row 3: QR Token (Optional) */}
               <label className="block">
-                <span className={`text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                <span className={`text-[12px] font-medium text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
                   {language === "km" ? "កូដ QR Token (មិនតម្រូវ)" : "QR Token (Optional)"}
                 </span>
                 <input
                   value={tableForm.qrToken}
                   onChange={(event) => setTableForm((current) => ({ ...current, qrToken: event.target.value }))}
                   placeholder={language === "km" ? "ឧ. table-t5" : "Optional, e.g. table-t5"}
-                  className="w-full rounded-xl bg-[#f4f5f7] dark:bg-[#2b2c40] border-none px-4 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/70 outline-none transition-all focus:ring-2 focus:ring-[#55a060]/20"
+                  className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400/80 outline-none transition-all focus:border-[#55a060] focus:bg-white dark:focus:bg-[#1e202f] focus:ring-2 focus:ring-[#55a060]/10"
                 />
               </label>
 
               {/* Row 4: Enable Guest Ordering */}
-              <label className="flex items-center justify-between rounded-xl bg-[#f4f5f7]/60 dark:bg-[#2b2c40]/60 px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 border border-transparent">
+              <label className="flex items-center justify-between rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200/80 dark:border-slate-700/60 px-3.5 py-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 cursor-pointer">
                 <span className={language === "km" ? "font-khmer" : ""}>
                   {language === "km" ? "អនុញ្ញាតឱ្យភ្ញៀវកម្ម៉ង់ផ្ទាល់ខ្លួន" : "Enable Guest Ordering"}
                 </span>
@@ -744,26 +730,47 @@ export default function TablesPage() {
                   type="checkbox"
                   checked={tableForm.isActive}
                   onChange={(event) => setTableForm((current) => ({ ...current, isActive: event.target.checked }))}
-                  className="h-4.5 w-4.5 accent-[#55a060] cursor-pointer"
+                  className="h-4 w-4 accent-[#55a060] rounded cursor-pointer"
                 />
               </label>
 
               {/* Row 5: Action Buttons */}
-              <div className="flex justify-end gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={closeTableModal}
-                  className="rounded-xl border border-slate-100 dark:border-slate-800 bg-[#f4f5f7] dark:bg-[#232333] px-5 py-2.5 font-bold text-xs text-slate-600 dark:text-slate-350 hover:bg-[#e9ebed] dark:hover:bg-[#2b2c40] transition-all cursor-pointer"
-                >
-                  {language === "km" ? "បិទ" : "Close"}
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-[#55a060] hover:bg-[#46894f] px-5 py-2.5 font-bold text-xs text-white shadow-xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
-                >
-                  {tableForm.id ? <Save size={14} /> : <Plus size={14} />}
-                  <span>{tableForm.id ? (language === "km" ? "ធ្វើបច្ចុប្បន្នភាព" : "Update") : (language === "km" ? "រក្សាទុក" : "Save")}</span>
-                </button>
+              <div className="flex items-center justify-between pt-3.5 mt-2 border-t border-slate-100 dark:border-slate-800">
+                {tableForm.id ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = tables.find((t) => t.id === tableForm.id);
+                      if (target) {
+                        closeTableModal();
+                        setDeleteConfirmTable(target);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/60 px-3.5 py-2 text-xs font-semibold hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>{language === "km" ? "លុបតុ" : "Delete Table"}</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={closeTableModal}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#232333] px-4.5 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#2b2c40] transition-all cursor-pointer"
+                  >
+                    {language === "km" ? "បោះបង់" : "Cancel"}
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-[#55a060] hover:bg-[#46894f] px-5 py-2 text-xs font-bold text-white shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    {tableForm.id ? <Save size={13} /> : <Plus size={13} />}
+                    <span>{tableForm.id ? (language === "km" ? "ធ្វើបច្ចុប្បន្នភាព" : "Update") : (language === "km" ? "រក្សាទុក" : "Save")}</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -845,51 +852,64 @@ export default function TablesPage() {
       )}
 
       {deleteConfirmTable && (
+        <div
+          onClick={() => setDeleteConfirmTable(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out] cursor-pointer"
+        >
           <div
-            onClick={() => setDeleteConfirmTable(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-[1px] p-4 animate-[tableModalBackdrop_200ms_ease-out_both] cursor-pointer"
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-sm overflow-hidden rounded-2xl border p-6 text-center shadow-2xl animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] cursor-default ${
+              dark
+                ? "bg-[#1e202f] border-slate-800 text-slate-100"
+                : "bg-white border-slate-100 text-slate-800"
+            }`}
           >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-sm overflow-hidden rounded-xl border p-6 text-center shadow-2xl animate-[tableModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both] cursor-default ${dark ? "bg-[#1f2130] border-[#383a50] text-slate-100" : "bg-white border-slate-200 text-slate-800"}`}
-            >
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/10 text-red-500">
-                <Trash2 size={26} />
-              </div>
+            <div className="mx-auto mb-4 flex h-13 w-13 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/20">
+              <Trash2 size={22} />
+            </div>
 
-              <h3 className="text-lg font-black tracking-tight">
-                {language === "km" ? "បញ្ជាក់ការលុបតុ" : "Delete Table?"}
-              </h3>
-              <p className={`mt-2 text-xs font-medium ${textSecondary}`}>
-                {language === "km"
-                  ? `តើអ្នកពិតជាចង់លុបតុ "${deleteConfirmTable.name}" មែនទេ? ទិន្នន័យនេះមិនអាចត្រឡប់មកវិញបានទេ។`
-                  : `Are you sure you want to delete table "${deleteConfirmTable.name}"? This action cannot be undone.`}
-              </p>
+            <h3 className="text-base font-bold leading-snug">
+              {language === "km" ? "បញ្ជាក់ការលុបតុ" : "Delete Table?"}
+            </h3>
+            <p className={`mt-2 text-xs font-medium leading-relaxed ${textSecondary}`}>
+              {language === "km"
+                ? `តើអ្នកពិតជាចង់លុបតុ "${deleteConfirmTable.name}" ដែរឬទេ? ទិន្នន័យនេះមិនអាចត្រឡប់មកវិញបានទេ។`
+                : `Are you sure you want to delete table "${deleteConfirmTable.name}"? This action cannot be undone.`}
+            </p>
 
-              <div className="mt-6 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirmTable(null)}
-                  className={`flex-1 rounded-lg border py-2.5 text-xs font-bold transition-all ${dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
-                >
-                  {language === "km" ? "បោះបង់" : "Cancel"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (deleteConfirmTable) handleDirectRemoveTable(deleteConfirmTable);
-                    setDeleteConfirmTable(null);
-                  }}
-                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20"
-                >
-                  {language === "km" ? "លុបចោល" : "Delete"}
-                </button>
-              </div>
+            <div className="mt-6 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmTable(null)}
+                className={`flex-1 h-10 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  dark
+                    ? "border-slate-700 bg-[#232333] text-slate-300 hover:bg-[#2b2c40]"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {language === "km" ? "បោះបង់" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirmTable) handleDirectRemoveTable(deleteConfirmTable);
+                  setDeleteConfirmTable(null);
+                }}
+                className="flex-1 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition-all shadow-md shadow-rose-600/20 active:scale-95 cursor-pointer"
+              >
+                {language === "km" ? "លុប" : "Delete"}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       <style>{`
+        @keyframes dropFromTop {
+          0% { transform: translateY(-100%); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+
         @keyframes tableModalBackdrop {
           from { opacity: 0; }
           to { opacity: 1; }
