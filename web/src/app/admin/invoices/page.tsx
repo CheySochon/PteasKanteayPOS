@@ -185,7 +185,7 @@ export default function InvoicesPage() {
   }
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
         <div className="mx-auto w-full max-w-[1720px] ">
           
@@ -214,7 +214,7 @@ export default function InvoicesPage() {
                   className={`h-9 w-48 sm:w-60 rounded-xl border px-3.5 text-xs font-medium outline-none transition-all ${
                     dark
                       ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 placeholder:text-slate-400 focus:border-[#55a060]"
-                      : "border-slate-200 bg-[#f8faf9] text-slate-800 placeholder:text-slate-400 focus:border-[#55a060]"
+                      : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#55a060] shadow-xs"
                   }`}
                 />
               </div>
@@ -267,7 +267,7 @@ export default function InvoicesPage() {
           )}
 
           {/* Invoices Table Container */}
-          <div className={`mt-4 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"}`}>
+          <div className={`mt-4 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400">
                 Loading invoices...
@@ -282,8 +282,8 @@ export default function InvoicesPage() {
                   <thead>
                     <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${
                       dark
-                        ? "bg-slate-800/60 border-[#3b3c54] text-slate-400"
-                        : "bg-[#f0f4f1] border-slate-200/80 text-[#6b7a82]"
+                        ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300"
+                        : "bg-slate-50 border-slate-200/80 text-slate-600"
                     }`}>
                       <th className="px-4 py-3.5 whitespace-nowrap">INVOICE ID:</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">TOKENS</th>
@@ -313,11 +313,11 @@ export default function InvoicesPage() {
                         <tr
                           key={inv.id}
                           className={`transition-colors ${
-                            dark ? "hover:bg-[#34354e]" : "hover:bg-slate-50/70"
+                            dark ? "hover:bg-[#34354e]" : "hover:bg-emerald-50/40"
                           }`}
                         >
                           {/* INVOICE ID */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-bold ${dark ? "text-slate-400" : "text-slate-600"}`}>
                             <div className="flex items-center gap-2">
                               <span>{invoiceId}</span>
                               {isVoid && (
@@ -329,37 +329,41 @@ export default function InvoicesPage() {
                           </td>
 
                           {/* TOKENS */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-300">
-                            {tokenNum}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <span className={`inline-flex h-6 min-w-[24px] items-center justify-center rounded-lg px-2 text-xs font-bold ${
+                              dark ? "bg-[#383a54] text-white" : "bg-slate-100 text-slate-800"
+                            }`}>
+                              {tokenNum}
+                            </span>
                           </td>
 
                           {/* CUSTOMER */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-700 dark:text-slate-300 uppercase">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-bold uppercase ${dark ? "text-slate-200" : "text-slate-800"}`}>
                             {customerName}
                           </td>
 
                           {/* SUBTOTAL */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-400">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-700"}`}>
                             {money(subtotal)}
                           </td>
 
                           {/* TAX */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-400">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
                             {money(tax)}
                           </td>
 
                           {/* DISCOUNT */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-semibold text-slate-600 dark:text-slate-400">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
                             {money(discount)}
                           </td>
 
                           {/* TOTAL */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-black text-slate-900 dark:text-slate-100">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-extrabold ${dark ? "text-emerald-400" : "text-[#55a060]"}`}>
                             {money(total)}
                           </td>
 
                           {/* DATE */}
-                          <td className="px-4 py-3.5 whitespace-nowrap font-medium text-slate-500 dark:text-slate-400">
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                             {formatDate(inv.createdAt)}
                           </td>
 
@@ -368,7 +372,9 @@ export default function InvoicesPage() {
                             <button
                               type="button"
                               onClick={() => setActionMenuId(actionMenuId === inv.id ? null : inv.id)}
-                              className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                              className={`p-1 transition-colors cursor-pointer rounded-lg ${
+                                dark ? "text-slate-300 hover:text-white hover:bg-slate-700" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                              }`}
                             >
                               <MoreVertical size={16} />
                             </button>
@@ -555,11 +561,13 @@ export default function InvoicesPage() {
 
       {/* Invoice Detail Modal */}
       {selectedInvoice && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white p-6 shadow-none animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[1px] print:hidden animate-[userModalBackdrop_180ms_ease-out]">
+          <div className={`w-full max-w-md overflow-hidden rounded-3xl p-6 border shadow-2xl animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)] ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-100" : "bg-white border-slate-200 text-slate-800"
+          }`}>
+            <div className={`flex items-center justify-between pb-4 border-b ${dark ? "border-slate-700" : "border-slate-100"}`}>
               <div>
-                <h3 className="text-lg font-bold text-slate-800">
+                <h3 className={`text-lg font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
                   Invoice {selectedInvoice.orderNumber || `#${selectedInvoice.id}`}
                 </h3>
                 <p className="text-xs font-medium text-slate-400 mt-0.5">
@@ -569,7 +577,7 @@ export default function InvoicesPage() {
               <button
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
-                className="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -579,9 +587,9 @@ export default function InvoicesPage() {
             <div className="py-4 space-y-2 max-h-60 overflow-y-auto no-scrollbar">
               {Array.isArray(selectedInvoice.items) && selectedInvoice.items.length > 0 ? (
                 selectedInvoice.items.map((item: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center text-xs font-medium text-slate-700">
+                  <div key={i} className={`flex justify-between items-center text-xs font-medium ${dark ? "text-slate-300" : "text-slate-700"}`}>
                     <span>{item.quantity}x {item.name || item.product?.name}</span>
-                    <span className="font-bold">{money(item.unitPrice * item.quantity)}</span>
+                    <span className="font-bold">{money((item.price || item.unitPrice || 0) * item.quantity)}</span>
                   </div>
                 ))
               ) : (
@@ -590,14 +598,14 @@ export default function InvoicesPage() {
             </div>
 
             {/* Totals */}
-            <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-500 font-semibold">
+            <div className={`pt-3 border-t space-y-1.5 text-xs text-slate-500 font-semibold ${dark ? "border-slate-700 text-slate-400" : "border-slate-100 text-slate-500"}`}>
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>{money(selectedInvoice.subtotal || selectedInvoice.totalAmount)}</span>
               </div>
-              <div className="flex justify-between text-slate-800 font-bold text-sm pt-2 border-t border-slate-100">
+              <div className={`flex justify-between font-bold text-sm pt-2 border-t ${dark ? "border-slate-700 text-slate-100" : "border-slate-100 text-slate-800"}`}>
                 <span>Total</span>
-                <span className="text-[#55a060]">{money(selectedInvoice.totalAmount)}</span>
+                <span className="text-[#55a060] dark:text-emerald-400">{money(selectedInvoice.totalAmount)}</span>
               </div>
             </div>
 
@@ -605,7 +613,9 @@ export default function InvoicesPage() {
               <button
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
-                className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
+                className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+                  dark ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
               >
                 Close
               </button>

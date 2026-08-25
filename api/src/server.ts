@@ -37,6 +37,18 @@ io.on("connection", (socket: Socket) => {
   socket.on("user:deleted", (data: unknown) => {
     io.emit("user:deleted", data);
   });
+
+  socket.on("table:created", (table: unknown) => {
+    io.emit("table:created", table);
+  });
+
+  socket.on("table:updated", (table: unknown) => {
+    io.emit("table:updated", table);
+  });
+
+  socket.on("table:deleted", (data: unknown) => {
+    io.emit("table:deleted", data);
+  });
 });
 
 httpServer.listen(PORT, HOST, () => {

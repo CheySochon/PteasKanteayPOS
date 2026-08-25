@@ -282,6 +282,60 @@ export default function Sidebar({
     return () => window.removeEventListener("pos-confirm-logout", handleConfirmLogout);
   }, []);
 
+  // Fetch live settings dynamically on mount
+  useEffect(() => {
+    getSettings()
+      .then((data: any) => {
+        if (data) {
+          if (data.restaurantName) {
+            localStorage.setItem("pos_restaurant_name", data.restaurantName);
+          }
+          if (data.restaurantImageUrl) {
+            localStorage.setItem("pos_restaurant_image_url", data.restaurantImageUrl);
+          }
+          window.dispatchEvent(new Event("pos-settings-change"));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Dynamic Browser Favicon Tab Icon Sync
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const activeFavicon = restaurantImageUrl ? resolveImageUrl(restaurantImageUrl) : "/favicon.svg";
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "shortcut icon";
+        document.head.appendChild(link);
+      }
+      link.href = activeFavicon;
+    }
+  }, [restaurantImageUrl]);
+
+  // Background prefetch all main admin pages for instant 0ms click transitions
+  useEffect(() => {
+    const mainRoutes = [
+      "/admin",
+      "/admin/pos",
+      "/admin/orders",
+      "/admin/kitchen",
+      "/admin/tables",
+      "/admin/invoices",
+      "/admin/menu",
+      "/admin/inventory",
+      "/admin/reports",
+      "/admin/users",
+      "/admin/settings",
+    ];
+    const timer = setTimeout(() => {
+      mainRoutes.forEach((route) => {
+        try { router.prefetch(route); } catch {}
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [router]);
+
   function setSidebarState(next: boolean) {
     sidebarCollapsedRef.current = next;
     localStorage.setItem("pos_sidebar_collapsed", String(next));
@@ -423,14 +477,16 @@ export default function Sidebar({
                 src={resolveImageUrl(restaurantImageUrl)}
                 alt={restaurantName}
                 className="h-full w-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = "none";
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                  if (fallback) fallback.style.display = "flex";
+                }}
               />
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="8" width="18" height="12" rx="2" fill="white" opacity="0.9" />
-                <rect x="7" y="4" width="10" height="6" rx="1.5" fill="white" opacity="0.6" />
-                <rect x="9" y="5.5" width="6" height="2.5" rx="0.75" fill="#55a060" />
-              </svg>
-            )}
+            ) : null}
+            <div style={{ display: restaurantImageUrl ? "none" : "flex" }} className="w-full h-full items-center justify-center bg-[#55a060]">
+              <img src="/favicon.svg" alt="POS Logo" className="w-6 h-6 object-contain" />
+            </div>
           </div>
 
           {!sidebarCollapsed && (
@@ -602,6 +658,38 @@ export default function Sidebar({
         })}
       </div>
 
+      {/* Sticky Bottom Footer Logout Button - Seamlessly Matching Sidebar Item Style */}
+      <div className={`p-2 border-t ${dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/90 bg-white"} mt-auto shrink-0`}>
+        <button
+          type="button"
+          onClick={() => setShowLogoutModal(true)}
+          title={sidebarCollapsed ? (language === "km" ? "ចាកចេញ" : "Logout") : undefined}
+          className={`group flex items-center border-none cursor-pointer transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] ${
+            sidebarCollapsed
+              ? "h-10 w-10 mx-auto justify-center rounded-xl px-0"
+              : "w-full h-10 gap-2.5 rounded-xl px-1.5 justify-start"
+          } ${
+            dark
+              ? "text-slate-300 hover:bg-rose-500/10 hover:text-rose-400"
+              : "text-slate-700 hover:bg-rose-50 hover:text-rose-600"
+          }`}
+        >
+          <span className={`w-10 h-10 shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${
+            dark ? "text-slate-400 group-hover:text-rose-400" : "text-slate-500 group-hover:text-rose-600"
+          }`}>
+            <LogOut size={18} strokeWidth={1.75} color="currentColor" />
+          </span>
+
+          {!sidebarCollapsed && (
+            <span className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 font-normal text-[14px] ${
+              dark ? "text-slate-200 group-hover:text-rose-400" : "text-slate-700 group-hover:text-rose-600"
+            } ${language === "km" ? "font-khmer text-[14px]" : ""}`}>
+              {language === "km" ? "ចាកចេញ" : "Logout"}
+            </span>
+          )}
+        </button>
+      </div>
+
 
     </aside>
 
@@ -680,12 +768,25 @@ function SideNavItem({
   dark = false,
   isKhmer = false,
 }: SideNavItemProps) {
+  const router = useRouter();
+
   return (
     <Link
       href={href}
+      prefetch={true}
+      onMouseEnter={() => {
+        if (href) {
+          try { router.prefetch(href); } catch {}
+        }
+      }}
+      onTouchStart={() => {
+        if (href) {
+          try { router.prefetch(href); } catch {}
+        }
+      }}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`group flex items-center border-none cursor-pointer mb-1 transition-all duration-[300ms] ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
+      className={`group flex items-center border-none cursor-pointer mb-1 transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
         ${
           collapsed
             ? "h-10 w-10 mx-auto justify-center rounded-xl px-0"
@@ -743,11 +844,24 @@ function MenuSubNavItem({
   dark?: boolean;
   isKhmer?: boolean;
 }) {
+  const router = useRouter();
+
   return (
     <Link
       href={href}
+      prefetch={true}
+      onMouseEnter={() => {
+        if (href) {
+          try { router.prefetch(href); } catch {}
+        }
+      }}
+      onTouchStart={() => {
+        if (href) {
+          try { router.prefetch(href); } catch {}
+        }
+      }}
       onClick={onClick}
-      className={`group flex h-9 items-center gap-2 rounded-xl px-3 transition duration-200 active:scale-[0.98] active:translate-y-[0.5px] ${
+      className={`group flex h-9 items-center gap-2 rounded-xl px-3 transition duration-150 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
             ? "bg-[#55a060]/20 font-bold text-emerald-400"

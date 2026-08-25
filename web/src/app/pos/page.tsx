@@ -68,7 +68,7 @@ import { useAutoDismiss } from "../../lib/useAutoDismiss";
 
 const SERVICE_RATE = 0.1;
 const VAT_RATE = 0.12;
-const DEFAULT_POS_NAME = "The Tofu";
+const DEFAULT_POS_NAME = "PteasKanteay POS 60";
 
 const PROMO_CODES = [
   { code: "WELCOME10", label: "Welcome (10%)", value: 10 },
@@ -81,11 +81,11 @@ function money(value: number | string) {
 }
 
 function resolveImageUrl(value?: string | null) {
-  if (!value) return "";
-  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("blob:")) {
-    return value;
-  }
-  return `${apiOrigin}${value}`;
+  if (!value || !value.trim()) return "";
+  const trimmed = value.trim();
+  if (/^(https?:\/\/|blob:|data:)/i.test(trimmed)) return trimmed;
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${apiOrigin}${cleanPath}`;
 }
 
 let cachedCategories: Category[] | null = null;
@@ -104,6 +104,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [categoryId, setCategoryId] = useState<number | "all">("all");
   const [tableId, setTableId] = useState<number | undefined>();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [mobileTab, setMobileTab] = useState<"menu" | "cart">("menu");
   const [query, setQuery] = useState("");
   const [ticketNumber, setTicketNumber] = useState("0000");
   const [orderNote, setOrderNote] = useState("");
@@ -600,6 +601,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   );
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const discountAmount = Math.min(subtotal, subtotal * (discountPercent / 100));
   const discountedSubtotal = Math.max(subtotal - discountAmount, 0);
   const serviceFee = discountedSubtotal * serviceRate;
@@ -988,9 +990,44 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
           </header>
 
+          {/* Mobile View Sub-Header Switcher (Visible only on < lg mobile screens) */}
+          <div className="flex lg:hidden items-center p-1 rounded-xl bg-slate-100 dark:bg-[#2b2c40] border border-slate-200/80 dark:border-[#3b3c54] mx-3.5 mb-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileTab("menu")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                mobileTab === "menu"
+                  ? "bg-[#55a060] text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+              }`}
+            >
+              <Utensils size={15} />
+              <span>{language === "km" ? "ម៉ឺនុយ (Menu)" : "Menu Catalogue"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab("cart")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer relative ${
+                mobileTab === "cart"
+                  ? "bg-[#55a060] text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+              }`}
+            >
+              <ShoppingBag size={15} />
+              <span>{language === "km" ? "កន្ត្រក (Cart)" : "Order Cart"}</span>
+              {cartCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-white text-[#55a060] px-2 py-0.5 text-[10px] font-black shadow-xs">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
+
           <div className={`flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden w-full min-h-0 pt-0 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-4 sm:gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             {/* LEFT: Product Catalogue */}
             <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+              mobileTab === "cart" ? "hidden lg:flex" : "flex"
+            } ${
               dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
             }`}>
 
@@ -1109,7 +1146,9 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className={`w-full lg:w-[340px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-[560px] lg:h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+          <aside className={`w-full lg:w-[340px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+            mobileTab === "menu" ? "hidden lg:flex" : "flex"
+          } ${
             dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
           }`}>
 
@@ -1321,6 +1360,31 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               )}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Floating Mobile Checkout Bar (Visible only on < lg mobile screens when cart has items) */}
+      {cartCount > 0 && mobileTab === "menu" && (
+        <div className="fixed bottom-4 left-4 right-4 z-40 lg:hidden animate-[dropFromTop_300ms_ease-out]">
+          <button
+            type="button"
+            onClick={() => setMobileTab("cart")}
+            className="w-full flex items-center justify-between bg-[#55a060] hover:bg-[#468750] text-white p-3.5 rounded-2xl shadow-xl shadow-[#55a060]/30 cursor-pointer active:scale-98 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white">
+                <ShoppingBag size={18} />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold leading-none">{cartCount} {cartCount === 1 ? "Item" : "Items"} Added</div>
+                <div className="text-[11px] opacity-90 mt-0.5">{language === "km" ? "ចុចដើម្បីមើលកន្ត្រក & គិតលុយ" : "Tap to view cart & checkout"}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-black">{money(total)}</span>
+              <span className="rounded-lg bg-white/20 px-2.5 py-1 text-xs font-bold">Checkout ➔</span>
+            </div>
+          </button>
         </div>
       )}
 

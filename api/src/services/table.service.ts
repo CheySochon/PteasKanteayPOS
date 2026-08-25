@@ -122,3 +122,214 @@ export const getQrMenu = async (qrToken: string) => {
     },
   };
 };
+
+export const moveTable = async (sourceTableId: number, targetTableId: number) => {
+  if (sourceTableId === targetTableId) {
+    throw new Error("Source and target tables must be different");
+  }
+
+  const [sourceTable, targetTable] = await Promise.all([
+    prisma.diningTable.findFirst({ where: { id: sourceTableId, deletedAt: null } }),
+    prisma.diningTable.findFirst({ where: { id: targetTableId, deletedAt: null } }),
+  ]);
+
+  if (!sourceTable) throw new Error("Source table not found");
+  if (!targetTable) throw new Error("Target table not found");
+  if (!targetTable.isActive) throw new Error("Target table is inactive");
+
+  const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+
+  const sourceOrders = await prisma.order.findMany({
+    where: {
+      tableId: sourceTableId,
+      deletedAt: null,
+      status: { in: activeStatuses as any },
+    },
+  });
+
+  if (sourceOrders.length === 0) {
+    throw new Error(`Table ${sourceTable.name} has no active order to move`);
+  }
+
+  const targetOrders = await prisma.order.findMany({
+    where: {
+      tableId: targetTableId,
+      deletedAt: null,
+      status: { in: activeStatuses as any },
+    },
+  });
+
+  if (targetOrders.length > 0) {
+    throw new Error(`Target table ${targetTable.name} already has an active order. Use Merge Table to combine orders.`);
+  }
+
+  await prisma.order.updateMany({
+    where: {
+      tableId: sourceTableId,
+      deletedAt: null,
+      status: { in: activeStatuses as any },
+    },
+    data: {
+      tableId: targetTableId,
+    },
+  });
+
+  return {
+    success: true,
+    message: `Moved table ${sourceTable.name} to ${targetTable.name}`,
+    sourceTable,
+    targetTable,
+  };
+};
+
+async function getOrCreateActiveOrder(tableId: number, tableName: string) {
+  const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+  let order = await prisma.order.findFirst({
+    where: {
+      tableId,
+      deletedAt: null,
+      status: { in: activeStatuses as any },
+    },
+    include: { items: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!order) {
+    const stamp = Date.now().toString().slice(-6);
+    const rand = Math.floor(100 + Math.random() * 900);
+    const orderNumber = `ORD-${stamp}-${rand}`;
+    order = (await prisma.order.create({
+      data: {
+        orderNumber,
+        tableId,
+        status: "pending",
+        subtotal: 0,
+        totalAmount: 0,
+        notes: null,
+      },
+      include: { items: true },
+    })) as any;
+  }
+  return order!;
+}
+
+export const mergeTable = async (sourceTableId: number, targetTableId: number) => {
+  if (sourceTableId === targetTableId) {
+    throw new Error("Source and target tables must be different");
+  }
+
+  const [sourceTable, targetTable] = await Promise.all([
+    prisma.diningTable.findFirst({ where: { id: sourceTableId, deletedAt: null } }),
+    prisma.diningTable.findFirst({ where: { id: targetTableId, deletedAt: null } }),
+  ]);
+
+  if (!sourceTable) throw new Error("Source table not found");
+  if (!targetTable) throw new Error("Target table not found");
+
+  // Get or create active order for both target and source tables
+  const [sourceOrder, targetOrder] = await Promise.all([
+    getOrCreateActiveOrder(sourceTableId, sourceTable.name),
+    getOrCreateActiveOrder(targetTableId, targetTable.name),
+  ]);
+
+  // Move all OrderItems from sourceOrder to targetOrder if source has items
+  if (sourceOrder.items && sourceOrder.items.length > 0) {
+    await prisma.orderItem.updateMany({
+      where: { orderId: sourceOrder.id },
+      data: { orderId: targetOrder.id },
+    });
+  }
+
+  // Calculate new totals for targetOrder
+  const allTargetItems = await prisma.orderItem.findMany({
+    where: { orderId: targetOrder.id },
+  });
+
+  let newSubtotal = 0;
+  for (const item of allTargetItems) {
+    newSubtotal += Number(item.totalPrice);
+  }
+
+  const newTotalAmount = Math.max(
+    newSubtotal - Number(targetOrder.discountAmount || 0) + Number(targetOrder.taxAmount || 0),
+    0
+  );
+
+  const mergeNote = targetOrder.notes && !targetOrder.notes.includes(`Merged with ${sourceTable.name}`)
+    ? `${targetOrder.notes} (Merged with ${sourceTable.name})`
+    : `Merged with ${sourceTable.name}`;
+
+  // Update target order
+  const updatedTargetOrder = await prisma.order.update({
+    where: { id: targetOrder.id },
+    data: {
+      subtotal: newSubtotal,
+      totalAmount: newTotalAmount,
+      notes: mergeNote,
+    },
+    include: {
+      table: true,
+      items: { include: { product: true } },
+    },
+  });
+
+  // Keep source order active with "Merged into [TargetTable]" note so source table stays joined
+  await prisma.order.update({
+    where: { id: sourceOrder.id },
+    data: {
+      status: targetOrder.status,
+      subtotal: 0,
+      totalAmount: 0,
+      notes: `Merged into ${targetTable.name}`,
+    },
+  });
+
+  return {
+    success: true,
+    message: `Merged ${sourceTable.name} into ${targetTable.name}`,
+    mergedOrder: updatedTargetOrder,
+    sourceTable,
+    targetTable,
+  };
+};
+
+export const unmergeTable = async (tableId: number) => {
+  const table = await prisma.diningTable.findFirst({ where: { id: tableId, deletedAt: null } });
+  if (!table) throw new Error("Table not found");
+
+  const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+
+  const activeOrders = await prisma.order.findMany({
+    where: {
+      deletedAt: null,
+      status: { in: activeStatuses as any },
+    },
+  });
+
+  for (const order of activeOrders) {
+    if (order.tableId === tableId || (order.notes && order.notes.toLowerCase().includes(table.name.toLowerCase()))) {
+      const cleanNote = (order.notes || "")
+        .replace(/\s*\(Merged with [^)]+\)/gi, "")
+        .replace(/Merged with [^\n,]+/gi, "")
+        .replace(/Merged into [^\n,]+/gi, "")
+        .trim();
+
+      if (order.notes && order.notes.includes("Merged into")) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { status: "completed", notes: null },
+        });
+      } else {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { notes: cleanNote || null },
+        });
+      }
+    }
+  }
+
+  return { success: true, message: `Table ${table.name} unmerged`, table };
+};
+
+
+

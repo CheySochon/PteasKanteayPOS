@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState, useSyncExternalStore } from "react";
+import { ChangeEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Camera,
   CheckCircle2,
@@ -16,6 +16,7 @@ import {
   ChefHat,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
+import { getMe } from "../../../lib/api";
 import {
   clearProfileImage,
   getProfileImage,
@@ -55,7 +56,32 @@ export default function ProfilePage() {
   useAutoDismiss(error, setError);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
-  const user = parseProfileUserSnapshot(
+  const [apiUser, setApiUser] = useState<any>(null);
+
+  useEffect(() => {
+    getMe()
+      .then((meUser: any) => {
+        if (meUser) {
+          setApiUser(meUser);
+          const storedRaw = localStorage.getItem("pos_user");
+          let stored: any = {};
+          try { if (storedRaw) stored = JSON.parse(storedRaw); } catch {}
+          const updated = {
+            ...stored,
+            ...meUser,
+            id: meUser.id,
+            name: meUser.name,
+            email: meUser.email,
+            role: typeof meUser.role === "string" ? meUser.role : meUser.role?.name || "Admin",
+          };
+          localStorage.setItem("pos_user", JSON.stringify(updated));
+          window.dispatchEvent(new Event("pos-auth-change"));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const localUser = parseProfileUserSnapshot(
     useSyncExternalStore(subscribeToUserChanges, getUserSnapshot, getServerUserSnapshot)
   );
   useSyncExternalStore(
@@ -64,9 +90,24 @@ export default function ProfilePage() {
     getServerProfileVersionSnapshot
   );
 
+  const user = useMemo(() => {
+    if (apiUser) {
+      return {
+        id: apiUser.id,
+        name: apiUser.name || localUser.name,
+        email: apiUser.email || localUser.email,
+        role: typeof apiUser.role === "string" ? apiUser.role : apiUser.role?.name || localUser.role,
+        isActive: apiUser.isActive !== undefined ? apiUser.isActive : localUser.isActive,
+        createdAt: apiUser.createdAt,
+        updatedAt: apiUser.updatedAt,
+      };
+    }
+    return localUser;
+  }, [apiUser, localUser]);
+
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
+  const softSurface = dark ? "bg-[#232333]" : "bg-white";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
@@ -80,7 +121,7 @@ export default function ProfilePage() {
       { label: "Email", value: user.email || "No email saved", Icon: Mail, colorClass: "text-[#03c3ec] bg-[#03c3ec]/10" },
       { label: "Role", value: user.role, Icon: ShieldCheck, colorClass: "text-[#71dd37] bg-[#71dd37]/10" },
       { label: "Status", value: user.isActive === false ? "Inactive" : "Active", Icon: CheckCircle2, colorClass: "text-[#ffab00] bg-[#ffab00]/10" },
-      { label: "User ID", value: user.id ? String(user.id) : "Local user", Icon: IdCard, colorClass: "text-[#8592a3] bg-[#8592a3]/10" },
+      { label: "User ID", value: user.id ? `#${user.id}` : "#1", Icon: IdCard, colorClass: "text-[#8592a3] bg-[#8592a3]/10" },
     ],
     [user.email, user.id, user.isActive, user.name, user.role]
   );
@@ -180,16 +221,17 @@ export default function ProfilePage() {
         <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
           {/* Avatar / Photo Panel */}
           <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
-            <div className="relative group">
+            {/* Clickable Avatar Photo Container with Camera Icon */}
+            <label className="relative group cursor-pointer block" title="Click to upload profile photo">
               {previewImage ? (
                 <img
                   src={previewImage}
                   alt={user.name}
-                  className="h-32 w-32 rounded-full object-cover border-4 border-slate-100 shadow-md transition-all group-hover:brightness-95"
+                  className="h-32 w-32 rounded-full object-cover border-4 border-slate-100 dark:border-slate-800 shadow-md transition-all duration-200 group-hover:brightness-90 group-hover:scale-105"
                 />
               ) : (
                 <div
-                  className={`flex h-32 w-32 items-center justify-center rounded-full text-3xl font-black text-white shadow-md border-4 border-slate-100 ${profileAvatarClass(
+                  className={`flex h-32 w-32 items-center justify-center rounded-full text-3xl font-black text-white shadow-md border-4 border-slate-100 dark:border-slate-800 transition-all duration-200 group-hover:scale-105 ${profileAvatarClass(
                     user.role,
                   )}`}
                 >
@@ -197,10 +239,17 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#696cff] text-white shadow shadow-[#696cff]/30">
+              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#696cff] text-white shadow-md shadow-[#696cff]/30 transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#5f61e6]">
                 <Camera size={16} />
               </span>
-            </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={uploadProfileImage}
+              />
+            </label>
 
             <h2 className={`mt-5 text-lg font-bold ${textPrimary}`}>
               {user.name}

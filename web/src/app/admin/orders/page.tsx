@@ -79,7 +79,7 @@ const TEXT = {
     headers: {
       orderId: "Order ID",
       table: "Table #",
-      server: "Server",
+      server: "BY",
       time: "Time",
       status: "Status",
       total: "Total Amount",
@@ -503,7 +503,7 @@ export default function OrdersPage() {
       "Order ID",
       "Order Type",
       "Table",
-      "Server",
+      "By",
       "Time",
       "Status",
       "Total Amount",
@@ -752,8 +752,9 @@ export default function OrdersPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden min-h-[410px]">
-              <table className="w-full text-left text-sm table-fixed">
+            {/* Orders Table Container (Horizontally scrollable on mobile like Admin Recent Orders) */}
+            <div className="w-full overflow-x-auto min-h-[410px] no-scrollbar">
+              <table className="w-full text-left text-sm min-w-[760px]">
                 <thead
                   className={`text-[11px] uppercase tracking-wide ${
                     dark ? "bg-slate-800 text-slate-400" : "bg-slate-50 text-slate-500"

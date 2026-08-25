@@ -2,7 +2,7 @@
  * Cookie Helper for managing auth tokens securely
  */
 
-export function setCookie(name: string, value: string, days = 7) {
+export function setCookie(name: string, value: string, days = 30) {
   if (typeof document === "undefined") return;
 
   const expires = new Date(Date.now() + days * 864e5).toUTCString();

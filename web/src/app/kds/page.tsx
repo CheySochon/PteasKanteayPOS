@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import {
   ChefHat,
   Clock,
@@ -90,7 +90,7 @@ function playKitchenBellSound() {
 
 let cachedOrders: Order[] | null = null;
 
-export default function KdsPage() {
+function KdsContent() {
   const [theme, setTheme] = useAppTheme();
   const language = useAppLanguage();
   const [collapsed, setCollapsed] = useState(false);
@@ -388,6 +388,14 @@ export default function KdsPage() {
     </main>
       </div>
     </div>
+  );
+}
+
+export default function KdsPage() {
+  return (
+    <Suspense fallback={null}>
+      <KdsContent />
+    </Suspense>
   );
 }
 

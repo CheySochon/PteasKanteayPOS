@@ -266,8 +266,8 @@ export default function DashboardPage() {
       .then(([sales, orderRows, topRows]) => {
         if (!mounted) return;
         cachedDailySales = sales as any; setDailySales(cachedDailySales);
-        cachedOrders = orderRows as any; setOrders(cachedOrders);
-        cachedTopProducts = topRows as any; setTopProducts(cachedTopProducts);
+        cachedOrders = (orderRows || []) as any; setOrders(cachedOrders || []);
+        cachedTopProducts = (topRows || []) as any; setTopProducts(cachedTopProducts || []);
       })
       .catch(() => undefined)
       .finally(() => setLoading(false));

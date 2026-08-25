@@ -32,10 +32,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: [
-    "liver-fraction-eagle-quad.trycloudflare.com",
-    "reminder-creator-plains-efforts.trycloudflare.com"
-  ],
+  allowedDevOrigins: ["*.trycloudflare.com", "localhost:3000"],
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: "http://localhost:4000/api/:path*",
+      },
+    ];
+  },
   async headers() {
     return [
       {

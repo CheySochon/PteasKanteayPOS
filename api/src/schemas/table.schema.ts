@@ -22,3 +22,17 @@ export const updateTableSchema = z.object({
 
 export type CreateTableBody = z.infer<typeof createTableSchema>;
 export type UpdateTableBody = z.infer<typeof updateTableSchema>;
+
+export const moveTableSchema = z.object({
+  sourceTableId: z.number({ error: "sourceTableId is required" }).int().positive(),
+  targetTableId: z.number({ error: "targetTableId is required" }).int().positive(),
+});
+
+export const mergeTableSchema = z.object({
+  sourceTableId: z.number({ error: "sourceTableId is required" }).int().positive(),
+  targetTableId: z.number({ error: "targetTableId is required" }).int().positive(),
+});
+
+export type MoveTableBody = z.infer<typeof moveTableSchema>;
+export type MergeTableBody = z.infer<typeof mergeTableSchema>;
+

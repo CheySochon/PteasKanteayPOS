@@ -147,6 +147,7 @@ export default function TopBar({
   searchPlaceholder,
 }: TopBarProps) {
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [languageSubmenuOpen, setLanguageSubmenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
 
@@ -198,6 +199,7 @@ export default function TopBar({
     getServerProfileVersionSnapshot
   );
 
+  const appLanguage = useAppLanguage();
   const [appTheme, setAppTheme] = useAppTheme();
   const isDark = Boolean(dark || appTheme === "dark");
 
@@ -953,15 +955,67 @@ export default function TopBar({
                     <span>Profile</span>
                   </Link>
 
-                  {/* 3. Language */}
-                  <Link
-                    href="/admin/language"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-3.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-left transition-colors border-none bg-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer no-underline"
-                  >
-                    <Languages size={18} strokeWidth={1.7} className="text-slate-700 dark:text-slate-350" />
-                    <span>Language</span>
-                  </Link>
+                  {/* 3. Language Selector Submenu */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setLanguageSubmenuOpen(!languageSubmenuOpen)}
+                      className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-xl text-sm font-medium text-left transition-colors border-none bg-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Languages size={18} strokeWidth={1.7} className="text-slate-700 dark:text-slate-350" />
+                        <span>{(language || appLanguage) === "km" ? "ភាសា" : "Language"}</span>
+                      </div>
+                      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${languageSubmenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Submenu Options */}
+                    {languageSubmenuOpen && (
+                      <div className="mt-1 ml-4 mr-1 pl-3.5 border-l-2 border-slate-200 dark:border-slate-700 space-y-1 py-1 animate-[usersPageIn_150ms_ease-out_both]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppLanguage("km");
+                            onLanguageChange?.("km");
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("pos-language-change"));
+                            window.dispatchEvent(new Event("pos-auth-change"));
+                            setUserMenuOpen(false);
+                            setLanguageSubmenuOpen(false);
+                          }}
+                          className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs font-normal cursor-pointer transition-colors border-none ${
+                            (language || appLanguage) === "km"
+                              ? "bg-[#55a060]/15 text-[#55a060] font-medium dark:bg-[#55a060]/25 dark:text-slate-100"
+                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="font-normal font-khmer">ភាសាខ្មែរ</span>
+                          {(language || appLanguage) === "km" && <Check size={14} className="text-[#55a060]" />}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppLanguage("en");
+                            onLanguageChange?.("en");
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("pos-language-change"));
+                            window.dispatchEvent(new Event("pos-auth-change"));
+                            setUserMenuOpen(false);
+                            setLanguageSubmenuOpen(false);
+                          }}
+                          className={`flex items-center justify-between w-full px-3 py-2 rounded-lg text-xs font-normal cursor-pointer transition-colors border-none ${
+                            (language || appLanguage) === "en"
+                              ? "bg-[#55a060]/15 text-[#55a060] font-medium dark:bg-[#55a060]/25 dark:text-slate-100"
+                              : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="font-normal">English</span>
+                          {(language || appLanguage) === "en" && <Check size={14} className="text-[#55a060]" />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* 5. Dark Mode */}
                   <button

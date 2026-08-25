@@ -22,14 +22,29 @@ import type {
 import { saveToCache, getFromCache, addOfflineOrder } from "./db";
 
 export function getApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    const customUrl = localStorage.getItem("pos_api_url");
+    if (customUrl && customUrl.trim()) {
+      const cleanCustom = customUrl.trim().replace(/\/$/, "");
+      if (cleanCustom.includes(".trycloudflare.com") && !cleanCustom.includes(window.location.hostname)) {
+        localStorage.removeItem("pos_api_url");
+      } else {
+        return cleanCustom;
+      }
+    }
+  }
+
   const envUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
   if (typeof window !== "undefined") {
     try {
       const parsed = new URL(envUrl, window.location.href);
       if (parsed.hostname === "localhost" && window.location.hostname !== "localhost") {
-        parsed.hostname = window.location.hostname;
+        const isLocalIp = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.)/.test(window.location.hostname);
+        if (isLocalIp) {
+          parsed.hostname = window.location.hostname;
+          return parsed.toString().replace(/\/$/, "");
+        }
       }
-      return parsed.toString().replace(/\/$/, "");
     } catch {}
   }
   return envUrl;
@@ -37,6 +52,27 @@ export function getApiBaseUrl() {
 
 export function getApiOrigin() {
   return getApiBaseUrl().replace(/\/api$/, "");
+}
+
+export function resolveImageUrl(value?: string | null): string {
+  if (!value || !value.trim()) return "";
+  let trimmed = value.trim();
+
+  if (trimmed.startsWith("http://") && !trimmed.includes("localhost") && !trimmed.includes("127.0.0.1")) {
+    trimmed = trimmed.replace("http://", "https://");
+  }
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(trimmed)) {
+    const origin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
+    const cleanPath = trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, "");
+    return `${origin}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+  }
+
+  if (/^(https?:\/\/|blob:|data:)/i.test(trimmed)) return trimmed;
+
+  const origin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${origin}${cleanPath}`;
 }
 
 export const apiBaseUrl = typeof window !== "undefined" ? getApiBaseUrl() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
@@ -85,15 +121,23 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   const currentApiUrl = getApiBaseUrl();
   let response: Response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
   try {
     response = await fetch(`${currentApiUrl}${path}`, {
       method: options.method || "GET",
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
       credentials: "include",
+      signal: controller.signal,
     });
   } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(`API request timed out after 5 seconds at ${currentApiUrl}`);
+    }
     throw new Error(err?.message || `Failed to connect to API server at ${currentApiUrl}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const contentType = response.headers.get("content-type") || "";
@@ -456,7 +500,156 @@ export const deleteTable = async (id: number): Promise<void> => {
     saveToCache("tables", filtered).catch(console.error);
   }
 };
+
+export const moveTable = async (sourceTableId: number, targetTableId: number) => {
+  try {
+    return await request<{ success: boolean; message: string }>("/tables/move", {
+      method: "POST",
+      body: { sourceTableId, targetTableId },
+    });
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const cached = ((await getFromCache("orders")) as Order[]) || [];
+      const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+      const updated = cached.map((o) => {
+        if (o.tableId === sourceTableId && activeStatuses.includes(o.status)) {
+          return { ...o, tableId: targetTableId, updatedAt: new Date().toISOString() };
+        }
+        return o;
+      });
+      await saveToCache("orders", updated);
+      return { success: true, message: "Table moved successfully" };
+    }
+    throw err;
+  }
+};
+
+export const mergeTable = async (sourceTableId: number, targetTableId: number) => {
+  try {
+    return await request<{ success: boolean; message: string; mergedOrder: any }>("/tables/merge", {
+      method: "POST",
+      body: { sourceTableId, targetTableId },
+    });
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const cached = ((await getFromCache("orders")) as Order[]) || [];
+      const tables = ((await getFromCache("tables")) as DiningTable[]) || [];
+      const sourceTable = tables.find((t) => t.id === sourceTableId);
+      const targetTable = tables.find((t) => t.id === targetTableId);
+
+      const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+      let sourceOrder = cached.find((o) => o.tableId === sourceTableId && activeStatuses.includes(o.status));
+      let targetOrder = cached.find((o) => o.tableId === targetTableId && activeStatuses.includes(o.status));
+
+      const now = new Date().toISOString();
+
+      if (!targetOrder) {
+        targetOrder = {
+          id: Date.now(),
+          orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          tableId: targetTableId,
+          tableNo: targetTable?.name,
+          status: "pending",
+          subtotal: 0,
+          totalAmount: 0,
+          items: [],
+          notes: "",
+          createdAt: now,
+          updatedAt: now,
+        } as any;
+      }
+
+      if (!sourceOrder) {
+        sourceOrder = {
+          id: Date.now() + 1,
+          orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          tableId: sourceTableId,
+          tableNo: sourceTable?.name,
+          status: "pending",
+          subtotal: 0,
+          totalAmount: 0,
+          items: [],
+          notes: "",
+          createdAt: now,
+          updatedAt: now,
+        } as any;
+      }
+
+      const activeTarget = targetOrder!;
+      const activeSource = sourceOrder!;
+
+      const combinedItems = [...(activeTarget.items || []), ...(activeSource.items || [])];
+      let newSubtotal = 0;
+      combinedItems.forEach((it: any) => {
+        newSubtotal += Number(it.totalPrice || ((it.unitPrice || 0) * (it.quantity || 1)) || 0);
+      });
+      const newTotalAmount = Math.max(
+        newSubtotal - Number(activeTarget.discountAmount || 0) + Number(activeTarget.taxAmount || 0),
+        0
+      );
+      const updatedTarget = {
+        ...activeTarget,
+        subtotal: newSubtotal,
+        totalAmount: newTotalAmount,
+        items: combinedItems,
+        notes: `Merged with ${sourceTable?.name || `Table ${sourceTableId}`}`,
+        updatedAt: now,
+      };
+      const updatedSource = {
+        ...activeSource,
+        status: activeTarget.status,
+        subtotal: 0,
+        totalAmount: 0,
+        notes: `Merged into ${targetTable?.name || `Table ${targetTableId}`}`,
+        updatedAt: now,
+      };
+
+      const otherOrders = cached.filter((o) => o.id !== activeTarget.id && o.id !== activeSource.id);
+      const updatedList = [updatedTarget, updatedSource, ...otherOrders];
+      await saveToCache("orders", updatedList);
+      return { success: true, message: "Tables merged successfully", mergedOrder: updatedTarget };
+    }
+    throw err;
+  }
+};
+
+export const unmergeTable = async (tableId: number) => {
+  try {
+    return await request<{ success: boolean; message: string }>(`/tables/${tableId}/unmerge`, {
+      method: "POST",
+    });
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const cached = ((await getFromCache("orders")) as Order[]) || [];
+      const tables = ((await getFromCache("tables")) as DiningTable[]) || [];
+      const currentTable = tables.find((t) => t.id === tableId);
+      const tableName = currentTable?.name || "";
+
+      const updated = cached.map((o) => {
+        if (o.tableId === tableId || (o.notes && o.notes.toLowerCase().includes(tableName.toLowerCase()))) {
+          const cleanNote = (o.notes || "")
+            .replace(/\s*\(Merged with [^)]+\)/gi, "")
+            .replace(/Merged with [^\n,]+/gi, "")
+            .replace(/Merged into [^\n,]+/gi, "")
+            .trim();
+
+          if (o.notes?.includes("Merged into")) {
+            return { ...o, status: "completed" as const, notes: null, updatedAt: new Date().toISOString() };
+          }
+          return { ...o, notes: cleanNote || null, updatedAt: new Date().toISOString() };
+        }
+        return o;
+      });
+
+      await saveToCache("orders", updated);
+      return { success: true, message: "Table unmerged successfully" };
+    }
+    throw err;
+  }
+};
+
 export const getQrMenu = (tableToken: string) => request<QrMenu>(`/tables/${tableToken}/menu`);
+
 
 export const getOrders = async (status?: string): Promise<Order[]> => {
   let data: Order[] = [];

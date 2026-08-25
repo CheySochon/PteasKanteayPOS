@@ -17,8 +17,8 @@ import { createAuditLog } from "../services/audit.service.js";
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict" as const,
-  maxAge: 12 * 60 * 60 * 1000,
+  sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+  maxAge: 30 * 24 * 60 * 60 * 1000,
 };
 
 export const register = async (

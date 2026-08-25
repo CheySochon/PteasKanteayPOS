@@ -30,7 +30,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
 }
 
 body {
@@ -40,6 +42,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 input, textarea, select, button {
@@ -65,7 +68,43 @@ input, textarea, select, button {
   letter-spacing: -0.03em;
 }
 
-/* Custom Scrollbar Utilities */
+/* Custom Sleek, Ultra-Thin & Short Bottom-Right Scrollbar */
+::-webkit-scrollbar {
+  width: 2.5px;
+  height: 2.5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  margin-top: 50vh;
+  margin-bottom: 90px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 9999px;
+  min-height: 32px;
+  max-height: 48px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(78, 166, 104, 0.85);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Firefox thin scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
@@ -328,6 +367,57 @@ main::-webkit-scrollbar {
     rgba(255, 255, 255, 0.08) 60%,
     rgba(255, 255, 255, 0) 100%
   );
+}
+
+/* ==========================================================================
+   KEYFRAME ANIMATIONS FOR STEPPER & ORDER TRACKING
+   ========================================================================== */
+@keyframes smoothFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes stepPop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(78, 166, 104, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(78, 166, 104, 0);
+    transform: scale(1.04);
+  }
+}
+
+.animate-fade-in-up {
+  animation: smoothFadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-step-pop {
+  animation: stepPop 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 

@@ -7,10 +7,15 @@ import {
   updateTable,
   deleteTable,
   getQrMenu,
+  moveTable,
+  mergeTable,
+  unmergeTable,
 } from "../services/table.service.js";
 import {
   CreateTableBody,
   UpdateTableBody,
+  MoveTableBody,
+  MergeTableBody,
 } from "../schemas/table.schema.js";
 
 export const list = asyncHandler(async (_req: Request, res: Response) => {
@@ -49,6 +54,46 @@ export const qrMenu = asyncHandler(
   },
 );
 
+export const move = asyncHandler(
+  async (req: Request<object, object, MoveTableBody>, res: Response) => {
+    const { sourceTableId, targetTableId } = req.body;
+    const result = await moveTable(sourceTableId, targetTableId);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("table:updated", result.sourceTable);
+      io.emit("table:updated", result.targetTable);
+      io.emit("order:updated", { tableId: targetTableId });
+    }
+    res.json({ success: true, message: result.message, data: result });
+  },
+);
+
+export const merge = asyncHandler(
+  async (req: Request<object, object, MergeTableBody>, res: Response) => {
+    const { sourceTableId, targetTableId } = req.body;
+    const result = await mergeTable(sourceTableId, targetTableId);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("table:updated", result.sourceTable);
+      io.emit("table:updated", result.targetTable);
+      io.emit("order:updated", result.mergedOrder);
+    }
+    res.json({ success: true, message: result.message, data: result });
+  },
+);
+
+export const unmerge = asyncHandler(
+  async (req: Request<{ id: string }>, res: Response) => {
+    const result = await unmergeTable(Number(req.params.id));
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("table:updated", result.table);
+    }
+    res.json({ success: true, message: result.message, data: result });
+  },
+);
+
+
 export const qrCode = asyncHandler(
   async (req: Request<{ qrToken: string }>, res: Response) => {
     const { qrToken } = req.params;
@@ -69,3 +114,4 @@ export const qrCode = asyncHandler(
     res.send(png);
   },
 );
+

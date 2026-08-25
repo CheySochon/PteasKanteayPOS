@@ -157,11 +157,57 @@ const formatDualTotal = (usd: any) => {
 };
 
 function resolveImageUrl(value?: string | null) {
-  if (!value) return "";
-  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("blob:")) {
-    return value;
+  if (!value || !value.trim()) return "";
+  let trimmed = value.trim();
+
+  if (trimmed.startsWith("http://") && !trimmed.includes("localhost") && !trimmed.includes("127.0.0.1")) {
+    trimmed = trimmed.replace("http://", "https://");
   }
-  return `${apiOrigin}${value}`;
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(trimmed)) {
+    const origin = typeof window !== "undefined" ? getApiOrigin() : "";
+    const cleanPath = trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, "");
+    return `${origin}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+  }
+
+  if (/^(https?:\/\/|blob:|data:)/i.test(trimmed)) return trimmed;
+  const origin = typeof window !== "undefined" ? getApiOrigin() : "";
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${origin}${cleanPath}`;
+}
+
+const PRODUCT_IMAGE_FALLBACKS: Record<string, string> = {
+  cheesecake: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=600&q=80",
+  "chocolate frappe": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=600&q=80",
+  croissant: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80",
+  "green tea": "https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?auto=format&fit=crop&w=600&q=80",
+  latte: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80",
+  cappuccino: "https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80",
+  americano: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
+};
+
+const DEFAULT_FOOD_PHOTOS = [
+  "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=600&q=80",
+];
+
+function getProductPhoto(product: any, index: number = 0): string {
+  if (product?.imageUrl && String(product.imageUrl).trim()) {
+    return resolveImageUrl(product.imageUrl);
+  }
+  const name = String(product?.name || "").toLowerCase().trim();
+  for (const [key, url] of Object.entries(PRODUCT_IMAGE_FALLBACKS)) {
+    if (name.includes(key)) return url;
+  }
+  if (name.includes("ជើងជ្រូក") || name.includes("ជ្រូក") || name.includes("pork")) return "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80";
+  if (name.includes("គោ") || name.includes(" beef") || name.includes("អាំង")) return "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80";
+  if (name.includes("មាន់") || name.includes(" chicken") || name.includes("ឆា")) return "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80";
+  if (name.includes("កាហ្វេ") || name.includes("coffee") || name.includes("latte")) return "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80";
+  if (name.includes("តែ") || name.includes("tea")) return "https://images.unsplash.com/photo-1627435601361-ec25f5b1d0e5?auto=format&fit=crop&w=600&q=80";
+  return DEFAULT_FOOD_PHOTOS[index % DEFAULT_FOOD_PHOTOS.length];
 }
 
 function getItemPrepTime(item: any): number {
@@ -650,13 +696,13 @@ export default function TableQrPage({
     );
   }
 
-  const restaurantName = restaurantNameState || menuData?.restaurant?.name || "ផ្ទះកន្ត្រាយ POS";
+  const restaurantName = restaurantNameState || menuData?.restaurant?.name || "PteasKanteay POS 60";
   const tableName = menuData?.table?.name || "Table";
   const isReadOnly = orderConfirmed;
   const finalLogoUrl = logoUrlState || menuData?.restaurant?.logoUrl || "";
 
   return (
-    <div className="min-h-screen w-full bg-white flex flex-col font-sans text-slate-800 selection:bg-emerald-100 pb-20 md:pb-8">
+    <div className="min-h-[100dvh] w-full bg-white flex flex-col font-sans text-slate-800 selection:bg-emerald-100 pb-36 md:pb-8 touch-pan-y overflow-y-auto">
       {/* ── TOP RESPONSIVE HEADER ── */}
       <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-xs">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -775,7 +821,7 @@ export default function TableQrPage({
       )}
 
       {/* ── MAIN CONTENT AREA ── */}
-      <main className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-6 flex-1">
+      <main className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-6 flex-1 pb-36 md:pb-6 touch-pan-y">
         {/* MENU TAB */}
         {activePage === "menu" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -884,7 +930,7 @@ export default function TableQrPage({
 
               {/* Responsive 2-Col Mobile / 3-Col Tablet / 4-Col Desktop Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4.5">
-                {filteredProducts.map((product) => {
+                {filteredProducts.map((product, idx) => {
                   const qty = getQuantity(product.id);
                   const hasQty = qty > 0;
                   const categoryName = menuData?.categories.find((c) => c.id === product.categoryId)?.name || t("Food", "ប្រភេទម្ហូប");
@@ -905,17 +951,14 @@ export default function TableQrPage({
                           {categoryName}
                         </div>
 
-                        {product.imageUrl ? (
-                          <img
-                            src={resolveImageUrl(product.imageUrl)}
-                            alt={product.name}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-full w-full text-[#4EA668]/40">
-                            <Utensils size={32} className="stroke-[1.6]" />
-                          </div>
-                        )}
+                        <img
+                          src={getProductPhoto(product, idx)}
+                          alt={product.name}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_FOOD_PHOTOS[idx % DEFAULT_FOOD_PHOTOS.length];
+                          }}
+                        />
 
                         {/* Floating Action Button (Bottom-Right of Image matching POS Screen) */}
                         {!hasQty ? (
@@ -1017,13 +1060,14 @@ export default function TableQrPage({
                       {cart.map((item) => (
                         <div key={item.productId} className="flex items-center gap-3 rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                           <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#EAF5ED]">
-                            {item.imageUrl ? (
-                              <img src={resolveImageUrl(item.imageUrl)} alt={item.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-[#4EA668]">
-                                <Utensils size={18} />
-                              </div>
-                            )}
+                            <img
+                              src={getProductPhoto(item, 0)}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = DEFAULT_FOOD_PHOTOS[0];
+                              }}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="truncate text-xs font-medium text-slate-800">{item.name}</h5>
@@ -1141,17 +1185,14 @@ export default function TableQrPage({
                       className="flex items-center gap-3.5 rounded-2xl bg-white p-3.5 shadow-xs border border-slate-200/80"
                     >
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-[#EAF5ED]">
-                        {item.imageUrl ? (
-                          <img
-                            src={resolveImageUrl(item.imageUrl)}
-                            alt={item.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[#4EA668]">
-                            <Utensils size={22} />
-                          </div>
-                        )}
+                        <img
+                          src={getProductPhoto(item, 0)}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = DEFAULT_FOOD_PHOTOS[0];
+                          }}
+                        />
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -1260,17 +1301,14 @@ export default function TableQrPage({
                     }`}
                   >
                     <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-[#EAF5ED]">
-                      {item.imageUrl ? (
-                        <img
-                          src={resolveImageUrl(item.imageUrl)}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[#4EA668]">
-                          <Utensils size={18} />
-                        </div>
-                      )}
+                      <img
+                        src={getProductPhoto(item, i)}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_FOOD_PHOTOS[i % DEFAULT_FOOD_PHOTOS.length];
+                        }}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-xs font-bold text-slate-900">{item.name}</div>
@@ -1379,7 +1417,7 @@ export default function TableQrPage({
                   const maxPrepTime = itemPrepTimes.length > 0 ? Math.max(...itemPrepTimes) : 12;
 
                   return (
-                    <div key={order.id} className="rounded-2xl bg-white p-5 shadow-xs border border-slate-200/80 space-y-4">
+                    <div key={order.id} className="rounded-2xl bg-white p-5 shadow-xs border border-slate-200/80 space-y-4 animate-fade-in-up">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div>
                           <div className="text-sm font-black text-slate-900">Order #{order.orderNumber || order.id}</div>
@@ -1387,28 +1425,21 @@ export default function TableQrPage({
                             {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 rounded-lg bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-xs font-bold text-amber-700">
-                            <Clock size={13} className="text-amber-500" />
-                            <span>{maxPrepTime} {t("mins est.", "នាទី")}</span>
-                          </span>
-                          <span className={`rounded-lg px-3 py-1 text-xs font-extrabold ${
-                            isReady ? "bg-emerald-100 text-emerald-700" :
-                            isCooking ? "bg-[#EAF5ED] text-[#4EA668]" :
-                            "bg-amber-100 text-amber-700"
-                          }`}>
-                            {order.status.toUpperCase()}
-                          </span>
-                        </div>
+                        <span className={`rounded-lg px-3 py-1 text-xs font-extrabold ${
+                          isReady ? "bg-emerald-100 text-emerald-700" :
+                          isCooking ? "bg-[#EAF5ED] text-[#4EA668]" :
+                          "bg-amber-100 text-amber-700"
+                        }`}>
+                          {order.status.toUpperCase()}
+                        </span>
                       </div>
 
-                      {/* Items List with Per-Item Preparation Minutes */}
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                          {t("Ordered Dishes & Prep Time", "មុខម្ហូប និង ពេលវេលារៀបចំ")}
+                      {/* Items List */}
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
+                          {t("Ordered Dishes", "មុខម្ហូប និង ពេលវេលារៀបចំ")}
                         </div>
                         {order.items?.map((item: any) => {
-                          const prepMins = getItemPrepTime(item);
                           const isDone = kdsItemStatuses[item.id] === "completed" || item.isCompleted || item.status === "completed" || isReady;
 
                           return (
@@ -1416,7 +1447,7 @@ export default function TableQrPage({
                               key={item.id}
                               className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-medium transition-all ${
                                 isDone
-                                  ? "bg-slate-50/70 border-slate-200/60 opacity-85"
+                                  ? "bg-slate-50/70 border-slate-200/60 opacity-80"
                                   : "bg-slate-50 border-slate-100 text-slate-800"
                               }`}
                             >
@@ -1430,46 +1461,67 @@ export default function TableQrPage({
                                   {item.product?.name || item.name}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-3 shrink-0 ml-2">
-                                {/* Cooking / Prep Time or Completed Badge per dish */}
-                                {isDone ? (
-                                  <span className="flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-bold shadow-2xs">
-                                    ✓ {t("Ready", "រួចរាល់")}
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-1 bg-white border border-amber-200/90 text-amber-800 px-2 py-0.5 rounded-md text-[11px] font-bold shadow-2xs">
-                                    <Clock size={11} className="text-amber-500" />
-                                    <span>{prepMins} {t("mins", "នាទី")}</span>
-                                  </span>
-                                )}
-                                <span className={`font-bold min-w-[50px] text-right ${isDone ? "text-slate-400 line-through font-normal" : "text-[#4EA668]"}`}>
-                                  {formatPrice(Number(item.price), locale)}
-                                </span>
-                              </div>
+                              <span className={`font-bold shrink-0 ml-2 ${isDone ? "text-slate-400 line-through font-normal" : "text-[#4EA668]"}`}>
+                                {formatPrice(Number(item.price), locale)}
+                              </span>
                             </div>
                           );
                         })}
                       </div>
 
-                      {/* Tracking Step Timeline */}
-                      <div className="space-y-3 pt-3 border-t border-slate-100">
+                      {/* Foodpanda Vertical Stepper Timeline with Connecting Line */}
+                      <div className="relative pt-3 pl-2 pr-2 border-t border-slate-100">
                         {[
-                          { key: "received", en: "Order Received", kh: "ទទួលការបញ្ជាទិញ" },
-                          { key: "preparing", en: `Preparing / Cooking (Est. ~${maxPrepTime} mins)`, kh: `កំពុងចម្អិន/រៀបចំ (ប្រហែល ${maxPrepTime} នាទី)` },
-                          { key: "ready", en: "Ready / Served", kh: "រួចរាល់/លើកជូន" },
+                          {
+                            key: "received",
+                            titleEn: "Order Received",
+                            titleKh: "ទទួលការបញ្ជាទិញ",
+                          },
+                          {
+                            key: "preparing",
+                            titleEn: `Preparing / Cooking (Est. ~${maxPrepTime} mins)`,
+                            titleKh: `កំពុងចម្អិន/រៀបចំ (ប្រហែល ${maxPrepTime} នាទី)`,
+                          },
+                          {
+                            key: "ready",
+                            titleEn: "Ready / Served",
+                            titleKh: "រួចរាល់/លើកជូន",
+                          },
                         ].map((step, idx) => {
                           const done = idx <= currentStepIndex;
                           const active = idx === currentStepIndex;
+                          const isLast = idx === 2;
+
                           return (
-                            <div key={step.key} className="flex items-center gap-3">
-                              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                                done ? "bg-[#4EA668] text-white" : "bg-slate-100 text-slate-400"
-                              }`}>
-                                {done ? "✓" : idx + 1}
+                            <div key={step.key} className="relative flex items-center gap-3.5 pb-4 last:pb-1">
+                              {/* Connecting Vertical Line */}
+                              {!isLast && (
+                                <div
+                                  className={`absolute left-[13px] top-6 bottom-0 w-0.5 transition-colors duration-500 ${
+                                    idx < currentStepIndex ? "bg-[#4EA668]" : "bg-slate-200"
+                                  }`}
+                                />
+                              )}
+
+                              {/* Step Icon Node */}
+                              <div className="relative z-10 shrink-0">
+                                <div
+                                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black transition-all ${
+                                    done
+                                      ? "bg-[#4EA668] text-white shadow-xs ring-4 ring-[#EAF5ED] animate-step-pop"
+                                      : "bg-slate-100 text-slate-400 border border-slate-200"
+                                  } ${active && !isReady ? "animate-pulse-glow" : ""}`}
+                                >
+                                  {done ? <Check size={14} className="stroke-[3]" /> : idx + 1}
+                                </div>
                               </div>
-                              <span className={`text-xs font-bold ${active ? "text-slate-900 font-extrabold" : done ? "text-slate-700" : "text-slate-400"}`}>
-                                {t(step.en, step.kh)}
-                              </span>
+
+                              {/* Step Content Text */}
+                              <div className={`text-xs sm:text-sm font-bold transition-colors ${
+                                active ? "text-[#4EA668] font-black" : done ? "text-slate-900" : "text-slate-400 font-semibold"
+                              }`}>
+                                {t(step.titleEn, step.titleKh)}
+                              </div>
                             </div>
                           );
                         })}
@@ -1485,7 +1537,7 @@ export default function TableQrPage({
 
       {/* ── MOBILE FLOATING ORDER BAR (Mobile < md only) ── */}
       {totalItems > 0 && activePage === "menu" && !isReadOnly && (
-        <div className="md:hidden fixed bottom-18 left-4 right-4 bg-[#4EA668] rounded-2xl p-3 px-4 flex items-center justify-between text-white shadow-[0_12px_30px_-5px_rgba(78,166,104,0.4)] z-30 animate-[slideFromBottom_300ms_cubic-bezier(0.16,1,0.3,1)]">
+        <div className="md:hidden fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-4 right-4 bg-[#4EA668] rounded-2xl p-3 px-4 flex items-center justify-between text-white shadow-[0_12px_30px_-5px_rgba(78,166,104,0.4)] z-30 animate-[slideFromBottom_300ms_cubic-bezier(0.16,1,0.3,1)]">
           <div>
             <div className="font-bold text-xs flex items-center gap-1.5">
               <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{totalItems}</span>
@@ -1507,7 +1559,7 @@ export default function TableQrPage({
       )}
 
       {/* ── MOBILE BOTTOM NAVIGATION BAR (Mobile < md only) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around py-2.5 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-around pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         {[
           { icon: Utensils, label: t("Menu", "ម៉ឺនុយ"), page: "menu" as PageTab },
           { icon: ShoppingBag, label: t("My Order", "ការកម្មង់"), page: "order" as PageTab },

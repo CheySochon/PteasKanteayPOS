@@ -24,6 +24,9 @@ import {
   CheckCircle2,
   Sparkles,
   Wifi,
+  ArrowRightLeft,
+  GitMerge,
+  GitPullRequest,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
@@ -36,6 +39,9 @@ import {
   getTables,
   updateOrderStatus,
   updateTable,
+  moveTable,
+  mergeTable,
+  unmergeTable,
 } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 import type { DiningTable, Order, TableZone } from "../../../lib/types";
@@ -50,7 +56,7 @@ function formatShortOrderNo(order: Order) {
   return raw;
 }
 
-type TableState = "available" | "occupied" | "dirty" | "reserved" | "inactive";
+type TableState = "available" | "occupied" | "dirty" | "reserved" | "inactive" | "merged";
 type TableForm = {
   id?: number;
   name: string;
@@ -88,6 +94,13 @@ const tableStateStyles: Record<
     badge: "bg-[#e7e7ff] text-[#696cff]",
     dot: "bg-[#696cff]",
     label: "Occupied",
+  },
+  merged: {
+    border: "border-purple-300 dark:border-purple-800 hover:border-purple-500",
+    bg: "bg-purple-50/20",
+    badge: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+    dot: "bg-purple-500",
+    label: "Merged (Joined)",
   },
   dirty: {
     border: "border-[#ff3e1d]/30 hover:border-[#ff3e1d]",
@@ -140,12 +153,26 @@ function formatWaitTime(order?: Order) {
 function getTableState(table: DiningTable, order?: Order): TableState {
   if (!table.isActive) return "inactive";
   if (table.reservation) return "reserved";
+  if (order?.notes?.toLowerCase().includes("merged into")) return "merged";
   if (order?.status === "served") return "dirty";
   if (order && occupiedStatuses.includes(order.status as (typeof occupiedStatuses)[number])) {
     return "occupied";
   }
   return "available";
 }
+
+function getDisplayTableName(table: DiningTable, order?: Order): string {
+  if (!order || !order.notes) return table.name;
+  const match = order.notes.match(/Merged (?:with|from) ([^)\n,]+)/i);
+  if (match && match[1]) {
+    const mergedName = match[1].trim();
+    if (mergedName && !table.name.toLowerCase().includes(mergedName.toLowerCase())) {
+      return `${table.name} & ${mergedName}`;
+    }
+  }
+  return table.name;
+}
+
 
 let cachedTables: DiningTable[] | null = null;
 let cachedOrders: Order[] | null = null;
@@ -165,6 +192,15 @@ export default function TablesPage() {
   useAutoDismiss(message, setMessage);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [clearingId, setClearingId] = useState<number | null>(null);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [moveSourceTable, setMoveSourceTable] = useState<DiningTable | null>(null);
+  const [moveTargetTableId, setMoveTargetTableId] = useState<number | null>(null);
+  const [mergeSourceTable, setMergeSourceTable] = useState<DiningTable | null>(null);
+  const [mergeTargetTableId, setMergeTargetTableId] = useState<number | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
+
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -303,6 +339,66 @@ export default function TablesPage() {
     resetTableForm();
   }
 
+  function openMoveModal(sourceTable?: DiningTable) {
+    setMoveSourceTable(sourceTable || null);
+    setMoveTargetTableId(null);
+    setMessage("");
+    setIsMoveModalOpen(true);
+  }
+
+  function openMergeModal(sourceTable?: DiningTable) {
+    setMergeSourceTable(sourceTable || null);
+    setMergeTargetTableId(null);
+    setMessage("");
+    setIsMergeModalOpen(true);
+  }
+
+  async function handleMoveSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!moveSourceTable || !moveTargetTableId) return;
+    setIsMoving(true);
+    setMessage("");
+    try {
+      const res = await moveTable(moveSourceTable.id, moveTargetTableId);
+      const socket = getSocket();
+      if (socket) socket.emit("table:updated", { id: moveSourceTable.id });
+      setMessage(language === "km" ? `បានប្តូរតុពី ${moveSourceTable.name} ទៅតុថ្មីជោគជ័យ` : res.message || "Table moved successfully");
+      setIsMoveModalOpen(false);
+      setMoveSourceTable(null);
+      setMoveTargetTableId(null);
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to move table");
+    } finally {
+      setIsMoving(false);
+    }
+  }
+
+  async function handleMergeSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!mergeSourceTable || !mergeTargetTableId) return;
+    setIsMerging(true);
+    setMessage("");
+    try {
+      const res = await mergeTable(mergeSourceTable.id, mergeTargetTableId);
+      if (res && (res as any).mergedOrder) {
+        setOrders((current) => upsertOrder(current, (res as any).mergedOrder));
+      }
+      const socket = getSocket();
+      if (socket) socket.emit("table:updated", { id: mergeSourceTable.id });
+      setMessage(language === "km" ? `បានរួមតុ ${mergeSourceTable.name} ចូលគ្នាជោគជ័យ` : res.message || "Tables merged successfully");
+      setIsMergeModalOpen(false);
+      setMergeSourceTable(null);
+      setMergeTargetTableId(null);
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to merge table");
+    } finally {
+      setIsMerging(false);
+    }
+  }
+
+
   function qrLink(table: DiningTable) {
     if (typeof window === "undefined") return `/qr/${table.qrToken}`;
     return `${window.location.origin}/qr/${table.qrToken}`;
@@ -365,8 +461,26 @@ export default function TablesPage() {
     try {
       const updated = await updateOrderStatus(order.id, "completed");
       setOrders((current) => upsertOrder(current, updated));
+
+      // If order was merged with another table, clear the merged source order too
+      if (order.notes?.includes("Merged with ")) {
+        const match = order.notes.match(/Merged with ([^)\n,]+)/);
+        if (match && match[1]) {
+          const mergedName = match[1].trim();
+          const mergedTable = tables.find((t) => t.name.toLowerCase() === mergedName.toLowerCase());
+          if (mergedTable) {
+            const mergedOrder = orders.find((o) => o.tableId === mergedTable.id && liveOrderStatuses.includes(o.status as any));
+            if (mergedOrder) {
+              const updatedMerged = await updateOrderStatus(mergedOrder.id, "completed").catch(() => null);
+              if (updatedMerged) setOrders((current) => upsertOrder(current, updatedMerged));
+            }
+          }
+        }
+      }
+
       setLastUpdated(new Date());
       setMessage(`Table ${order.tableNo || order.table?.name || ""} cleared.`);
+      await load();
     } catch (err) {
       setMessage(
         err instanceof Error
@@ -375,6 +489,16 @@ export default function TablesPage() {
       );
     } finally {
       setClearingId(null);
+    }
+  }
+
+  async function handleUnmergeTable(table: DiningTable) {
+    try {
+      await unmergeTable(table.id);
+      setMessage(`Table ${table.name} unmerged.`);
+      await load();
+    } catch {
+      setMessage("Unable to unmerge table.");
     }
   }
 
@@ -471,7 +595,25 @@ export default function TablesPage() {
                 })}
               </div>
 
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openMoveModal()}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 active:scale-95 transition-all cursor-pointer"
+                  title="Move Table"
+                >
+                  <ArrowRightLeft size={14} />
+                  {language === "km" ? "ប្តូរតុ" : "Move Table"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openMergeModal()}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-3 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 active:scale-95 transition-all cursor-pointer"
+                  title="Merge Table"
+                >
+                  <GitMerge size={14} />
+                  {language === "km" ? "រួមតុ" : "Merge Table"}
+                </button>
                 <button
                   type="button"
                   onClick={openCreateTableModal}
@@ -520,7 +662,7 @@ export default function TablesPage() {
                         <div className="flex items-center justify-between gap-2 h-7">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className={`text-xl font-black leading-none truncate ${state === "inactive" ? "text-slate-400" : "text-[#566a7f]"}`}>
-                              {table.name}
+                              {getDisplayTableName(table, order)}
                             </span>
                             {table.zone === "vip" && (
                               <span className="inline-flex items-center text-[10px] font-extrabold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
@@ -587,6 +729,39 @@ export default function TablesPage() {
                               "Clear Table"
                             )}
                           </button>
+                        )}
+                        {(state === "merged" || (order?.notes && (order.notes.includes("Merged with") || order.notes.includes("Merged into")))) && (
+                          <button
+                            type="button"
+                            onClick={() => handleUnmergeTable(table)}
+                            className="mb-2 w-full rounded border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-3 py-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                          >
+                            <GitPullRequest size={12} />
+                            {language === "km" ? "បំបែកតុ (Unmerge)" : "Unmerge Table"}
+                          </button>
+                        )}
+
+                        {order && (state === "occupied" || state === "dirty") && !order.notes?.includes("Merged into") && (
+                          <div className="mb-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openMoveModal(table)}
+                              className="flex-1 rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Move Table"
+                            >
+                              <ArrowRightLeft size={11} />
+                              {language === "km" ? "ប្តូរតុ" : "Move"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openMergeModal(table)}
+                              className="flex-1 rounded border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-2 py-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Merge Table"
+                            >
+                              <GitMerge size={11} />
+                              {language === "km" ? "រួមតុ" : "Merge"}
+                            </button>
+                          </div>
                         )}
 
                         <div className="flex gap-2">
@@ -786,6 +961,283 @@ export default function TablesPage() {
           </div>
         </div>
       )}
+      {/* MOVE TABLE MODAL */}
+      {isMoveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+          <button
+            type="button"
+            aria-label="Close move modal"
+            onClick={() => setIsMoveModalOpen(false)}
+            className="absolute inset-0 cursor-default"
+          />
+
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[460px] overflow-y-auto rounded-2xl p-6.5 shadow-xl border border-indigo-100 dark:border-indigo-900 animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface}`}>
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                  <ArrowRightLeft size={18} />
+                </div>
+                <div>
+                  <h2 className={`text-base font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "ប្តូរតុ (Move Table)" : "Move Table"}
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    {language === "km" ? "ផ្លាស់ប្តូរ Order ទៅកាន់តុទំនេរថ្មី" : "Transfer active order to an empty table"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMoveModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleMoveSubmit} className="space-y-4">
+              {tables.filter((t) => orders.some((o) => o.tableId === t.id && ["pending", "accepted", "preparing", "ready", "served"].includes(o.status))).length === 0 && (
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-3 text-xs text-amber-700 dark:text-amber-300 font-medium">
+                  {language === "km"
+                    ? "⚠️ ពុំទាន់មានតុដែលមាន Order ដើម្បីប្តូរឡើយ"
+                    : "⚠️ No occupied tables with active orders to move."}
+                </div>
+              )}
+
+              {/* Source Table Display / Selection */}
+              {moveSourceTable ? (
+                <div className="rounded-xl bg-slate-50 dark:bg-[#232333] border border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">
+                      {language === "km" ? "តុដើម" : "Source Table"}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {moveSourceTable.name} ({moveSourceTable.zone})
+                    </span>
+                  </div>
+                  <span className="rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 text-xs font-bold">
+                    Occupied
+                  </span>
+                </div>
+              ) : (
+                <label className="block">
+                  <span className={`text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "តុដើម" : "Source Table"}
+                  </span>
+                  <select
+                    required
+                    value=""
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      const found = tables.find((t) => t.id === id);
+                      setMoveSourceTable(found || null);
+                    }}
+                    className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="">{language === "km" ? "-- ជ្រើសរើសតុដើម --" : "-- Select Source Table --"}</option>
+                    {tables
+                      .filter((t) => {
+                        const order = orders.find((o) => o.tableId === t.id && ["pending", "accepted", "preparing", "ready", "served"].includes(o.status));
+                        return !!order;
+                      })
+                      .map((t) => {
+                        const order = orders.find((o) => o.tableId === t.id && ["pending", "accepted", "preparing", "ready", "served"].includes(o.status));
+                        return (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.zone}) · {formatShortOrderNo(order!)} (${Number(order?.totalAmount || 0).toFixed(2)})
+                          </option>
+                        );
+                      })}
+                  </select>
+                </label>
+              )}
+
+              {/* Target Table Selection */}
+              <label className="block">
+                <span className={`text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "តុគោលដៅ" : "Target Table"}
+                </span>
+                <select
+                  required
+                  value={moveTargetTableId || ""}
+                  onChange={(e) => setMoveTargetTableId(Number(e.target.value))}
+                  className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="">{language === "km" ? "-- ជ្រើសរើសតុទំនេរ --" : "-- Select Target Table --"}</option>
+                  {tables
+                    .filter((t) => {
+                      if (!t.isActive) return false;
+                      if (moveSourceTable && t.id === moveSourceTable.id) return false;
+                      const order = orders.find((o) => o.tableId === t.id && ["pending", "accepted", "preparing", "ready", "served"].includes(o.status));
+                      return !order;
+                    })
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.zone}) · {t.capacity} Seats
+                      </option>
+                    ))}
+                </select>
+              </label>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3.5 mt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsMoveModalOpen(false)}
+                  className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isMoving || !moveSourceTable || !moveTargetTableId}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 text-xs font-bold text-white shadow-md shadow-indigo-600/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isMoving ? <Loader2 className="animate-spin" size={14} /> : <ArrowRightLeft size={14} />}
+                  <span>{language === "km" ? "ប្តូរតុ" : "Confirm Move"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MERGE TABLE MODAL */}
+      {isMergeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+          <button
+            type="button"
+            aria-label="Close merge modal"
+            onClick={() => setIsMergeModalOpen(false)}
+            className="absolute inset-0 cursor-default"
+          />
+
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[460px] overflow-y-auto rounded-2xl p-6.5 shadow-xl border border-purple-100 dark:border-purple-900 animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] ${surface}`}>
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+                  <GitMerge size={18} />
+                </div>
+                <div>
+                  <h2 className={`text-base font-bold text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "រួមតុ (Merge Table)" : "Merge Tables"}
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    {language === "km" ? "បញ្ចូល Order ពីរតុចូលគ្នាក្នុងវិក្កយបត្រតែមួយ" : "Combine orders from two tables into a single bill"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMergeModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleMergeSubmit} className="space-y-4">
+              {tables.filter((t) => t.isActive).length < 2 && (
+                <div className="rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 p-3 text-xs text-purple-700 dark:text-purple-300 font-medium">
+                  {language === "km"
+                    ? "⚠️ ត្រូវការតុយ៉ាងតិច ២ ក្នុងប្រព័ន្ធដើម្បីធ្វើការរួមតុ"
+                    : "⚠️ Merge Table requires at least 2 active tables."}
+                </div>
+              )}
+
+              {/* Source Table Display / Selection */}
+              {mergeSourceTable ? (
+                <div className="rounded-xl bg-slate-50 dark:bg-[#232333] border border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 block mb-0.5">
+                      {language === "km" ? "តុដើម (ត្រូវរើចេញ)" : "Source Table"}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {mergeSourceTable.name} ({mergeSourceTable.zone})
+                    </span>
+                  </div>
+                  <span className="rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 px-2.5 py-1 text-xs font-bold">
+                    Source
+                  </span>
+                </div>
+              ) : (
+                <label className="block">
+                  <span className={`text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "តុដើម" : "Source Table"}
+                  </span>
+                  <select
+                    required
+                    value=""
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      const found = tables.find((t) => t.id === id);
+                      setMergeSourceTable(found || null);
+                    }}
+                    className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-purple-500 cursor-pointer"
+                  >
+                    <option value="">{language === "km" ? "-- ជ្រើសរើសតុដើម --" : "-- Select Source Table --"}</option>
+                    {tables
+                      .filter((t) => t.isActive)
+                      .map((t) => {
+                        const order = orders.find((o) => o.tableId === t.id && liveOrderStatuses.includes(o.status as any));
+                        return (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.zone}) {order ? `· ${formatShortOrderNo(order)} ($${Number(order.totalAmount || 0).toFixed(2)})` : "· Available"}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </label>
+              )}
+
+              {/* Target Table Selection */}
+              <label className="block">
+                <span className={`text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "តុគោលដៅ" : "Target Table"}
+                </span>
+                <select
+                  required
+                  value={mergeTargetTableId || ""}
+                  onChange={(e) => setMergeTargetTableId(Number(e.target.value))}
+                  className="w-full rounded-xl bg-slate-50/70 dark:bg-[#232333] border border-slate-200/90 dark:border-slate-700/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 outline-none focus:border-purple-500 cursor-pointer"
+                >
+                  <option value="">{language === "km" ? "-- ជ្រើសរើសតុគោលដៅ --" : "-- Select Target Table --"}</option>
+                  {tables
+                    .filter((t) => t.isActive && (!mergeSourceTable || t.id !== mergeSourceTable.id))
+                    .map((t) => {
+                      const order = orders.find((o) => o.tableId === t.id && liveOrderStatuses.includes(o.status as any));
+                      return (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.zone}) {order ? `· ${formatShortOrderNo(order)} ($${Number(order.totalAmount || 0).toFixed(2)})` : "· Available"}
+                        </option>
+                      );
+                    })}
+                </select>
+              </label>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3.5 mt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsMergeModalOpen(false)}
+                  className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isMerging || !mergeSourceTable || !mergeTargetTableId}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 px-5 text-xs font-bold text-white shadow-md shadow-purple-600/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isMerging ? <Loader2 className="animate-spin" size={14} /> : <GitMerge size={14} />}
+                  <span>{language === "km" ? "រួមតុ" : "Confirm Merge"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
 
       {/* ORIGINAL SIMPLE CARD QR CODE PREVIEW DIALOG */}
       {qrTable && (
