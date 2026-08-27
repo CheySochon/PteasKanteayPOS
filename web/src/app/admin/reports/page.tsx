@@ -567,13 +567,11 @@ export default function ReportsPage() {
     socket?.on("dashboard:update", onRealtimeUpdate);
     socket?.on("order:created", onRealtimeUpdate);
     socket?.on("order:updated", onRealtimeUpdate);
-    socket?.on("payment:completed", onRealtimeUpdate);
 
     return () => {
       socket?.off("dashboard:update", onRealtimeUpdate);
       socket?.off("order:created", onRealtimeUpdate);
       socket?.off("order:updated", onRealtimeUpdate);
-      socket?.off("payment:completed", onRealtimeUpdate);
       window.clearInterval(refreshTimer);
     };
   }, [refreshReports]);

@@ -378,7 +378,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const res = await loginPin(enteredPin);
+      const res = await loginPin(enteredPin, selectedStaff?.id, selectedStaff?.email);
 
       // Clear old session & write new session ONLY on SUCCESS!
       localStorage.removeItem("pos_user");
@@ -427,7 +427,7 @@ export default function LoginPage() {
       setMessage(successMsg);
 
       setTimeout(() => {
-        const targetPath = firstAllowedPathForRole(targetRole);
+        const targetPath = firstAllowedPathForRole(userPayload);
         router.replace(targetPath);
       }, 450);
     } catch (err: any) {
@@ -470,22 +470,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      let result: any;
-      try {
-        result = await login(cleanEmail, password);
-      } catch (loginErr) {
-        // Fallback: Check local custom reset passwords if API login fails
-        const overridesRaw = localStorage.getItem("pos_custom_reset_passwords") || "{}";
-        const overrides = JSON.parse(overridesRaw);
-        if (overrides[cleanEmail] && overrides[cleanEmail] === password) {
-          result = {
-            user: { name: cleanEmail.split("@")[0] || "Admin", email: cleanEmail, role: "Admin", roleName: "ADMIN" },
-            token: "dev-admin-token-" + Date.now(),
-          };
-        } else {
-          throw loginErr;
-        }
-      }
+      const result = await login(cleanEmail, password);
 
       setPendingLoginResult(result);
 
@@ -601,36 +586,18 @@ export default function LoginPage() {
     setLoading(true);
     const cleanTarget = resetEmail.trim().toLowerCase();
 
-    // 1. Dispatch real API reset-password call to backend database
     try {
       await resetPasswordApi(cleanTarget, newPassword);
-    } catch (apiErr) {
-      console.warn("Backend resetPasswordApi error, using local fallback", apiErr);
+      setLoading(false);
+      setEmail(resetEmail.trim());
+      setPassword(newPassword);
+      setMessage(language === "km" ? "ប្តូរពាក្យសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ដោយប្រើពាក្យសម្ងាត់ថ្មី" : "Password updated successfully! Sign in with your new password.");
+      setStep("login");
+      setLoginMethod("email");
+    } catch (err: any) {
+      setLoading(false);
+      setError(err instanceof Error ? err.message : "Unable to reset password");
     }
-
-    // 2. Save updated password in local storage overrides as persistent offline fallback
-    try {
-      const overridesRaw = localStorage.getItem("pos_custom_reset_passwords") || "{}";
-      const overrides = JSON.parse(overridesRaw);
-      overrides[cleanTarget] = newPassword;
-      localStorage.setItem("pos_custom_reset_passwords", JSON.stringify(overrides));
-
-      const savedUsersRaw = localStorage.getItem("pos_custom_users_list");
-      if (savedUsersRaw) {
-        const users = JSON.parse(savedUsersRaw);
-        const updated = users.map((u: any) =>
-          u.email?.toLowerCase() === cleanTarget ? { ...u, password: newPassword } : u
-        );
-        localStorage.setItem("pos_custom_users_list", JSON.stringify(updated));
-      }
-    } catch {}
-
-    setLoading(false);
-    setEmail(resetEmail.trim());
-    setPassword(newPassword);
-    setMessage(language === "km" ? "ប្តូរពាក្យសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ដោយប្រើពាក្យសម្ងាត់ថ្មី" : "Password updated successfully! Sign in with your new password.");
-    setStep("login");
-    setLoginMethod("email");
   }
 
   // Handle OTP Paste

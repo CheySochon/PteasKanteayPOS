@@ -44,7 +44,6 @@ function buildOrderInclude() {
         product: true,
       },
     },
-    payments: true,
   };
 }
 

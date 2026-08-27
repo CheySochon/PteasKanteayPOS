@@ -43,18 +43,18 @@ const routeRoles: { prefix: string; roles: AppRole[]; staffKey?: string }[] = [
   { prefix: "/admin/groups", roles: ["Super Admin", "Admin"] },
   { prefix: "/admin/logs", roles: ["Super Admin", "Admin"] },
   { prefix: "/admin/permissions", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/users", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/settings", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/reports", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/inventory", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/menu", roles: ["Super Admin", "Admin"] },
+  { prefix: "/admin/tables", roles: ["Super Admin", "Admin"] },
   { prefix: "/admin/profile", roles: ["Super Admin", "Admin", "Cashier", "Staff"] },
-  { prefix: "/admin/users", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "users" },
-  { prefix: "/admin/settings", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "settings" },
-  { prefix: "/admin/reports", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "reports" },
-  { prefix: "/admin/inventory", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "inventory" },
-  { prefix: "/admin/menu", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "menu" },
-  { prefix: "/admin/tables", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "tables" },
   { prefix: "/admin/invoices", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "invoices" },
   { prefix: "/admin/orders", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "orders" },
   { prefix: "/admin/pos", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "pos" },
   { prefix: "/admin/kitchen", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "kds" },
-  { prefix: "/admin", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "dashboard" },
+  { prefix: "/admin", roles: ["Super Admin", "Admin"] },
   { prefix: "/pos", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "pos" },
   { prefix: "/kds", roles: ["Super Admin", "Admin", "Cashier", "Staff"], staffKey: "kds" },
 ];
@@ -244,43 +244,29 @@ export function canAccessPath(pathname: string, userOrRole: any, staffPermission
     } catch {}
   }
 
-  const role = typeof userOrRole === "string" ? userOrRole : roleName(user);
+  if (!user) return false;
 
-  // Root Super Admin (ID 1 / Super Admin role) has 100% full access
-  if (user) {
-    const isRootOwner = user.id === 1 || roleName(user) === "Super Admin" || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
-    if (isRootOwner) return true;
-  }
+  // Root Super Admin (ID 1 / owner email) has 100% full access
+  const isRootOwner = user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
+  if (isRootOwner) return true;
 
-  // Dashboard landing page /admin and Profile page are always accessible for any Admin user
-  const isDashboardOrProfile = pathname === "/admin" || pathname === "/admin/" || pathname.startsWith("/admin/profile");
-  if (isDashboardOrProfile) {
-    if (isAdminRole(role) || user) return true;
-  }
+  // Account Profile page is accessible for any authenticated user
+  if (pathname.startsWith("/admin/profile")) return true;
 
-  // Check granular Group permission module for path
+  // Dynamic feature module mapping
   const featureModule = pathFeatureModule(pathname);
-  if (featureModule && featureModule !== "dashboard" && user) {
-    const canView = hasFeaturePermission(user, featureModule, "view");
-    if (!canView) return false;
-  }
-
-  if (isAdminRole(role)) return true;
-
-  const rule = routeRoles
-    .filter((entry) => pathname === entry.prefix || pathname.startsWith(`${entry.prefix}/`))
-    .sort((a, b) => b.prefix.length - a.prefix.length)[0];
-
-  if (!rule) return true;
-
-  if (rule.staffKey) {
-    const perms = normalizeStaffPermissions(staffPermissions);
-    if (rule.staffKey in perms) {
-      return Boolean(perms[rule.staffKey]);
+  if (!featureModule || featureModule === "dashboard") {
+    if (hasFeaturePermission(user, "dashboard", "view")) return true;
+    if (user.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+      const adminPerms = ["pos.users.manage", "pos.settings.manage", "pos.menu.manage", "pos.reports.view", "inventory.manage"];
+      if (adminPerms.some((p) => user.permissions.includes(p))) return true;
     }
+    const role = roleName(user);
+    return isAdminRole(role);
   }
 
-  return rule.roles.some((r) => r.toLowerCase() === (role || "").trim().toLowerCase());
+  // 🛡️ 100% Dynamic DB Permission Check
+  return hasFeaturePermission(user, featureModule, "view");
 }
 
 export function canSeeHref(href: string, userOrRole: any, staffPermissions?: StaffPermissions | null) {
@@ -303,26 +289,20 @@ export function firstAllowedPathForRole(userOrRole: any, staffPermissions?: Staf
   }
 
   if (user) {
-    const isRootOwner = user.id === 1 || roleName(user) === "Super Admin" || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
+    const isRootOwner = user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
     if (isRootOwner) return "/admin";
   }
 
-  const role = typeof userOrRole === "string" ? userOrRole : roleName(user);
-  const normalizedRole = (role || "").trim().toLowerCase();
-  if (normalizedRole === "cashier") return "/pos";
-  if (normalizedRole === "staff" || normalizedRole === "kitchen") return "/kds";
-
-  const perms = normalizeStaffPermissions(staffPermissions);
   const allowedPage = STAFF_PERMISSION_PAGES.find((page) => {
     const mod = pathFeatureModule(page.href);
     if (user && mod) {
       return hasFeaturePermission(user, mod, "view");
     }
-    return perms[page.key] && canAccessPath(page.href, userOrRole, perms);
+    return canAccessPath(page.href, userOrRole, staffPermissions);
   });
 
   if (allowedPage) return allowedPage.href;
-  return "/admin";
+  return "/pos";
 }
 
 /**
@@ -356,9 +336,28 @@ export function hasFeaturePermission(
   const matchActionKey = (perms: string[]): boolean => {
     if (perms.includes(featureKey)) return true;
 
+    // Standard POS RBAC Permission Code Mapping
+    const codeMap: Record<string, string[]> = {
+      menu: ["pos.menu.manage", "categories.manage", "menu"],
+      inventory: ["inventory.view", "inventory.manage", "inventory"],
+      reports: ["pos.reports.view", "reports.export", "reports"],
+      auth: ["pos.users.manage", "audit.view", "users", "groups"],
+      users: ["pos.users.manage", "users"],
+      settings: ["pos.settings.manage", "backups.manage", "settings"],
+      orders: ["orders.view", "orders.update", "orders.delete", "orders"],
+      invoices: ["pos.invoice.void", "invoices.view", "invoices"],
+      tables: ["tables.view", "tables.manage", "tables"],
+      kitchen: ["kitchen.view", "kitchen.manage", "kitchen"],
+      pos: ["pos.order.create", "pos.payment.process", "pos.discount.apply", "pos"],
+      dashboard: ["dashboard.view", "dashboard.manage", "dashboard"],
+    };
+
+    const targetCodes = codeMap[featureKey] || [featureKey];
+    if (targetCodes.some((code) => perms.includes(code))) return true;
+
     if (action === "view") {
       if (perms.includes(`${featureKey}_view`) || perms.includes(`${featureKey}_read`)) return true;
-      if (perms.some((k) => k.startsWith(`${featureKey}_`))) return true;
+      if (perms.some((k) => k.startsWith(`${featureKey}_`) || k.startsWith(`pos.${featureKey}`))) return true;
     } else if (action === "add") {
       if (perms.includes(`${featureKey}_add`) || perms.includes(`${featureKey}_create`)) return true;
     } else if (action === "edit") {
@@ -369,69 +368,18 @@ export function hasFeaturePermission(
     return false;
   };
 
-  // 1. Check user direct permissions array
-  if (user.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+  // 1. Check user direct permissions array from database
+  if (user.permissions && Array.isArray(user.permissions)) {
     return matchActionKey(user.permissions);
   }
 
-  // 2. Check dynamic Group permissions configured in Admin Groups tree
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("pos_admin_groups_list");
-      if (stored) {
-        const groups = JSON.parse(stored);
-        if (Array.isArray(groups) && groups.length > 0) {
-          const userGroupStr = String(user.group || user.groupName || "").trim().toLowerCase();
-
-          const matchedGroup =
-            groups.find((g: any) => g && user.groupId && Number(g.id) === Number(user.groupId)) ||
-            (userGroupStr ? groups.find((g: any) => g && String(g.name || "").trim().toLowerCase() === userGroupStr) : null) ||
-            groups.find((g: any) => {
-              if (!g) return false;
-              const gName = String(g.name || "").trim().toLowerCase();
-              if (!gName || !lowerRole) return false;
-              return (
-                gName === lowerRole ||
-                (gName.length > 3 && lowerRole.includes(gName)) ||
-                (lowerRole.length > 3 && gName.includes(lowerRole))
-              );
-            });
-
-          if (matchedGroup) {
-            const groupPerms: string[] = Array.isArray(matchedGroup.permissions) ? matchedGroup.permissions : [];
-            const isAdminGroup = isAdminRole(matchedGroup.name) || isAdminRole(rawRoleStr) || isAdminRole(roleName(user));
-
-            // Default Admin groups to full access ONLY IF permissions list is unconfigured or empty
-            if (isAdminGroup && groupPerms.length === 0) {
-              return true;
-            }
-
-            if (groupPerms.length > 0) {
-              return matchActionKey(groupPerms);
-            }
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // 3. Admin accounts default to FULL ACCESS if no explicit group restriction list exists
+  // 2. Admin accounts default to FULL ACCESS if no explicit group restriction list exists
   const role = roleName(user);
   if (isAdminRole(role) || isAdminRole(rawRoleStr)) {
     return true;
   }
 
-  // 4. Non-admin roles (Cashier, Kitchen)
-  if (lowerRole.includes("cashier")) {
-    const cashierAllowed = ["dashboard", "pos", "orders", "tables", "invoices"];
-    return cashierAllowed.includes(featureKey) && action === "view";
-  }
-  if (lowerRole.includes("kitchen") || lowerRole.includes("chef")) {
-    const kitchenAllowed = ["dashboard", "kitchen", "orders"];
-    return kitchenAllowed.includes(featureKey) && action === "view";
-  }
-
-  return action === "view";
+  return false;
 }
 
 export function canViewFeature(user: any, featureKey: string): boolean {

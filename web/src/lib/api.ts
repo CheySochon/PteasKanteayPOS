@@ -185,7 +185,7 @@ export const login = (email: string, password: string) => request<AuthResult>("/
 export const resetPasswordApi = (email: string, newPassword: string) => request<{ success: boolean; message: string }>("/auth/reset-password", { method: "POST", body: { email, newPassword } });
 export const register = (body: { name: string; email: string; password: string; roleName?: string }) => request<AuthResult>("/auth/register", { method: "POST", body });
 export const logoutApi = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
-export const loginPin = (pin: string) => request<AuthResult>("/auth/login-pin", { method: "POST", body: { pin } });
+export const loginPin = (pin: string, userId?: number, email?: string) => request<AuthResult>("/auth/login-pin", { method: "POST", body: { pin, userId, email } });
 export const getMe = async () => {
   try {
     const data = await request<User>("/auth/me");
@@ -812,6 +812,9 @@ let inMemoryDeletedUserIds: number[] = [];
 let inMemoryCreatedUsers: User[] = [];
 
 export const getUsers = async (forceRefresh = false): Promise<User[]> => {
+  if (forceRefresh) {
+    swrMemoryCache.delete("users");
+  }
   if (!forceRefresh && swrMemoryCache.has("users")) {
     const cached = swrMemoryCache.get("users")!.data;
     // Background revalidate without blocking UI
@@ -838,9 +841,12 @@ export const getUsers = async (forceRefresh = false): Promise<User[]> => {
 
 export const getPublicStaff = async (): Promise<User[]> => {
   try {
-    const apiUsers = await request<User[]>("/auth/staff");
-    if (Array.isArray(apiUsers)) {
-      return apiUsers;
+    const res = await request<any>("/auth/staff");
+    if (res && Array.isArray(res.data)) {
+      return res.data;
+    }
+    if (Array.isArray(res)) {
+      return res;
     }
   } catch (err) {}
 
@@ -867,15 +873,15 @@ export const deleteRole = async (id: number): Promise<void> => {
   await request<void>(`/users/roles/${id}`, { method: "DELETE" });
 };
 
-export const createUser = async (body: { name: string; email: string; password?: string; roleName: string; isActive: boolean; imageUrl?: string }): Promise<User> => {
-  // Always call real API — throw error if it fails (no silent localStorage fallback)
+export const createUser = async (body: { name: string; email: string; password?: string; roleName?: string; isActive?: boolean; imageUrl?: string; pin?: string }): Promise<User> => {
   const newUser = await request<User>("/users", { method: "POST", body });
+  swrMemoryCache.delete("users");
   return newUser;
 };
 
-export const updateUser = async (id: number, body: { name?: string; email?: string; password?: string; roleName?: string; isActive?: boolean; imageUrl?: string }): Promise<User> => {
-  // Always call real API — throw error if it fails
+export const updateUser = async (id: number, body: { name?: string; email?: string; password?: string; roleName?: string; isActive?: boolean; imageUrl?: string; pin?: string }): Promise<User> => {
   const updatedUser = await request<User>(`/users/${id}`, { method: "PUT", body });
+  swrMemoryCache.delete("users");
   return updatedUser;
 };
 
@@ -884,6 +890,7 @@ export const deleteUser = async (id: number): Promise<void> => {
     throw new Error("System Protection: Super Admin (ID 1) is a protected system owner and cannot be deleted.");
   }
   await request<void>(`/users/${id}`, { method: "DELETE" });
+  swrMemoryCache.delete("users");
 };
 export const getSettings = async (): Promise<AppSettings> => {
   try {
@@ -943,60 +950,79 @@ export const updateSettings = async (body: Partial<AppSettings>): Promise<AppSet
 };
 
 export const getAdminGroups = async (forceRefresh = false): Promise<any[]> => {
+  if (forceRefresh) {
+    swrMemoryCache.delete("adminGroups");
+  }
   if (!forceRefresh && swrMemoryCache.has("adminGroups")) {
-    const cached = swrMemoryCache.get("adminGroups")!.data;
-    getSettings().then((s) => {
-      if (s && Array.isArray((s as any).adminGroups)) {
-        swrMemoryCache.set("adminGroups", { data: (s as any).adminGroups, timestamp: Date.now() });
-        if (typeof window !== "undefined") {
-          try { localStorage.setItem("pos_admin_groups_list", JSON.stringify((s as any).adminGroups)); } catch {}
-        }
-      }
-    }).catch(() => null);
-    return cached;
+    return swrMemoryCache.get("adminGroups")!.data;
   }
 
   try {
-    const settings = await getSettings();
-    if (settings && Array.isArray((settings as any).adminGroups)) {
-      swrMemoryCache.set("adminGroups", { data: (settings as any).adminGroups, timestamp: Date.now() });
-      if (typeof window !== "undefined") {
-        try { localStorage.setItem("pos_admin_groups_list", JSON.stringify((settings as any).adminGroups)); } catch {}
-      }
-      return (settings as any).adminGroups;
+    const apiGroups = await request<any[]>("/groups");
+    if (Array.isArray(apiGroups)) {
+      swrMemoryCache.set("adminGroups", { data: apiGroups, timestamp: Date.now() });
+      return apiGroups;
     }
   } catch (err) {}
 
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("pos_admin_groups_list");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          swrMemoryCache.set("adminGroups", { data: parsed, timestamp: Date.now() });
-          return parsed;
-        }
-      }
-    } catch {}
-  }
+  return [];
+};
 
-  const fallback = [
-    { id: 1, parentId: 0, name: "Super Admin Group (Root)", status: "Normal", description: "Root system owner & Super Admin primary group" },
-    { id: 2, parentId: 1, name: "Admin Group (Standard)", status: "Normal", description: "Regular Admin & Store Management group" },
-    { id: 3, parentId: 2, name: "Admin Update Group", status: "Normal", description: "Regular Admin updates & maintenance team group" },
-    { id: 4, parentId: 2, name: "Cashier & POS Team", status: "Normal", description: "Front-of-house cashier operations team" },
-    { id: 5, parentId: 2, name: "Kitchen & KDS Team", status: "Normal", description: "Kitchen chef & food service team" },
-  ];
-  swrMemoryCache.set("adminGroups", { data: fallback, timestamp: Date.now() });
-  return fallback;
+export const createAdminGroupApi = async (body: {
+  name: string;
+  description?: string;
+  permission_ids?: number[];
+  permission_codes?: string[];
+  parent_id?: number;
+  status?: string;
+}) => {
+  swrMemoryCache.delete("adminGroups");
+  return await request<any>("/groups", { method: "POST", body });
+};
+
+export const updateAdminGroupApi = async (
+  id: number,
+  body: {
+    name?: string;
+    description?: string;
+    permission_ids?: number[];
+    permission_codes?: string[];
+    parent_id?: number;
+    status?: string;
+  },
+) => {
+  swrMemoryCache.delete("adminGroups");
+  return await request<any>(`/groups/${id}`, { method: "PUT", body });
+};
+
+export const deleteAdminGroupApi = async (id: number, cascade = false) => {
+  swrMemoryCache.delete("adminGroups");
+  return await request<{ success: boolean; message: string }>(`/groups/${id}?cascade=${cascade}`, {
+    method: "DELETE",
+  });
+};
+
+export const getCategorizedPermissionsApi = async () => {
+  try {
+    return await request<any>("/permissions/categorized");
+  } catch (_err) {
+    return null;
+  }
 };
 
 export const saveAdminGroups = async (groups: any[]): Promise<any[]> => {
+  swrMemoryCache.delete("adminGroups");
+  try {
+    for (const g of groups) {
+      if (g.id && typeof g.id === "number" && g.id > 0) {
+        await request(`/groups/${g.id}`, { method: "PUT", body: g }).catch(() => null);
+      } else {
+        await request("/groups", { method: "POST", body: g }).catch(() => null);
+      }
+    }
+  } catch (_err) {}
+  await updateSettings({ adminGroups: groups } as any).catch(() => null);
   swrMemoryCache.set("adminGroups", { data: groups, timestamp: Date.now() });
-  if (typeof window !== "undefined") {
-    try { localStorage.setItem("pos_admin_groups_list", JSON.stringify(groups)); } catch {}
-  }
-  await updateSettings({ adminGroups: groups } as any);
   return groups;
 };
 

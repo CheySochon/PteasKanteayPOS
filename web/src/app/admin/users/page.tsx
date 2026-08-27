@@ -126,10 +126,10 @@ export default function AdminUsersPage() {
   }, []);
 
   // Fetch Users, Roles & Admin Groups from PostgreSQL DB API
-  const fetchUsersAndRoles = async () => {
+  const fetchUsersAndRoles = async (forceRefresh = false) => {
     try {
       const [fetchedUsers, fetchedRoles, fetchedGroups] = await Promise.all([
-        getUsers(),
+        getUsers(forceRefresh),
         getRoles(),
         getAdminGroups(),
       ]);
@@ -144,26 +144,27 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    fetchUsersAndRoles();
+    fetchUsersAndRoles(true);
 
     const socket = getSocket();
+    const handleSocketUpdate = () => fetchUsersAndRoles(true);
     if (socket) {
-      socket.on("user:created", fetchUsersAndRoles);
-      socket.on("user:updated", fetchUsersAndRoles);
-      socket.on("user:deleted", fetchUsersAndRoles);
-      socket.on("group:created", fetchUsersAndRoles);
-      socket.on("group:updated", fetchUsersAndRoles);
-      socket.on("group:deleted", fetchUsersAndRoles);
+      socket.on("user:created", handleSocketUpdate);
+      socket.on("user:updated", handleSocketUpdate);
+      socket.on("user:deleted", handleSocketUpdate);
+      socket.on("group:created", handleSocketUpdate);
+      socket.on("group:updated", handleSocketUpdate);
+      socket.on("group:deleted", handleSocketUpdate);
     }
 
     return () => {
       if (socket) {
-        socket.off("user:created", fetchUsersAndRoles);
-        socket.off("user:updated", fetchUsersAndRoles);
-        socket.off("user:deleted", fetchUsersAndRoles);
-        socket.off("group:created", fetchUsersAndRoles);
-        socket.off("group:updated", fetchUsersAndRoles);
-        socket.off("group:deleted", fetchUsersAndRoles);
+        socket.off("user:created", handleSocketUpdate);
+        socket.off("user:updated", handleSocketUpdate);
+        socket.off("user:deleted", handleSocketUpdate);
+        socket.off("group:created", handleSocketUpdate);
+        socket.off("group:updated", handleSocketUpdate);
+        socket.off("group:deleted", handleSocketUpdate);
       }
     };
   }, []);
@@ -171,7 +172,7 @@ export default function AdminUsersPage() {
   // Refresh Handler
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchUsersAndRoles();
+    fetchUsersAndRoles(true);
     setTimeout(() => {
       setIsRefreshing(false);
       setMessage("Staff list refreshed.");
@@ -184,6 +185,14 @@ export default function AdminUsersPage() {
     if (user.role && typeof user.role === "object" && user.role.name) return user.role.name;
     return user.roleName || "Cashier";
   };
+
+  // Filter out Root / Super Admin Group so normal staff assignment never shows Root group
+  const assignableGroups = useMemo(() => {
+    return groups.filter((g) => {
+      const gName = (typeof g === "string" ? g : g?.name || "").toLowerCase().trim();
+      return !gName.includes("super admin") && !gName.includes("root");
+    });
+  }, [groups]);
 
   // Filtered Users List
   const filteredUsers = useMemo(() => {
@@ -257,7 +266,11 @@ export default function AdminUsersPage() {
   // Open Create Modal
   const openCreateModal = () => {
     setEditingUserId(null);
-    setForm(EMPTY_FORM);
+    const defaultRole = assignableGroups.length > 0 ? assignableGroups[0].name : "Admin Group (Standard)";
+    setForm({
+      ...EMPTY_FORM,
+      roleName: defaultRole,
+    });
     setShowModalPassword(false);
     setSelectedPerms(["dashboard", "pos", "orders", "tables", "invoices", "menu"]);
     setIsUserModalOpen(true);
@@ -306,6 +319,7 @@ export default function AdminUsersPage() {
           name: form.name.trim(),
           email: form.email.trim(),
           password: form.password ? form.password : undefined,
+          pin: form.pin ? form.pin.trim() : undefined,
           roleName: form.roleName,
           isActive: form.isActive,
           imageUrl: form.imageUrl || undefined,
@@ -321,6 +335,7 @@ export default function AdminUsersPage() {
           name: form.name.trim(),
           email: form.email.trim(),
           password: form.password || "123456",
+          pin: form.pin ? form.pin.trim() : "1234",
           roleName: form.roleName,
           isActive: form.isActive,
           imageUrl: form.imageUrl || undefined,
@@ -735,15 +750,14 @@ export default function AdminUsersPage() {
                       dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                     }`}
                   >
-                    {groups.length > 0 ? (
-                      groups.map((g) => (
-                        <option key={g.id} value={g.name}>
+                    {assignableGroups.length > 0 ? (
+                      assignableGroups.map((g) => (
+                        <option key={g.id || g.name} value={g.name}>
                           {g.name}
                         </option>
                       ))
                     ) : (
                       <>
-                        <option value="Super Admin Group (Root)">Super Admin Group (Root)</option>
                         <option value="Admin Group (Standard)">Admin Group (Standard)</option>
                         <option value="Admin Update Group">Admin Update Group</option>
                         <option value="Cashier & POS Team">Cashier & POS Team</option>

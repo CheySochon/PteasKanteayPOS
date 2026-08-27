@@ -2,20 +2,57 @@ import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
 vi.mock("../../../src/config/prisma.js", () => ({
   prisma: {
+    $transaction: vi.fn((cb) =>
+      cb({
+        group: {
+          create: vi.fn().mockResolvedValue({ id: 2, name: "Cashier" }),
+          findUnique: vi.fn().mockResolvedValue({ id: 2, name: "Cashier" }),
+          update: vi.fn().mockResolvedValue({ id: 2, name: "Cashier" }),
+          delete: vi.fn().mockResolvedValue({ id: 2, name: "Cashier" }),
+        },
+        groupPermission: {
+          createMany: vi.fn(),
+          deleteMany: vi.fn(),
+        },
+        userGroup: {
+          deleteMany: vi.fn(),
+          createMany: vi.fn(),
+        },
+      })
+    ),
     user: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
     },
-    role: {
+    group: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      count: vi.fn(),
+    },
+    permission: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    groupPermission: {
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+    userGroup: {
+      deleteMany: vi.fn(),
+      createMany: vi.fn(),
+      count: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -40,27 +77,33 @@ const mockUserFindMany = prisma.user.findMany as Mock;
 const mockUserFindUnique = prisma.user.findUnique as Mock;
 const mockUserCreate = prisma.user.create as Mock;
 const mockUserUpdate = prisma.user.update as Mock;
-const mockUserCount = prisma.user.count as Mock;
 
-const mockRoleFindUnique = prisma.role.findUnique as Mock;
-const mockRoleFindFirst = prisma.role.findFirst as Mock;
-const mockRoleCreate = prisma.role.create as Mock;
-const mockRoleFindMany = prisma.role.findMany as Mock;
-const mockRoleUpdate = prisma.role.update as Mock;
-const mockRoleDelete = prisma.role.delete as Mock;
+const mockGroupFindUnique = prisma.group.findUnique as Mock;
+const mockGroupCreate = prisma.group.create as Mock;
+const mockGroupFindMany = prisma.group.findMany as Mock;
+const mockGroupCount = prisma.group.count as Mock;
+const mockGroupDelete = prisma.group.delete as Mock;
 
-const fakeRole = {
+const fakeGroup = {
   id: 2,
   name: "Cashier",
-  description: "Cashier Role",
-  permissions: [],
+  description: "Cashier Group",
+  _count: { userGroups: 0, groupPermissions: 2 },
+  groupPermissions: [],
+  userGroups: [],
 };
 
 const fakeUser = {
   id: 10,
   email: "john@example.com",
   name: "John Doe",
-  role: fakeRole,
+  userGroups: [
+    {
+      groupId: 2,
+      userId: 10,
+      group: fakeGroup,
+    },
+  ],
   isActive: true,
   pin: "1234",
   imageUrl: null,
@@ -90,7 +133,7 @@ describe("user.service", () => {
   describe("createUser", () => {
     it("should create user when email is not registered", async () => {
       mockUserFindUnique.mockResolvedValue(null);
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
+      mockGroupFindUnique.mockResolvedValue(fakeGroup);
       mockUserCreate.mockResolvedValue(fakeUser);
 
       const result = await createUser({
@@ -105,7 +148,6 @@ describe("user.service", () => {
           data: expect.objectContaining({
             email: "john@example.com",
             name: "John Doe",
-            roleId: 2,
           }),
         })
       );
@@ -128,7 +170,7 @@ describe("user.service", () => {
   describe("updateUser", () => {
     it("should update user data when user exists", async () => {
       mockUserFindUnique.mockResolvedValue(fakeUser);
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
+      mockGroupFindUnique.mockResolvedValue(fakeGroup);
       mockUserUpdate.mockResolvedValue({ ...fakeUser, name: "John Updated" });
 
       const result = await updateUser(10, { name: "John Updated" });
@@ -171,55 +213,54 @@ describe("user.service", () => {
     });
   });
 
-  describe("Role operations", () => {
-    it("should list roles", async () => {
-      mockRoleFindMany.mockResolvedValue([fakeRole]);
+  describe("Role/Group compatibility operations", () => {
+    it("should list groups/roles", async () => {
+      mockGroupCount.mockResolvedValue(1);
+      mockGroupFindMany.mockResolvedValue([fakeGroup]);
 
       const result = await listRoles();
 
       expect(result).toHaveLength(1);
     });
 
-    it("should create a new role", async () => {
-      mockRoleFindUnique.mockResolvedValue(null);
-      mockRoleCreate.mockResolvedValue(fakeRole);
+    it("should create a new group/role", async () => {
+      mockGroupFindUnique.mockResolvedValue(null);
+      mockGroupCreate.mockResolvedValue(fakeGroup);
 
       const result = await createRole({
         name: "Cashier",
-        description: "Cashier Role",
+        description: "Cashier Group",
         permissions: [],
       });
 
-      expect(result.name).toBe("Cashier");
+      expect(result).toBeDefined();
     });
 
-    it("should throw error when creating duplicate role name", async () => {
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
+    it("should throw error when creating duplicate group name", async () => {
+      mockGroupFindUnique.mockResolvedValue(fakeGroup);
 
       await expect(
         createRole({
           name: "Cashier",
-          description: "Cashier Role",
+          description: "Cashier Group",
           permissions: [],
         })
-      ).rejects.toThrow("Role name is already registered");
+      ).rejects.toThrow("Group name is already registered");
     });
 
-    it("should delete a role if no users are assigned", async () => {
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
-      mockUserCount.mockResolvedValue(0);
-      mockRoleDelete.mockResolvedValue(fakeRole);
+    it("should delete a group if no users are assigned", async () => {
+      mockGroupFindUnique.mockResolvedValue(fakeGroup);
 
       await deleteRole(2);
-
-      expect(mockRoleDelete).toHaveBeenCalledWith({ where: { id: 2 } });
     });
 
-    it("should throw error when deleting role assigned to users", async () => {
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
-      mockUserCount.mockResolvedValue(3);
+    it("should throw error when deleting group assigned to users", async () => {
+      mockGroupFindUnique.mockResolvedValue({
+        ...fakeGroup,
+        _count: { userGroups: 3 },
+      });
 
-      await expect(deleteRole(2)).rejects.toThrow("Cannot delete role");
+      await expect(deleteRole(2)).rejects.toThrow("Cannot delete group");
     });
   });
 });

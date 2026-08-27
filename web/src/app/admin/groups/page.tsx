@@ -26,23 +26,32 @@ import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage } from "../../../lib/language";
 import AnimatedToast from "../../../components/AnimatedToast";
 import { getSocket } from "../../../lib/socket";
-import { getAdminGroups, saveAdminGroups } from "../../../lib/api";
+import {
+  getAdminGroups,
+  createAdminGroupApi,
+  updateAdminGroupApi,
+  deleteAdminGroupApi,
+  getCategorizedPermissionsApi,
+} from "../../../lib/api";
 
 export type AdminGroup = {
   id: number;
   parentId: number;
+  parentName?: string;
   name: string;
   status: "Normal" | "Disabled";
   description?: string;
+  permission_ids?: number[];
+  permission_codes?: string[];
   permissions?: string[];
+  userCount?: number;
+  permissionCount?: number;
 };
-
-
 
 export type SystemPermissionModule = {
   key: string;
   label: string;
-  subPermissions?: Array<{ key: string; label: string }>;
+  subPermissions?: Array<{ key: string; label: string; id?: number }>;
 };
 
 const SYSTEM_POS_MODULES: SystemPermissionModule[] = [
@@ -50,100 +59,83 @@ const SYSTEM_POS_MODULES: SystemPermissionModule[] = [
     key: "dashboard",
     label: "Dashboard & Analytics",
     subPermissions: [
-      { key: "dashboard_view", label: "View" },
-      { key: "dashboard_add", label: "Add" },
-      { key: "dashboard_edit", label: "Edit" },
-      { key: "dashboard_delete", label: "Delete" },
+      { key: "dashboard.view", label: "View Dashboard" },
+      { key: "dashboard.manage", label: "Manage Widgets" },
     ],
   },
   {
     key: "pos",
     label: "Point of Sale (POS Terminal)",
     subPermissions: [
-      { key: "pos_view", label: "View" },
-      { key: "pos_add", label: "Add" },
-      { key: "pos_edit", label: "Edit" },
-      { key: "pos_delete", label: "Delete" },
+      { key: "pos.order.create", label: "Create Order" },
+      { key: "pos.payment.process", label: "Process Payment" },
+      { key: "pos.invoice.void", label: "Void Invoice" },
+      { key: "pos.discount.apply", label: "Apply Discount" },
     ],
   },
   {
     key: "orders",
     label: "Orders Management",
     subPermissions: [
-      { key: "orders_view", label: "View" },
-      { key: "orders_add", label: "Add" },
-      { key: "orders_edit", label: "Edit" },
-      { key: "orders_delete", label: "Delete" },
+      { key: "orders.view", label: "View Orders" },
+      { key: "orders.update", label: "Update Order Status" },
+      { key: "orders.delete", label: "Cancel / Delete Order" },
     ],
   },
   {
     key: "kitchen",
     label: "Kitchen Display System (KDS)",
     subPermissions: [
-      { key: "kitchen_view", label: "View" },
-      { key: "kitchen_add", label: "Add" },
-      { key: "kitchen_edit", label: "Edit" },
-      { key: "kitchen_delete", label: "Delete" },
+      { key: "kitchen.view", label: "View Kitchen Screen" },
+      { key: "kitchen.manage", label: "Update Cooking Status" },
     ],
   },
   {
     key: "tables",
     label: "Tables & Floor Plan",
     subPermissions: [
-      { key: "tables_view", label: "View" },
-      { key: "tables_add", label: "Add" },
-      { key: "tables_edit", label: "Edit" },
-      { key: "tables_delete", label: "Delete" },
+      { key: "tables.view", label: "View Tables" },
+      { key: "tables.manage", label: "Manage Floor Plan & Tables" },
     ],
   },
   {
     key: "menu",
     label: "Menu & Dish Catalog",
     subPermissions: [
-      { key: "menu_view", label: "View" },
-      { key: "menu_add", label: "Add" },
-      { key: "menu_edit", label: "Edit" },
-      { key: "menu_delete", label: "Delete" },
+      { key: "pos.menu.manage", label: "Manage Menu Catalog" },
+      { key: "categories.manage", label: "Manage Categories" },
     ],
   },
   {
     key: "inventory",
     label: "Inventory & Raw Stock",
     subPermissions: [
-      { key: "inventory_view", label: "View" },
-      { key: "inventory_add", label: "Add" },
-      { key: "inventory_edit", label: "Edit" },
-      { key: "inventory_delete", label: "Delete" },
+      { key: "inventory.view", label: "View Inventory" },
+      { key: "inventory.manage", label: "Restock & Stock Adjustments" },
     ],
   },
   {
     key: "reports",
     label: "Reports & Analytics",
     subPermissions: [
-      { key: "reports_view", label: "View" },
-      { key: "reports_add", label: "Add" },
-      { key: "reports_edit", label: "Edit" },
-      { key: "reports_delete", label: "Delete" },
+      { key: "pos.reports.view", label: "View Reports" },
+      { key: "reports.export", label: "Export CSV Data" },
     ],
   },
   {
     key: "auth",
     label: "Auth & Team Management",
     subPermissions: [
-      { key: "auth_view", label: "View" },
-      { key: "auth_add", label: "Add" },
-      { key: "auth_edit", label: "Edit" },
-      { key: "auth_delete", label: "Delete" },
+      { key: "pos.users.manage", label: "Manage Staff & Groups" },
+      { key: "audit.view", label: "View Audit Logs" },
     ],
   },
   {
     key: "settings",
     label: "System Settings",
     subPermissions: [
-      { key: "settings_view", label: "View" },
-      { key: "settings_add", label: "Add" },
-      { key: "settings_edit", label: "Edit" },
-      { key: "settings_delete", label: "Delete" },
+      { key: "pos.settings.manage", label: "Manage System Settings" },
+      { key: "backups.manage", label: "Manage Backups" },
     ],
   },
 ];
@@ -154,11 +146,10 @@ export const ALL_PERM_KEYS = SYSTEM_POS_MODULES.flatMap((m) => [
 ]);
 
 const DEFAULT_GROUPS: AdminGroup[] = [
-  { id: 1, parentId: 0, name: "Super Admin Group (Root)", status: "Normal", description: "Root system owner & Super Admin primary group", permissions: ALL_PERM_KEYS },
-  { id: 2, parentId: 1, name: "Admin Group (Standard)", status: "Normal", description: "Regular Admin & Store Management group", permissions: ALL_PERM_KEYS },
-  { id: 3, parentId: 2, name: "Admin Update Group", status: "Normal", description: "Regular Admin updates & maintenance team group", permissions: ALL_PERM_KEYS },
-  { id: 4, parentId: 2, name: "Cashier & POS Team", status: "Normal", description: "Front-of-house cashier operations team", permissions: ["dashboard", "dashboard_view", "pos", "pos_view", "pos_add", "pos_edit", "orders", "orders_view", "tables", "tables_view"] },
-  { id: 5, parentId: 2, name: "Kitchen & KDS Team", status: "Normal", description: "Kitchen chef & food service team", permissions: ["dashboard", "dashboard_view", "kitchen", "kitchen_view", "kitchen_add", "kitchen_edit", "orders", "orders_view"] },
+  { id: 1, parentId: 0, name: "Admin", status: "Normal", description: "Full system administration & configuration access", permissions: ALL_PERM_KEYS, userCount: 1, permissionCount: 8 },
+  { id: 2, parentId: 1, name: "Store Manager", status: "Normal", description: "Store management with reports and catalog rights", permissions: ALL_PERM_KEYS, userCount: 0, permissionCount: 6 },
+  { id: 3, parentId: 2, name: "Supervisor", status: "Normal", description: "Shift supervisor with order & discount void rights", permissions: ["pos.order.create", "pos.payment.process", "pos.discount.apply", "pos.invoice.void"], userCount: 0, permissionCount: 4 },
+  { id: 4, parentId: 2, name: "Cashier", status: "Normal", description: "Front-of-house cashier operations team", permissions: ["pos.order.create", "pos.payment.process"], userCount: 1, permissionCount: 2 },
 ];
 
 export default function GroupsPage() {
@@ -172,13 +163,9 @@ export default function GroupsPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
-
-  useEffect(() => {
-    const handleClose = () => setActionMenuOpen(null);
-    window.addEventListener("click", handleClose);
-    return () => window.removeEventListener("click", handleClose);
-  }, []);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -190,69 +177,70 @@ export default function GroupsPage() {
   const [selectedPermList, setSelectedPermList] = useState<string[]>(ALL_PERM_KEYS);
   const [isExpandedAll, setIsExpandedAll] = useState<boolean>(true);
 
+  // Delete Confirm Modal State
+  const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<AdminGroup | null>(null);
+
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
   const textPrimary = dark ? "text-slate-100" : "text-slate-800";
-  const textSecondary = dark ? "text-slate-400" : "text-slate-500";
 
-  // Load Groups from PostgreSQL DB API & WebSocket listener
+  useEffect(() => {
+    const handleClose = () => {
+      setActionMenuOpen(null);
+      setActionMenuPos(null);
+    };
+    window.addEventListener("click", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    window.addEventListener("resize", handleClose);
+    return () => {
+      window.removeEventListener("click", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+      window.removeEventListener("resize", handleClose);
+    };
+  }, []);
+
   const loadGroups = async (forceRefresh = false) => {
     try {
       const data = await getAdminGroups(forceRefresh);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setGroups(data);
-        return;
       }
     } catch {}
-
-    setGroups(DEFAULT_GROUPS);
   };
 
   useEffect(() => {
-    loadGroups();
+    loadGroups(true);
 
     const socket = getSocket();
     if (socket) {
       const handleSocketUpdate = () => loadGroups(true);
-      socket.on("group:updated", handleSocketUpdate);
+
+      socket.on("groups:updated", handleSocketUpdate);
       socket.on("group:created", handleSocketUpdate);
+      socket.on("group:updated", handleSocketUpdate);
       socket.on("group:deleted", handleSocketUpdate);
+      socket.on("user:created", handleSocketUpdate);
+      socket.on("user:updated", handleSocketUpdate);
 
       return () => {
-        socket.off("group:updated", handleSocketUpdate);
+        socket.off("groups:updated", handleSocketUpdate);
         socket.off("group:created", handleSocketUpdate);
+        socket.off("group:updated", handleSocketUpdate);
         socket.off("group:deleted", handleSocketUpdate);
+        socket.off("user:created", handleSocketUpdate);
+        socket.off("user:updated", handleSocketUpdate);
       };
     }
   }, []);
 
-  const saveGroupsToStorage = async (
-    nextGroups: AdminGroup[],
-    eventName: "group:created" | "group:updated" | "group:deleted" = "group:updated"
-  ) => {
-    setGroups(nextGroups);
-    try {
-      await saveAdminGroups(nextGroups);
-      const socket = getSocket();
-      if (socket) {
-        socket.emit("group:updated", nextGroups);
-        socket.emit(eventName, nextGroups);
-      }
-    } catch {
-      setError("Failed to save admin groups to database.");
-    }
-  };
-
-  // Refresh handler
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadGroups(true).finally(() => {
       setIsRefreshing(false);
-      setMessage("Group list refreshed from database.");
+      setMessage("Group list refreshed.");
     });
   };
 
-  // Open Create Modal
   const openCreateModal = (parentGroupId: number = 0) => {
     setEditingGroup(null);
     setFormParentId(parentGroupId);
@@ -263,83 +251,101 @@ export default function GroupsPage() {
     setIsModalOpen(true);
   };
 
-  // Open Edit Modal
   const openEditModal = (group: AdminGroup) => {
     if (group.id === 1) {
-      setError("Root Super Admin Group (ID 1) is a protected system owner group and cannot be edited.");
+      setError("Root Admin Group (ID 1) is a protected system owner group.");
       return;
     }
     setEditingGroup(group);
-    setFormParentId(group.parentId);
+    setFormParentId(group.parentId || 0);
     setFormName(group.name);
-    setFormStatus(group.status);
+    setFormStatus(group.status || "Normal");
     setFormDesc(group.description || "");
-    setSelectedPermList(group.permissions && Array.isArray(group.permissions) ? group.permissions : ALL_PERM_KEYS);
+    setSelectedPermList(
+      group.permission_codes || group.permissions || ALL_PERM_KEYS
+    );
     setIsModalOpen(true);
   };
 
-  // Submit Modal
-  const handleModalSubmit = (e: React.FormEvent) => {
+  const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) return;
 
-    if (editingGroup) {
-      // Edit
-      const updated = groups.map((g) =>
-        g.id === editingGroup.id
-          ? {
-              ...g,
-              parentId: formParentId,
-              name: formName.trim(),
-              status: formStatus,
-              description: formDesc.trim(),
-              permissions: selectedPermList,
-            }
-          : g
-      );
-      saveGroupsToStorage(updated, "group:updated");
-      setMessage(`Group "${formName}" updated successfully.`);
-    } else {
-      // Create
-      const newId = groups.length > 0 ? Math.max(...groups.map((g) => g.id)) + 1 : 1;
-      const newGroup: AdminGroup = {
-        id: newId,
-        parentId: formParentId,
-        name: formName.trim(),
-        status: formStatus,
-        description: formDesc.trim(),
-        permissions: selectedPermList,
-      };
-      saveGroupsToStorage([...groups, newGroup], "group:created");
-      setMessage(`Group "${formName}" created successfully.`);
+    setIsSubmitting(true);
+    try {
+      if (editingGroup) {
+        await updateAdminGroupApi(editingGroup.id, {
+          name: formName.trim(),
+          description: formDesc.trim(),
+          permission_codes: selectedPermList,
+          parent_id: formParentId,
+          status: formStatus,
+        });
+        setMessage(`Group "${formName}" updated successfully.`);
+      } else {
+        await createAdminGroupApi({
+          name: formName.trim(),
+          description: formDesc.trim(),
+          permission_codes: selectedPermList,
+          parent_id: formParentId,
+          status: formStatus,
+        });
+        setMessage(`Group "${formName}" created successfully.`);
+      }
+      await loadGroups(true);
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setError(err?.message || "Failed to save group.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsModalOpen(false);
   };
 
-  // Single Delete
-  const handleDeleteSingle = (group: AdminGroup) => {
+  const confirmDeleteGroup = (group: AdminGroup) => {
     if (group.id === 1) {
-      setError("Root Super Admin Group (ID 1) is protected and cannot be deleted.");
+      setError("Root Admin Group (ID 1) is protected and cannot be deleted.");
       return;
     }
-    const next = groups.filter((g) => g.id !== group.id);
-    saveGroupsToStorage(next, "group:deleted");
-    setSelectedIds((prev) => prev.filter((id) => id !== group.id));
-    setMessage(`Group "${group.name}" deleted.`);
+    setDeleteConfirmGroup(group);
   };
 
-  // Bulk Delete
-  const handleBulkDelete = () => {
+  const executeDeleteGroup = async (cascade = false) => {
+    if (!deleteConfirmGroup) return;
+
+    const groupToDelete = deleteConfirmGroup;
+    setDeleteConfirmGroup(null);
+
+    try {
+      await deleteAdminGroupApi(groupToDelete.id, cascade).catch((err) => {
+        if (err?.message?.toLowerCase().includes("not found")) {
+          return { success: true };
+        }
+        throw err;
+      });
+      setMessage(`Group "${groupToDelete.name}" deleted.`);
+      setSelectedIds((prev) => prev.filter((id) => id !== groupToDelete.id));
+      setGroups((prev) => prev.filter((g) => g.id !== groupToDelete.id));
+      await loadGroups(true).catch(() => null);
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete group.");
+    }
+  };
+
+  const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
     const idsToDelete = selectedIds.filter((id) => id !== 1);
-    const next = groups.filter((g) => !idsToDelete.includes(g.id));
-    saveGroupsToStorage(next, "group:deleted");
-    setSelectedIds([]);
-    setMessage(`${idsToDelete.length} groups deleted successfully.`);
+    try {
+      for (const id of idsToDelete) {
+        await deleteAdminGroupApi(id, true).catch(() => null);
+      }
+      setSelectedIds([]);
+      setMessage(`${idsToDelete.length} group(s) deleted.`);
+      await loadGroups(true);
+    } catch (err: any) {
+      setError(err?.message || "Bulk delete failed.");
+    }
   };
 
-  // Select / Deselect All
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(groups.map((g) => g.id));
@@ -348,18 +354,15 @@ export default function GroupsPage() {
     }
   };
 
-  // Toggle single selection
   const handleToggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
-  // Compute Tree Hierarchy Representation for table rendering
   const treeNodes = useMemo(() => {
     let result: Array<AdminGroup & { level: number; prefix: string }> = [];
 
-    // Helper function to calculate tree depth and prefix line graphics (├─, └─, │ ├─)
     function buildTree(parentId: number, level: number, parentPrefix: string) {
       const children = groups.filter((g) => g.parentId === parentId);
       children.forEach((child, index) => {
@@ -376,16 +379,13 @@ export default function GroupsPage() {
           prefix,
         });
 
-        // Recursively build children
         const childParentPrefix = parentPrefix + (isLast ? "   " : "│  ");
         buildTree(child.id, level + 1, childParentPrefix);
       });
     }
 
-    // Start from top-level parentId === 0
     buildTree(0, 0, "");
 
-    // Include orphan groups if parent doesn't exist
     groups.forEach((g) => {
       if (!result.some((r) => r.id === g.id)) {
         result.push({ ...g, level: 0, prefix: "" });
@@ -398,7 +398,7 @@ export default function GroupsPage() {
         (g) =>
           g.name.toLowerCase().includes(q) ||
           String(g.id).includes(q) ||
-          String(g.parentId).includes(q)
+          (g.description && g.description.toLowerCase().includes(q))
       );
     }
 
@@ -408,7 +408,7 @@ export default function GroupsPage() {
   return (
     <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
       
-      {/* Floating Success/Error Toasts */}
+      {/* Toast notifications matching exact screenshot styling */}
       {message && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
@@ -423,7 +423,7 @@ export default function GroupsPage() {
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
         <div className="mx-auto w-full max-w-[1720px] space-y-4">
           
-          {/* Title & "+ New Group" Button Header matching POS System standard */}
+          {/* Header Title Bar */}
           <div className="flex items-center justify-between gap-3 mb-2">
             <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
               {language === "km" ? "ក្រុមបុគ្គលិក" : "Admin Groups"}
@@ -440,15 +440,14 @@ export default function GroupsPage() {
             </button>
           </div>
 
-          {/* Main White Card Container */}
+          {/* Main Card Container */}
           <div className={`rounded-2xl border ${surface} ${borderCol} shadow-none overflow-hidden`}>
           
-          {/* Top Action Toolbar (Matching User Screenshot Exactly!) */}
+          {/* Top Action Toolbar */}
           <div className={`p-4 border-b ${borderCol} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
             
-            {/* Left Action Buttons: Refresh (Blue), + Add (Green), Delete (Red) */}
+            {/* Left Action Buttons */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Refresh Button (Blue/Indigo) */}
               <button
                 type="button"
                 onClick={handleRefresh}
@@ -458,7 +457,6 @@ export default function GroupsPage() {
                 <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
               </button>
 
-              {/* + Add Button (Green) */}
               <button
                 type="button"
                 onClick={() => openCreateModal()}
@@ -468,7 +466,6 @@ export default function GroupsPage() {
                 Add
               </button>
 
-              {/* Delete Selected Button (Red) */}
               <button
                 type="button"
                 onClick={handleBulkDelete}
@@ -480,7 +477,7 @@ export default function GroupsPage() {
               </button>
             </div>
 
-            {/* Right Tools: Search Bar & Column Options */}
+            {/* Right Tools: Search Bar & Views */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1 sm:w-64">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -495,35 +492,22 @@ export default function GroupsPage() {
                 />
               </div>
 
-              {/* Utility Icons Toolbar (Column / Grid / Export) */}
               <div className="flex items-center border rounded-xl overflow-hidden border-slate-200 dark:border-slate-700 shrink-0">
-                <button
-                  type="button"
-                  title="Columns view"
-                  className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
+                <button type="button" title="Columns view" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                   <Columns size={15} />
                 </button>
-                <button
-                  type="button"
-                  title="Grid view"
-                  className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700"
-                >
+                <button type="button" title="Grid view" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700">
                   <Grid size={15} />
                 </button>
-                <button
-                  type="button"
-                  title="Export Data"
-                  className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700"
-                >
+                <button type="button" title="Export Data" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700">
                   <Download size={15} />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Tree Table List */}
-          <div className="overflow-x-auto">
+          {/* Data Table */}
+          <div className="overflow-x-auto pb-24 min-h-[360px]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50/80 border-slate-200/80"}`}>
@@ -565,7 +549,6 @@ export default function GroupsPage() {
                             : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
                         }`}
                       >
-                        {/* Checkbox */}
                         <td className="py-3.5 px-4">
                           <input
                             type="checkbox"
@@ -575,17 +558,14 @@ export default function GroupsPage() {
                           />
                         </td>
 
-                        {/* ID */}
                         <td className="py-3.5 px-4 font-semibold text-slate-600 dark:text-slate-400">
                           {node.id}
                         </td>
 
-                        {/* Parent Group Name */}
                         <td className="py-3.5 px-4 font-medium text-slate-500 dark:text-slate-400 truncate max-w-[160px]">
                           {parentLabel}
                         </td>
 
-                        {/* Name (Tree Branch Graphics ├─, └─) */}
                         <td className={`py-3.5 px-4 font-normal ${textPrimary}`}>
                           <span className="font-mono text-slate-400 dark:text-slate-500 mr-1 select-none">
                             {node.prefix}
@@ -595,14 +575,12 @@ export default function GroupsPage() {
                           </span>
                         </td>
 
-                        {/* Description */}
                         <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 max-w-xs truncate">
                           {node.description || "-"}
                         </td>
 
-                        {/* Status (● Normal) */}
                         <td className="py-3.5 px-4">
-                          {node.status === "Normal" ? (
+                          {node.status === "Normal" || !node.status ? (
                             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                               <span className="h-2 w-2 rounded-full bg-emerald-500" />
                               Normal
@@ -615,15 +593,26 @@ export default function GroupsPage() {
                           )}
                         </td>
 
-                        {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}
-                        <td className="py-3.5 px-4 text-right relative">
+                        <td className="py-3.5 px-4 text-right">
                           {node.id === 1 ? null : (
-                            <div className="relative inline-block text-left">
+                            <div className="inline-block text-left">
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setActionMenuOpen(actionMenuOpen === node.id ? null : node.id);
+                                  if (actionMenuOpen === node.id) {
+                                    setActionMenuOpen(null);
+                                    setActionMenuPos(null);
+                                  } else {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const openUpwards = rect.bottom + 160 > window.innerHeight;
+                                    setActionMenuPos({
+                                      top: openUpwards ? undefined : rect.bottom + 4,
+                                      bottom: openUpwards ? window.innerHeight - rect.top + 4 : undefined,
+                                      left: Math.max(10, rect.right - 176),
+                                    });
+                                    setActionMenuOpen(node.id);
+                                  }
                                 }}
                                 className={`h-7 w-7 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                                   dark
@@ -634,47 +623,56 @@ export default function GroupsPage() {
                                 <MoreVertical size={16} />
                               </button>
 
-                              {actionMenuOpen === node.id && (
+                              {actionMenuOpen === node.id && actionMenuPos && (
                                 <div
-                                  className={`absolute right-0 top-full mt-1 z-50 w-44 rounded-xl border p-1.5 text-left shadow-xl ${
+                                  style={{
+                                    position: "fixed",
+                                    top: actionMenuPos.top !== undefined ? `${actionMenuPos.top}px` : undefined,
+                                    bottom: actionMenuPos.bottom !== undefined ? `${actionMenuPos.bottom}px` : undefined,
+                                    left: `${actionMenuPos.left}px`,
+                                  }}
+                                  className={`z-[9999] w-44 rounded-xl border p-1.5 text-left shadow-2xl ${
                                     dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/90 bg-white"
-                                  } animate-[userModalIn_150ms_cubic-bezier(0.16,1,0.3,1)]`}
+                                  }`}
                                 >
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setActionMenuOpen(null);
+                                      setActionMenuPos(null);
                                       openCreateModal(node.id);
                                     }}
                                     className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
                                   >
                                     <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
-                                    <span>{language === "km" ? "បន្ថែមក្រុមរង" : "Add Sub-group"}</span>
+                                    <span>Add Sub-group</span>
                                   </button>
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setActionMenuOpen(null);
+                                      setActionMenuPos(null);
                                       openEditModal(node);
                                     }}
                                     className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
                                   >
                                     <Edit3 size={13} className="text-cyan-500 stroke-[2]" />
-                                    <span>{language === "km" ? "កែប្រែ" : "Edit Group"}</span>
+                                    <span>Edit Group</span>
                                   </button>
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setActionMenuOpen(null);
-                                      handleDeleteSingle(node);
+                                      setActionMenuPos(null);
+                                      confirmDeleteGroup(node);
                                     }}
                                     className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                                   >
                                     <Trash2 size={13} className="text-rose-500 stroke-[2]" />
-                                    <span>{language === "km" ? "លុប" : "Delete Group"}</span>
+                                    <span>Delete Group</span>
                                   </button>
                                 </div>
                               )}
@@ -692,21 +690,18 @@ export default function GroupsPage() {
       </div>
     </div>
 
-      {/* ADD / EDIT GROUP MODAL MATCHING TARGET SCREENSHOT */}
+      {/* CREATE / EDIT GROUP MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4">
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-3xl overflow-hidden rounded-xl shadow-2xl border border-slate-700 bg-white dark:bg-[#1a1b26] animate-[userModalIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
+            className="w-full max-w-3xl overflow-hidden rounded-xl shadow-2xl border border-slate-700 bg-white dark:bg-[#1a1b26]"
           >
-            {/* Dark Navy Window Top Bar matching screenshot */}
             <div className="bg-[#2c3748] dark:bg-[#1e293b] text-white px-4 py-2.5 flex items-center justify-between select-none">
               <span className="text-sm font-semibold tracking-wide">
-                {editingGroup ? "Edit" : "Add"}
+                {editingGroup ? "Edit Group" : "Add Group"}
               </span>
               <div className="flex items-center gap-3 text-slate-300">
-                <button type="button" className="hover:text-white transition cursor-pointer text-xs font-mono">_</button>
-                <button type="button" className="hover:text-white transition cursor-pointer text-xs font-mono">□</button>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -717,10 +712,7 @@ export default function GroupsPage() {
               </div>
             </div>
 
-            {/* Modal Body Form */}
             <form onSubmit={handleModalSubmit} className="p-6 md:p-8 space-y-6 text-xs text-slate-700 dark:text-slate-200">
-              
-              {/* Parent Field Row */}
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
                 <label className="w-24 text-right text-[#10b981] font-semibold shrink-0">
                   Parent:
@@ -741,7 +733,6 @@ export default function GroupsPage() {
                 </select>
               </div>
 
-              {/* Name Field Row */}
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
                 <label className="w-24 text-right text-slate-500 font-semibold shrink-0">
                   Name:
@@ -756,10 +747,22 @@ export default function GroupsPage() {
                 />
               </div>
 
-              {/* Permission Checkbox Tree Row */}
               <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-6">
                 <label className="w-24 text-right text-slate-500 font-semibold shrink-0 pt-1">
-                  Permission:
+                  Description:
+                </label>
+                <textarea
+                  rows={2}
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Enter group description..."
+                  className="flex-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-xs outline-none focus:border-[#10b981] text-slate-800 dark:text-slate-100"
+                />
+              </div>
+
+              <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-6">
+                <label className="w-24 text-right text-slate-500 font-semibold shrink-0 pt-1">
+                  Permissions:
                 </label>
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -789,7 +792,6 @@ export default function GroupsPage() {
                     </label>
                   </div>
 
-                  {/* Connector Tree List ├─ for System POS Modules */}
                   <div className="space-y-2 pt-1 pl-1 border-l border-slate-200 dark:border-slate-800 max-h-60 overflow-y-auto pr-1">
                     {SYSTEM_POS_MODULES.map((mod) => {
                       const modKeys = [mod.key, ...(mod.subPermissions ? mod.subPermissions.map((s) => s.key) : [])];
@@ -797,7 +799,6 @@ export default function GroupsPage() {
 
                       return (
                         <div key={mod.key} className="space-y-1">
-                          {/* Module Header */}
                           <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
                             <span className="font-mono text-slate-400 select-none">├─</span>
                             <input
@@ -826,7 +827,6 @@ export default function GroupsPage() {
                             </span>
                           </div>
 
-                          {/* Sub-permissions */}
                           {isExpandedAll && mod.subPermissions && (
                             <div className="pl-6 space-y-1 border-l border-slate-200/60 dark:border-slate-800/60 ml-2">
                               {mod.subPermissions.map((sub) => {
@@ -870,7 +870,6 @@ export default function GroupsPage() {
                 </div>
               </div>
 
-              {/* Status Radio Row */}
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6 pt-2">
                 <label className="w-24 text-right text-slate-500 font-semibold shrink-0">
                   Status:
@@ -896,12 +895,11 @@ export default function GroupsPage() {
                       onChange={() => setFormStatus("Disabled")}
                       className="text-slate-400 focus:ring-slate-400"
                     />
-                    <span>Hidden</span>
+                    <span>Disabled</span>
                   </label>
                 </div>
               </div>
 
-              {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
@@ -912,12 +910,51 @@ export default function GroupsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-1.5 rounded bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-1.5 rounded bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
                 >
-                  {editingGroup ? "Save Changes" : "Create Group"}
+                  {isSubmitting ? "Saving..." : editingGroup ? "Save Changes" : "Create Group"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      {deleteConfirmGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-[#1a1b26] p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center gap-3 text-amber-500">
+              <AlertCircle size={24} />
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                Confirm Delete Group
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Are you sure you want to delete group <strong>"{deleteConfirmGroup.name}"</strong>?
+              {deleteConfirmGroup.userCount && deleteConfirmGroup.userCount > 0 ? (
+                <span className="block mt-2 text-rose-500 font-semibold">
+                  ⚠️ Warning: {deleteConfirmGroup.userCount} user(s) are currently assigned to this group.
+                </span>
+              ) : null}
+            </p>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmGroup(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => executeDeleteGroup(true)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition"
+              >
+                Delete Group
+              </button>
+            </div>
           </div>
         </div>
       )}

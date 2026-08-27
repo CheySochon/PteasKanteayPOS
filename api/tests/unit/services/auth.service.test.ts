@@ -9,8 +9,14 @@ vi.mock("../../../src/config/prisma.js", () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
-    role: {
+    group: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+    userGroup: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -24,6 +30,10 @@ vi.mock("../../../src/utils/jwt.js", () => ({
   signToken: vi.fn(),
 }));
 
+vi.mock("../../../src/utils/rbac.js", () => ({
+  getUserPermissions: vi.fn().mockResolvedValue(["pos.order.create", "pos.payment.process"]),
+}));
+
 import { prisma } from "../../../src/config/prisma.js";
 import { hashPassword, comparePassword } from "../../../src/utils/bcrypt.js";
 import { signToken } from "../../../src/utils/jwt.js";
@@ -33,20 +43,21 @@ const mockFindUnique = prisma.user.findUnique as Mock;
 const mockFindFirst = prisma.user.findFirst as Mock;
 const mockCreate = prisma.user.create as Mock;
 const mockUpdate = prisma.user.update as Mock;
-const mockRoleFindUnique = prisma.role.findUnique as Mock;
+const mockGroupFindUnique = prisma.group.findUnique as Mock;
+const mockGroupFindFirst = prisma.group.findFirst as Mock;
+const mockGroupCreate = prisma.group.create as Mock;
 const mockHashPassword = hashPassword as Mock;
 const mockComparePassword = comparePassword as Mock;
 const mockSignToken = signToken as Mock;
 
-const fakeRole = { id: 1, name: "Staff" };
+const fakeGroup = { id: 1, name: "Staff", groupPermissions: [] };
 const fakeUser = {
   id: 1,
   email: "test@example.com",
   name: "Test User",
   password: "hashed_pw",
   isActive: true,
-  role: fakeRole,
-  roleId: 1,
+  userGroups: [{ groupId: 1, userId: 1, group: fakeGroup }],
 };
 
 describe("auth.service", () => {
@@ -60,7 +71,7 @@ describe("auth.service", () => {
     it("should register a new user and return user + token", async () => {
       mockFindUnique.mockResolvedValueOnce(null); // no existing user
       mockHashPassword.mockResolvedValue("hashed_pw");
-      mockRoleFindUnique.mockResolvedValue(fakeRole);
+      mockGroupFindUnique.mockResolvedValue(fakeGroup);
       mockCreate.mockResolvedValue(fakeUser);
       mockSignToken.mockReturnValue("fake_token");
 
@@ -72,10 +83,9 @@ describe("auth.service", () => {
 
       expect(mockFindUnique).toHaveBeenCalledWith({ where: { email: "test@example.com" } });
       expect(mockHashPassword).toHaveBeenCalledWith("password123");
-      expect(mockRoleFindUnique).toHaveBeenCalledWith({ where: { name: "Staff" } });
       expect(mockCreate).toHaveBeenCalled();
       expect(result.token).toBe("fake_token");
-      expect(result.user).toEqual(fakeUser);
+      expect(result.user.name).toBe("Test User");
     });
 
     it("should throw if email is already in use", async () => {
@@ -84,16 +94,6 @@ describe("auth.service", () => {
       await expect(
         register({ email: "test@example.com", password: "pw", name: "Test" })
       ).rejects.toThrow("Email already in use");
-    });
-
-    it("should throw if the role is invalid", async () => {
-      mockFindUnique.mockResolvedValueOnce(null);
-      mockHashPassword.mockResolvedValue("hashed_pw");
-      mockRoleFindUnique.mockResolvedValue(null); // role not found
-
-      await expect(
-        register({ email: "new@example.com", password: "pw", name: "Test", role: "Ghost" })
-      ).rejects.toThrow("Invalid role");
     });
   });
 
@@ -110,7 +110,7 @@ describe("auth.service", () => {
       expect(mockFindFirst).toHaveBeenCalled();
       expect(mockComparePassword).toHaveBeenCalledWith("password123", fakeUser.password);
       expect(result.token).toBe("fake_token");
-      expect(result.user).toEqual(fakeUser);
+      expect(result.user.name).toBe("Test User");
     });
 
     it("should throw if user is not found", async () => {

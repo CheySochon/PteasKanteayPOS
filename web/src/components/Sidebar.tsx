@@ -596,15 +596,21 @@ export default function Sidebar({
             </div>
           )}
           <div className="min-w-0 flex-1 whitespace-nowrap">
-            <div className={`truncate text-sm font-medium transition-colors ${
+            <div className={`truncate text-[13px] font-semibold transition-colors ${
               pathname === "/admin/profile"
-                ? "text-[#55a060] font-medium"
+                ? "text-[#55a060]"
                 : dark ? "text-white group-hover:text-[#55a060]" : "text-slate-800 group-hover:text-[#55a060]"
             } ${language === "km" ? "font-khmer text-xs" : ""}`}>
               {currentUser.name}
             </div>
-            <div className={`text-[10.5px] font-medium uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-400"}`}>
-              {currentUser.role}
+            <div className="mt-0.5 flex items-center">
+              <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                dark 
+                  ? "bg-[#55a060]/20 text-[#55a060]" 
+                  : "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
+              }`}>
+                {currentUser.role}
+              </span>
             </div>
           </div>
         </Link>
@@ -1068,20 +1074,20 @@ function SidebarProfileCard({
           )}
 
           <div className="min-w-0 flex-1">
-            <div className={`truncate leading-4 font-normal ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13px]" : "text-[12.5px]"}`}>
+            <div className={`truncate leading-4 font-semibold ${dark ? "text-white" : "text-[#0F522B]"} ${isKhmer ? "text-[13px]" : "text-[12.5px]"}`}>
               {user.name}
             </div>
             <div className="mt-1 flex items-center gap-1.5">
               <span
-                className={`max-w-[70px] truncate rounded px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wider ${
-                  dark ? "bg-[#0F522B] text-white" : "bg-[#0F522B]/10 text-[#0F522B]"
+                className={`max-w-[85px] truncate rounded-md px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wider ${
+                  dark ? "bg-[#0F522B] text-white" : "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
                 }`}
               >
                 {user.role}
               </span>
-              <span className={`flex min-w-0 items-center gap-1 text-[9.5px] font-semibold ${dark ? "text-[#71dd37]" : "text-[#0F522B]"}`}>
-                <span className="relative flex h-2 w-2 shrink-0 items-center justify-center rounded-full bg-[#71dd37]/20">
-                  <span className="h-1 w-1 rounded-full bg-[#71dd37]" />
+              <span className={`flex min-w-0 items-center gap-1 text-[9.5px] font-semibold ${dark ? "text-[#71dd37]" : "text-emerald-600"}`}>
+                <span className="relative flex h-2 w-2 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 </span>
                 Active
               </span>

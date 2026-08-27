@@ -1,15 +1,95 @@
 import { prisma } from "../config/prisma.js";
 import { hashPassword } from "../utils/bcrypt.js";
+import {
+  listGroups,
+  createGroup,
+  updateGroup,
+  deleteGroup,
+} from "./group.service.js";
+
+async function findOrCreateGroup(targetGroupName?: string) {
+  const selectedName = (targetGroupName || "Cashier").trim();
+
+  let groupRecord = await prisma.group.findUnique({
+    where: { name: selectedName },
+  });
+
+  if (!groupRecord) {
+    groupRecord = await prisma.group.findFirst({
+      where: { name: { equals: selectedName, mode: "insensitive" } },
+    });
+  }
+
+  if (!groupRecord) {
+    try {
+      groupRecord = await prisma.group.create({
+        data: {
+          name: selectedName,
+          description: `${selectedName} Group`,
+        },
+      });
+    } catch {
+      groupRecord = await prisma.group.findFirst({
+        where: { name: { equals: selectedName, mode: "insensitive" } },
+      });
+    }
+  }
+
+  if (!groupRecord) {
+    groupRecord = await prisma.group.findFirst();
+  }
+
+  if (!groupRecord) {
+    throw new Error("Invalid group: No groups found in system");
+  }
+
+  return groupRecord;
+}
+
+function formatUserRoleCompatibility(user: any) {
+  if (!user) return user;
+  const groups = user.userGroups?.map((ug: any) => ug.group) || [];
+  const primaryGroupName = groups[0]?.name || "Staff";
+  const primaryGroupId = groups[0]?.id || 1;
+
+  const roleObj = {
+    id: primaryGroupId,
+    name: primaryGroupName,
+    description: groups[0]?.description || `${primaryGroupName} Group`,
+    permissions: groups.flatMap((g: any) =>
+      g.groupPermissions?.map((gp: any) => gp.permission?.code).filter(Boolean) || []
+    ),
+  };
+
+  return {
+    ...user,
+    role: roleObj,
+    roleName: primaryGroupName,
+    groups,
+  };
+}
 
 export const listUsers = async () => {
-  return prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       email: true,
       name: true,
-      role: true,
+      userGroups: {
+        include: {
+          group: {
+            include: {
+              groupPermissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
       isActive: true,
       pin: true,
       imageUrl: true,
@@ -17,52 +97,9 @@ export const listUsers = async () => {
       updatedAt: true,
     },
   });
+
+  return users.map(formatUserRoleCompatibility);
 };
-
-async function findOrCreateRole(targetRoleName?: string) {
-  const selectedRole = (targetRoleName || "Cashier").trim();
-  let roleRecord = await prisma.role.findUnique({
-    where: { name: selectedRole },
-  });
-
-  if (!roleRecord) {
-    roleRecord = await prisma.role.findFirst({
-      where: { name: { equals: selectedRole, mode: "insensitive" } },
-    });
-  }
-
-  if (!roleRecord) {
-    try {
-      roleRecord = await prisma.role.create({
-        data: {
-          name: selectedRole,
-          description: `${selectedRole} Role`,
-          permissions: [],
-        },
-      });
-    } catch {
-      roleRecord = await prisma.role.findFirst({
-        where: { name: { equals: selectedRole, mode: "insensitive" } },
-      });
-    }
-  }
-
-  if (!roleRecord) {
-    roleRecord = await prisma.role.findFirst({
-      where: { name: { equals: "Staff", mode: "insensitive" } },
-    });
-  }
-
-  if (!roleRecord) {
-    roleRecord = await prisma.role.findFirst();
-  }
-
-  if (!roleRecord) {
-    throw new Error("Invalid role: No roles found in system");
-  }
-
-  return roleRecord;
-}
 
 export const createUser = async (data: {
   email: string;
@@ -70,6 +107,8 @@ export const createUser = async (data: {
   name: string;
   role?: string;
   roleName?: string;
+  groupIds?: number[];
+  groupNames?: string[];
   isActive?: boolean;
   pin?: string;
   imageUrl?: string;
@@ -83,38 +122,45 @@ export const createUser = async (data: {
 
   const hashedPassword = await hashPassword(data.password);
 
-  const selectedRole = data.roleName ?? data.role ?? "Cashier";
-  const roleRecord = await findOrCreateRole(selectedRole);
+  const targetGroupIds: number[] = [];
 
-  let parsedPerms: any = data.permissions;
-  if (typeof parsedPerms === "string") {
-    try {
-      parsedPerms = JSON.parse(parsedPerms);
-    } catch {}
+  if (data.groupIds && data.groupIds.length > 0) {
+    targetGroupIds.push(...data.groupIds);
+  } else {
+    const selectedGroup = data.roleName ?? data.role ?? (data.groupNames ? data.groupNames[0] : "Cashier");
+    const groupRecord = await findOrCreateGroup(selectedGroup);
+    targetGroupIds.push(groupRecord.id);
   }
 
-  if (parsedPerms && Array.isArray(parsedPerms)) {
-    await prisma.role.update({
-      where: { id: roleRecord.id },
-      data: { permissions: parsedPerms },
-    });
-  }
-
-  return prisma.user.create({
+  const newUser = await prisma.user.create({
     data: {
       email: data.email,
       password: hashedPassword,
       name: data.name,
-      roleId: roleRecord.id,
       isActive: data.isActive ?? true,
       pin: data.pin || null,
       imageUrl: data.imageUrl || null,
+      userGroups: {
+        create: targetGroupIds.map((groupId) => ({ groupId })),
+      },
     },
     select: {
       id: true,
       email: true,
       name: true,
-      role: true,
+      userGroups: {
+        include: {
+          group: {
+            include: {
+              groupPermissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
       isActive: true,
       pin: true,
       imageUrl: true,
@@ -122,6 +168,8 @@ export const createUser = async (data: {
       updatedAt: true,
     },
   });
+
+  return formatUserRoleCompatibility(newUser);
 };
 
 export const updateUser = async (
@@ -132,6 +180,8 @@ export const updateUser = async (
     name?: string;
     role?: string;
     roleName?: string;
+    groupIds?: number[];
+    groupNames?: string[];
     isActive?: boolean;
     pin?: string;
     imageUrl?: string;
@@ -153,35 +203,36 @@ export const updateUser = async (
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
   if (data.password) updateData.password = await hashPassword(data.password);
 
-  let targetRoleId = existing.roleId;
+  let targetGroupIds: number[] | null = null;
 
-  // 🛡️ Super Admin Protection Guard: User ID 1 or owner email ALWAYS stays Super Admin & Active
+  // 🛡️ Super Admin Protection Guard: User ID 1 or owner email ALWAYS stays Admin & Active
   if (id === 1 || existing.email?.toLowerCase() === "cheychon258@gmail.com") {
-    const superRole = await findOrCreateRole("Super Admin");
-    updateData.roleId = superRole.id;
+    const superGroup = await findOrCreateGroup("Admin");
+    targetGroupIds = [superGroup.id];
     updateData.isActive = true;
-    targetRoleId = superRole.id;
+  } else if (data.groupIds !== undefined && data.groupIds.length > 0) {
+    targetGroupIds = data.groupIds;
   } else {
-    const selectedRole = data.roleName !== undefined ? data.roleName : data.role;
-    if (selectedRole !== undefined) {
-      const roleRecord = await findOrCreateRole(selectedRole);
-      updateData.roleId = roleRecord.id;
-      targetRoleId = roleRecord.id;
+    const selectedGroup = data.roleName !== undefined ? data.roleName : data.role;
+    if (selectedGroup !== undefined) {
+      const groupRecord = await findOrCreateGroup(selectedGroup);
+      targetGroupIds = [groupRecord.id];
     }
   }
 
-  let parsedPerms: any = data.permissions;
-  if (typeof parsedPerms === "string") {
-    try {
-      parsedPerms = JSON.parse(parsedPerms);
-    } catch {}
-  }
-
-  if (parsedPerms && Array.isArray(parsedPerms)) {
-    await prisma.role.update({
-      where: { id: targetRoleId },
-      data: { permissions: parsedPerms },
+  if (targetGroupIds !== null) {
+    await prisma.userGroup.deleteMany({
+      where: { userId: id },
     });
+
+    if (targetGroupIds.length > 0) {
+      await prisma.userGroup.createMany({
+        data: targetGroupIds.map((groupId) => ({
+          userId: id,
+          groupId,
+        })),
+      });
+    }
   }
 
   const updated = await prisma.user.update({
@@ -191,7 +242,19 @@ export const updateUser = async (
       id: true,
       email: true,
       name: true,
-      role: true,
+      userGroups: {
+        include: {
+          group: {
+            include: {
+              groupPermissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
       isActive: true,
       pin: true,
       imageUrl: true,
@@ -200,11 +263,7 @@ export const updateUser = async (
     },
   });
 
-  if (parsedPerms && Array.isArray(parsedPerms) && updated.role) {
-    (updated.role as any).permissions = parsedPerms;
-  }
-
-  return updated;
+  return formatUserRoleCompatibility(updated);
 };
 
 export const deleteUser = async (id: number) => {
@@ -228,78 +287,8 @@ export const deleteUser = async (id: number) => {
   });
 };
 
-export const listRoles = async () => {
-  return prisma.role.findMany({
-    orderBy: { name: "asc" },
-  });
-};
-
-export const createRole = async (data: {
-  name: string;
-  description: string;
-  permissions: any;
-}) => {
-  const existing = await prisma.role.findUnique({
-    where: { name: data.name },
-  });
-  if (existing) {
-    throw new Error("Role name is already registered");
-  }
-  return prisma.role.create({
-    data: {
-      name: data.name,
-      description: data.description,
-      permissions: data.permissions,
-    },
-  });
-};
-
-export const updateRole = async (
-  id: number,
-  data: {
-    name?: string;
-    description?: string;
-    permissions?: any;
-  },
-) => {
-  const existing = await prisma.role.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Role not found");
-  }
-
-  if (data.name && data.name !== existing.name) {
-    const duplicate = await prisma.role.findUnique({
-      where: { name: data.name },
-    });
-    if (duplicate) {
-      throw new Error("Role name is already registered");
-    }
-  }
-
-  return prisma.role.update({
-    where: { id },
-    data: {
-      name: data.name,
-      description: data.description,
-      permissions: data.permissions,
-    },
-  });
-};
-
-export const deleteRole = async (id: number) => {
-  const existing = await prisma.role.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Role not found");
-  }
-
-  const assignedUsersCount = await prisma.user.count({
-    where: { roleId: id, deletedAt: null },
-  });
-  if (assignedUsersCount > 0) {
-    throw new Error("Cannot delete role: active staff members are currently assigned to it");
-  }
-
-  return prisma.role.delete({
-    where: { id },
-  });
-};
+// Aliases for Role management -> Group management
+export const listRoles = listGroups;
+export const createRole = createGroup;
+export const updateRole = updateGroup;
+export const deleteRole = deleteGroup;

@@ -6,10 +6,10 @@ import Sidebar from "../../components/Sidebar";
 import TopBar from "../../components/TopBar";
 import { useAppLanguage } from "../../lib/language";
 import { useAppTheme } from "../../lib/theme";
-import { roleName } from "../../lib/permissions";
+import { roleName, canAccessPath } from "../../lib/permissions";
 import { Loader2, Check, X, LogIn, LogOut } from "lucide-react";
 import { getSocket } from "../../lib/socket";
-import { getSettings } from "../../lib/api";
+import { getSettings, getMe } from "../../lib/api";
 
 export default function AdminLayout({
   children,
@@ -42,8 +42,8 @@ export default function AdminLayout({
         const user = JSON.parse(storedUser);
         let uRole = roleName(user).trim().toLowerCase();
 
-        // 🛡️ Auto-Repair: User ID 1 or owner email is ALWAYS Super Admin
-        if (user.id === 1 || user.email?.toLowerCase() === "cheychon258@gmail.com") {
+        // Auto-Repair: Only super admin owner email is forced as Super Admin
+        if (user.email?.toLowerCase() === "cheychon258@gmail.com") {
           uRole = "super admin";
           if (user.role !== "Super Admin" || user.roleName !== "SUPER_ADMIN") {
             user.role = { id: 1, name: "Super Admin" };
@@ -52,13 +52,15 @@ export default function AdminLayout({
           }
         }
 
-        if (["super admin", "admin", "administrator", "manager"].includes(uRole)) {
+        const isAllowed = canAccessPath(pathname, user);
+
+        if (isAllowed) {
           setAuthorized(true);
         } else {
           setAuthorized(false);
-          if (uRole === "cashier") {
+          if (uRole.includes("cashier")) {
             window.location.href = "/pos";
-          } else if (uRole === "staff" || uRole === "kitchen") {
+          } else if (uRole.includes("staff") || uRole.includes("kitchen")) {
             window.location.href = "/kds";
           } else {
             window.location.href = "/pos";
@@ -111,31 +113,33 @@ export default function AdminLayout({
       }
     }
 
-    async function syncRealtimePermissions() {
+    async function handleGroupUpdated() {
       try {
-        const settings = await getSettings();
-        if (settings && Array.isArray((settings as any).adminGroups)) {
-          localStorage.setItem("pos_admin_groups_list", JSON.stringify((settings as any).adminGroups));
+        const freshUser = await getMe();
+        if (freshUser) {
+          const stored = localStorage.getItem("pos_user");
+          const userObj = stored ? JSON.parse(stored) : {};
+          const updatedUser = {
+            ...userObj,
+            ...freshUser,
+            permissions: freshUser.permissions || userObj.permissions,
+          };
+          localStorage.setItem("pos_user", JSON.stringify(updatedUser));
           window.dispatchEvent(new Event("pos-auth-change"));
-          window.dispatchEvent(new Event("storage"));
         }
       } catch {}
     }
 
     socket.on("auth:login", handleAuthLogin);
     socket.on("auth:logout", handleAuthLogout);
-    socket.on("group:updated", syncRealtimePermissions);
-    socket.on("group:created", syncRealtimePermissions);
-    socket.on("group:deleted", syncRealtimePermissions);
-    socket.on("settings:updated", syncRealtimePermissions);
+    socket.on("group:updated", handleGroupUpdated);
+    socket.on("groups:updated", handleGroupUpdated);
 
     return () => {
       socket.off("auth:login", handleAuthLogin);
       socket.off("auth:logout", handleAuthLogout);
-      socket.off("group:updated", syncRealtimePermissions);
-      socket.off("group:created", syncRealtimePermissions);
-      socket.off("group:deleted", syncRealtimePermissions);
-      socket.off("settings:updated", syncRealtimePermissions);
+      socket.off("group:updated", handleGroupUpdated);
+      socket.off("groups:updated", handleGroupUpdated);
     };
   }, []);
 

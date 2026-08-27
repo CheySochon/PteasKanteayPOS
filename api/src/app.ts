@@ -9,6 +9,8 @@ import { fileURLToPath } from "url";
 
 import authRouter from "./routers/auth.router.js";
 import userRouter from "./routers/user.router.js";
+import groupRouter from "./routers/group.router.js";
+import permissionRouter from "./routers/permission.router.js";
 import categoryRouter from "./routers/category.router.js";
 import productRouter from "./routers/product.router.js";
 import tableRouter from "./routers/table.router.js";
@@ -95,6 +97,18 @@ app.use("/api/auth", authRateLimit, authRouter);
  * Feature API routes
  */
 app.use("/api/users", userRouter);
+
+// Group & Permission Management Endpoints (mounted under all path prefixes for full compatibility)
+app.use("/api/groups", groupRouter);
+app.use("/api/admin/groups", groupRouter);
+app.use("/groups", groupRouter);
+app.use("/admin/groups", groupRouter);
+
+app.use("/api/permissions", permissionRouter);
+app.use("/api/admin/permissions", permissionRouter);
+app.use("/permissions", permissionRouter);
+app.use("/admin/permissions", permissionRouter);
+
 app.use("/api/categories", categoryRouter);
 app.use("/api/products", productRouter);
 app.use("/api/tables", tableRouter);

@@ -13,6 +13,7 @@ import {
   loginWithPin,
 } from "../services/auth.service.js";
 import { createAuditLog } from "../services/audit.service.js";
+import { getUserPermissions } from "../utils/rbac.js";
 
 const cookieOptions = {
   httpOnly: true,
@@ -94,7 +95,7 @@ export const login = async (
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Login failed";
 
-    // Record Failed Login Audit Log & Telegram Warning Alert
+    // Record Failed Login Audit Log
     try {
       await createAuditLog({
         userName: req.body.email || "Unknown User",
@@ -148,7 +149,7 @@ export const logout = async (req: Request, res: Response) => {
 
   res.clearCookie("access_token");
 
-  // Emit Socket.io Logout Event for real-time alerts
+  // Emit Socket.io Logout Event
   if (user) {
     try {
       const io = req.app.get("io");
@@ -176,16 +177,51 @@ export const me = async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true },
+      include: {
+        userGroups: {
+          include: {
+            group: {
+              include: {
+                groupPermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
+
     if (!user || user.deletedAt) {
       return res.status(401).json({ success: false, message: "User not found" });
     }
+
+    const groups = user.userGroups.map((ug) => ug.group);
+    const primaryGroup = groups[0];
+    const primaryGroupName = primaryGroup?.name || "Staff";
+    const permissions = await getUserPermissions(userId);
+
+    const data = {
+      ...user,
+      groups,
+      permissions,
+      role: {
+        id: primaryGroup?.id || 1,
+        name: primaryGroupName,
+        description: primaryGroup?.description || `${primaryGroupName} Group`,
+        permissions,
+      },
+      roleName: primaryGroupName,
+    };
+
     res.json({
       success: true,
-      data: user,
+      data,
     });
   } catch (_err: unknown) {
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -256,7 +292,6 @@ export const resetPassword = async (
         id: user.id,
         name: user.name,
         email: user.email,
-        roleId: user.roleId,
       },
     });
   } catch (err: unknown) {
@@ -279,11 +314,6 @@ export const getPublicStaff = async (
       where: {
         deletedAt: null,
         isActive: true,
-        role: {
-          name: {
-            in: ["Cashier", "Staff"],
-          },
-        },
       },
       select: {
         id: true,
@@ -291,17 +321,37 @@ export const getPublicStaff = async (
         email: true,
         pin: true,
         imageUrl: true,
-        role: {
+        userGroups: {
           select: {
-            name: true,
+            group: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    const formatted = (users || []).map((u) => {
+      const groupName = u.userGroups?.[0]?.group?.name || "Staff";
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        pin: u.pin,
+        imageUrl: u.imageUrl,
+        role: { name: groupName },
+        roleName: groupName,
+      };
     });
 
     res.json({
       success: true,
-      data: users,
+      data: formatted,
     });
   } catch (err: unknown) {
     res.status(500).json({
@@ -312,17 +362,17 @@ export const getPublicStaff = async (
 };
 
 export const loginPin = async (
-  req: Request<object, object, { pin: string }>,
+  req: Request<object, object, { pin: string; userId?: number; email?: string }>,
   res: Response,
 ) => {
   try {
-    const { pin } = req.body;
+    const { pin, userId, email } = req.body;
     if (!pin) {
       res.status(400).json({ success: false, message: "PIN is required" });
       return;
     }
 
-    const { user, token } = await loginWithPin(pin);
+    const { user, token } = await loginWithPin(pin, userId, email);
 
     // Set cookie
     res.cookie("access_token", token, cookieOptions);
@@ -363,6 +413,7 @@ export const loginPin = async (
           email: user.email,
           role: user.role.name,
           roleName: user.role.name.toUpperCase(),
+          permissions: user.permissions,
         },
       },
     });
@@ -393,17 +444,23 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      include: { role: true },
+      include: {
+        userGroups: {
+          include: {
+            group: true,
+          },
+        },
+      },
     });
 
     if (!user || user.deletedAt || !user.isActive) {
       return res.status(401).json({ success: false, message: "User disabled or not found" });
     }
 
-    const userRoleStr = typeof user.role === "string" ? user.role : user.role?.name || "Cashier";
+    const groupName = user.userGroups[0]?.group?.name || "Cashier";
     const newToken = signToken({
       userId: user.id,
-      role: userRoleStr,
+      role: groupName,
     });
 
     res.cookie("access_token", newToken, cookieOptions);
@@ -415,7 +472,7 @@ export const refreshToken = async (req: Request, res: Response) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: userRoleStr,
+        role: groupName,
       },
     });
   } catch (_err) {

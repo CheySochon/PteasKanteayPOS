@@ -501,7 +501,7 @@ export default function OrdersPage() {
 
   async function handlePayAndPrint(order: Order) {
     setOpenActionId(null);
-    const updatedPayload = { ...order, status: "completed" as OrderStatus, paymentStatus: "completed" };
+    const updatedPayload = { ...order, status: "completed" as OrderStatus };
     setOrders((current) =>
       current.map((entry) => (String(entry.id) === String(order.id) ? updatedPayload : entry))
     );

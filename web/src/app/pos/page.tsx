@@ -36,7 +36,6 @@ import {
   Banknote,
   ChevronDown,
   AlertTriangle,
-  SlidersHorizontal,
   ClipboardList,
   Armchair,
   User,
@@ -223,13 +222,11 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const activeQrOrders = useMemo(() => {
     return qrOrders.filter((o) => {
       const s = String(o.status || "").toLowerCase().trim();
-      const ps = String(o.paymentStatus || "").toLowerCase().trim();
-      const isDoneStatus = ["completed", "done", "cancelled", "paid"].includes(s);
-      const isDonePayment = ps === "completed" || ps === "paid" || o.isPaid === true;
+      const isDoneStatus = ["completed", "done", "cancelled"].includes(s);
       const items = Array.isArray(o.items) ? o.items : [];
       const totalQty = items.reduce((sum: number, i: any) => sum + Number(i.quantity || 1), 0);
       const isEmptyCart = items.length === 0 || totalQty === 0;
-      return !isDoneStatus && !isDonePayment && !isEmptyCart;
+      return !isDoneStatus && !isEmptyCart;
     });
   }, [qrOrders]);
 
@@ -2001,13 +1998,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 Drafts
               </h3>
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                  title="Filter / Sort"
-                >
-                  <SlidersHorizontal size={18} />
-                </button>
                 <button 
                   type="button"
                   onClick={() => setHeldModalOpen(false)}
@@ -2351,16 +2341,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 QR Orders
               </h3>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    getOrders().then((data) => { if (Array.isArray(data)) setQrOrders(data); });
-                  }}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-100 transition-colors cursor-pointer"
-                  title="Filter / Refresh"
-                >
-                  <SlidersHorizontal size={16} />
-                </button>
                 <button 
                   type="button"
                   onClick={() => setQrOrdersModalOpen(false)}

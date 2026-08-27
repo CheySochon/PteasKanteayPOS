@@ -471,8 +471,7 @@ export default function DashboardPage() {
         const hour = date.getHours();
         if (hour >= 0 && hour < 24) {
           const st = (order.status || "").toLowerCase();
-          const pst = ((order as any).paymentStatus || "").toLowerCase();
-          if (st === "completed" || st === "paid" || pst === "completed") {
+          if (st === "completed" || st === "served") {
             rows[hour].total += Number(order.totalAmount || 0);
           }
           rows[hour].count += 1;
@@ -532,8 +531,7 @@ export default function DashboardPage() {
       .filter((o) => {
         const d = new Date(o.createdAt);
         const st = (o.status || "").toLowerCase();
-        const pst = ((o as any).paymentStatus || "").toLowerCase();
-        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "paid" || pst === "completed");
+        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "served");
       })
       .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
