@@ -17,29 +17,12 @@ enum OrderStatus {
   cancelled
 }
 
-enum PaymentStatus {
-  pending
-  completed
-  failed
-  refunded
-}
-
-enum PaymentMethod {
-  cash
-  qr
-}
-
 enum TableZone {
   indoor
   outdoor
   vip
 }
 
-
-enum ShiftStatus {
-  open
-  closed
-}
 
 enum NotificationType {
   new_order
@@ -64,9 +47,7 @@ model User {
   password              String
   roleId                Int
   role                  Role            @relation(fields: [roleId], references: [id])
-  shifts                Shift[]
   ordersCreated         Order[]         @relation("OrderCreatedBy")
-  paymentsCreated       Payment[]       @relation("PaymentCreatedBy")
   auditLogs             AuditLog[]
   stockTransactions     StockTransaction[]
   isActive              Boolean         @default(true)
@@ -164,7 +145,6 @@ model Order {
   totalAmount    Decimal         @default(0) @db.Decimal(10, 2)
   notes          String?
   items          OrderItem[]
-  payments       Payment[]
   notifications  Notification[]
   deletedAt      DateTime?
   createdAt      DateTime        @default(now())
@@ -195,46 +175,8 @@ model OrderItem {
   @@index([productId])
 }
 
-model Payment {
-  id          Int           @id @default(autoincrement())
-  orderId     Int
-  order       Order         @relation(fields: [orderId], references: [id])
-  method      PaymentMethod
-  status      PaymentStatus @default(pending)
-  amount      Decimal       @db.Decimal(10, 2)
-  reference   String?
-  paidAt      DateTime?
-  createdById Int?
-  createdBy   User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id])
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  @@index([orderId])
-  @@index([status])
-  @@index([createdById])
-  @@index([createdAt])
-}
 
 
-
-
-model Shift {
-  id          Int         @id @default(autoincrement())
-  userId      Int
-  user        User        @relation(fields: [userId], references: [id])
-  startTime   DateTime    @default(now())
-  endTime     DateTime?
-  openingCash Decimal     @default(0) @db.Decimal(10, 2)
-  closingCash Decimal?    @db.Decimal(10, 2)
-  status      ShiftStatus @default(open)
-  notes       String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  @@index([userId])
-  @@index([status])
-  @@index([startTime])
-}
 
 model Notification {
   id        Int              @id @default(autoincrement())

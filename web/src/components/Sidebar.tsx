@@ -33,7 +33,8 @@ import {
   ChefHat,
   FileText,
 } from "lucide-react";
-import { apiOrigin, getSettings, logoutApi } from "../lib/api";
+import { apiOrigin, getAdminGroups, getSettings, logoutApi } from "../lib/api";
+import { getSocket } from "../lib/socket";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
 import {
   getProfileImage,
@@ -80,8 +81,15 @@ const SETTINGS_CHILDREN = [
 ];
 
 const NAV_SYSTEM = [
-  { label: "Staff & Roles", href: "/admin/users", icon: StaffIcon, badge: undefined },
+  { label: "Auth", href: "/admin/users", icon: AuthIcon, badge: undefined },
   { label: "Settings", href: "/admin/settings", icon: SettingsIcon, badge: undefined },
+];
+
+const AUTH_CHILDREN = [
+  { key: "admin", label: "Admin", href: "/admin/users", icon: UserRound },
+  { key: "logs", label: "Admin log", href: "/admin/logs", icon: FileText },
+  { key: "group", label: "Group", href: "/admin/groups", icon: UsersRound },
+  { key: "rule", label: "Rule", href: "/admin/roles", icon: ShieldCheck },
 ];
 
 let cachedStaffPermissionsRaw = "";
@@ -111,7 +119,12 @@ const TEXT = {
       Tables: "Tables",
       Invoices: "Invoices",
       Users: "Users",
-      "Staff & Roles": "Staff & Roles",
+      Auth: "Auth",
+      Admin: "Admin",
+      "Admin log": "Admin log",
+      Group: "Group",
+      Rule: "Rule",
+      "Staff & Roles": "Auth",
       Permissions: "Permissions",
       Settings: "Settings",
     },
@@ -139,7 +152,12 @@ const TEXT = {
       Tables: "តុ",
       Invoices: "វិក្កយបត្រ",
       Users: "អ្នកប្រើប្រាស់",
-      "Staff & Roles": "បុគ្គលិក និងតួនាទី",
+      Auth: "សិទ្ធិ និង គណនី",
+      Admin: "អ្នកគ្រប់គ្រង",
+      "Admin log": "កំណត់ហេតុ Admin",
+      Group: "ក្រុម Admin",
+      Rule: "ច្បាប់សិទ្ធិ",
+      "Staff & Roles": "សិទ្ធិ និង គណនី",
       Settings: "ការកំណត់",
     },
   },
@@ -207,8 +225,12 @@ export default function Sidebar({
   const [contentMounted, setContentMounted] = useState(() => !getSavedSidebarCollapsed(collapsed));
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   const [menuView, setMenuView] = useState("list");
+  const [authView, setAuthView] = useState("admin");
   const [menuOpen, setMenuOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/menu"),
+  );
+  const [authOpen, setAuthOpen] = useState(
+    () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/users"),
   );
   const [settingsOpen, setSettingsOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/settings"),
@@ -251,12 +273,50 @@ export default function Sidebar({
     getServerStaffPermissionsSnapshot
   );
 
+  const [groupsVersion, setGroupsVersion] = useState(0);
+
+  useEffect(() => {
+    // Fetch live group permissions from PostgreSQL DB API on mount
+    const handleUpdate = () => {
+      void getAdminGroups(true).then(() => setGroupsVersion((v) => v + 1)).catch(() => null);
+    };
+
+    handleUpdate();
+
+    window.addEventListener("storage", handleUpdate);
+    window.addEventListener("pos-groups-updated", handleUpdate);
+    window.addEventListener("pos-auth-change", handleUpdate);
+    window.addEventListener("pos-user-change", handleUpdate);
+
+    const socket = getSocket();
+    if (socket) {
+      if (!socket.connected) socket.connect();
+      socket.on("group:created", handleUpdate);
+      socket.on("group:updated", handleUpdate);
+      socket.on("group:deleted", handleUpdate);
+      socket.on("settings:updated", handleUpdate);
+    }
+
+    return () => {
+      window.removeEventListener("storage", handleUpdate);
+      window.removeEventListener("pos-groups-updated", handleUpdate);
+      window.removeEventListener("pos-auth-change", handleUpdate);
+      window.removeEventListener("pos-user-change", handleUpdate);
+      if (socket) {
+        socket.off("group:created", handleUpdate);
+        socket.off("group:updated", handleUpdate);
+        socket.off("group:deleted", handleUpdate);
+        socket.off("settings:updated", handleUpdate);
+      }
+    };
+  }, []);
+
   const dark = theme === "dark";
   const sidebarBg = dark ? "bg-[#2b2c40] border-r border-[#4e4f6e]" : "bg-white border-r border-slate-200/90";
   const navHover = dark ? "hover:bg-[#232333]/80 hover:text-white" : "hover:bg-slate-100 hover:text-slate-900";
   const navActive = dark 
     ? "bg-[#55a060] text-white font-bold shadow-xs" 
-    : "bg-[#55a060] text-white font-bold shadow-xs";
+    : "bg-[#55a060] text-[#55a060] font-bold shadow-xs";
   const headerBorder = dark ? "border-[#4e4f6e]" : "border-slate-100";
   const dividerClass = dark ? "bg-[#4e4f6e]" : "bg-slate-150";
   const sectionTextClass = dark ? "text-slate-400 font-bold uppercase tracking-wider" : "text-slate-400 font-bold uppercase tracking-wider";
@@ -265,12 +325,24 @@ export default function Sidebar({
   const utilityTextClass = dark ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
   const footerBorderClass = dark ? "border-[#4e4f6e]" : "border-slate-150";
   const t = TEXT[language];
-  const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
-  const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
-  const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser.role, staffPermissions));
+  const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
+  const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
+  const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
+  const authExpanded = !sidebarCollapsed && contentMounted && authOpen;
   const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
   const activeMenuChild = menuView === "categories" ? "categories" : "list";
+
+  const activeAuthChild = (function () {
+    if (typeof window === "undefined") return authView;
+    const pathname = window.location.pathname;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (pathname.startsWith("/admin/logs") || (pathname.startsWith("/admin/settings") && tab === "security")) return "logs";
+    if (pathname.startsWith("/admin/groups")) return "group";
+    if (pathname.startsWith("/admin/roles")) return "rule";
+    if (pathname.startsWith("/admin/users")) return "admin";
+    return authView || "admin";
+  })();
 
   const widthClass = sidebarCollapsed ? "w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px]";
   const contentMotionClass = "";
@@ -361,7 +433,7 @@ export default function Sidebar({
   useEffect(() => {
     window.addEventListener("pos-sidebar-toggle", toggleSidebar);
     return () => window.removeEventListener("pos-sidebar-toggle", toggleSidebar);
-  });
+  }, []);
 
   useEffect(() => {
     const syncMenuView = () => {
@@ -499,29 +571,43 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* User Profile Card under POS Header */}
+      {/* User Profile Card under POS Header - Clickable to Profile Page */}
       {!sidebarCollapsed && (
-        <div className="px-5 pt-3.5 pb-2 flex items-center gap-3 overflow-hidden transition-opacity duration-150">
+        <Link
+          href="/admin/profile"
+          prefetch={true}
+          onClick={() => setLocalActiveNav("")}
+          title={language === "km" ? "មើលគណនីផ្ទាល់ខ្លួន" : "View Profile Account"}
+          className={`mx-3 px-3 py-2 my-1 flex items-center gap-3 overflow-hidden rounded-xl transition-all duration-150 cursor-pointer group active:scale-98 ${
+            pathname === "/admin/profile"
+              ? dark ? "bg-[#55a060]/20 ring-1 ring-[#55a060]/40" : "bg-[#55a060]/10 ring-1 ring-[#55a060]/30"
+              : dark ? "hover:bg-[#232333]/80" : "hover:bg-slate-100/80"
+          }`}
+        >
           {getProfileImage(currentUser) ? (
             <img
               src={getProfileImage(currentUser)!}
               alt={currentUser.name}
-              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#55a060]/20 shadow-xs shrink-0"
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#55a060]/30 shadow-xs shrink-0 transition-transform duration-200 group-hover:scale-105"
             />
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#55a060]/15 text-[#55a060] text-xs font-black shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#55a060]/15 text-[#55a060] text-xs font-black shadow-xs transition-transform duration-200 group-hover:scale-105">
               {initials(currentUser.name)}
             </div>
           )}
           <div className="min-w-0 flex-1 whitespace-nowrap">
-            <div className={`truncate text-sm font-normal ${dark ? "text-white" : "text-slate-800"} ${language === "km" ? "font-khmer text-xs" : ""}`}>
+            <div className={`truncate text-sm font-medium transition-colors ${
+              pathname === "/admin/profile"
+                ? "text-[#55a060] font-medium"
+                : dark ? "text-white group-hover:text-[#55a060]" : "text-slate-800 group-hover:text-[#55a060]"
+            } ${language === "km" ? "font-khmer text-xs" : ""}`}>
               {currentUser.name}
             </div>
-            <div className={`text-[10.5px] font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-400"}`}>
+            <div className={`text-[10.5px] font-medium uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-400"}`}>
               {currentUser.role}
             </div>
           </div>
-        </div>
+        </Link>
       )}
 
       <button
@@ -535,7 +621,7 @@ export default function Sidebar({
 
       {/* Nav */}
       <div
-        className={`flex-1 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+        className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${
           sidebarCollapsed ? "px-2 py-3 flex flex-col items-center" : "px-3 py-3"
         }`}
       >
@@ -576,9 +662,6 @@ export default function Sidebar({
                   setLocalActiveNav(item.label);
                   if (isMenu) {
                     setMenuOpen((open) => !open);
-                    if (!pathname.startsWith("/admin/menu")) {
-                      router.push("/admin/menu");
-                    }
                   }
                 }}
                 icon={<item.icon active={active} />}
@@ -634,13 +717,14 @@ export default function Sidebar({
         })}
 
         {allowedSystem.map((item) => {
-          const active = isNavItemActive(item.label, item.href);
+          const isAuth = item.label === "Auth" || item.label === "Staff & Roles";
+          const active = isNavItemActive(item.label, item.href) || (isAuth && (localActiveNav === "Auth" || pathname.startsWith("/admin/users")));
 
           return (
             <div key={item.label}>
               <SideNavItem
                 {...item}
-                label={t.nav[item.label as keyof typeof t.nav] || item.label}
+                label={isAuth ? (t.nav["Auth"] || "Auth") : (t.nav[item.label as keyof typeof t.nav] || item.label)}
                 active={active}
                 collapsed={sidebarCollapsed}
                 navActive={navActive}
@@ -649,10 +733,59 @@ export default function Sidebar({
                 isKhmer={language === "km"}
                 contentClass={contentMotionClass}
                 onClick={() => {
-                  setLocalActiveNav(item.label);
+                  setLocalActiveNav(isAuth ? "Auth" : item.label);
+                  if (isAuth) {
+                    setAuthOpen((open) => !open);
+                  }
                 }}
                 icon={<item.icon active={active} />}
+                trailing={
+                  isAuth && !sidebarCollapsed ? (
+                    authExpanded ? (
+                      <ChevronUp size={13} strokeWidth={2.2} />
+                    ) : (
+                      <ChevronDown size={13} strokeWidth={2.2} />
+                    )
+                  ) : undefined
+                }
               />
+
+              {isAuth && (
+                <div
+                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
+                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
+                  }`}
+                  style={{
+                    maxHeight: authExpanded ? "200px" : "0px",
+                    opacity: authExpanded ? 1 : 0,
+                    marginTop: authExpanded ? "4px" : "0px",
+                    marginBottom: authExpanded ? "8px" : "0px",
+                  }}
+                >
+                  <div className="space-y-1 py-1">
+                    {AUTH_CHILDREN.map((child) => (
+                      <MenuSubNavItem
+                        key={child.key}
+                        href={child.href}
+                        label={t.nav[child.label as keyof typeof t.nav] || child.label}
+                        active={activeAuthChild === child.key}
+                        dark={dark}
+                        isKhmer={language === "km"}
+                        icon={<child.icon size={14} strokeWidth={1.9} />}
+                        onClick={() => {
+                          setLocalActiveNav("Auth");
+                          setAuthView(child.key);
+                          window.dispatchEvent(
+                            new CustomEvent("pos-auth-view-change", {
+                              detail: child.key,
+                            }),
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -712,10 +845,10 @@ export default function Sidebar({
               <LogOut size={19} strokeWidth={2} />
             </div>
             <div className="space-y-1 min-w-0 pt-0.5">
-              <h3 className={`text-base font-bold text-slate-900 dark:text-white ${language === "km" ? "font-khmer text-sm" : ""}`}>
+              <h3 className={`text-base font-bold text-slate-900 dark:text-white ${language === "km" ? "font-khmer" : ""}`}>
                 {language === "km" ? "បញ្ជាក់ការចាកចេញ" : "Confirm Logout"}
               </h3>
-              <p className={`text-xs text-slate-500 dark:text-slate-400 font-normal leading-normal ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+              <p className={`text-xs text-slate-500 dark:text-slate-400 font-normal leading-normal ${language === "km" ? "font-khmer" : ""}`}>
                 {language === "km"
                   ? "តើអ្នកពិតជាចង់ចាកចេញពីប្រព័ន្ធមែនទេ?"
                   : "Are you sure you want to logout from the system?"}
@@ -1167,6 +1300,10 @@ function TablesIcon({ active = false }: IconProps) {
 
 function InvoicesIcon({ active = false }: IconProps) {
   return <FileText size={18} strokeWidth={1.75} color="currentColor" />;
+}
+
+function AuthIcon({ active = false }: IconProps) {
+  return <UsersRound size={18} strokeWidth={1.75} color="currentColor" />;
 }
 
 function StaffIcon({ active = false }: IconProps) {

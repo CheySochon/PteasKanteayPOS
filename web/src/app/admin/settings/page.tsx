@@ -630,12 +630,13 @@ export default function SettingsPage() {
 
   return (
     <>
-      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+      <main className={`flex flex-1 flex-col overflow-y-auto ${dark ? "bg-[#232333]" : "bg-white"}`}>
 
         {/* Secondary Sub-Navigation Bar */}
-        <div className={`px-3.5 sm:px-4 py-3 border-b flex flex-wrap items-center gap-2.5 text-sm font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0 ${
+        <div className={`border-b shrink-0 ${
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
         }`}>
+          <div className="mx-auto w-full max-w-[1400px] px-4 lg:px-6 py-3 flex flex-wrap items-center gap-2.5 text-sm font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* 1. Store Details */}
           <button
             type="button"
@@ -715,9 +716,10 @@ export default function SettingsPage() {
             <Database size={17} />
             <span>{language === "km" ? "ប្រព័ន្ធ & ការចម្លងទុក" : "System & Backups"}</span>
           </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 pb-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
           <div className="w-full">
 
 
@@ -1272,149 +1274,6 @@ export default function SettingsPage() {
                   <h2 className={`text-2xl font-normal ${textPrimary}`}>
                     {language === "km" ? "ប្រព័ន្ធ និងការចម្លងទុក" : "System & Backups"}
                   </h2>
-
-                  {/* ── Audit Logs Card ── */}
-                  <div className={`rounded-2xl border ${borderCol} ${surface} overflow-hidden`}>
-                    {/* Card header */}
-                    <div className={`px-5 py-4 border-b ${dark ? "border-[#4e4f6e]/50" : "border-slate-100"}`}>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Title block */}
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-sm font-black ${textPrimary}`}>
-                            {language === "km" ? "កំណត់ត្រាប្រវត្តិ Login" : "Staff Login Audit Logs"}
-                          </div>
-                          <div className={`text-xs ${textSecondary} mt-0.5`}>
-                            {language === "km" ? "តាមដានប្រវត្តិការចូល, IP, Device" : "Track authentication history, devices and IP addresses"}
-                          </div>
-                        </div>
-                        {/* Controls: search + filter + refresh */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <input
-                            type="text"
-                            value={auditSearch}
-                            onChange={(e) => { setAuditSearch(e.target.value); loadAuditLogs(e.target.value, auditStatusFilter, 1); }}
-                            placeholder={language === "km" ? "ស្វែងរក..." : "Search..."}
-                            className={`rounded-lg border px-3 py-2 text-xs font-semibold outline-none transition-colors w-44 ${dark ? "bg-[#2b2c40] border-[#4e4f6e] text-slate-200 placeholder:text-slate-500 focus:border-[#696cff]" : "bg-white border-slate-200 text-slate-700 placeholder:text-slate-400 focus:border-[#696cff]"}`}
-                          />
-                          <select
-                            value={auditStatusFilter}
-                            onChange={(e) => { setAuditStatusFilter(e.target.value); loadAuditLogs(auditSearch, e.target.value, 1); }}
-                            className={`rounded-lg border px-3 py-2 text-xs font-semibold outline-none transition-colors w-32 ${dark ? "bg-[#2b2c40] border-[#4e4f6e] text-slate-200 focus:border-[#696cff]" : "bg-white border-slate-200 text-slate-700 focus:border-[#696cff]"}`}
-                          >
-                            <option value="all">{language === "km" ? "គ្រប់ស្ថានភាព" : "All Status"}</option>
-                            <option value="SUCCESS">SUCCESS</option>
-                            <option value="FAILED">FAILED</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => loadAuditLogs(auditSearch, auditStatusFilter, auditPage)}
-                            className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${dark ? "border-[#4e4f6e] text-slate-400 hover:bg-white/10" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
-                          >
-                            <Loader2 className={auditLoading ? "animate-spin" : ""} size={12} />
-                            Refresh
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto min-h-[420px]">
-                      <table className="w-full text-left text-sm table-fixed">
-                        <thead className={`border-b ${dark ? "bg-[#232333] border-[#4e4f6e]" : "bg-[#f8f9fa] border-slate-100"}`}>
-                          <tr>
-                            <th className={`w-[26%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ឈ្មោះបុគ្គលិក" : "Staff Name"}</th>
-                            <th className={`w-[12%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "តួនាទី" : "Role"}</th>
-                            <th className={`w-[18%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "សកម្មភាព" : "Action"}</th>
-                            <th className={`w-[14%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>IP / Device</th>
-                            <th className={`w-[14%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ស្ថានភាព" : "Status"}</th>
-                            <th className={`w-[16%] px-5 py-3.5 text-[11px] font-black uppercase tracking-wider ${textSecondary}`}>{language === "km" ? "ពេលវេលា" : "Time"}</th>
-                          </tr>
-                        </thead>
-                        <tbody className={`divide-y ${dark ? "divide-[#4e4f6e]/40" : "divide-slate-100"}`}>
-                          {auditLogs.length > 0 ? (
-                            auditLogs.map((log) => (
-                              <tr key={log.id} className={`h-[48px] transition-colors duration-150 ${dark ? "hover:bg-white/[0.03]" : "hover:bg-slate-50/60"}`}>
-                                <td className={`px-5 py-3.5 font-normal text-sm truncate ${textPrimary}`} title={log.userName}>{log.userName}</td>
-                                <td className={`px-5 py-3.5 text-xs font-medium truncate ${textSecondary}`}>{log.userRole}</td>
-                                <td className={`px-5 py-3.5 text-xs font-bold truncate ${textPrimary}`}>{log.action}</td>
-                                <td className={`px-5 py-3.5 font-mono text-xs truncate ${textSecondary}`}>{log.ipAddress || "Localhost"}</td>
-                                <td className="px-5 py-3.5 truncate">
-                                  <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-black ${
-                                    log.status === "SUCCESS"
-                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-                                      : "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
-                                  }`}>
-                                    <span className={`h-1.5 w-1.5 rounded-full ${log.status === "SUCCESS" ? "bg-emerald-500" : "bg-red-500"}`} />
-                                    {log.status}
-                                  </span>
-                                </td>
-                                <td className={`px-5 py-3.5 text-xs truncate ${textSecondary}`}>
-                                  {new Date(log.createdAt).toLocaleDateString()} {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={6} className={`py-12 text-center text-sm ${textSecondary}`}>
-                                {language === "km" ? "មិនទាន់មានកំណត់ត្រា Login ឡើយ" : "No audit logs found."}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Pagination footer */}
-                    <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-4 border-t ${dark ? "border-[#4e4f6e]/50" : "border-slate-100"}`}>
-                      <div className={`text-xs font-semibold ${textSecondary}`}>
-                        {language === "km"
-                          ? `បង្ហាញ ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} ដល់ ${Math.min(auditPage * 8, auditTotal)} នៃ ${auditTotal} កំណត់ត្រា`
-                          : `Showing ${auditLogs.length > 0 ? (auditPage - 1) * 8 + 1 : 0} to ${Math.min(auditPage * 8, auditTotal)} of ${auditTotal} entries`}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => { const prev = Math.max(1, auditPage - 1); setAuditPage(prev); loadAuditLogs(auditSearch, auditStatusFilter, prev); }}
-                          disabled={auditPage <= 1}
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-all disabled:opacity-40 ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-400 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                        >
-                          <ChevronLeft size={15} />
-                        </button>
-                        {(() => {
-                          const maxVisiblePages = 5;
-                          let startPage = Math.max(1, auditPage - 2);
-                          let endPage = Math.min(auditTotalPages, startPage + maxVisiblePages - 1);
-                          if (endPage - startPage + 1 < maxVisiblePages) {
-                            startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                          }
-                          const visiblePages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
-
-                          return visiblePages.map((pNum) => (
-                            <button
-                              key={pNum}
-                              type="button"
-                              onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, pNum); }}
-                              className={`h-8 w-8 rounded-lg text-xs font-black transition-all ${
-                                auditPage === pNum
-                                  ? "bg-[#55a060] text-white shadow-sm"
-                                  : `border ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`
-                              }`}
-                            >
-                              {pNum}
-                            </button>
-                          ));
-                        })()}
-                        <button
-                          type="button"
-                          onClick={() => { const next = Math.min(auditTotalPages, auditPage + 1); setAuditPage(next); loadAuditLogs(auditSearch, auditStatusFilter, next); }}
-                          disabled={auditPage >= auditTotalPages}
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg border text-sm transition-all disabled:opacity-40 ${dark ? "border-[#4e4f6e] bg-[#232333] text-slate-400 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                        >
-                          <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
 
                   {/* ── Backup & Restore Card ── */}
                   <div className={`rounded-2xl border ${borderCol} ${surface} p-6`}>

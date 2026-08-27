@@ -14,6 +14,13 @@ export const list = asyncHandler(async (_req: Request, res: Response) => {
 export const update = asyncHandler(
   async (req: Request<object, object, UpdateSettingsBody>, res: Response) => {
     const data = await updateSettings(req.body, req.user?.userId);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("settings:updated", data);
+      if (req.body.adminGroups) {
+        io.emit("group:updated", req.body.adminGroups);
+      }
+    }
     res.json({ success: true, message: "Settings updated", data });
   },
 );

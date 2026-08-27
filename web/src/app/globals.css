@@ -4,10 +4,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --font-geist-sans: "Inter", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --font-geist-sans: "Inter", "Kantumruy Pro", "Noto Sans Khmer", "Battambang", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --font-khmer: "Kantumruy Pro", "Battambang", "Noto Sans Khmer", "Khmer OS Battambang", sans-serif;
-  --font-brand: "Plus Jakarta Sans", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", "Inter", system-ui, sans-serif;
+  --font-khmer: "Kantumruy Pro", "Noto Sans Khmer", "Battambang", "Siemreap", sans-serif;
+  --font-brand: "Plus Jakarta Sans", "Kantumruy Pro", "Noto Sans Khmer", "Inter", system-ui, sans-serif;
 }
 
 @theme inline {
@@ -59,7 +59,48 @@ input, textarea, select, button {
 }
 
 .font-khmer {
-  line-height: 1.7;
+  line-height: 1.6;
+}
+
+/* ==========================================================================
+   MODERN KHMER TYPOGRAPHY (KANTUMRUY PRO) & OPTIMIZED SAAS DASHBOARD SCALING
+   Kantumruy Pro provides a modern, clean sans-serif UI matching Plus Jakarta Sans.
+   Enlarged scaling ensures text is crisp, legible, and proportionate.
+   ========================================================================== */
+.font-khmer .text-\[10px\],
+.font-khmer.text-\[10px\] {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.font-khmer .text-\[11px\],
+.font-khmer.text-\[11px\] {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.font-khmer .text-xs,
+.font-khmer.text-xs {
+  font-size: 13.5px !important;
+}
+
+.font-khmer .text-sm,
+.font-khmer.text-sm {
+  font-size: 15px !important;
+}
+
+.font-khmer .text-base,
+.font-khmer.text-base {
+  font-size: 16.5px !important;
+}
+
+/* Modern, high-legibility Khmer table headers */
+.font-khmer th,
+.font-khmer thead th {
+  font-size: 13px !important;
+  letter-spacing: 0.01em !important;
+  font-weight: 700 !important;
 }
 
 .font-brand {
@@ -108,13 +149,15 @@ input, textarea, select, button {
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
-  display: none;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
 }
 
 /* Hide scrollbar for main scrollable element */

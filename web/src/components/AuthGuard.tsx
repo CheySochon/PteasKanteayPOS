@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getMe, getSettings } from "../lib/api";
+import { getAdminGroups, getMe, getSettings } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { getCookie, eraseCookie } from "../lib/cookies";
 import { canAccessPath, firstAllowedPathForRole, parseStoredUser, permissionsForUser, roleName, normalizeStaffPermissions } from "../lib/permissions";
@@ -67,15 +67,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           user = await getMe();
         }
 
+        // Cache live admin groups so sub-admin permissions are resolved dynamically
+        void getAdminGroups().catch(() => null);
+
         const userRawPerms = (user as any)?.permissions || (user as any)?.role?.permissions || (user as any)?.roleObj?.permissions;
         const staffPermissions = normalizeStaffPermissions(userRawPerms);
 
         if (!active) return;
 
         const uRole = roleName(user);
-        if (!canAccessPath(pathname, uRole, staffPermissions)) {
+        if (!canAccessPath(pathname, user, staffPermissions)) {
           setDenied(true);
-          router.replace(firstAllowedPathForRole(uRole, staffPermissions));
+          router.replace(firstAllowedPathForRole(user, staffPermissions));
           return;
         }
 

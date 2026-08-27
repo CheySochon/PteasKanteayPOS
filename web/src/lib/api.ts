@@ -9,7 +9,6 @@ import type {
   Ingredient,
   MonthlySalesReport,
   Order,
-  Payment,
   Product,
   QrMenu,
   Role,
@@ -760,21 +759,6 @@ export const deleteOrder = async (id: number): Promise<void> => {
   }
 };
 
-export const getPayments = async (): Promise<Payment[]> => {
-  try {
-    return await request<Payment[]>("/payments");
-  } catch {
-    return [];
-  }
-};
-export const createPayment = (body: Partial<Payment>) => request<Payment>("/payments", { method: "POST", body });
-export const getOrderPayments = async (orderId: number): Promise<Payment[]> => {
-  try {
-    return await request<Payment[]>(`/orders/${orderId}/payments`);
-  } catch {
-    return [];
-  }
-};
 
 
 
@@ -804,100 +788,63 @@ export const getTopProducts = async (date?: string, period = "month"): Promise<T
 export const exportReportsCsv = (date?: string, period = "month") => date ? `${getApiBaseUrl()}/reports/export-csv?date=${date}&period=${period}` : `${getApiBaseUrl()}/reports/export-csv`;
 
 const DEFAULT_DEMO_USERS: User[] = [
-  { id: 1, name: "Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Admin" }, roleName: "ADMIN", isActive: true },
+  { id: 1, name: "Super Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Super Admin" }, roleName: "SUPER_ADMIN", isActive: true },
   { id: 2, name: "Chon (Cashier)", email: "chon.cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
   { id: 3, name: "POS Cashier", email: "cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
   { id: 4, name: "Kitchen Staff", email: "kitchen@pos.local", role: { id: 3, name: "Staff" }, roleName: "STAFF", isActive: true },
 ];
 
 const DEFAULT_DEMO_ROLES: Role[] = [
-  { id: 1, name: "Admin" },
-  { id: 2, name: "Cashier" },
-  { id: 3, name: "Staff" },
+  { id: 1, name: "Super Admin" },
+  { id: 2, name: "Admin" },
+  { id: 3, name: "Cashier" },
+  { id: 4, name: "Staff" },
 ];
+
+const swrMemoryCache = new Map<string, { data: any; timestamp: number }>();
+
+export function invalidateSwrCache(key?: string) {
+  if (key) swrMemoryCache.delete(key);
+  else swrMemoryCache.clear();
+}
 
 let inMemoryDeletedUserIds: number[] = [];
 let inMemoryCreatedUsers: User[] = [];
 
-export const getUsers = async (): Promise<User[]> => {
+export const getUsers = async (forceRefresh = false): Promise<User[]> => {
+  if (!forceRefresh && swrMemoryCache.has("users")) {
+    const cached = swrMemoryCache.get("users")!.data;
+    // Background revalidate without blocking UI
+    request<User[]>("/users").then((apiUsers) => {
+      if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+        swrMemoryCache.set("users", { data: apiUsers, timestamp: Date.now() });
+      }
+    }).catch(() => null);
+    return cached;
+  }
+
   try {
     const apiUsers = await request<User[]>("/users");
+    if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+      swrMemoryCache.set("users", { data: apiUsers, timestamp: Date.now() });
+      return apiUsers;
+    }
+  } catch (err) {}
+
+  const fallback = [...DEFAULT_DEMO_USERS];
+  swrMemoryCache.set("users", { data: fallback, timestamp: Date.now() });
+  return fallback;
+};
+
+export const getPublicStaff = async (): Promise<User[]> => {
+  try {
+    const apiUsers = await request<User[]>("/auth/staff");
     if (Array.isArray(apiUsers)) {
       return apiUsers;
     }
   } catch (err) {}
 
-  let list = [...DEFAULT_DEMO_USERS];
-
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("pos_deleted_user_ids");
-      if (stored) inMemoryDeletedUserIds = JSON.parse(stored);
-    } catch {}
-
-    try {
-      const storedCreated = localStorage.getItem("pos_custom_created_users");
-      if (storedCreated) inMemoryCreatedUsers = JSON.parse(storedCreated);
-    } catch {}
-  }
-
-  if (Array.isArray(inMemoryCreatedUsers) && inMemoryCreatedUsers.length > 0) {
-    inMemoryCreatedUsers.forEach((cu) => {
-      const idx = list.findIndex((u) => u.id === cu.id || u.email === cu.email);
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], ...cu };
-      } else {
-        list.unshift(cu);
-      }
-    });
-  }
-
-  if (inMemoryDeletedUserIds.length > 0) {
-    list = list.filter((u) => !inMemoryDeletedUserIds.includes(u.id));
-  }
-
-  return list;
-};
-
-export const getPublicStaff = async (): Promise<User[]> => {
-  let list: User[] = [];
-  try {
-    const apiUsers = await request<User[]>("/auth/staff");
-    if (Array.isArray(apiUsers)) list = apiUsers;
-  } catch (err) {
-    list = [];
-  }
-
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("pos_deleted_user_ids");
-      if (stored) {
-        const deletedIds: number[] = JSON.parse(stored);
-        if (deletedIds.length > 0) {
-          list = list.filter((u) => !deletedIds.includes(u.id));
-        }
-      }
-    } catch {}
-
-    try {
-      const storedCreated = localStorage.getItem("pos_custom_users_list") || localStorage.getItem("pos_custom_created_users");
-      if (storedCreated) {
-        const customUsers = JSON.parse(storedCreated);
-        if (Array.isArray(customUsers)) {
-          customUsers.forEach((cu: any) => {
-            const idx = list.findIndex((u) => u.id === cu.id || (u.email && cu.email && u.email.toLowerCase() === cu.email.toLowerCase()));
-            if (idx >= 0) {
-              list[idx] = { ...list[idx], ...cu };
-            } else {
-              list.unshift(cu);
-            }
-          });
-        }
-      }
-    } catch {}
-  }
-
-  return list;
+  return [];
 };
 
 export const getRoles = async (): Promise<Role[]> => {
@@ -933,41 +880,9 @@ export const updateUser = async (id: number, body: { name?: string; email?: stri
 };
 
 export const deleteUser = async (id: number): Promise<void> => {
-  // If it's a client-side mock user (id generated via Date.now())
-  if (id > 2147483647) {
-    if (typeof window !== "undefined") {
-      try {
-        // 1. Remove from pos_custom_created_users
-        const storedCreated = localStorage.getItem("pos_custom_created_users");
-        if (storedCreated) {
-          const users: User[] = JSON.parse(storedCreated);
-          const filtered = users.filter((u) => u.id !== id);
-          localStorage.setItem("pos_custom_created_users", JSON.stringify(filtered));
-        }
-
-        // 2. Remove from pos_custom_users_list (if present)
-        const storedList = localStorage.getItem("pos_custom_users_list");
-        if (storedList) {
-          const users: any[] = JSON.parse(storedList);
-          const filtered = users.filter((u) => u.id !== id);
-          localStorage.setItem("pos_custom_users_list", JSON.stringify(filtered));
-        }
-
-        // 3. Add to pos_deleted_user_ids to keep fallback listing consistent
-        const storedDeleted = localStorage.getItem("pos_deleted_user_ids");
-        const deletedIds: number[] = storedDeleted ? JSON.parse(storedDeleted) : [];
-        if (!deletedIds.includes(id)) {
-          deletedIds.push(id);
-          localStorage.setItem("pos_deleted_user_ids", JSON.stringify(deletedIds));
-        }
-      } catch (e) {
-        console.error("Local storage delete fallback error:", e);
-      }
-    }
-    return;
+  if (id === 1) {
+    throw new Error("System Protection: Super Admin (ID 1) is a protected system owner and cannot be deleted.");
   }
-
-  // Always call real API — throw error if it fails
   await request<void>(`/users/${id}`, { method: "DELETE" });
 };
 export const getSettings = async (): Promise<AppSettings> => {
@@ -1025,6 +940,114 @@ export const updateSettings = async (body: Partial<AppSettings>): Promise<AppSet
     }
     return body as AppSettings;
   }
+};
+
+export const getAdminGroups = async (forceRefresh = false): Promise<any[]> => {
+  if (!forceRefresh && swrMemoryCache.has("adminGroups")) {
+    const cached = swrMemoryCache.get("adminGroups")!.data;
+    getSettings().then((s) => {
+      if (s && Array.isArray((s as any).adminGroups)) {
+        swrMemoryCache.set("adminGroups", { data: (s as any).adminGroups, timestamp: Date.now() });
+        if (typeof window !== "undefined") {
+          try { localStorage.setItem("pos_admin_groups_list", JSON.stringify((s as any).adminGroups)); } catch {}
+        }
+      }
+    }).catch(() => null);
+    return cached;
+  }
+
+  try {
+    const settings = await getSettings();
+    if (settings && Array.isArray((settings as any).adminGroups)) {
+      swrMemoryCache.set("adminGroups", { data: (settings as any).adminGroups, timestamp: Date.now() });
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem("pos_admin_groups_list", JSON.stringify((settings as any).adminGroups)); } catch {}
+      }
+      return (settings as any).adminGroups;
+    }
+  } catch (err) {}
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("pos_admin_groups_list");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          swrMemoryCache.set("adminGroups", { data: parsed, timestamp: Date.now() });
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  const fallback = [
+    { id: 1, parentId: 0, name: "Super Admin Group (Root)", status: "Normal", description: "Root system owner & Super Admin primary group" },
+    { id: 2, parentId: 1, name: "Admin Group (Standard)", status: "Normal", description: "Regular Admin & Store Management group" },
+    { id: 3, parentId: 2, name: "Admin Update Group", status: "Normal", description: "Regular Admin updates & maintenance team group" },
+    { id: 4, parentId: 2, name: "Cashier & POS Team", status: "Normal", description: "Front-of-house cashier operations team" },
+    { id: 5, parentId: 2, name: "Kitchen & KDS Team", status: "Normal", description: "Kitchen chef & food service team" },
+  ];
+  swrMemoryCache.set("adminGroups", { data: fallback, timestamp: Date.now() });
+  return fallback;
+};
+
+export const saveAdminGroups = async (groups: any[]): Promise<any[]> => {
+  swrMemoryCache.set("adminGroups", { data: groups, timestamp: Date.now() });
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("pos_admin_groups_list", JSON.stringify(groups)); } catch {}
+  }
+  await updateSettings({ adminGroups: groups } as any);
+  return groups;
+};
+
+export const getSystemRules = async (forceRefresh = false): Promise<any[]> => {
+  if (!forceRefresh && swrMemoryCache.has("systemRules")) {
+    const cached = swrMemoryCache.get("systemRules")!.data;
+    getSettings().then((s) => {
+      if (s && Array.isArray((s as any).systemRules)) {
+        swrMemoryCache.set("systemRules", { data: (s as any).systemRules, timestamp: Date.now() });
+        if (typeof window !== "undefined") {
+          try { localStorage.setItem("pos_system_rules_list", JSON.stringify((s as any).systemRules)); } catch {}
+        }
+      }
+    }).catch(() => null);
+    return cached;
+  }
+
+  try {
+    const settings = await getSettings();
+    if (settings && Array.isArray((settings as any).systemRules)) {
+      swrMemoryCache.set("systemRules", { data: (settings as any).systemRules, timestamp: Date.now() });
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem("pos_system_rules_list", JSON.stringify((settings as any).systemRules)); } catch {}
+      }
+      return (settings as any).systemRules;
+    }
+  } catch (err) {}
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("pos_system_rules_list");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          swrMemoryCache.set("systemRules", { data: parsed, timestamp: Date.now() });
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  return [];
+};
+
+export const saveSystemRules = async (rules: any[]): Promise<any[]> => {
+  swrMemoryCache.set("systemRules", { data: rules, timestamp: Date.now() });
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("pos_system_rules_list", JSON.stringify(rules)); } catch {}
+  }
+  await updateSettings({ systemRules: rules } as any);
+  return rules;
 };
 
 export const getBackupFiles = async (): Promise<BackupFile[]> => {

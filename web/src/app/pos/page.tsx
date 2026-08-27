@@ -54,7 +54,6 @@ import { useAppLanguage, setAppLanguage } from "../../lib/language";
 import {
   apiOrigin,
   createOrder,
-  createPayment,
   getCategories,
   getProducts,
   getSettings,
@@ -147,6 +146,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
     return "";
   });
   const [restaurantImageUrl, setRestaurantImageUrl] = useState(cachedSettings?.restaurantImageUrl || "");
+  const [restaurantAddress, setRestaurantAddress] = useState(cachedSettings?.address || "");
+  const [restaurantPhone, setRestaurantPhone] = useState(cachedSettings?.restaurantPhone || "");
+  const [restaurantEmail, setRestaurantEmail] = useState(cachedSettings?.restaurantEmail || "");
+  const [receiptFooterText, setReceiptFooterText] = useState(cachedSettings?.receiptFooter || "Thanks for visit. Come again");
   const [serviceRate, setServiceRate] = useState(cachedSettings?.serviceChargeRate != null ? Number(cachedSettings.serviceChargeRate) / 100 : SERVICE_RATE);
   const [vatRate, setVatRate] = useState(cachedSettings?.taxRate != null ? Number(cachedSettings.taxRate) / 100 : VAT_RATE);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -217,9 +220,22 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [qrOrdersFilter, setQrOrdersFilter] = useState<"all" | "pending" | "preparing" | "completed">("all");
   const [deleteQrOrderTarget, setDeleteQrOrderTarget] = useState<any | null>(null);
 
-  const pendingQrCount = useMemo(() => {
-    return qrOrders.filter((o) => o.status === "pending" || !o.status).length;
+  const activeQrOrders = useMemo(() => {
+    return qrOrders.filter((o) => {
+      const s = String(o.status || "").toLowerCase().trim();
+      const ps = String(o.paymentStatus || "").toLowerCase().trim();
+      const isDoneStatus = ["completed", "done", "cancelled", "paid"].includes(s);
+      const isDonePayment = ps === "completed" || ps === "paid" || o.isPaid === true;
+      const items = Array.isArray(o.items) ? o.items : [];
+      const totalQty = items.reduce((sum: number, i: any) => sum + Number(i.quantity || 1), 0);
+      const isEmptyCart = items.length === 0 || totalQty === 0;
+      return !isDoneStatus && !isDonePayment && !isEmptyCart;
+    });
   }, [qrOrders]);
+
+  const pendingQrCount = useMemo(() => {
+    return activeQrOrders.filter((o) => o.status === "pending" || !o.status).length;
+  }, [activeQrOrders]);
 
   const handleLoadQrOrderToCart = (qrOrder: any) => {
     if (!qrOrder || !qrOrder.items || qrOrder.items.length === 0) return;
@@ -461,10 +477,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         const orders = await getOfflineOrders();
         for (const order of orders) {
            const newOrder = await createOrder(order.payload);
-           // If the payload has payment info, process payment
-           if (order.payload._paymentMethod) {
-              await createPayment({ orderId: newOrder.id, method: order.payload._paymentMethod, amount: newOrder.totalAmount, status: "completed" }).catch(console.error);
-           }
            await deleteOfflineOrder(order.id);
         }
         if (orders.length > 0) setMessage(`Synced ${orders.length} offline orders`);
@@ -506,6 +518,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
         setPosName(nextName);
         setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
+        setRestaurantAddress(appSettings.address || "");
+        setRestaurantPhone(appSettings.restaurantPhone || "");
+        setRestaurantEmail(appSettings.restaurantEmail || "");
+        setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
         localStorage.setItem("pos_restaurant_name", nextName);
         setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
         setVatRate(Number(appSettings.taxRate || 0) / 100);
@@ -550,6 +566,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
           const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
           setPosName(nextName);
           setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
+          setRestaurantAddress(appSettings.address || "");
+          setRestaurantPhone(appSettings.restaurantPhone || "");
+          setRestaurantEmail(appSettings.restaurantEmail || "");
+          setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
           setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
           setVatRate(Number(appSettings.taxRate || 0) / 100);
         })
@@ -783,15 +803,6 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pos-order-created"));
       }
-      
-      if (isOnline) {
-        await createPayment({ 
-          orderId: order.id, 
-          method: paymentMethod, 
-          amount: total, 
-          status: "completed" 
-        }).catch(console.error);
-      }
 
       const receiptSnapshot = {
         ticketNumber: order.orderNumber || order.orderId || ticketNumber,
@@ -915,7 +926,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 type="button"
                 onClick={() => setQrOrdersModalOpen(true)}
                 className={`relative flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3.5 py-2 active:scale-95 transition-all cursor-pointer ${
-                  qrOrders.length > 0
+                  activeQrOrders.length > 0
                     ? dark
                       ? "bg-indigo-950/50 border border-indigo-500/50 text-indigo-200 hover:bg-indigo-900/60 shadow-xs"
                       : "bg-indigo-50/90 border border-indigo-200 text-indigo-700 hover:bg-indigo-100/80 shadow-xs"
@@ -924,11 +935,11 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
                 }`}
               >
-                <QrCode size={14} className={qrOrders.length > 0 ? "text-indigo-600 dark:text-indigo-400 animate-pulse" : ""} />
+                <QrCode size={14} className={activeQrOrders.length > 0 ? "text-indigo-600 dark:text-indigo-400 animate-pulse" : ""} />
                 <span>{language === "km" ? "ការកុម្ម៉ង់ QR Menu" : "QR Menu Orders"}</span>
-                {qrOrders.length > 0 && (
+                {activeQrOrders.length > 0 && (
                   <span className="ml-0.5 bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full leading-none shadow-xs animate-pulse">
-                    {pendingQrCount > 0 ? (pendingQrCount > 9 ? "9+" : pendingQrCount) : qrOrders.length}
+                    {pendingQrCount > 0 ? (pendingQrCount > 9 ? "9+" : pendingQrCount) : activeQrOrders.length}
                   </span>
                 )}
               </button>
@@ -937,10 +948,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 onClick={() => setHeldModalOpen(true)}
                 className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
                   dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
-                }`}
+                } ${language === "km" ? "font-khmer" : ""}`}
               >
                 <Archive size={14} />
-                Drafts List
+                {language === "km" ? "បញ្ជីព្រាង" : "Drafts List"}
                 {heldOrders.length > 0 && (
                   <span className={`ml-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full leading-none ${
                     dark ? "bg-[#3b3c54] text-slate-200" : "bg-slate-200 text-slate-600"
@@ -953,10 +964,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 href="/admin/orders"
                 className={`flex shrink-0 items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-2 active:scale-95 transition-all cursor-pointer ${
                   dark ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]" : "bg-[#f8faf9] border border-[#ebf0ec] text-[#6b7a82] hover:bg-[#f0f4f2]"
-                }`}
+                } ${language === "km" ? "font-khmer" : ""}`}
               >
                 <List size={14} />
-                Orders List
+                {language === "km" ? "បញ្ជីការកុម្ម៉ង់" : "Orders List"}
               </Link>
 
               {/* Cashier Info & Logout (Only in standalone Cashier mode) */}
@@ -1023,7 +1034,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </button>
           </div>
 
-          <div className={`flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden w-full min-h-0 pt-0 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-4 sm:gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+          <div className={`flex flex-col lg:flex-row flex-1 overflow-y-auto no-scrollbar lg:overflow-hidden w-full min-h-0 pt-0 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-4 sm:gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
             {/* LEFT: Product Catalogue */}
             <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
               mobileTab === "cart" ? "hidden lg:flex" : "flex"
@@ -1103,7 +1114,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             </div>
 
             {/* ── Product Grid / List ── */}
-            <div className={`flex-1 overflow-y-auto px-3.5 sm:px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
+            <div className={`flex-1 overflow-y-auto no-scrollbar px-3.5 sm:px-5 py-4 min-h-0 ${dark ? "bg-[#2b2c40]" : "bg-white"}`}>
               {initialLoading ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {Array.from({ length: 10 }).map((_, idx) => (
@@ -1160,10 +1171,10 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
                   className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
                     dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
-                  }`}
+                  } ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  <option value="walk-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>Select Dining Option</option>
-                  <option value="dine-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>Dine In</option>
+                  <option value="walk-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជម្រើសញ៉ាំ" : "Select Dining Option"}</option>
+                  <option value="dine-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ញ៉ាំនៅទីនេះ (Dine In)" : "Dine In"}</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
               </div>
@@ -1173,12 +1184,12 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
                   className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
                     dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
-                  }`}
+                  } ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>Select Table</option>
+                  <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជ្រើសរើសតុ" : "Select Table"}</option>
                   {tables.map((table) => (
                     <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
-                      {table.name}
+                      {language === "km" ? `តុ ${table.name}` : table.name}
                     </option>
                   ))}
                 </select>
@@ -1191,8 +1202,12 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8">
                   <ShoppingBag size={44} className={`mb-3 ${dark ? "text-slate-600" : "text-slate-200"}`} />
-                  <span className={`text-xs font-bold ${dark ? "text-slate-300" : "text-slate-500"}`}>Cart is empty</span>
-                  <span className="text-[11px] text-slate-400 mt-1">Click items to add</span>
+                  <span className={`text-xs font-bold ${dark ? "text-slate-300" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "មិនទាន់មានទំនិញក្នុងកន្ត្រកទេ" : "Cart is empty"}
+                  </span>
+                  <span className={`text-[11px] text-slate-400 mt-1 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "សូមចុចលើមុខម្ហូបដើម្បីបន្ថែម" : "Click items to add"}
+                  </span>
                 </div>
               ) : (
                 <div className="px-4.5 py-3.5 space-y-2.5">
@@ -1203,6 +1218,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                         key={`${item.productId}-${index}`}
                         item={item}
                         dark={dark}
+                        language={language}
                         imageUrl={resolveImageUrl(product?.imageUrl)}
                         onIncrement={() => {
                           const prod = products.find((p) => p.id === item.productId);
@@ -1242,18 +1258,72 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             {/* ── Cart Summary Footer Block ── */}
             <div className={`p-4.5 border-t space-y-3 shrink-0 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"}`}>
               <div className="space-y-1.5">
-                <SummaryRow label="Sub total :" value={money(subtotal)} dark={dark} />
-                {discountPercent > 0 && (
-                  <SummaryRow label="Discount :" value={`-${money(discountAmount)}`} dark={dark} />
-                )}
-                {serviceFee > 0 && <SummaryRow label="Service Fee :" value={money(serviceFee)} dark={dark} />}
-                {vat > 0 && <SummaryRow label="VAT :" value={money(vat)} dark={dark} />}
+                <SummaryRow label={language === "km" ? "សរុបរង :" : "Sub total :"} value={money(subtotal)} dark={dark} />
+
+                {/* 🏷️ Sleek & Clean Dynamic Discount Row */}
+                <div className={`flex items-center justify-between text-xs font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
+                  <div className={`flex items-center gap-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                    <span>{language === "km" ? "បញ្ចុះតម្លៃ :" : "Discount :"}</span>
+                    <div className={`relative inline-flex items-center rounded-lg border px-2 py-0.5 transition-all ${
+                      discountPercent > 0
+                        ? "border-[#55a060] bg-emerald-50/90 dark:bg-emerald-950/50"
+                        : dark
+                        ? "border-[#3b3c54] bg-[#232333] focus-within:border-[#55a060]"
+                        : "border-slate-200 bg-slate-50 focus-within:border-[#55a060] focus-within:bg-white"
+                    }`}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={discountPercent === 0 ? "" : discountPercent}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setDiscountPercent(0);
+                          } else {
+                            const num = Math.min(100, Math.max(0, Number(val)));
+                            setDiscountPercent(num);
+                          }
+                        }}
+                        placeholder="0"
+                        className={`w-7 text-right text-xs font-bold bg-transparent outline-none ${
+                          discountPercent > 0
+                            ? "text-[#55a060] dark:text-emerald-400"
+                            : dark
+                            ? "text-slate-200 placeholder:text-slate-500"
+                            : "text-slate-700 placeholder:text-slate-400"
+                        }`}
+                      />
+                      <span className={`text-[11px] font-extrabold ml-0.5 ${
+                        discountPercent > 0
+                          ? "text-[#55a060] dark:text-emerald-400"
+                          : "text-slate-400"
+                      }`}>%</span>
+                    </div>
+                  </div>
+
+                  <span className={discountPercent > 0 ? "font-bold text-[#55a060] dark:text-emerald-400" : "text-slate-400"}>
+                    {discountPercent > 0 ? `-${money(discountAmount)}` : money(0)}
+                  </span>
+                </div>
+
+                {serviceFee > 0 && <SummaryRow label={language === "km" ? "ថ្លៃសេវា :" : "Service Fee :"} value={money(serviceFee)} dark={dark} />}
+                {vat > 0 && <SummaryRow label={language === "km" ? "ពន្ធ VAT :" : "VAT :"} value={money(vat)} dark={dark} />}
               </div>
 
-              {/* Total Row */}
+
+
+              {/* ៛ Total Row with Dual Currency ($ USD + ៛ KHR) */}
               <div className={`flex items-center justify-between border-t pt-2.5 ${dark ? "border-[#3b3c54]" : "border-slate-100"}`}>
-                <span className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>Total :</span>
-                <span className="text-2xl font-black text-[#55a060]">{money(total)}</span>
+                <span className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "សរុបរួម :" : "Total :"}
+                </span>
+                <div className="flex flex-col items-end">
+                  <span className="text-2xl font-black text-[#55a060]">{money(total)}</span>
+                  <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                  </span>
+                </div>
               </div>
 
               {/* Draft & Send to Kitchen Buttons Row */}
@@ -1264,17 +1334,19 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   disabled={cart.length === 0}
                   className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     dark ? "border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  }`}
+                  } ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  <Archive size={14} /> Draft
+                  <Archive size={14} /> {language === "km" ? "រក្សាទុកព្រាង" : "Draft"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSendKitchenModalOpen(true)}
                   disabled={cart.length === 0}
-                  className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    language === "km" ? "font-khmer" : ""
+                  }`}
                 >
-                  <ChefHat size={14} /> Send to Kitchen
+                  <ChefHat size={14} /> {language === "km" ? "ផ្ញើទៅចង្ក្រាន" : "Send to Kitchen"}
                 </button>
               </div>
 
@@ -1283,9 +1355,11 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                 type="button"
                 onClick={handlePayClick}
                 disabled={cart.length === 0}
-                className="w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#439150] text-[14.5px] font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`w-full flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#439150] text-[14.5px] font-bold text-white shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  language === "km" ? "font-khmer" : ""
+                }`}
               >
-                <Banknote size={16} /> Create Receipt &amp; Pay
+                <Banknote size={16} /> {language === "km" ? "បង្កើតវិក្កយបត្រ & ទូទាត់" : "Create Receipt & Pay"}
               </button>
             </div>
           </aside>
@@ -1338,8 +1412,15 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               <div className="my-3.5 border-t border-slate-100 dark:border-slate-700/60" />
 
               <div className="flex items-center justify-between pt-1">
-                <span className={`text-lg font-normal ${dark ? "text-slate-100" : "text-slate-900"}`}>Payable Total</span>
-                <span className="text-2xl font-bold text-[#55a060]">{money(total)}</span>
+                <span className={`text-lg font-normal ${dark ? "text-slate-100" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "សរុបត្រូវបង់ (Payable Total)" : "Payable Total"}
+                </span>
+                <div className="flex flex-col items-end">
+                  <span className="text-2xl font-bold text-[#55a060]">{money(total)}</span>
+                  <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1451,12 +1532,17 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
 
               {/* Divider & Payable Total */}
               <div className="pt-2.5 border-t border-slate-200/60 flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-800 flex items-center gap-1">
-                  Payable Total <ChevronUp size={15} className="text-slate-600" />
+                <span className={`text-sm font-bold text-slate-800 flex items-center gap-1 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "សរុបត្រូវបង់" : "Payable Total"} <ChevronUp size={15} className="text-slate-600" />
                 </span>
-                <span className="text-2xl font-black text-[#55a060]">
-                  {money(total)}
-                </span>
+                <div className="flex flex-col items-end">
+                  <span className="text-2xl font-black text-[#55a060]">
+                    {money(total)}
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2258,7 +2344,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
       {/* ── Real-Time QR Menu Orders Modal ── */}
       {qrOrdersModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 print:hidden animate-[userModalBackdrop_180ms_ease-out]">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white p-6 shadow-none animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
+          <div className="w-full max-w-xl overflow-hidden rounded-xl bg-white p-6 shadow-none animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
               <h3 className="text-xl font-bold text-slate-800">
@@ -2288,14 +2374,14 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             
             {/* Orders Grid Content */}
             <div>
-              {qrOrders.length === 0 ? (
+              {activeQrOrders.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-12 text-center text-xs font-semibold text-slate-400">
                   <QrCode size={32} className="mx-auto mb-2 text-slate-300" />
-                  <span>No QR Menu orders found.</span>
+                  <span>{language === "km" ? "មិនមានការកុម្ម៉ង់ QR Menu សកម្មទេ។" : "No active QR Menu orders found."}</span>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[440px] overflow-y-auto pr-1">
-                  {qrOrders.map((order: any) => {
+                  {activeQrOrders.map((order: any) => {
                     const items = Array.isArray(order.items) ? order.items : [];
                     const totalQty = items.reduce((sum: number, i: any) => sum + Number(i.quantity || 1), 0);
                     const tableName = order.table?.name || (order.tableId ? `P${order.tableId}` : "P2");
@@ -2477,12 +2563,16 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                   </div>
                 )}
                 <h2 className="text-sm font-bold tracking-tight text-slate-800 font-khmer">{posName}</h2>
-                <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
-                  Av. El placer, valle hondo 2da etapa, Cabudare.
-                </p>
-                <p className="text-[11px] text-slate-500 font-normal leading-tight">
-                  Phone: 0412-464.93.35, Email: ParkFastFoodOficial@gmail.com
-                </p>
+                {restaurantAddress && (
+                  <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                    {restaurantAddress}
+                  </p>
+                )}
+                {(restaurantPhone || restaurantEmail) && (
+                  <p className="text-[11px] text-slate-500 font-normal leading-tight">
+                    {restaurantPhone ? `Phone: ${restaurantPhone}` : ""}{restaurantPhone && restaurantEmail ? ", " : ""}{restaurantEmail ? `Email: ${restaurantEmail}` : ""}
+                  </p>
+                )}
                 <div className="mt-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
                   {printSlipData.customer}
                 </div>
@@ -2575,7 +2665,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               {/* Dashed Line & Footer Note */}
               <div className="my-3 border-b border-dashed border-slate-200" />
               <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
-                <p>Thanks for visit. Come again</p>
+                <p>{receiptFooterText || "Thanks for visit. Come again"}</p>
               </div>
             </div>
           </div>
@@ -2810,6 +2900,7 @@ const ProductListItem = memo(
 function TicketItem({
   item,
   dark,
+  language,
   imageUrl,
   onIncrement,
   onDecrement,
@@ -2818,6 +2909,7 @@ function TicketItem({
 }: {
   item: CartItem;
   dark?: boolean;
+  language?: string;
   imageUrl: string;
   onIncrement: () => void;
   onDecrement: () => void;
@@ -2833,15 +2925,15 @@ function TicketItem({
     }`}>
       <div className="flex items-start justify-between gap-2.5">
         <div className="flex-1 min-w-0">
-          <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"}`}>
+          <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"} ${language === "km" ? "font-khmer" : ""}`}>
             {item.name}
           </h3>
           <span className="text-xs font-semibold text-[#55a060] block mt-0.5">
             {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
           </span>
           {item.notes && (
-            <div className="text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate">
-              Notes: {item.notes}
+            <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
+              {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}
             </div>
           )}
         </div>
@@ -2891,10 +2983,10 @@ function TicketItem({
             }}
             className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
               dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
-            }`}
+            } ${language === "km" ? "font-khmer" : ""}`}
           >
             <StickyNote size={13} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
-            <span>{item.notes ? "Edit Note" : "Add Notes"}</span>
+            <span>{item.notes ? (language === "km" ? "កែសម្រួលចំណាំ" : "Edit Note") : (language === "km" ? "បន្ថែមចំណាំ" : "Add Notes")}</span>
           </button>
         )}
       </div>

@@ -44,24 +44,105 @@ export function parseProfileUserSnapshot(snapshot: string | null): ProfileUser {
   }
 }
 
+const memoryImageStore = new Map<string, string>();
+
 export function profileImageKey(user: ProfileUser) {
   return `${PROFILE_IMAGE_PREFIX}_${user.id || user.email || user.name || "guest"}`;
 }
 
 export function getProfileImage(user: ProfileUser) {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem(profileImageKey(user)) || "";
+  const key = profileImageKey(user);
+  return memoryImageStore.get(key) || localStorage.getItem(key) || "";
+}
+
+/**
+ * Compress Base64 Data URL image using Canvas to fit within localStorage quota (<50KB)
+ */
+export function compressImageBase64(dataUrl: string, maxDim = 256, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith("data:image")) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 export function saveProfileImage(user: ProfileUser, image: string) {
-  localStorage.setItem(profileImageKey(user), image);
-  localStorage.setItem(PROFILE_VERSION_KEY, String(Date.now()));
-  window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
+  if (typeof window === "undefined") return;
+  const key = profileImageKey(user);
+  memoryImageStore.set(key, image);
+
+  const attemptSave = (imgStr: string) => {
+    try {
+      localStorage.setItem(key, imgStr);
+      localStorage.setItem(PROFILE_VERSION_KEY, String(Date.now()));
+      window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
+      return true;
+    } catch (err) {
+      // Clear old profile images from localStorage to free space
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(PROFILE_IMAGE_PREFIX) && k !== key) {
+            localStorage.removeItem(k);
+          }
+        }
+        localStorage.setItem(key, imgStr);
+        localStorage.setItem(PROFILE_VERSION_KEY, String(Date.now()));
+        window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
+        return true;
+      } catch (innerErr) {
+        // Fallback to memory store without crashing with QuotaExceededError
+        window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
+        return false;
+      }
+    }
+  };
+
+  if (!attemptSave(image) && image.startsWith("data:image")) {
+    compressImageBase64(image, 256, 0.75).then((compressed) => {
+      memoryImageStore.set(key, compressed);
+      attemptSave(compressed);
+    });
+  }
 }
 
 export function clearProfileImage(user: ProfileUser) {
-  localStorage.removeItem(profileImageKey(user));
-  localStorage.setItem(PROFILE_VERSION_KEY, String(Date.now()));
+  if (typeof window === "undefined") return;
+  const key = profileImageKey(user);
+  memoryImageStore.delete(key);
+  try {
+    localStorage.removeItem(key);
+    localStorage.setItem(PROFILE_VERSION_KEY, String(Date.now()));
+  } catch {}
   window.dispatchEvent(new Event(PROFILE_CHANGE_EVENT));
 }
 

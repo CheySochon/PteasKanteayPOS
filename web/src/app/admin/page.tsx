@@ -375,7 +375,7 @@ export default function DashboardPage() {
     () => activeOrders.filter((order) => !clearedActiveOrderIds.has(order.id)),
     [activeOrders, clearedActiveOrderIds]
   );
-  
+
   const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
 
   const centerTextPlugin = useMemo(() => ({
@@ -470,7 +470,9 @@ export default function DashboardPage() {
       if (!Number.isNaN(date.getTime())) {
         const hour = date.getHours();
         if (hour >= 0 && hour < 24) {
-          if (order.status !== "cancelled") {
+          const st = (order.status || "").toLowerCase();
+          const pst = ((order as any).paymentStatus || "").toLowerCase();
+          if (st === "completed" || st === "paid" || pst === "completed") {
             rows[hour].total += Number(order.totalAmount || 0);
           }
           rows[hour].count += 1;
@@ -529,7 +531,9 @@ export default function DashboardPage() {
     const sumFromOrders = orders
       .filter((o) => {
         const d = new Date(o.createdAt);
-        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (o.status || "").toLowerCase() !== "cancelled";
+        const st = (o.status || "").toLowerCase();
+        const pst = ((o as any).paymentStatus || "").toLowerCase();
+        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "paid" || pst === "completed");
       })
       .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
@@ -998,7 +1002,7 @@ export default function DashboardPage() {
               <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
                 {language === "km" ? "ផ្ទាំងគ្រប់គ្រង" : "Dashboard"}
               </h1>
-              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
                 {language === "km" ? "ផ្ទាំងគ្រប់គ្រងផ្ទាល់ខ្លួនរបស់អ្នក។" : "Your personalized command center."}
               </p>
             </div>
@@ -1190,7 +1194,7 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead
-                    className={`text-[10px] font-black uppercase tracking-wider ${
+                    className={`text-[11px] font-black uppercase tracking-wider ${
                       dark ? "bg-[#232333]/80 text-slate-400 border-b border-[#4e4f6e]/50" : "bg-[#f5f5f9] text-[#566a7f] border-b border-slate-100"
                     } border-t`}
                   >

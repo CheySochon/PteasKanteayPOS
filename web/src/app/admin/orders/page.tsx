@@ -12,6 +12,8 @@ import {
   Eye,
   Filter,
   MoreVertical,
+  Printer,
+  Banknote,
   ReceiptText,
   ShoppingBag,
   Utensils,
@@ -19,11 +21,11 @@ import {
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
 import OrderStatusBadge from "../../../components/OrderStatusBadge";
-import { getOrders, updateOrderStatus } from "../../../lib/api";
+import { getOrders, getSettings, resolveImageUrl, updateOrderStatus } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { getSocket } from "../../../lib/socket";
 import { useAppTheme } from "../../../lib/theme";
-import type { Order, OrderStatus } from "../../../lib/types";
+import type { AppSettings, Order, OrderStatus } from "../../../lib/types";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 
 // Simplified 4 core statuses: Pending, Preparing, Completed, Cancelled
@@ -326,6 +328,12 @@ export default function OrdersPage() {
   const [openActionId, setOpenActionId] = useState<number | null>(null);
   const [hoveredOrder, setHoveredOrder] = useState<Order | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [printSlipOrder, setPrintSlipOrder] = useState<Order | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    getSettings().then((res) => setAppSettings(res)).catch(() => undefined);
+  }, []);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(!cachedOrders);
   const [message, setMessage] = useState("");
@@ -491,6 +499,34 @@ export default function OrdersPage() {
     }
   }
 
+  async function handlePayAndPrint(order: Order) {
+    setOpenActionId(null);
+    const updatedPayload = { ...order, status: "completed" as OrderStatus, paymentStatus: "completed" };
+    setOrders((current) =>
+      current.map((entry) => (String(entry.id) === String(order.id) ? updatedPayload : entry))
+    );
+
+    const socket = getSocket();
+    if (socket) {
+      socket.emit("order:updated", updatedPayload);
+    }
+
+    try {
+      const updated = await updateOrderStatus(order.id, "completed");
+      const finalPayload = updated ? { ...updated, status: "completed" as OrderStatus } : updatedPayload;
+      setOrders((current) =>
+        current.map((entry) => (String(entry.id) === String(finalPayload.id) ? finalPayload : entry))
+      );
+      if (socket) {
+        socket.emit("order:updated", finalPayload);
+      }
+    } catch {}
+
+    setSelectedOrder(null);
+    setPrintSlipOrder(updatedPayload);
+    setMessage(language === "km" ? "ទូទាត់ប្រាក់ និងចេញវិក្កយបត្ររួចរាល់!" : "Order paid and printed successfully!");
+  }
+
   function resetFilters() {
     setStatusFilter("all");
     setTypeFilter("all");
@@ -561,7 +597,7 @@ export default function OrdersPage() {
               <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
                 {t.title}
               </h1>
-              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer text-[11px]" : ""}`}>
+              <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
                 {t.subtitle}
               </p>
             </div>
@@ -984,6 +1020,24 @@ export default function OrdersPage() {
                                     </button>
                                   );
                                 })}
+
+                                <div className="border-t border-slate-100 dark:border-slate-800/80 my-1 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (order.status !== "completed") {
+                                        handlePayAndPrint(order);
+                                      } else {
+                                        setOpenActionId(null);
+                                        setPrintSlipOrder(order);
+                                      }
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all cursor-pointer"
+                                  >
+                                    <Printer size={14} />
+                                    <span>{order.status === "completed" ? (language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt") : (language === "km" ? "គិតលុយ & ព្រីន" : "Pay & Print")}</span>
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </td>
@@ -1158,13 +1212,158 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedOrder(null)}
-                  className="h-9 rounded-xl bg-[#55a060] hover:bg-[#45864f] px-5 text-xs font-semibold text-white transition-colors shadow-md shadow-[#55a060]/20 cursor-pointer"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  {selectedOrder.status !== "completed" ? (
+                    <button
+                      type="button"
+                      onClick={() => handlePayAndPrint(selectedOrder)}
+                      className="flex h-9 items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#439150] px-4 text-xs font-bold text-white transition-all shadow-md shadow-[#55a060]/20 cursor-pointer active:scale-95"
+                    >
+                      <Banknote size={15} />
+                      {language === "km" ? "ទូទាត់ប្រាក់ & ព្រីនវិក្កយបត្រ" : "Pay & Print Receipt"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrintSlipOrder(selectedOrder);
+                        setSelectedOrder(null);
+                      }}
+                      className="flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
+                    >
+                      <Printer size={15} />
+                      {language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt"}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrder(null)}
+                    className={`h-9 rounded-xl border px-4 text-xs font-semibold transition-colors cursor-pointer ${
+                      dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {language === "km" ? "បិទ" : "Close"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Printable Receipt Modal */}
+        {printSlipOrder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[1px] print:p-0 print:bg-white p-4">
+            <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-white p-5 shadow-2xl animate-[dashboardPageIn_200ms_ease-out] print:shadow-none print:w-full print:max-w-none print:p-0">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 print:hidden">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">PRINT SLIP PREVIEW</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#55a060] hover:bg-[#46894f] px-3 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
+                  >
+                    <Printer size={14} /> {language === "km" ? "ព្រីន" : "Print"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintSlipOrder(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+
+              <div id="thermal-print-area" className="text-xs text-slate-800 leading-normal font-sans font-khmer">
+                <div className="text-center">
+                  {appSettings?.restaurantImageUrl ? (
+                    <img loading="lazy" src={resolveImageUrl(appSettings.restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F522B] text-white font-bold text-sm mx-auto mb-1.5">
+                      {(appSettings?.restaurantName || "POS").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <h2 className="text-sm font-bold tracking-tight text-slate-800 font-khmer">
+                    {appSettings?.restaurantName || "ផ្ទះកន្តែយ POS"}
+                  </h2>
+                  {appSettings?.address && (
+                    <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                      {appSettings.address}
+                    </p>
+                  )}
+                  {(appSettings?.restaurantPhone || appSettings?.restaurantEmail) && (
+                    <p className="text-[11px] text-slate-500 font-normal leading-tight">
+                      {appSettings?.restaurantPhone ? `Tel: ${appSettings.restaurantPhone}` : ""}
+                      {appSettings?.restaurantPhone && appSettings?.restaurantEmail ? " | " : ""}
+                      {appSettings?.restaurantEmail ? `Email: ${appSettings.restaurantEmail}` : ""}
+                    </p>
+                  )}
+                  <div className="mt-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
+                    {printSlipOrder.table?.name ? `Table ${printSlipOrder.table.name}` : "WALKIN"}
+                  </div>
+                </div>
+
+                <div className="mt-3.5 space-y-1 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Order Type:</span>
+                    <span className="font-semibold text-slate-800">{printSlipOrder.orderType || "Dine-In"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Receipt No.:</span>
+                    <span className="font-semibold text-slate-800">{printSlipOrder.orderNumber || `#${printSlipOrder.id}`}</span>
+                  </div>
+                  <div className="text-slate-400 text-[11px] text-right mt-0.5">
+                    {dateTimeLabel(printSlipOrder.createdAt)}
+                  </div>
+                </div>
+
+                <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+                <div className="space-y-2">
+                  {printSlipOrder.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="space-y-0.5">
+                      <div className="flex justify-between items-baseline text-xs font-medium text-slate-800">
+                        <span className="flex-1 pr-2 leading-snug">{item.product?.name || item.name}</span>
+                        <span className="font-semibold text-slate-900">{money(item.totalPrice || item.price * item.quantity)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {item.quantity}x {money(item.price || item.unitPrice || 0)}
+                      </div>
+                      {item.notes && (
+                        <div className="text-[10.5px] text-amber-700 italic pl-1.5 border-l border-amber-300 mt-0.5">
+                          Note: {item.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold text-slate-800">{money(printSlipOrder.subtotal || printSlipOrder.totalAmount)}</span>
+                  </div>
+                  {Number(printSlipOrder.discountAmount) > 0 && (
+                    <div className="flex justify-between items-center text-emerald-600">
+                      <span>Discount:</span>
+                      <span className="font-semibold">-{money(printSlipOrder.discountAmount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
+                    <span>Total (PAID):</span>
+                    <span className="text-base text-[#55a060] font-bold">{money(printSlipOrder.totalAmount)}</span>
+                  </div>
+                  <div className="text-right text-[10.5px] text-slate-500 font-bold mt-0.5">
+                    ~ {moneyRiel(printSlipOrder.totalAmount)}
+                  </div>
+                </div>
+
+                <div className="my-3 border-b border-dashed border-slate-200" />
+                <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
+                  <p>{appSettings?.receiptFooter || "Thanks for visit. Come again"}</p>
+                </div>
               </div>
             </div>
           </div>

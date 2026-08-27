@@ -43,6 +43,10 @@ export const update = asyncHandler(
 export const remove = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
     const idVal = Number(req.params.id);
+    if (idVal === 1) {
+      res.status(403).json({ success: false, message: "System Protection: Super Admin account (ID 1) cannot be deleted." });
+      return;
+    }
     if (isNaN(idVal) || idVal > 2147483647 || idVal < -2147483648) {
       res.status(404).json({ success: false, message: "User not found" });
       return;

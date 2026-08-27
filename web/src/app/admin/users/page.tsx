@@ -1,7 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -15,8 +14,6 @@ import {
   Trash2,
   UserRound,
   X,
-  UserX,
-  ShieldAlert,
   MoreVertical,
   Download,
   Eye,
@@ -24,10 +21,6 @@ import {
   Crown,
   CreditCard,
   ChefHat,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Camera,
   Mail,
   Lock,
@@ -35,14 +28,14 @@ import {
   Phone,
   Briefcase,
   Sliders,
-  Utensils,
-  UserPlus,
-  Pencil,
-  Zap,
+  RefreshCw,
+  Search,
+  Columns,
+  Grid,
+  UsersRound,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
-import { useAppLanguage, setAppLanguage } from "../../../lib/language";
-import TopBar from "../../../components/TopBar";
+import { useAppLanguage } from "../../../lib/language";
 import AnimatedToast from "../../../components/AnimatedToast";
 import { getSocket } from "../../../lib/socket";
 import {
@@ -53,21 +46,13 @@ import {
   updateUser,
   apiOrigin,
   uploadUserImage,
+  getAdminGroups,
 } from "../../../lib/api";
 import type { Role, User } from "../../../lib/types";
 import {
   getProfileImage,
-  getProfileVersionSnapshot,
-  getServerProfileVersionSnapshot,
   initials,
-  profileAvatarClass,
-  subscribeToProfileChanges,
-  saveProfileImage,
-  clearProfileImage,
-  profileRoleClass,
 } from "../../../lib/profile";
-import { useAutoDismiss } from "../../../lib/useAutoDismiss";
-import { getCookie } from "../../../lib/cookies";
 
 type UserForm = {
   id?: number;
@@ -100,1306 +85,720 @@ const EMPTY_FORM: UserForm = {
   name: "",
   email: "",
   password: "",
-  pin: "1234",
-  roleName: "Cashier",
+  pin: "",
+  roleName: "Admin Group (Standard)",
   isActive: true,
   imageUrl: "",
   phone: "",
   designation: "",
 };
 
-export default function UsersPage() {
+export default function AdminUsersPage() {
   const [theme] = useAppTheme();
   const language = useAppLanguage();
+  const dark = theme === "dark";
+
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [form, setForm] = useState<UserForm>(EMPTY_FORM);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [currentUserId] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-
-    const storedUser = localStorage.getItem("pos_user");
-    if (!storedUser) return null;
-
-    try {
-      const user = JSON.parse(storedUser) as { id?: number };
-      return user.id || null;
-    } catch {
-      return null;
-    }
-  });
-
+  const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [showModalPassword, setShowModalPassword] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
-  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
-  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
-  useAutoDismiss(message, setMessage);
-  useAutoDismiss(error, setError);
-  useSyncExternalStore(
-    subscribeToProfileChanges,
-    getProfileVersionSnapshot,
-    getServerProfileVersionSnapshot,
-  );
-
-  // Search, Filters & Pagination state
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterRole, setFilterRole] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [limit, setLimit] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const dark = theme === "dark";
-  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8fafc]";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
-  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
-  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
-
-  useEffect(() => {
-    let mounted = true;
-
-    Promise.all([getUsers(), getRoles()])
-      .then(([userRows, roleRows]) => {
-        if (!mounted) return;
-        setUsers(userRows);
-        setRoles(roleRows);
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
-
-    const socket = getSocket();
-    if (socket) {
-      function handleUserCreated(user: User) {
-        setUsers((current) => [user, ...current.filter((u) => u.id !== user.id)]);
-      }
-      function handleUserUpdated(user: User) {
-        setUsers((current) => current.map((u) => (u.id === user.id ? { ...u, ...user } : u)));
-        if (user.role && typeof user.role === "object") {
-          setRoles((prevRoles) => prevRoles.map((r) => (r.id === (user.role as any).id ? (user.role as any) : r)));
-        }
-      }
-      function handleUserDeleted(data: { id: number }) {
-        setUsers((current) => current.filter((u) => u.id !== data.id));
-      }
-
-      socket.on("user:created", handleUserCreated);
-      socket.on("user:updated", handleUserUpdated);
-      socket.on("user:deleted", handleUserDeleted);
-
-      return () => {
-        mounted = false;
-        socket.off("user:created", handleUserCreated);
-        socket.off("user:updated", handleUserUpdated);
-        socket.off("user:deleted", handleUserDeleted);
-      };
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const activeUsers = useMemo(
-    () => users.filter((user) => user.isActive).length,
-    [users],
-  );
-
-  const adminUsers = useMemo(
-    () =>
-      users.filter((user) =>
-        ["Super Admin", "Admin"].includes(roleName(user)),
-      ).length,
-    [users],
-  );
-
-  const roleOptions = useMemo(() => {
-    let customRoles: Array<{ id: number; name: string }> = [];
-    try {
-      customRoles = JSON.parse(localStorage.getItem("pos_custom_roles_list") || "[]");
-    } catch {
-      customRoles = [];
-    }
-
-    const combined = [...roles];
-    customRoles.forEach((cr) => {
-      if (cr.name && !combined.some((r) => r.name.toLowerCase() === cr.name.toLowerCase())) {
-        combined.push({ id: cr.id, name: cr.name });
-      }
-    });
-
-    if (form.roleName && !combined.some((role) => role.name === form.roleName)) {
-      combined.unshift({ id: 0, name: form.roleName });
-    }
-
-    return combined.filter((role) => role.name);
-  }, [form.roleName, roles]);
-
-  // Apply filters
-  const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      // Remove Bong Thim, Kong, POP, and Ahdeth user cards
-      const nameLower = user.name?.toLowerCase() || "";
-      const emailLower = user.email?.toLowerCase() || "";
-      if (
-        nameLower === "ahdeth" || emailLower.includes("kjgkjg") ||
-        nameLower === "pop" || emailLower.includes("pop@") ||
-        nameLower === "kong" || emailLower.includes("kong@") ||
-        nameLower.includes("bong thim") || nameLower.includes("bongthim") || emailLower.includes("bongthom@")
-      ) {
-        return false;
-      }
-      const uRole = roleName(user);
-      const matchesRole = !filterRole || uRole === filterRole;
-      const matchesStatus =
-        !filterStatus ||
-        (filterStatus === "Active" && user.isActive) ||
-        (filterStatus === "Inactive" && !user.isActive);
-      const matchesSearch =
-        !searchQuery ||
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesRole && matchesStatus && matchesSearch;
-    });
-  }, [users, filterRole, filterStatus, searchQuery]);
-
-  // Sort users so that Admins are always first (far left)
-  const sortedUsers = useMemo(() => {
-    return [...filteredUsers].sort((a, b) => {
-      const aRole = roleName(a).toUpperCase();
-      const bRole = roleName(b).toUpperCase();
-      const aIsAdmin = aRole === "ADMIN";
-      const bIsAdmin = bRole === "ADMIN";
-      if (aIsAdmin && !bIsAdmin) return -1;
-      if (!aIsAdmin && bIsAdmin) return 1;
-      return 0;
-    });
-  }, [filteredUsers]);
-
-  // Pagination calculations
-  const totalPages = Math.ceil(sortedUsers.length / limit) || 1;
-  const startIndex = (currentPage - 1) * limit;
-  const paginatedUsers = useMemo(() => {
-    return sortedUsers.slice(startIndex, startIndex + limit);
-  }, [sortedUsers, startIndex, limit]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filterRole, filterStatus, limit]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-
-
-    try {
-      const isStaffRole = !String(form.roleName || "").toLowerCase().includes("admin");
-      if (!isStaffRole && form.password && form.password.length < 8) {
-        setError(language === "km" ? "🛑 ពាក្យសម្ងាត់ Admin ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ" : "🛑 Admin password must be at least 8 characters long.");
-        return;
-      }
-      if (isStaffRole && (!form.id || form.password)) {
-        if (form.password.length !== 4 || !/^\d{4}$/.test(form.password)) {
-          setError(language === "km" ? "🛑 PIN Code ត្រូវមាន ៤ ខ្ទង់គត់ (ជាលេខ)" : "🛑 PIN Code must be exactly 4 digits.");
-          return;
-        }
-      }
-
-      const userEmail = form.email.trim() || `${form.name.toLowerCase().replace(/\s+/g, "")}.${form.roleName.toLowerCase()}@pos.local`;
-
-      const rawRole = form.roleName || "Cashier";
-      const targetRole = rawRole === "Custom" ? (form.id ? "Cashier" : "Cashier") : rawRole;
-
-      const formattedPermissions = ALL_PERMISSIONS_LIST.map((p) => {
-        const hasView = selectedPerms.includes(p.key);
-        const hasEdit = selectedPerms.includes(`${p.key}_edit`);
-        const hasDelete = selectedPerms.includes(`${p.key}_delete`);
-        return {
-          key: p.key,
-          label: p.label,
-          view: hasView,
-          create: hasEdit,
-          edit: hasEdit,
-          delete: hasDelete,
-        };
-      });
-
-      if (form.id) {
-        const body = {
-          name: form.name,
-          email: userEmail,
-          role: targetRole,
-          roleName: targetRole,
-          isActive: form.isActive,
-          pin: form.password || form.pin || "1234",
-          imageUrl: form.imageUrl || "",
-          permissions: formattedPermissions,
-          ...(form.password ? { password: form.password, pin: form.password } : {}),
-        };
-
-        const updated = await updateUser(form.id, body as any);
-
-        const fullUpdatedUser = {
-          ...updated,
-          permissions: formattedPermissions,
-          role: typeof updated.role === "object" && updated.role !== null
-            ? { ...updated.role, permissions: formattedPermissions }
-            : { name: targetRole, permissions: formattedPermissions },
-        };
-
-        setUsers((current) =>
-          current.map((user) => (user.id === fullUpdatedUser.id ? (fullUpdatedUser as any) : user)),
-        );
-
-        // Update local session if the user edited their own account details
-        if (typeof window !== "undefined") {
-          const currentUserRaw = localStorage.getItem("pos_user");
-          if (currentUserRaw) {
-            try {
-              const cur = JSON.parse(currentUserRaw);
-              if (cur.id === fullUpdatedUser.id || (cur.email && cur.email.trim().toLowerCase() === fullUpdatedUser.email.trim().toLowerCase())) {
-                const mergedUser = { 
-                  ...cur, 
-                  ...fullUpdatedUser,
-                  role: typeof fullUpdatedUser.role === "string" ? fullUpdatedUser.role : fullUpdatedUser.role?.name || cur.role
-                };
-                localStorage.setItem("pos_user", JSON.stringify(mergedUser));
-                window.dispatchEvent(new Event("pos-auth-change"));
-              }
-            } catch {}
-          }
-        }
-
-        setRoles((prevRoles) =>
-          prevRoles.map((r) =>
-            r.name === targetRole || (typeof fullUpdatedUser.role === "object" && r.id === (fullUpdatedUser.role as any).id)
-              ? { ...r, permissions: formattedPermissions }
-              : r
-          )
-        );
-
-        const socket = getSocket();
-        if (socket) socket.emit("user:updated", fullUpdatedUser);
-
-        setMessage("User updated successfully.");
-      } else {
-        const created = await createUser({
-          name: form.name,
-          email: userEmail,
-          password: form.password || "password123",
-          role: targetRole,
-          roleName: targetRole,
-          isActive: form.isActive,
-          pin: form.pin || "1234",
-          imageUrl: form.imageUrl || "",
-          permissions: formattedPermissions,
-        } as any);
-
-        setUsers((current) => [created, ...current]);
-        if (created.role && typeof created.role === "object") {
-          setRoles((prevRoles) => {
-            const exists = prevRoles.some((r) => r.id === (created.role as any).id);
-            if (exists) {
-              return prevRoles.map((r) => (r.id === (created.role as any).id ? (created.role as any) : r));
-            }
-            return [...prevRoles, created.role as any];
-          });
-        }
-
-        const socket = getSocket();
-        if (socket) socket.emit("user:created", created);
-
-        setMessage("User created successfully.");
-      }
-
-      closeUserModal();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unable to save user";
-      if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("403")) {
-        setError("⚠️ Invalid session. Please logout and login again with Admin Email & Password.");
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  // User Modal State
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [form, setForm] = useState<UserForm>(EMPTY_FORM);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    if (!deleteConfirmUser) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setDeleteConfirmUser(null);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deleteConfirmUser]);
-
-  // Close action menu on click or scroll
+  // Click outside listener for action dropdown
   useEffect(() => {
     const handleClose = () => setActionMenuOpen(null);
     window.addEventListener("click", handleClose);
-    window.addEventListener("scroll", handleClose, true);
+    return () => window.removeEventListener("click", handleClose);
+  }, []);
+
+  // Fetch Users, Roles & Admin Groups from PostgreSQL DB API
+  const fetchUsersAndRoles = async () => {
+    try {
+      const [fetchedUsers, fetchedRoles, fetchedGroups] = await Promise.all([
+        getUsers(),
+        getRoles(),
+        getAdminGroups(),
+      ]);
+      setUsers(fetchedUsers);
+      setRoles(fetchedRoles);
+      setGroups(fetchedGroups);
+    } catch (err) {
+      setError("Failed to load staff accounts & admin groups from database.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsersAndRoles();
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on("user:created", fetchUsersAndRoles);
+      socket.on("user:updated", fetchUsersAndRoles);
+      socket.on("user:deleted", fetchUsersAndRoles);
+      socket.on("group:created", fetchUsersAndRoles);
+      socket.on("group:updated", fetchUsersAndRoles);
+      socket.on("group:deleted", fetchUsersAndRoles);
+    }
+
     return () => {
-      window.removeEventListener("click", handleClose);
-      window.removeEventListener("scroll", handleClose, true);
+      if (socket) {
+        socket.off("user:created", fetchUsersAndRoles);
+        socket.off("user:updated", fetchUsersAndRoles);
+        socket.off("user:deleted", fetchUsersAndRoles);
+        socket.off("group:created", fetchUsersAndRoles);
+        socket.off("group:updated", fetchUsersAndRoles);
+        socket.off("group:deleted", fetchUsersAndRoles);
+      }
     };
   }, []);
 
-  async function confirmRemoveUser() {
-    if (!deleteConfirmUser) return;
-    const user = deleteConfirmUser;
-    setDeleteConfirmUser(null);
-    setMessage("");
-    setError("");
+  // Refresh Handler
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUsersAndRoles();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setMessage("Staff list refreshed.");
+    }, 400);
+  };
+
+  // Helper for Role Name
+  const roleName = (user: User) => {
+    if (typeof user.role === "string") return user.role;
+    if (user.role && typeof user.role === "object" && user.role.name) return user.role.name;
+    return user.roleName || "Cashier";
+  };
+
+  // Filtered Users List
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const q = searchQuery.toLowerCase();
+    return users.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        String(u.id).includes(q) ||
+        roleName(u).toLowerCase().includes(q)
+    );
+  }, [users, searchQuery]);
+
+  // Select / Deselect All Checkboxes
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(users.map((u) => u.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  // Toggle Single Checkbox
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  // Bulk Delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const validIds = selectedIds.filter((id) => id !== 1);
+    if (validIds.length === 0) {
+      setError("Super Admin (ID 1) is protected and cannot be deleted.");
+      return;
+    }
+
+    try {
+      await Promise.all(validIds.map((id) => deleteUser(id)));
+      setUsers((prev) => prev.filter((u) => !validIds.includes(u.id)));
+      setSelectedIds([]);
+      setMessage(`${validIds.length} staff users deleted successfully.`);
+      const socket = getSocket();
+      if (socket) socket.emit("user:deleted", { count: validIds.length });
+    } catch {
+      setError("Failed to delete selected users.");
+    }
+  };
+
+  // Delete Single User
+  const handleDeleteUser = async (user: User) => {
+    if (user.id === 1) {
+      setError("Super Admin (ID 1) is a protected system owner and cannot be deleted.");
+      return;
+    }
 
     try {
       await deleteUser(user.id);
-      setUsers((current) => current.filter((entry) => entry.id !== user.id));
-      if (form.id === user.id) closeUserModal();
-
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setSelectedIds((prev) => prev.filter((id) => id !== user.id));
+      setMessage(`User "${user.name}" deleted.`);
       const socket = getSocket();
       if (socket) socket.emit("user:deleted", { id: user.id });
-
-      setMessage("User deleted successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete user");
     }
-  }
+  };
 
-  async function toggleActive(user: User) {
-    setMessage("");
-    setError("");
+  // Open Create Modal
+  const openCreateModal = () => {
+    setEditingUserId(null);
+    setForm(EMPTY_FORM);
+    setShowModalPassword(false);
+    setSelectedPerms(["dashboard", "pos", "orders", "tables", "invoices", "menu"]);
+    setIsUserModalOpen(true);
+  };
 
-    try {
-      const updated = await updateUser(user.id, { isActive: !user.isActive });
-
-      setUsers((current) =>
-        current.map((entry) => (entry.id === updated.id ? updated : entry)),
-      );
-
-      const socket = getSocket();
-      if (socket) socket.emit("user:updated", updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update user");
+  // Open Edit Modal
+  const openEditModal = (user: User) => {
+    if (user.id === 1) {
+      setError("Super Admin (ID 1) is a protected system owner and cannot be edited.");
+      return;
     }
-  }
-
-  function edit(user: User) {
     const uRole = roleName(user) || "Cashier";
+    setEditingUserId(user.id);
     setForm({
       id: user.id,
       name: user.name,
       email: user.email,
       password: "",
-      pin: (user as any).pin || (user.email.includes("cashier") ? "1234" : user.email.includes("staff") ? "5678" : "0000"),
+      pin: (user as any).pin || (user.email.includes("cashier") ? "1234" : "5678"),
       roleName: uRole,
       isActive: user.isActive,
       imageUrl: user.imageUrl || "",
+      phone: (user as any).phone || "",
     });
 
-    let userPermsArray =
-      (user as any).permissions ||
-      (typeof user.role === "object" && user.role !== null ? (user.role as any).permissions : null) ||
-      roles.find((r) => r.name === uRole || r.id === (user as any).roleId)?.permissions;
-
-    if (typeof userPermsArray === "string") {
-      try {
-        userPermsArray = JSON.parse(userPermsArray);
-      } catch {}
+    let userPerms = (user as any)?.permissions || (typeof user.role === "object" ? (user.role as any)?.permissions : null);
+    if (typeof userPerms === "string") {
+      try { userPerms = JSON.parse(userPerms); } catch {}
     }
+    const permKeys = Array.isArray(userPerms)
+      ? userPerms.map((p) => (typeof p === "string" ? p : p.key))
+      : ["dashboard", "pos", "orders", "tables", "invoices", "menu"];
+    setSelectedPerms(permKeys);
+    setIsUserModalOpen(true);
+  };
 
-    let initialPerms: string[] = [];
+  // Submit Modal
+  const handleModalSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) return;
 
-    if (Array.isArray(userPermsArray)) {
-      userPermsArray.forEach((p: any) => {
-        if (typeof p === "string") {
-          initialPerms.push(p);
-        } else if (p && typeof p === "object") {
-          if (p.view) initialPerms.push(p.key);
-          if (p.edit || p.create) initialPerms.push(`${p.key}_edit`);
-          if (p.delete) initialPerms.push(`${p.key}_delete`);
-        }
-      });
-    } else {
-      const rLower = uRole.toLowerCase();
-      if (rLower.includes("admin") || rLower.includes("manager")) {
-        ALL_PERMISSIONS_LIST.forEach((p) => {
-          initialPerms.push(p.key, `${p.key}_edit`, `${p.key}_delete`);
+    try {
+      if (editingUserId) {
+        // Edit User
+        const updated = await updateUser(editingUserId, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password ? form.password : undefined,
+          roleName: form.roleName,
+          isActive: form.isActive,
+          imageUrl: form.imageUrl || undefined,
         });
-      } else if (rLower.includes("cashier")) {
-        initialPerms = ["dashboard", "pos", "orders", "orders_edit", "tables", "invoices", "invoices_edit", "menu"];
+
+        setUsers((prev) => prev.map((u) => (u.id === editingUserId ? { ...u, ...updated } : u)));
+        setMessage(`User "${form.name}" updated successfully.`);
+        const socket = getSocket();
+        if (socket) socket.emit("user:updated", updated);
       } else {
-        initialPerms = ["kds", "orders", "menu"];
+        // Create User
+        const created = await createUser({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          password: form.password || "123456",
+          roleName: form.roleName,
+          isActive: form.isActive,
+          imageUrl: form.imageUrl || undefined,
+        });
+
+        setUsers((prev) => [created, ...prev]);
+        setMessage(`User "${form.name}" created successfully.`);
+        const socket = getSocket();
+        if (socket) socket.emit("user:created", created);
       }
+
+      setIsUserModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save user");
     }
+  };
 
-    setSelectedPerms(initialPerms);
-    setMessage("");
-    setError("");
-    setShowModalPassword(false);
-    setIsUserModalOpen(true);
-  }
-
-  function openCreateUserModal() {
-    setForm(EMPTY_FORM);
-    setMessage("");
-    setError("");
-    setShowModalPassword(false);
-    setSelectedPerms(["dashboard", "pos", "orders", "tables", "invoices", "menu"]); // Default Cashier
-    setIsUserModalOpen(true);
-  }
-
-  function closeUserModal() {
-    setIsUserModalOpen(false);
-    setShowModalPassword(false);
-    setForm(EMPTY_FORM);
-    setSelectedPerms([]);
-  }
-
-  function handleExport() {
-    if (users.length === 0) return;
-    
-    // Header columns
-    const headers = ["ID", "Name", "Email", "Role", "Status", "Created At"];
-    
-    // Rows
-    const rows = users.map(user => [
-      user.id,
-      user.name,
-      user.email,
-      roleName(user) || "Cashier",
-      user.isActive ? "Active" : "Inactive",
-      user.createdAt ? new Date(user.createdAt).toISOString() : ""
-    ]);
-    
-    // Create CSV content
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
-    ].join("\n");
-    
-    // Download trigger
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `staff_users_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+  // Format Date Helper
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "--";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "--";
+    return d.toISOString().replace("T", " ").substring(0, 19);
+  };
 
   return (
-    <>
-
-
-      <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-        {/* Floating Top Success/Error Toast Alerts (Over TopBar) */}
-        <div className="fixed top-3.5 inset-x-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
+    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+      
+      {/* Toast Notifications */}
+      {message && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <AnimatedToast message={error} onClose={() => setError("")} type="error" />
         </div>
+      )}
 
-        <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-          <div className="mx-auto w-full max-w-[1720px] ">
+      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
+        <div className="mx-auto w-full max-w-[1720px] space-y-4">
+          
+          {/* Header Title with "+ New User" Button */}
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              {language === "km" ? "បុគ្គលិក (Admin & Staff)" : "Admin & Staff Users"}
+            </h1>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
+              {language === "km" ? "ថ្មី" : "New User"}
+            </button>
+          </div>
 
-            {/* Title & "+ New" Button Header */}
-            <div className="flex items-center gap-3 mb-4">
-              <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>{language === "km" ? "បុគ្គលិក" : "Users"}</h1>
+          {/* MAIN TABLE PANEL MATCHING TARGET SCREENSHOT media_1787653557137.png */}
+          <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
+            
+            {/* TOP ACTION TOOLBAR MATCHING TARGET SCREENSHOT */}
+            <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
+              dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
+            }`}>
+              
+              {/* Left Action Buttons: 🔄 Refresh, 🟢 + Add, 🔴 Delete */}
+              <div className="flex flex-wrap items-center gap-2">
+                
+                {/* 🔄 Refresh Icon Button */}
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  title="Refresh Users List"
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg transition cursor-pointer ${
+                    dark ? "bg-[#1e293b] hover:bg-[#334155] text-slate-200" : "bg-[#2d3748] hover:bg-[#1a202c] text-white"
+                  }`}
+                >
+                  <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+                </button>
+
+                {/* 🟢 + Add Button */}
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="h-8 px-3.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                >
+                  <Plus size={14} />
+                  + Add
+                </button>
+
+                {/* 🔴 🗑️ Delete Button */}
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.length === 0}
+                  className="h-8 px-3.5 rounded-lg bg-[#f43f5e] hover:bg-[#e11d48] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-40"
+                >
+                  <Trash2 size={13} />
+                  Delete {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
+                </button>
+              </div>
+
+              {/* Right Tools: Search & Utility Icons */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-60">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search users..."
+                    className={`h-8 w-full rounded-lg border pl-8 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-slate-800"
+                    }`}
+                  />
+                </div>
+
+                {/* Utility Icons Toolbar (Columns / Grid / Users) */}
+                <div className="flex items-center border rounded-lg overflow-hidden border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800">
+                  <button
+                    type="button"
+                    title="Columns view"
+                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <Columns size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Grid view"
+                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
+                  >
+                    <Grid size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    title="User filter"
+                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
+                  >
+                    <UsersRound size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* TABLE MATRIX MATCHING TARGET SCREENSHOT media_1787653557137.png */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${
+                    dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50 border-slate-200/80"
+                  }`}>
+                    <th className="py-3 px-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={users.length > 0 && selectedIds.length === users.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
+                      />
+                    </th>
+                    <th className="py-3 px-4 w-16 font-bold">ID</th>
+                    <th className="py-3 px-4 font-bold">Username</th>
+                    <th className="py-3 px-4 font-bold">Nickname</th>
+                    <th className="py-3 px-4 font-bold">Group</th>
+                    <th className="py-3 px-4 font-bold">Email</th>
+                    <th className="py-3 px-4 w-28 font-bold">Status</th>
+                    <th className="py-3 px-4 w-44 font-bold">Login time</th>
+                    <th className="py-3 px-4 w-28 text-right font-bold">Operate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                        <Loader2 className="animate-spin inline mr-2" size={18} />
+                        Loading staff users...
+                      </td>
+                    </tr>
+                  ) : filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-slate-400 font-normal">
+                        No user accounts found matching search query.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSelected = selectedIds.includes(user.id);
+                      const uRole = roleName(user) || "Cashier";
+                      const usernameStr = user.email.split("@")[0] || `user_${user.id}`;
+                      const matchedGroup = groups.find((g) => g.name === uRole || g.name.toLowerCase().includes(uRole.toLowerCase()) || String(g.id) === String((user as any).groupId));
+                      const groupBadgeName = matchedGroup ? matchedGroup.name : (uRole === "Super Admin" ? "Super Admin Group" : uRole === "Admin" ? "Admin Group" : `${uRole} Group`);
+
+                      return (
+                        <tr
+                          key={user.id}
+                          className={`transition-colors ${
+                            isSelected
+                              ? dark ? "bg-[#55a060]/10" : "bg-emerald-50/50"
+                              : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-3.5 px-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelect(user.id)}
+                              className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
+                            />
+                          </td>
+
+                          {/* ID */}
+                          <td className="py-3.5 px-4 font-normal text-slate-500 dark:text-slate-400">
+                            {user.id}
+                          </td>
+
+                          {/* Username */}
+                          <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-200">
+                            {usernameStr}
+                          </td>
+
+                          {/* Nickname */}
+                          <td className="py-3.5 px-4 font-normal text-slate-600 dark:text-slate-300">
+                            {user.name}
+                          </td>
+
+                          {/* Group (Clean Fit Badge) */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-[#2b303a] text-slate-100 dark:bg-slate-700 dark:text-slate-100 shadow-2xs">
+                              {groupBadgeName}
+                            </span>
+                          </td>
+
+                          {/* Email */}
+                          <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                            {user.email}
+                          </td>
+
+                          {/* Status (● Normal) */}
+                          <td className="py-3.5 px-4">
+                            {user.isActive ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Normal
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400">
+                                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                                Disabled
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Login time */}
+                          <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                            {formatDate(user.createdAt)}
+                          </td>
+
+                          {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}
+                          <td className="py-3.5 px-4 text-right relative">
+                            {user.id === 1 ? null : (
+                              <div className="relative inline-block text-left">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActionMenuOpen(actionMenuOpen === user.id ? null : user.id);
+                                  }}
+                                  className={`h-7 w-7 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
+                                    dark
+                                      ? "text-slate-400 hover:bg-[#34354c] hover:text-slate-200"
+                                      : "text-slate-400 hover:bg-slate-100 hover:text-slate-700 border border-slate-200/60"
+                                  }`}
+                                >
+                                  <MoreVertical size={16} />
+                                </button>
+
+                                {actionMenuOpen === user.id && (
+                                  <div
+                                    className={`absolute right-0 top-full mt-1 z-50 w-44 rounded-xl border p-1.5 text-left shadow-xl ${
+                                      dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/90 bg-white"
+                                    } animate-[userModalIn_150ms_cubic-bezier(0.16,1,0.3,1)]`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuOpen(null);
+                                        openEditModal(user);
+                                      }}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
+                                    >
+                                      <Edit3 size={13} className="text-cyan-500 stroke-[2]" />
+                                      <span>{language === "km" ? "កែប្រែ" : "Edit User"}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuOpen(null);
+                                        handleDeleteUser(user);
+                                      }}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 size={13} className="text-rose-500 stroke-[2]" />
+                                      <span>{language === "km" ? "លុប" : "Delete User"}</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer */}
+            <div className={`p-4 border-t text-xs font-normal text-slate-500 dark:text-slate-400 ${
+              dark ? "border-[#4e4f6e] bg-[#232333]/30" : "border-slate-100 bg-slate-50/30"
+            }`}>
+              Showing 1 to {filteredUsers.length} of {users.length} rows
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CREATE / EDIT USER MODAL */}
+      {isUserModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
+          <div className={`relative w-full max-w-lg overflow-hidden rounded-2xl border shadow-xl ${
+            dark ? "bg-[#1a1b26] border-slate-800 text-slate-100" : "bg-white border-slate-100 text-slate-800"
+          }`}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-bold flex items-center gap-2">
+                <UsersRound className="text-[#55a060]" size={18} />
+                {editingUserId ? "Edit Staff User" : "Create New Staff User"}
+              </h3>
               <button
                 type="button"
-                onClick={openCreateUserModal}
-                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
-                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
+                onClick={() => setIsUserModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
-                <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
-                {language === "km" ? "ថ្មី" : "New"}
+                <X size={18} />
               </button>
             </div>
 
-              {/* Grid Wrapper */}
-              <div className="pt-1 pb-4">
-                {loading ? (
-                  <div className="flex h-64 w-full items-center justify-center">
-                    <Loader2 className="animate-spin text-[#696cff]" size={32} />
-                  </div>
-                ) : sortedUsers.length === 0 ? (
-                  <div className={`py-12 text-center text-sm ${textSecondary}`}>
-                    No entries found
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pb-20">
-                    {sortedUsers.map((user) => {
-                      const isSelf = currentUserId === user.id;
-                      const uRole = roleName(user) || "Member";
-                      const isActive = user.isActive;
-                      const imageUrl = user.imageUrl ? resolveImageUrl(user.imageUrl) : "";
-                      const image = imageUrl || getProfileImage({
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        role: uRole,
-                        isActive: user.isActive,
-                        createdAt: user.createdAt,
-                        updatedAt: user.updatedAt,
-                      });
-
-                      const userRoleObj = typeof user.role === "object" && user.role !== null ? user.role : roles.find((r) => r.name === uRole);
-                      let rawPerms = (user as any)?.permissions || (userRoleObj as any)?.permissions;
-                      if (typeof rawPerms === "string") {
-                        try { rawPerms = JSON.parse(rawPerms); } catch {}
-                      }
-                      const scopes = Array.isArray(rawPerms)
-                        ? rawPerms
-                            .filter((p: any) => typeof p === "string" || p?.view)
-                            .map((p: any) => {
-                              if (typeof p === "string") return p.replace(/_/g, " ").toUpperCase();
-                              const keyStr = String(p.key || "");
-                              const matched = ALL_PERMISSIONS_LIST.find((item) => item.key === keyStr);
-                              return matched ? matched.label.toUpperCase() : keyStr.replace(/_/g, " ").toUpperCase();
-                            })
-                        : ["POS", "ORDERS", "CUSTOMER DISPLAY", "INVOICES", "LOYALTY"];
-
-                      const isAdmin = uRole.toUpperCase() === "ADMIN";
-
-                      return (
-                        <div
-                          key={user.id}
-                          className={`w-full max-w-[320px] ${isAdmin ? "h-auto py-6" : "min-h-[440px] h-[440px]"} rounded-3xl border p-4 flex flex-col items-center text-center relative transition-all duration-200 hover:shadow-lg justify-between ${
-                            dark
-                              ? "border-[#3b3c54] bg-[#2b2c40]"
-                              : "border-slate-200/80 bg-white"
-                          }`}
-                        >
-                          <div className="flex flex-col items-center w-full">
-                            {/* Big Circular Avatar */}
-                            <div className="mt-2 shrink-0">
-                              {image ? (
-                                <img
-                                  src={image}
-                                  alt={user.name}
-                                  className={`h-20 w-20 rounded-full object-cover border shadow-xs ${
-                                    dark ? "border-[#3b3c54]" : "border-slate-200"
-                                  }`}
-                                />
-                              ) : (
-                                <div className={`flex h-20 w-20 items-center justify-center rounded-full border shadow-inner ${
-                                  dark ? "bg-[#232333] border-[#3b3c54] text-slate-400" : "bg-slate-100 border-slate-200 text-slate-400"
-                                }`}>
-                                  <UserRound size={32} className="stroke-[1.5]" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* User Name & Role */}
-                            <h3 className={`text-base font-bold mt-3.5 truncate max-w-full ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                              {user.name}
-                            </h3>
-                            <span className={`text-[11px] font-extrabold tracking-wider uppercase mt-1 px-2.5 py-0.5 rounded-full border ${
-                              dark
-                                ? "bg-[#232333] border-[#3b3c54] text-[#55a060]"
-                                : "bg-emerald-50 border-emerald-200/60 text-[#55a060]"
-                            }`}>
-                              {uRole}
-                            </span>
-
-                            {/* Email */}
-                            <div className={`flex items-center justify-center gap-1.5 text-xs mt-2.5 truncate max-w-full ${
-                              dark ? "text-slate-400" : "text-slate-500"
-                            }`}>
-                              <Mail size={13} className="shrink-0 stroke-[1.8]" />
-                              <span className="truncate">{user.email}</span>
-                            </div>
-
-                            {/* Scopes Section for non-Admins */}
-                            {!isAdmin && (
-                              <div className="w-full text-left mt-4">
-                                <span className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
-                                  dark ? "text-slate-400" : "text-slate-500"
-                                }`}>
-                                  SCOPES:
-                                </span>
-                                <div className="flex flex-wrap gap-1.5 max-h-[110px] overflow-y-auto pr-1 select-none no-scrollbar">
-                                  {scopes.map((scope, idx) => (
-                                    <span
-                                      key={idx}
-                                      className={`text-[9.5px] font-bold tracking-wide px-2.5 py-1 rounded-lg border uppercase ${
-                                        dark
-                                          ? "bg-[#232333] border-[#3b3c54] text-slate-300"
-                                          : "bg-slate-50 border-slate-200/80 text-slate-600"
-                                      }`}
-                                    >
-                                      {scope}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Action Buttons at bottom for non-Admins */}
-                          {!isAdmin && (
-                            <div className={`w-full flex items-center justify-between gap-2 mt-5 pt-3.5 border-t ${
-                              dark ? "border-[#3b3c54]" : "border-slate-100"
-                            }`}>
-                              <button
-                                type="button"
-                                onClick={() => edit(user)}
-                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-                                  dark
-                                    ? "bg-[#232333] border-[#3b3c54] text-slate-200 hover:bg-[#34354e]"
-                                    : "bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100"
-                                }`}
-                              >
-                                Edit User
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => edit(user)}
-                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-                                  dark
-                                    ? "bg-[#232333] border-[#3b3c54] text-slate-200 hover:bg-[#34354e]"
-                                    : "bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100"
-                                }`}
-                              >
-                                Reset Password
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmUser(user)}
-                                className={`flex-1 h-9 flex items-center justify-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-                                  dark
-                                    ? "bg-rose-950/30 border-rose-900/50 text-rose-400 hover:bg-rose-900/40"
-                                    : "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
-                                }`}
-                              >
-                                Delete User
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+            <form onSubmit={handleModalSubmit} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Name (Nickname) *</label>
+                <input
+                  required
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Chon (Cashier)"
+                  className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                  }`}
+                />
               </div>
 
-          </div>
-        </div>
-      </main>
-
-      {/* Redesigned User Modal Create/Edit matching mock */}
-      {isUserModalOpen && (() => {
-        const handleRoleSelect = (roleName: string) => {
-          const isPin = !String(roleName || "").toLowerCase().includes("admin");
-          setForm((curr) => {
-            const cleanPin = isPin ? curr.password.replace(/\D/g, "").slice(0, 4) : curr.password;
-            return { ...curr, roleName, password: cleanPin, pin: cleanPin };
-          });
-          let keys: string[] = [];
-          const rLower = roleName.toLowerCase();
-          if (rLower.includes("manager") || rLower.includes("store") || rLower.includes("admin")) {
-            keys = ALL_PERMISSIONS_LIST.map((p) => p.key);
-          } else if (rLower.includes("cashier")) {
-            keys = ["dashboard", "pos", "orders", "tables", "invoices", "menu"];
-          } else if (rLower.includes("staff") || rLower.includes("chef") || rLower.includes("kitchen")) {
-            keys = ["kds", "orders", "menu"];
-          } else if (rLower.includes("inventory")) {
-            keys = ["dashboard", "orders", "invoices", "inventory"];
-          }
-          setSelectedPerms(keys);
-        };
-
-        const toggleGranularPerm = (baseKey: string, type: "view" | "edit" | "delete") => {
-          const permKey = type === "view" ? baseKey : `${baseKey}_${type}`;
-          setSelectedPerms((curr) => {
-            if (curr.includes(permKey)) {
-              return curr.filter((k) => k !== permKey);
-            } else {
-              const added = [permKey];
-              if (type !== "view" && !curr.includes(baseKey)) {
-                added.push(baseKey);
-              }
-              return [...curr, ...added];
-            }
-          });
-        };
-
-        const setViewOnlyAll = () => {
-          setSelectedPerms(ALL_PERMISSIONS_LIST.map((p) => p.key));
-        };
-
-        const setCanEditAll = () => {
-          const keys: string[] = [];
-          ALL_PERMISSIONS_LIST.forEach((p) => {
-            keys.push(p.key, `${p.key}_edit`);
-          });
-          setSelectedPerms(keys);
-        };
-
-        const setFullAccessAll = () => {
-          const keys: string[] = [];
-          ALL_PERMISSIONS_LIST.forEach((p) => {
-            keys.push(p.key, `${p.key}_edit`, `${p.key}_delete`);
-          });
-          setSelectedPerms(keys);
-        };
-
-        const deselectAll = () => {
-          setSelectedPerms([]);
-        };
-
-        const rolesList = [
-          { id: "admin", label: "Admin", role: "Admin", icon: ShieldCheck },
-          { id: "cashier", label: "Cashier", role: "Cashier", icon: CreditCard },
-          { id: "kitchen_chef", label: "Kitchen Chef", role: "Staff", icon: ChefHat },
-        ];
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
-            <div
-              className="relative max-h-[calc(100vh-32px)] w-full max-w-4xl overflow-y-auto no-scrollbar rounded-2xl shadow-xl border px-6 py-5 animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)] bg-white dark:bg-[#1e293b] border-slate-100 dark:border-slate-800"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none"
-              }}
-            >
-              <style>{`
-                .no-scrollbar::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              
-              {/* Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800/80 mb-6">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                  <UserPlus size={18} className="stroke-[2.2] text-[#5cb85c] shrink-0" />
-                  <span className="text-[17px] font-bold text-slate-600 dark:text-slate-200 leading-none flex items-center">
-                    {form.id ? (language === "km" ? "កែប្រែគណនី" : "Edit User") : (language === "km" ? "បន្ថែមគណនីថ្មី" : "Add New User")}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeUserModal}
-                  className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer outline-none flex items-center justify-center"
-                >
-                  <X size={18} className="stroke-[1.8]" />
-                </button>
+              <div>
+                <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Email (Username) *</label>
+                <input
+                  required
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="e.g. cashier@pos.local"
+                  className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                  }`}
+                />
               </div>
 
-              <form onSubmit={submit} className="space-y-4">
-                {error && (
-                  <div className="p-3 text-xs font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl animate-[fadeIn_150ms_ease-out]">
-                    {error}
-                  </div>
-                )}
-                {message && (
-                  <div className="p-3 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl animate-[fadeIn_150ms_ease-out]">
-                    {message}
-                  </div>
-                )}
-                
-                {/* DETAILS & CREDENTIALS SECTION */}
-                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 px-5 py-4 bg-white dark:bg-[#1e293b] space-y-4">
-                  <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
-                    <UserRound size={12} className="stroke-[2.5]" />
-                    Details & Credentials
-                  </div>
-
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        Name - (Required)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <UserRound size={13} className="stroke-[1.8]" />
-                        </div>
-                        <input
-                          required
-                          value={form.name}
-                          onChange={(e) => setForm((curr) => ({ ...curr, name: e.target.value }))}
-                          placeholder="Enter Full Name here..."
-                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        Email - (Required)
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Mail size={13} className="stroke-[1.8]" />
-                        </div>
-                        <input
-                          type="email"
-                          value={form.email}
-                          onChange={(e) => setForm((curr) => ({ ...curr, email: e.target.value }))}
-                          placeholder="Enter Email here..."
-                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Password / PIN Code, Phone, Designation */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        {!String(form.roleName || "").toLowerCase().includes("admin") ? "PIN Code" : "Password"} - {form.id ? "(Optional)" : "(Required)"}
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          {!String(form.roleName || "").toLowerCase().includes("admin") ? (
-                            <KeyRound size={13} className="stroke-[1.8]" />
-                          ) : (
-                            <Lock size={13} className="stroke-[1.8]" />
-                          )}
-                        </div>
-                        <input
-                          required={!form.id}
-                          type={showModalPassword ? "text" : "password"}
-                          inputMode={!String(form.roleName || "").toLowerCase().includes("admin") ? "numeric" : "text"}
-                          maxLength={!String(form.roleName || "").toLowerCase().includes("admin") ? 4 : 64}
-                          value={form.password}
-                          onChange={(e) => {
-                            const isPin = !String(form.roleName || "").toLowerCase().includes("admin");
-                            const val = isPin ? e.target.value.replace(/\D/g, "").slice(0, 4) : e.target.value;
-                            setForm((curr) => ({ ...curr, password: val, pin: val }));
-                          }}
-                          placeholder={!String(form.roleName || "").toLowerCase().includes("admin") ? "Enter 4-digit PIN Code..." : "Enter Password here..."}
-                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-9 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowModalPassword((prev) => !prev)}
-                          className="absolute right-2.5 top-0 bottom-0 my-auto text-slate-400 hover:text-slate-650 transition-colors p-0.5 flex items-center"
-                        >
-                          {showModalPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        Phone
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Phone size={13} className="stroke-[1.8]" />
-                        </div>
-                        <input
-                          value={form.phone || ""}
-                          onChange={(e) => setForm((curr) => ({ ...curr, phone: e.target.value }))}
-                          placeholder="Enter Phone Number here..."
-                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1">
-                        Designation
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                          <Briefcase size={13} className="stroke-[1.8]" />
-                        </div>
-                        <input
-                          value={form.designation || ""}
-                          onChange={(e) => setForm((curr) => ({ ...curr, designation: e.target.value }))}
-                          placeholder="Enter Designation here..."
-                          className="w-full h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-[#f8f9fa] dark:bg-[#232333]/30 pl-8 pr-3 text-xs outline-none focus:border-emerald-500 focus:bg-white transition-all text-slate-755 dark:text-slate-150 placeholder-slate-400"
-                        />
-                      </div>
-                    </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showModalPassword ? "text" : "password"}
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      placeholder={editingUserId ? "Leave empty to keep" : "Default 123456"}
+                      className={`w-full h-9 rounded-xl border pl-3 pr-9 text-xs outline-none focus:border-[#55a060] ${
+                        dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowModalPassword((prev) => !prev)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer p-0.5"
+                      title={showModalPassword ? "Hide password" : "Show password"}
+                    >
+                      {showModalPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
                 </div>
 
-                {/* ROLE ASSIGNMENT SECTION */}
-                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 bg-white dark:bg-[#1e293b] space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                    <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      <ShieldAlert size={12} className="stroke-[2.5]" />
-                      Role Assignment
-                    </div>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                      Select a role template or customize permissions below
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 max-w-lg mt-2">
-                    {rolesList.map((item) => {
-                      const IconComp = item.icon;
-                      const isSelected = form.roleName === item.role;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => handleRoleSelect(item.role)}
-                          className={`flex items-center justify-center gap-1.5 h-9 rounded-lg border transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-emerald-600 text-white border-emerald-600 font-semibold"
-                              : "border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-slate-650 dark:text-slate-355 hover:bg-slate-50 dark:hover:bg-slate-800/80"
-                          }`}
-                        >
-                          <IconComp size={13} className={`shrink-0 ${isSelected ? "text-white" : "text-slate-400"}`} />
-                          <span className="text-[10px] uppercase tracking-wider whitespace-nowrap">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* PERMISSIONS & SCOPES SECTION */}
-                <div className="rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 bg-white dark:bg-[#1e293b] space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 dark:border-slate-850 pb-3 mb-2 gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                        <ShieldCheck size={12} className="stroke-[2.5]" />
-                        Permissions & Granular Scopes
-                      </div>
-                      <span className="rounded bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600">
-                        {selectedPerms.length} Scopes Active
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold select-none">
-                      <button type="button" onClick={setViewOnlyAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all cursor-pointer"><Eye size={12} className="shrink-0" /> View Only</button>
-                      <button type="button" onClick={setCanEditAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-all cursor-pointer"><Pencil size={12} className="shrink-0" /> Can Edit</button>
-                      <button type="button" onClick={setFullAccessAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-all cursor-pointer"><Zap size={12} className="shrink-0" /> Full Access</button>
-                      <button type="button" onClick={deselectAll} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 transition-all cursor-pointer"><X size={12} className="shrink-0" /> Clear All</button>
-                    </div>
-                  </div>
-
-                  <div
-                    className="space-y-2 max-h-[280px] overflow-y-auto no-scrollbar pr-1"
-                    style={{
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none"
-                    }}
+                <div>
+                  <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Group / Role</label>
+                  <select
+                    value={form.roleName}
+                    onChange={(e) => setForm({ ...form, roleName: e.target.value })}
+                    className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                    }`}
                   >
-                    <style>{`
-                      .no-scrollbar::-webkit-scrollbar {
-                        display: none;
-                      }
-                    `}</style>
-                    {ALL_PERMISSIONS_LIST.map((perm) => {
-                      const hasView = selectedPerms.includes(perm.key);
-                      const hasEdit = selectedPerms.includes(`${perm.key}_edit`);
-                      const hasDelete = selectedPerms.includes(`${perm.key}_delete`);
-
-                      return (
-                        <div
-                          key={perm.key}
-                          className={`flex flex-col sm:flex-row sm:items-center sm:justify-between px-3 py-2 rounded-xl border transition-all select-none gap-2 ${
-                            hasView || hasEdit || hasDelete
-                              ? "border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"
-                              : "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-[#1e293b]/20"
-                          }`}
-                        >
-                          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-                            {perm.label}
-                          </span>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {/* View Action Toggle */}
-                            <button
-                              type="button"
-                              onClick={() => toggleGranularPerm(perm.key, "view")}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
-                                hasView
-                                  ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100 shadow-2xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                              }`}
-                            >
-                              <Eye size={12} className="shrink-0" />
-                              <span>View</span>
-                            </button>
-
-                            {/* Edit Action Toggle */}
-                            <button
-                              type="button"
-                              onClick={() => toggleGranularPerm(perm.key, "edit")}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
-                                hasEdit
-                                  ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-blue-300"
-                              }`}
-                            >
-                              <Pencil size={12} className="shrink-0" />
-                              <span>Edit</span>
-                            </button>
-
-                            {/* Delete Action Toggle */}
-                            <button
-                              type="button"
-                              onClick={() => toggleGranularPerm(perm.key, "delete")}
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
-                                hasDelete
-                                  ? "bg-rose-600 text-white border-rose-600 shadow-2xs"
-                                  : "bg-white dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-rose-300"
-                              }`}
-                            >
-                              <Trash2 size={12} className="shrink-0" />
-                              <span>Remove</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Footer buttons */}
-                <div className="flex gap-3 justify-end pt-3 border-t border-slate-100 dark:border-slate-800/80">
-                  <button
-                    type="button"
-                    onClick={closeUserModal}
-                    className="h-9 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    Close
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/10 hover:shadow-emerald-750/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    {saving ? (
-                      <Loader2 className="animate-spin" size={14} />
+                    {groups.length > 0 ? (
+                      groups.map((g) => (
+                        <option key={g.id} value={g.name}>
+                          {g.name}
+                        </option>
+                      ))
                     ) : (
-                      <Save size={14} />
+                      <>
+                        <option value="Super Admin Group (Root)">Super Admin Group (Root)</option>
+                        <option value="Admin Group (Standard)">Admin Group (Standard)</option>
+                        <option value="Admin Update Group">Admin Update Group</option>
+                        <option value="Cashier & POS Team">Cashier & POS Team</option>
+                        <option value="Kitchen & KDS Team">Kitchen & KDS Team</option>
+                      </>
                     )}
-                    Save
-                  </button>
+                  </select>
                 </div>
-              </form>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmUser && (
-          <div
-            onClick={() => setDeleteConfirmUser(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 cursor-pointer animate-[userModalBackdrop_200ms_ease-out_both]"
-            style={{ background: "rgba(10,12,24,0.65)", backdropFilter: "blur(2px)" }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl animate-[userModalIn_250ms_cubic-bezier(0.16,1,0.3,1)_both]"
-              style={{
-                background: "linear-gradient(160deg, #1c1e30 0%, #14161f 100%)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-              }}
-            >
-              {/* Header */}
-              <div className="px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl" style={{ background: "#dc2626", boxShadow: "0 2px 8px rgba(220,38,38,0.25)" }}>
-                  <Trash2 size={20} className="text-white" />
-                </div>
-                <h3 className="text-[15px] font-bold text-white leading-snug">
-                  {language === "km" ? "បញ្ជាក់ការលុបគណនី" : "Delete User Account?"}
-                </h3>
-                <p className="mt-2 text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {language === "km"
-                    ? `តើអ្នកពិតជាចង់លុបគណនី "${deleteConfirmUser.name}" មែនតើ? តិន្នន័យនើមិនអាចត្រលប់មកវិញបានតើ។`
-                    : `Are you sure you want to delete user "${deleteConfirmUser.name}"? This action cannot be undone.`}
-                </p>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-2.5 px-6 py-5">
+              <div className="flex items-center justify-between pt-2">
+                <label className="font-bold text-slate-600 dark:text-slate-300">Account Status</label>
+                <div className="flex items-center gap-4">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="isActive"
+                      checked={form.isActive}
+                      onChange={() => setForm({ ...form, isActive: true })}
+                      className="text-[#55a060] focus:ring-[#55a060]"
+                    />
+                    <span>Active</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="isActive"
+                      checked={!form.isActive}
+                      onChange={() => setForm({ ...form, isActive: false })}
+                      className="text-slate-400 focus:ring-slate-400"
+                    />
+                    <span>Disabled</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setDeleteConfirmUser(null)}
-                  className="flex-1 h-10 rounded-xl text-xs font-medium transition-colors duration-150 hover:bg-white/10"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.65)" }}
+                  onClick={() => setIsUserModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
-                  {language === "km" ? "បោះបង់" : "Cancel"}
+                  Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={confirmRemoveUser}
-                  className="flex-1 h-10 rounded-xl text-xs font-semibold text-white transition-opacity duration-150 hover:opacity-90 active:opacity-75"
-                  style={{ background: "#dc2626", boxShadow: "0 2px 6px rgba(220,38,38,0.2)" }}
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#55a060] hover:bg-[#488e52] text-white text-xs font-bold shadow-sm"
                 >
-                  {language === "km" ? "លុបចោល" : "Delete"}
+                  {editingUserId ? "Save Changes" : "Create User"}
                 </button>
               </div>
-            </div>
+            </form>
           </div>
-        )}
-
-      <style>{`
-        @keyframes userModalBackdrop {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes userModalIn {
-          from {
-            opacity: 0;
-            transform: translateY(12px) scale(0.97);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-
-        @keyframes usersPageIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes slideFromRight {
-          0% { transform: translateX(100%); opacity: 0; }
-          100% { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes toastProgress {
-          0% { width: 100%; }
-          100% { width: 0%; }
-        }
-      `}</style>
-    </>
-  );
-}
-
-// Sneat statistics summary card
-function SneatSummaryCard({
-  label,
-  value,
-  subtitle,
-  percent,
-  percentTone,
-  icon,
-  iconColor,
-  iconBg,
-  surface,
-  borderCol,
-  textPrimary,
-  textSecondary,
-}: {
-  label: string;
-  value: string;
-  subtitle: string;
-  percent: string;
-  percentTone: "green" | "red";
-  icon: ReactNode;
-  iconColor: string;
-  iconBg: string;
-  surface: string;
-  borderCol: string;
-  textPrimary: string;
-  textSecondary: string;
-}) {
-  return (
-    <div className={`rounded-2xl p-5 shadow-none border ${surface} ${borderCol} flex justify-between items-start`}>
-      <div className="space-y-1.5">
-        <span className={`text-[13px] font-semibold ${textPrimary}`}>{label}</span>
-        <div className="flex items-baseline gap-2">
-          <span className={`text-2xl font-semibold tracking-tight ${darkColorText(textPrimary)}`}>{value}</span>
-          <span className={`text-[13px] font-semibold ${percentTone === "green" ? "text-[#71dd37]" : "text-[#ff3e1d]"}`}>
-            ({percent})
-          </span>
         </div>
-        <p className="text-[12px] text-[#a1acb8] font-medium">{subtitle}</p>
-      </div>
-      <div className={`h-10 w-10 rounded flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
-        {icon}
-      </div>
-    </div>
+      )}
+    </main>
   );
-}
-
-function darkColorText(val: string) {
-  return val.includes("text-slate-100") ? "text-slate-100" : "text-[#566a7f]";
-}
-
-function RoleIcon({ role }: { role: string }) {
-  if (role === "Super Admin" || role === "Admin") {
-    return <Crown size={14} className="text-[#696cff] shrink-0" />;
-  }
-  if (role === "Cashier") {
-    return <CreditCard size={14} className="text-[#03c3ec] shrink-0" />;
-  }
-  if (role === "Staff") {
-    return <ChefHat size={14} className="text-[#ffab00] shrink-0" />;
-  }
-  return <UserRound size={14} className="text-[#8592a3] shrink-0" />;
-}
-
-function roleName(user: User) {
-  return typeof user.role === "string" ? user.role : user.role?.name || "";
-}
-
-function TeamMemberAvatar({ user }: { user: User }) {
-  const role = roleName(user) || "Member";
-  const imageUrl = user.imageUrl ? resolveImageUrl(user.imageUrl) : "";
-  const image = imageUrl || getProfileImage({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role,
-    isActive: user.isActive,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
-  });
-
-  if (image) {
-    return (
-      <Image
-        src={image}
-        alt={user.name}
-        width={38}
-        height={38}
-        unoptimized
-        className="h-[38px] w-[38px] shrink-0 rounded-full object-cover border border-slate-100"
-      />
-    );
-  }
-
-  return (
-    <div
-      className={`flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${profileAvatarClass(
-        role,
-      )}`}
-    >
-      {user.name ? initials(user.name) : <UserRound size={16} />}
-    </div>
-  );
-}
-
-function resolveImageUrl(imageUrl?: string | null) {
-  if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }

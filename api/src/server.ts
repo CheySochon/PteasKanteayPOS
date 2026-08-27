@@ -46,8 +46,22 @@ io.on("connection", (socket: Socket) => {
     io.emit("table:updated", table);
   });
 
-  socket.on("table:deleted", (data: unknown) => {
-    io.emit("table:deleted", data);
+  socket.on("group:created", (data: unknown) => {
+    io.emit("group:created", data);
+    io.emit("group:updated", data);
+  });
+
+  socket.on("group:updated", (data: unknown) => {
+    io.emit("group:updated", data);
+  });
+
+  socket.on("group:deleted", (data: unknown) => {
+    io.emit("group:deleted", data);
+    io.emit("group:updated", data);
+  });
+
+  socket.on("settings:updated", (data: unknown) => {
+    io.emit("settings:updated", data);
   });
 });
 

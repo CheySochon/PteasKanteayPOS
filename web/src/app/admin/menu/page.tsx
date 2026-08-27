@@ -29,6 +29,7 @@ import {
 import { useAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
+import { canAddFeature, canEditFeature, canDeleteFeature } from "../../../lib/permissions";
 import {
   apiOrigin,
   createCategory,
@@ -371,9 +372,9 @@ export default function MenuPage() {
     }
   }, []);
 
-  const canCreate = isAdmin || Boolean(staffPermissions.menu_create === true);
-  const canEdit = isAdmin || Boolean(staffPermissions.menu_edit === true);
-  const canDelete = isAdmin || Boolean(staffPermissions.menu_delete === true);
+  const canCreate = canAddFeature(currentUser, "menu");
+  const canEdit = canEditFeature(currentUser, "menu");
+  const canDelete = canDeleteFeature(currentUser, "menu");
 
   const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#55a060] focus:ring-4 focus:ring-[#55a060]/10 transition-all duration-150 ${
     dark
@@ -1021,21 +1022,21 @@ export default function MenuPage() {
 
               <section>
                 {loading ? (
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                  <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {Array.from({ length: 12 }).map((_, idx) => (
                       <div
                         key={idx}
-                        className={`overflow-hidden rounded-2xl border ${borderCol} ${surface} shadow-xs flex flex-col justify-between h-[300px]`}
+                        className={`overflow-hidden rounded-xl border ${borderCol} ${surface} shadow-xs flex flex-col justify-between h-[240px]`}
                       >
-                        <div className="w-full aspect-[1.3] water-wave-glass" />
-                        <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
-                          <div className="space-y-2">
-                            <div className="h-4 w-3/4 rounded-md water-wave-glass" />
-                            <div className="h-3 w-1/2 rounded-md water-wave-glass" />
+                        <div className="w-full h-36 water-wave-glass" />
+                        <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                          <div className="space-y-1.5">
+                            <div className="h-3.5 w-3/4 rounded-md water-wave-glass" />
+                            <div className="h-2.5 w-1/2 rounded-md water-wave-glass" />
                           </div>
-                          <div className="flex items-center justify-between pt-2">
-                            <div className="h-5 w-16 rounded-md water-wave-glass" />
-                            <div className="h-6 w-12 rounded-full water-wave-glass" />
+                          <div className="flex items-center justify-between pt-1">
+                            <div className="h-4 w-12 rounded-md water-wave-glass" />
+                            <div className="h-5 w-10 rounded-full water-wave-glass" />
                           </div>
                         </div>
                       </div>
@@ -1046,7 +1047,7 @@ export default function MenuPage() {
                     {t.empty}
                   </EmptyState>
                 ) : (
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                  <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {filteredProducts.map((product) => (
                       <MenuCard
                         key={product.id}
@@ -1208,16 +1209,6 @@ export default function MenuPage() {
                   </div>
                 </div>
               </div>
-              <style>{`
-                @keyframes confirmFadeIn {
-                  from { opacity: 0; }
-                  to { opacity: 1; }
-                }
-                @keyframes confirmScaleIn {
-                  from { opacity: 0; transform: translateY(6px); }
-                  to { opacity: 1; transform: translateY(0); }
-                }
-              `}</style>
             </>
           )}
 
@@ -1281,48 +1272,48 @@ function MenuCard({
   const imgSrc = getFallbackProductImage(product);
 
   return (
-    <article className={`overflow-hidden rounded-2xl ${surface} border ${borderCol} shadow-sm flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
+    <article className={`overflow-hidden rounded-xl ${surface} border ${borderCol} shadow-xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[#696cff]/40 group`}>
       <div>
-        <div className={`relative aspect-[1.3] ${softSurface} overflow-hidden flex items-center justify-center`}>
+        <div className={`relative h-36 sm:h-40 w-full ${softSurface} overflow-hidden flex items-center justify-center`}>
           {imgSrc ? (
             <img
               src={imgSrc}
               alt={product.name}
               loading="lazy"
               decoding="async"
-              className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02] ${unavailable ? "grayscale opacity-60" : ""}`}
+              className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] ${unavailable ? "grayscale opacity-60" : ""}`}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-slate-100/80 dark:bg-slate-800/80 text-slate-300 dark:text-slate-600">
-              <Utensils size={36} />
+              <Utensils size={30} />
             </div>
           )}
 
           {unavailable && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/30 backdrop-blur-[1px]">
-              <span className="rounded bg-[#ff3e1d] px-3 py-1 text-[10px] font-bold uppercase text-white tracking-wide shadow shadow-[#ff3e1d]/30">
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
+              <span className="rounded-md bg-[#ff3e1d] px-2.5 py-0.5 text-[9.5px] font-bold uppercase text-white tracking-wide shadow-xs shadow-[#ff3e1d]/30">
                 {text.soldOut}
               </span>
             </div>
           )}
         </div>
 
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h3 className="truncate text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors font-khmer">
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-xs sm:text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors font-khmer">
                 {product.name}
               </h3>
-              <p className="mt-1 truncate text-xs font-semibold text-[#a1acb8] font-khmer">
+              <p className="mt-0.5 truncate text-[11px] font-medium text-[#a1acb8] font-khmer">
                 {product.category?.name || text.noDescription}
               </p>
             </div>
 
             <div className="shrink-0 text-right">
-              <span className="block text-sm font-bold text-[#0F522B] dark:text-emerald-400">
+              <span className="block text-xs sm:text-sm font-extrabold text-[#0F522B] dark:text-emerald-400">
                 {money(product.basePrice)}
               </span>
-              <span className="block text-[10px] font-semibold text-[#a1acb8]">
+              <span className="block text-[9.5px] font-semibold text-[#a1acb8]">
                 {Math.round(Number(product.basePrice || 0) * 4100).toLocaleString()} ៛
               </span>
             </div>
@@ -1330,17 +1321,17 @@ function MenuCard({
         </div>
       </div>
 
-      <div className="px-4 pb-4 pt-2 border-t border-[#d9dee3] dark:border-[#4e4f6e]">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[#8592a3]">
+      <div className="px-3 py-2 border-t border-[#d9dee3] dark:border-[#4e4f6e]">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1 text-[#8592a3]">
             {canEdit && (
               <button
                 type="button"
                 onClick={onEdit}
-                className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all"
+                className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all cursor-pointer"
                 title={text.editProduct}
               >
-                <Pencil size={14} />
+                <Pencil size={13} />
               </button>
             )}
 
@@ -1348,20 +1339,20 @@ function MenuCard({
               <button
                 type="button"
                 onClick={onDelete}
-                className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all"
+                className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all cursor-pointer"
                 title={text.deleteProduct}
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
               </button>
             )}
 
             <button
               type="button"
               onClick={onView}
-              className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea]"
+              className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea] cursor-pointer"
               title={product.description || text.noDescription}
             >
-              <Eye size={14} />
+              <Eye size={13} />
             </button>
           </div>
 
@@ -1370,14 +1361,14 @@ function MenuCard({
               type="button"
               onClick={onToggle}
               aria-pressed={product.isAvailable}
-              className={`relative h-5 w-9 rounded-full transition-colors active:scale-95 ${
+              className={`relative h-4.5 w-8 rounded-full transition-colors active:scale-95 cursor-pointer ${
                 product.isAvailable ? "bg-[#71dd37]" : "bg-slate-300"
               }`}
               title={product.isAvailable ? text.available : text.hidden}
             >
               <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                  product.isAvailable ? "left-4.5" : "left-0.5"
+                className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow-xs transition-all ${
+                  product.isAvailable ? "left-4" : "left-0.5"
                 }`}
               />
             </button>

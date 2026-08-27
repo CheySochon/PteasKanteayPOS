@@ -19,6 +19,7 @@ import { useAppTheme } from "../../../lib/theme";
 import { getMe } from "../../../lib/api";
 import {
   clearProfileImage,
+  compressImageBase64,
   getProfileImage,
   getProfileVersionSnapshot,
   getServerProfileVersionSnapshot,
@@ -139,15 +140,22 @@ export default function ProfilePage() {
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result !== "string") {
         setError("Unable to read image.");
         return;
       }
 
-      setPendingImage(reader.result);
-      setRemoveImage(false);
-      setMessage("Image ready. Click Save Changes to apply.");
+      try {
+        const compressed = await compressImageBase64(reader.result, 256, 0.75);
+        setPendingImage(compressed);
+        setRemoveImage(false);
+        setMessage("Image ready. Click Save Changes to apply.");
+      } catch {
+        setPendingImage(reader.result);
+        setRemoveImage(false);
+        setMessage("Image ready. Click Save Changes to apply.");
+      }
     };
     reader.onerror = () => setError("Unable to read image.");
     reader.readAsDataURL(file);
@@ -178,44 +186,21 @@ export default function ProfilePage() {
     <main className={`flex-1 overflow-y-auto ${softSurface}`}>
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 animate-[profilePageIn_520ms_ease-out]">
         
-        {/* Sneat Profile Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-1 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#696cff]">
-              <UserRound size={14} />
-              Staff Profile
-            </div>
-            <h1 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>
-              Profile Account
-            </h1>
-            <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
-              Manage your staff profile avatar and review your credentials.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={saveChanges}
-            disabled={!hasChanges}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#696cff] px-5 text-sm font-semibold text-white shadow-sm shadow-[#696cff]/20 hover:bg-[#5f61e6] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200"
-          >
-            <Save size={16} />
-            Save Changes
-          </button>
+        {/* Profile Header */}
+        <div className="mb-6">
+          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
+            Profile Account
+          </h1>
         </div>
 
         {/* Error and Success Alerts */}
         {error && (
-          <div className="mb-5 rounded border border-red-150 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-600">
+          <div className="mb-5 rounded-xl border border-red-150 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-600">
             {error}
           </div>
         )}
 
-        {message && (
-          <div className="mb-5 rounded border border-emerald-150 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700">
-            {message}
-          </div>
-        )}
+
 
         {/* Profile details grid */}
         <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
@@ -239,7 +224,7 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#696cff] text-white shadow-md shadow-[#696cff]/30 transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#5f61e6]">
+              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#55a060] text-white shadow-md shadow-[#55a060]/30 transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#488c52]">
                 <Camera size={16} />
               </span>
 
@@ -251,17 +236,17 @@ export default function ProfilePage() {
               />
             </label>
 
-            <h2 className={`mt-5 text-lg font-bold ${textPrimary}`}>
+            <h2 className={`mt-5 text-base font-semibold ${textPrimary}`}>
               {user.name}
             </h2>
             
-            <div className="mt-2.5 flex items-center gap-1.5 rounded-md px-3 py-1 bg-[#696cff]/10 text-[#696cff]">
+            <div className="mt-2.5 flex items-center gap-1.5 rounded-md px-3 py-1 bg-[#55a060]/10 text-[#55a060]">
               <RoleIcon role={user.role} />
-              <span className="text-xs font-semibold capitalize">{user.role}</span>
+              <span className="text-xs font-medium capitalize">{user.role}</span>
             </div>
 
             <div className="mt-6 flex w-full gap-3">
-              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#696cff] px-4 text-xs font-semibold text-white hover:bg-[#5f61e6] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200">
+              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#55a060] px-4 text-xs font-medium text-white hover:bg-[#488c52] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200">
                 <UploadCloud size={15} />
                 Upload Photo
                 <input
@@ -285,42 +270,49 @@ export default function ProfilePage() {
           </div>
 
           {/* Account Details Panel */}
-          <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol}`}>
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div>
-                <h2 className={`text-base font-bold ${textPrimary}`}>
+          <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol} flex flex-col justify-between`}>
+            <div>
+              <div className="mb-5">
+                <h2 className={`text-base font-medium ${textPrimary}`}>
                   Account Details
                 </h2>
-                <p className={`mt-0.5 text-xs text-[#a1acb8] font-medium`}>
-                  Overview of your credential and system attributes.
-                </p>
               </div>
-              <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold bg-[#eceef1]/60 text-[#8592a3] border ${borderCol}`}>
-                POS Account
-              </span>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {details.map(({ label, value, Icon, colorClass }) => (
+                  <div
+                    key={label}
+                    className={`flex items-center gap-3.5 rounded-xl border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""} ${
+                      label === "User ID" ? "sm:col-span-2" : ""
+                    }`}
+                  >
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
+                      <Icon size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {label}
+                      </div>
+                      <div className={`mt-0.5 truncate text-sm font-medium ${textPrimary}`}>
+                        {value}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {details.map(({ label, value, Icon, colorClass }) => (
-                <div
-                  key={label}
-                  className={`flex items-center gap-3.5 rounded-xl border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""} ${
-                    label === "User ID" ? "sm:col-span-2" : ""
-                  }`}
-                >
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
-                    <Icon size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {label}
-                    </div>
-                    <div className={`mt-0.5 truncate text-sm font-semibold ${textPrimary}`}>
-                      {value}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            {/* Bottom Save Changes Button (Matching Settings Page) */}
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={saveChanges}
+                disabled={!hasChanges}
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] px-6 text-sm font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200 cursor-pointer"
+              >
+                <Save size={16} />
+                Save Changes
+              </button>
             </div>
           </div>
         </section>

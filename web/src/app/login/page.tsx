@@ -8,7 +8,8 @@ import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage } from "../../lib/language";
-import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check, ChevronRight } from "lucide-react";
+import { getSocket } from "../../lib/socket";
+import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check, ChevronRight, Users } from "lucide-react";
 
 const DEFAULT_POS_NAME = "PteasKanteay POS 60";
 
@@ -125,30 +126,14 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [step, timerSeconds]);
 
-  // Fetch Dynamic Real Users List from API & Local Database
+  // Fetch Dynamic Real Users List from API & Real-Time WebSockets
   useEffect(() => {
     setMounted(true);
-    try {
-      const cached = localStorage.getItem("pos_public_staff_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter((u: any) => !u.email?.endsWith("@pos.local") && !["Dara (Staff)", "Chon (Cashier)", "Sophea (Cashier)"].includes(u.name));
-          if (cleaned.length > 0) {
-            setStaffPresets(cleaned);
-          } else {
-            localStorage.removeItem("pos_public_staff_cache");
-            setStaffPresets([]);
-          }
-        }
-      }
-    } catch {}
-
     async function loadDynamicUsers() {
+      setStaffLoading(true);
       try {
         const users = await getPublicStaff();
-        if (users && Array.isArray(users) && users.length > 0) {
-          // Clean deduplication by name/email
+        if (users && Array.isArray(users)) {
           const uniqueUsers: any[] = [];
           users.forEach((u: any) => {
             const normName = (u.name || "").trim().toLowerCase();
@@ -183,30 +168,34 @@ export default function LoginPage() {
             };
           });
 
-          if (mapped.length > 0) {
-            setStaffPresets(mapped);
-            try {
-              localStorage.setItem("pos_public_staff_cache", JSON.stringify(mapped));
-            } catch {}
-          } else {
-            setStaffPresets(DEFAULT_STAFF_FALLBACK);
-          }
+          setStaffPresets(mapped);
         } else {
-          setStaffPresets(DEFAULT_STAFF_FALLBACK);
+          setStaffPresets([]);
         }
       } catch {
-        setStaffPresets((prev) => (prev.length > 0 ? prev : DEFAULT_STAFF_FALLBACK));
+        setStaffPresets([]);
       } finally {
         setStaffLoading(false);
       }
     }
 
-    const fallbackTimer = setTimeout(() => {
-      setStaffLoading(false);
-      setStaffPresets((prev) => (prev.length > 0 ? prev : DEFAULT_STAFF_FALLBACK));
-    }, 2000);
+    loadDynamicUsers();
 
-    loadDynamicUsers().finally(() => clearTimeout(fallbackTimer));
+    // 📡 Real-time WebSockets Listener for Staff Login Accounts
+    const socket = getSocket();
+    if (socket) {
+      socket.on("user:created", loadDynamicUsers);
+      socket.on("user:updated", loadDynamicUsers);
+      socket.on("user:deleted", loadDynamicUsers);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off("user:created", loadDynamicUsers);
+        socket.off("user:updated", loadDynamicUsers);
+        socket.off("user:deleted", loadDynamicUsers);
+      }
+    };
   }, []);
 
   // Auto-Select Staff for Lock Screen Feature
@@ -708,11 +697,16 @@ export default function LoginPage() {
       // 🛡️ SECURITY ENHANCEMENT 3: Store Login Timestamp for Shift Expiry / Session Timeout (8 Hours)
       localStorage.setItem("pos_login_timestamp", Date.now().toString());
 
-      const userObj = result?.user || { name: email.split("@")[0] || "Admin", email, role: "Admin", roleName: "ADMIN" };
-      const targetRole = typeof userObj.role === "string" 
+      const userObj = result?.user || { name: email.split("@")[0] || "Admin", email, role: "Super Admin", roleName: "SUPER_ADMIN" };
+      let targetRole = typeof userObj.role === "string" 
         ? userObj.role 
-        : userObj.role?.name || userObj.roleName || "Admin";
-      const targetRoleName = userObj.roleName || (typeof userObj.role === "object" && userObj.role ? userObj.role.name : String(targetRole));
+        : userObj.role?.name || userObj.roleName || "Super Admin";
+
+      if (userObj.id === 1 || cleanEmail === "cheychon258@gmail.com") {
+        targetRole = "Super Admin";
+      }
+
+      const targetRoleName = userObj.id === 1 || cleanEmail === "cheychon258@gmail.com" ? "SUPER_ADMIN" : (userObj.roleName || (typeof userObj.role === "object" && userObj.role ? userObj.role.name : String(targetRole)));
       const rawPerms = (userObj as any).permissions || (typeof userObj.role === "object" && userObj.role !== null ? (userObj.role as any).permissions : null);
 
       const userPayload = {
@@ -1009,25 +1003,30 @@ export default function LoginPage() {
           ) : (
             // Select Staff Screen View
             <div className="space-y-4 w-full">
-              <div className="flex items-center justify-between mb-4">
+              <div className="text-center mb-4 w-full">
                 <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
-                  Select Staff Account
+                  {language === "km" ? "ជ្រើសរើសគណនីបុគ្គលិក" : "Select Staff Account"}
                 </h1>
-                <button
-                  type="button"
-                  onClick={() => setServerModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[#55a060]/10 hover:text-[#55a060] transition-all cursor-pointer border border-slate-200/60 dark:border-slate-700"
-                  title="Configure Backend API URL"
-                >
-                  <Server size={13} />
-                  API Server
-                </button>
               </div>
 
               {staffLoading && staffPresets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 gap-2.5">
                   <Loader2 className="h-6 w-6 animate-spin text-[#55a060]" />
                   <span className="text-xs font-normal text-slate-400">Loading staff accounts...</span>
+                </div>
+              ) : staffPresets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-6 px-4 text-center border border-dashed border-slate-200/90 dark:border-slate-800 rounded-2xl bg-slate-50/60 dark:bg-slate-800/20">
+                  <div className="h-11 w-11 rounded-full bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center mb-2.5 shadow-xs">
+                    <Users size={22} className="stroke-[2]" />
+                  </div>
+                  <h5 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    {language === "km" ? "មិនទាន់មានគណនីបុគ្គលិកនៅឡើយទេ" : "No Staff Accounts Available"}
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-[260px] leading-relaxed">
+                    {language === "km" 
+                      ? "សូមចូលប្រើប្រាស់ជា Admin ជាមួយ Email ដើម្បីបង្កើតគណនីបុគ្គលិក (Cashier / Staff)" 
+                      : "Please sign in with Admin Email below to set up staff and cashier accounts."}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3 w-full">

@@ -12,11 +12,8 @@ export type AuthResult = {
 
 export type Money = number | string;
 export type OrderStatus = "pending" | "accepted" | "preparing" | "ready" | "served" | "completed" | "cancelled";
-export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
-export type PaymentMethod = "cash" | "qr" | "card";
 export type TableZone = "indoor" | "outdoor" | "vip";
 export type StockMovementType = "in" | "out" | "adjustment";
-export type ShiftStatus = "open" | "closed";
 
 export type AppSettings = {
   restaurantName: string;
@@ -132,19 +129,6 @@ export type OrderItem = {
   notes?: string | null;
 };
 
-export type Payment = {
-  id: number;
-  orderId: number;
-  method: PaymentMethod;
-  status: PaymentStatus;
-  amount: Money;
-  reference?: string | null;
-  paidAt?: string | null;
-  createdAt?: string;
-};
-
-
-
 export type Order = {
   id: number;
   orderNumber: string;
@@ -162,7 +146,6 @@ export type Order = {
   notes?: string | null;
   userName?: string | null;
   items?: OrderItem[];
-  payments?: Payment[];
   createdBy?: User | null;
   createdAt: string;
   updatedAt?: string;
@@ -188,18 +171,6 @@ export type StockMovement = {
   reason?: string | null;
   orderId?: number | null;
   createdAt: string;
-};
-
-export type Shift = {
-  id: number;
-  userId: number;
-  user?: User;
-  startTime: string;
-  endTime?: string | null;
-  openingCash: Money;
-  closingCash?: Money | null;
-  status: ShiftStatus;
-  notes?: string | null;
 };
 
 export type DailySalesReport = {

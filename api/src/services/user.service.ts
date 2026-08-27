@@ -155,11 +155,19 @@ export const updateUser = async (
 
   let targetRoleId = existing.roleId;
 
-  const selectedRole = data.roleName !== undefined ? data.roleName : data.role;
-  if (selectedRole !== undefined) {
-    const roleRecord = await findOrCreateRole(selectedRole);
-    updateData.roleId = roleRecord.id;
-    targetRoleId = roleRecord.id;
+  // 🛡️ Super Admin Protection Guard: User ID 1 or owner email ALWAYS stays Super Admin & Active
+  if (id === 1 || existing.email?.toLowerCase() === "cheychon258@gmail.com") {
+    const superRole = await findOrCreateRole("Super Admin");
+    updateData.roleId = superRole.id;
+    updateData.isActive = true;
+    targetRoleId = superRole.id;
+  } else {
+    const selectedRole = data.roleName !== undefined ? data.roleName : data.role;
+    if (selectedRole !== undefined) {
+      const roleRecord = await findOrCreateRole(selectedRole);
+      updateData.roleId = roleRecord.id;
+      targetRoleId = roleRecord.id;
+    }
   }
 
   let parsedPerms: any = data.permissions;
@@ -200,10 +208,18 @@ export const updateUser = async (
 };
 
 export const deleteUser = async (id: number) => {
+  if (id === 1) {
+    throw new Error("System Protection: Super Admin account (ID 1) is a protected system owner and cannot be deleted.");
+  }
+
   const existing = await prisma.user.findUnique({ where: { id } });
 
   if (!existing) {
     throw new Error("User not found");
+  }
+
+  if (existing.email?.toLowerCase() === "cheychon258@gmail.com") {
+    throw new Error("System Protection: Super Admin account is a protected system owner and cannot be deleted.");
   }
 
   return prisma.user.update({

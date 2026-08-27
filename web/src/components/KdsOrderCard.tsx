@@ -74,7 +74,7 @@ const KdsOrderCard = memo(function KdsOrderCard({
     });
 
     if (willBeAllCompleted) {
-      onUpdate(order.id, "completed");
+      onUpdate(order.id, "ready");
     }
   }
 

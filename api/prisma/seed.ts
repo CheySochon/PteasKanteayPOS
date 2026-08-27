@@ -24,6 +24,19 @@ async function upsertByName(model: string, name: string, data: any) {
 async function main() {
   const defaultRoles = [
     {
+      name: "Super Admin",
+      description: "Root owner with full unrestricted system access",
+      permissions: [
+        { key: "dashboard", label: "Dashboard", category: "PAGE / MENU", view: true, create: true, edit: true, delete: true },
+        { key: "orders", label: "Orders", category: "PAGE / MENU", view: true, create: true, edit: true, delete: true },
+        { key: "menu", label: "Menu List", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "categories", label: "Categories", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "tables", label: "Tables", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "users", label: "Staff & Roles", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+        { key: "settings", label: "Settings", category: "MENU CATALOG", view: true, create: true, edit: true, delete: true },
+      ]
+    },
+    {
       name: "Admin",
       description: "Full system access & administration",
       permissions: [
@@ -95,18 +108,18 @@ async function main() {
   await prisma.user.upsert({
     where: { email: "cheychon258@gmail.com" },
     update: {
-      name: "Admin",
+      name: "Super Admin",
       password: await bcrypt.hash("password123", 10),
-      roleId: roles.Admin.id,
+      roleId: roles["Super Admin"].id,
       isActive: true,
       pin: "0000",
       deletedAt: null,
     },
     create: {
-      name: "Admin",
+      name: "Super Admin",
       email: "cheychon258@gmail.com",
       password: await bcrypt.hash("password123", 10),
-      roleId: roles.Admin.id,
+      roleId: roles["Super Admin"].id,
       isActive: true,
       pin: "0000",
     },

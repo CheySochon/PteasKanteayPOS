@@ -9,6 +9,7 @@ import { useAppTheme } from "../../lib/theme";
 import { roleName } from "../../lib/permissions";
 import { Loader2, Check, X, LogIn, LogOut } from "lucide-react";
 import { getSocket } from "../../lib/socket";
+import { getSettings } from "../../lib/api";
 
 export default function AdminLayout({
   children,
@@ -39,7 +40,17 @@ export default function AdminLayout({
 
       try {
         const user = JSON.parse(storedUser);
-        const uRole = roleName(user).trim().toLowerCase();
+        let uRole = roleName(user).trim().toLowerCase();
+
+        // 🛡️ Auto-Repair: User ID 1 or owner email is ALWAYS Super Admin
+        if (user.id === 1 || user.email?.toLowerCase() === "cheychon258@gmail.com") {
+          uRole = "super admin";
+          if (user.role !== "Super Admin" || user.roleName !== "SUPER_ADMIN") {
+            user.role = { id: 1, name: "Super Admin" };
+            user.roleName = "SUPER_ADMIN";
+            localStorage.setItem("pos_user", JSON.stringify(user));
+          }
+        }
 
         if (["super admin", "admin", "administrator", "manager"].includes(uRole)) {
           setAuthorized(true);
@@ -100,12 +111,31 @@ export default function AdminLayout({
       }
     }
 
+    async function syncRealtimePermissions() {
+      try {
+        const settings = await getSettings();
+        if (settings && Array.isArray((settings as any).adminGroups)) {
+          localStorage.setItem("pos_admin_groups_list", JSON.stringify((settings as any).adminGroups));
+          window.dispatchEvent(new Event("pos-auth-change"));
+          window.dispatchEvent(new Event("storage"));
+        }
+      } catch {}
+    }
+
     socket.on("auth:login", handleAuthLogin);
     socket.on("auth:logout", handleAuthLogout);
+    socket.on("group:updated", syncRealtimePermissions);
+    socket.on("group:created", syncRealtimePermissions);
+    socket.on("group:deleted", syncRealtimePermissions);
+    socket.on("settings:updated", syncRealtimePermissions);
 
     return () => {
       socket.off("auth:login", handleAuthLogin);
       socket.off("auth:logout", handleAuthLogout);
+      socket.off("group:updated", syncRealtimePermissions);
+      socket.off("group:created", syncRealtimePermissions);
+      socket.off("group:deleted", syncRealtimePermissions);
+      socket.off("settings:updated", syncRealtimePermissions);
     };
   }, []);
 
