@@ -12,6 +12,8 @@ import {
 } from "../services/user.service.js";
 import { CreateUserBody, UpdateUserBody } from "../schemas/user.schema.js";
 
+import { createAuditLog } from "../services/audit.service.js";
+
 export const list = asyncHandler(async (_req: Request, res: Response) => {
   const users = await listUsers();
   res.json({ success: true, message: "Users fetched", data: users });
@@ -22,6 +24,18 @@ export const create = asyncHandler(
     const user = await createUser(req.body);
     const io = req.app.get("io");
     if (io) io.emit("user:created", user);
+
+    const currentUser = (req as any).user;
+    await createAuditLog({
+      userId: currentUser?.id || user.id,
+      userName: currentUser?.name || "Admin",
+      userRole: currentUser?.role || "ADMIN",
+      action: "USER_CREATE",
+      ipAddress: req.ip || "Localhost",
+      status: "SUCCESS",
+      details: `Created new staff account: ${user.name} (${user.email})`,
+    });
+
     res.status(201).json({ success: true, message: "User created", data: user });
   },
 );
@@ -36,6 +50,18 @@ export const update = asyncHandler(
     const user = await updateUser(idVal, req.body);
     const io = req.app.get("io");
     if (io) io.emit("user:updated", user);
+
+    const currentUser = (req as any).user;
+    await createAuditLog({
+      userId: currentUser?.id || idVal,
+      userName: currentUser?.name || user.name || "Admin",
+      userRole: currentUser?.role || "ADMIN",
+      action: "USER_UPDATE",
+      ipAddress: req.ip || "Localhost",
+      status: "SUCCESS",
+      details: `Updated staff profile/password for: ${user.name} (${user.email})`,
+    });
+
     res.json({ success: true, message: "User updated", data: user });
   },
 );
@@ -54,6 +80,18 @@ export const remove = asyncHandler(
     await deleteUser(idVal);
     const io = req.app.get("io");
     if (io) io.emit("user:deleted", { id: idVal });
+
+    const currentUser = (req as any).user;
+    await createAuditLog({
+      userId: currentUser?.id,
+      userName: currentUser?.name || "Admin",
+      userRole: currentUser?.role || "ADMIN",
+      action: "USER_DELETE",
+      ipAddress: req.ip || "Localhost",
+      status: "SUCCESS",
+      details: `Deleted staff account ID: ${idVal}`,
+    });
+
     res.json({ success: true, message: "User deleted" });
   },
 );

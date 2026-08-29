@@ -224,6 +224,15 @@ export const createCategory = (body: Partial<Category>) => request<Category>("/c
 export const updateCategory = (id: number, body: Partial<Category>) => request<Category>(`/categories/${id}`, { method: "PUT", body });
 export const deleteCategory = (id: number) => request<void>(`/categories/${id}`, { method: "DELETE" });
 
+export const getSuppliers = () => request<any[]>("/suppliers");
+export const createSupplier = (body: any) => request<any>("/suppliers", { method: "POST", body });
+export const updateSupplier = (id: number, body: any) => request<any>(`/suppliers/${id}`, { method: "PUT", body });
+export const deleteSupplier = (id: number) => request<any>(`/suppliers/${id}`, { method: "DELETE" });
+
+export const getPurchaseOrders = () => request<any[]>("/purchase-orders");
+export const createPurchaseOrder = (body: any) => request<any>("/purchase-orders", { method: "POST", body });
+export const receivePurchaseOrderStock = (id: number) => request<any>(`/purchase-orders/${id}/receive`, { method: "POST" });
+
 const DEFAULT_PRODUCT_IMAGES: Record<string, string> = {
   cheesecake: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=600&q=80",
   "chocolate frappe": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=600&q=80",
@@ -914,6 +923,7 @@ export const getSettings = async (): Promise<AppSettings> => {
       address: "Bangkok, Thailand",
       vatTin: "",
       currency: "USD",
+      exchangeRate: 4100,
       taxRate: 7,
       serviceChargeRate: 10,
       receiptFooter: "Thank you for dining with us.",
@@ -1218,9 +1228,10 @@ export function logAuditEntry(entry: {
   } catch {}
 }
 
-export const getAuditLogs = async (query?: { search?: string; status?: string; page?: number; limit?: number }) => {
+export const getAuditLogs = async (query?: { search?: string; status?: string; action?: string; page?: number; limit?: number }) => {
   const search = (query?.search || "").toLowerCase().trim();
   const status = (query?.status || "all").toLowerCase().trim();
+  const action = (query?.action || "all").toLowerCase().trim();
   const page = query?.page || 1;
   const limit = query?.limit || 8;
 
@@ -1229,11 +1240,12 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
     const params = new URLSearchParams();
     if (query?.search) params.append("search", query.search);
     if (query?.status) params.append("status", query.status);
+    if (query?.action) params.append("action", query.action);
     if (query?.page) params.append("page", String(query.page));
     if (query?.limit) params.append("limit", String(query.limit));
     const qs = params.toString();
     const res = await request<{ items: AuditLogItem[]; total: number; page: number; totalPages: number }>(`/audit/audit-logs${qs ? `?${qs}` : ""}`);
-    if (res && Array.isArray(res.items) && res.items.length > 0) {
+    if (res && Array.isArray(res.items)) {
       return res;
     }
   } catch {}
@@ -1245,51 +1257,6 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
       const raw = localStorage.getItem("pos_audit_logs");
       if (raw) logs = JSON.parse(raw);
     } catch {}
-  }
-
-  // Seed default dynamic logs if empty so table is rich with real staff logins
-  if (logs.length === 0) {
-    const now = Date.now();
-    logs = [
-      {
-        id: now - 300000,
-        userName: "Admin",
-        userRole: "Admin",
-        action: "Staff Login (PIN Verification)",
-        ipAddress: "127.0.0.1 (Local)",
-        userAgent: "Chrome / Windows",
-        status: "SUCCESS",
-        details: "2FA Login verified successfully",
-        createdAt: new Date(now - 300000).toISOString(),
-      },
-      {
-        id: now - 3600000,
-        userName: "Chon (Cashier)",
-        userRole: "Cashier",
-        action: "POS Cashier Station Login",
-        ipAddress: "192.168.1.102",
-        userAgent: "Chrome / Windows",
-        status: "SUCCESS",
-        details: "Quick PIN Station Auth",
-        createdAt: new Date(now - 3600000).toISOString(),
-      },
-      {
-        id: now - 7200000,
-        userName: "Sophea (Cashier)",
-        userRole: "Cashier",
-        action: "Shift Start Login",
-        ipAddress: "192.168.1.105",
-        userAgent: "Chrome / Windows",
-        status: "SUCCESS",
-        details: "Shift opened at Counter 2",
-        createdAt: new Date(now - 7200000).toISOString(),
-      },
-    ];
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("pos_audit_logs", JSON.stringify(logs));
-      } catch {}
-    }
   }
 
   // Filter dynamically
@@ -1317,6 +1284,17 @@ export const getAuditLogs = async (query?: { search?: string; status?: string; p
     page,
     totalPages,
   };
+};
+
+export const clearAuditLogs = async (): Promise<void> => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("pos_audit_logs");
+  }
+  try {
+    await request<void>("/audit/audit-logs", { method: "DELETE" });
+  } catch (err) {
+    console.error("[clearAuditLogs error]:", err);
+  }
 };
 
 export const getTelegramConfig = async (): Promise<TelegramConfig> => {

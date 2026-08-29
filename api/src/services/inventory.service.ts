@@ -22,6 +22,7 @@ export const listInventory = async () => {
     where: { deletedAt: null },
     include: {
       category: true,
+      supplier: true,
       inventory: true,
     },
     orderBy: { name: "asc" },
@@ -101,11 +102,12 @@ export const updateInventorySettings = async (
   userId: number | null = null,
 ) => {
   return prisma.$transaction(async (tx) => {
-    // 1. Update product fields if provided (trackStock, unit, name)
+    // 1. Update product fields if provided (trackStock, unit, name, supplierId)
     const productUpdateData: any = {};
     if (data.trackStock !== undefined) productUpdateData.trackStock = data.trackStock;
     if (data.unit !== undefined) productUpdateData.unit = data.unit;
     if (data.name !== undefined) productUpdateData.name = data.name;
+    if ((data as any).supplierId !== undefined) productUpdateData.supplierId = (data as any).supplierId ? Number((data as any).supplierId) : null;
 
     if (Object.keys(productUpdateData).length > 0) {
       await tx.product.update({
@@ -234,6 +236,7 @@ export const addInventoryItem = async (
     unit: string;
     quantity: number;
     minStock: number;
+    supplierId?: number | null;
   },
   userId: number | null = null,
 ) => {
@@ -260,6 +263,7 @@ export const addInventoryItem = async (
     const product = await tx.product.create({
       data: {
         categoryId: category.id,
+        supplierId: data.supplierId ? Number(data.supplierId) : null,
         name: data.name,
         slug,
         basePrice: 0,

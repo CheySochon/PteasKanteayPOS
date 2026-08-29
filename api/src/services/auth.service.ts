@@ -282,6 +282,17 @@ export const resetUserPasswordWithoutCurrent = async (
 };
 
 export const loginWithPin = async (pin: string, userId?: number, email?: string) => {
+  let targetUser = null;
+  if (userId) {
+    targetUser = await prisma.user.findUnique({ where: { id: userId } });
+  } else if (email) {
+    targetUser = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  }
+
+  if (targetUser && (!targetUser.pin || targetUser.pin.trim() === "")) {
+    throw new Error("No Security PIN set for this account yet. Please set a 4-digit PIN in your Profile settings or log in using Email & Password.");
+  }
+
   const whereClause: any = {
     pin: pin.trim(),
     deletedAt: null,
@@ -313,7 +324,7 @@ export const loginWithPin = async (pin: string, userId?: number, email?: string)
   });
 
   if (!rawUser) {
-    throw new Error("Invalid PIN");
+    throw new Error("Invalid Security PIN code. Please verify your 4-digit PIN or log in using Email & Password.");
   }
 
   if (!rawUser.isActive) {

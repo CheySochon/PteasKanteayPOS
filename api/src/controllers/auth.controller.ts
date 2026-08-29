@@ -58,6 +58,18 @@ export const login = async (
 
     res.cookie("access_token", token, cookieOptions);
 
+    const loginTimeISO = new Date().toISOString();
+
+    // Persist latest login timestamp to DB
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { updatedAt: new Date() },
+      });
+    } catch (_dbErr) {
+      // ignore
+    }
+
     // Record Successful Login Audit Log
     try {
       await createAuditLog({
@@ -77,11 +89,17 @@ export const login = async (
     try {
       const io = req.app.get("io");
       if (io) {
-        io.emit("auth:login", {
+        const payload = {
+          id: user.id,
           userId: user.id,
           userName: user.name,
           userRole: typeof user.role === "string" ? user.role : (user.role as any)?.name || "Staff",
-        });
+          loginTime: loginTimeISO,
+          updatedAt: loginTimeISO,
+        };
+        io.emit("auth:login", payload);
+        io.emit("user:login", payload);
+        io.emit("user:updated", payload);
       }
     } catch (_err) {
       // ignore
@@ -377,6 +395,18 @@ export const loginPin = async (
     // Set cookie
     res.cookie("access_token", token, cookieOptions);
 
+    const loginTimeISO = new Date().toISOString();
+
+    // Persist latest login timestamp to DB
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { updatedAt: new Date() },
+      });
+    } catch (_dbErr) {
+      // ignore
+    }
+
     await createAuditLog({
       userId: user.id,
       userName: user.name,
@@ -392,11 +422,17 @@ export const loginPin = async (
     try {
       const io = req.app.get("io");
       if (io) {
-        io.emit("auth:login", {
+        const payload = {
+          id: user.id,
           userId: user.id,
           userName: user.name,
           userRole: user.role.name,
-        });
+          loginTime: loginTimeISO,
+          updatedAt: loginTimeISO,
+        };
+        io.emit("auth:login", payload);
+        io.emit("user:login", payload);
+        io.emit("user:updated", payload);
       }
     } catch (_err) {
       // ignore

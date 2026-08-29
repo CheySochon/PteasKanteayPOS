@@ -41,6 +41,11 @@ const DEFAULT_SETTINGS: Record<
     category: "payments",
     description: "Default currency code",
   },
+  exchangeRate: {
+    value: 4100,
+    category: "payments",
+    description: "Khmer Riel exchange rate per 1 USD",
+  },
   taxRate: {
     value: 7,
     category: "payments",
@@ -119,11 +124,11 @@ const DEFAULT_SETTINGS: Record<
   },
 };
 
-const ALLOWED_KEYS = Object.keys(DEFAULT_SETTINGS);
+const getAllowedKeys = () => Object.keys(DEFAULT_SETTINGS);
 
 async function ensureDefaults() {
   await Promise.all(
-    ALLOWED_KEYS.map((key) =>
+    getAllowedKeys().map((key) =>
       prisma.appSetting.upsert({
         where: { key },
         update: {},
@@ -147,7 +152,7 @@ function normalizeSettings(rows: { key: string; value: SettingValue }[]) {
 }
 
 function sanitizeValue(key: string, value: unknown): SettingValue {
-  if (["taxRate", "serviceChargeRate"].includes(key)) {
+  if (["taxRate", "serviceChargeRate", "exchangeRate"].includes(key)) {
     return Math.max(0, Number(value ?? 0));
   }
 
@@ -177,7 +182,8 @@ export const updateSettings = async (
   input: Record<string, unknown>,
   updatedById?: number,
 ) => {
-  const keys = Object.keys(input).filter((key) => ALLOWED_KEYS.includes(key));
+  const allowedKeys = getAllowedKeys();
+  const keys = Object.keys(input).filter((key) => allowedKeys.includes(key));
 
   if (keys.length === 0) throw new Error("No valid settings provided");
 

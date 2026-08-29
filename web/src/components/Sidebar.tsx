@@ -32,6 +32,8 @@ import {
   Boxes,
   ChefHat,
   FileText,
+  Truck,
+  Trash2,
 } from "lucide-react";
 import { apiOrigin, getAdminGroups, getSettings, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -70,6 +72,12 @@ const NAV_MANAGEMENT = [
 const MENU_CHILDREN = [
   { key: "list", label: "Menu List", href: "/admin/menu", icon: ListFilter },
   { key: "categories", label: "Categories", href: "/admin/menu?view=categories", icon: Tags },
+];
+
+const INVENTORY_CHILDREN = [
+  { key: "inventory", label: "Inventory", href: "/admin/inventory?tab=dashboard", icon: Boxes },
+  { key: "supplier", label: "Supplier", href: "/admin/inventory?tab=suppliers", icon: Truck },
+  { key: "history", label: "Stock History", href: "/admin/inventory?tab=movements", icon: FileText },
 ];
 
 const SETTINGS_CHILDREN = [
@@ -127,6 +135,10 @@ const TEXT = {
       "Staff & Roles": "Auth",
       Permissions: "Permissions",
       Settings: "Settings",
+      Categories: "Categories",
+      Supplier: "Supplier",
+      Spoilage: "Spoilage",
+      "Stock History": "Stock History",
     },
   },
   km: {
@@ -159,6 +171,10 @@ const TEXT = {
       Rule: "ច្បាប់សិទ្ធិ",
       "Staff & Roles": "សិទ្ធិ និង គណនី",
       Settings: "ការកំណត់",
+      Categories: "ប្រភេទទំនិញ",
+      Supplier: "អ្នកផ្គត់ផ្គង់",
+      Spoilage: "ទំនិញខូចខាត (Spoilage)",
+      "Stock History": "ប្រវត្តិចលនាស្តុក",
     },
   },
 };
@@ -225,9 +241,13 @@ export default function Sidebar({
   const [contentMounted, setContentMounted] = useState(() => !getSavedSidebarCollapsed(collapsed));
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   const [menuView, setMenuView] = useState("list");
+  const [inventoryView, setInventoryView] = useState("inventory");
   const [authView, setAuthView] = useState("admin");
   const [menuOpen, setMenuOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/menu"),
+  );
+  const [inventoryOpen, setInventoryOpen] = useState(
+    () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/inventory"),
   );
   const [authOpen, setAuthOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/users"),
@@ -329,9 +349,25 @@ export default function Sidebar({
   const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
+  const inventoryExpanded = !sidebarCollapsed && contentMounted && inventoryOpen;
   const authExpanded = !sidebarCollapsed && contentMounted && authOpen;
   const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
   const activeMenuChild = menuView === "categories" ? "categories" : "list";
+
+  const activeInventoryChild = (function () {
+    if (typeof window === "undefined") return inventoryView;
+    const pathname = window.location.pathname;
+    const search = new URLSearchParams(window.location.search);
+    if (pathname.startsWith("/admin/inventory")) {
+      const tab = search.get("tab");
+      const type = search.get("type");
+      if (tab === "suppliers") return "supplier";
+      if (tab === "movements" && type === "damage") return "spoilage";
+      if (tab === "movements") return "history";
+      return "inventory";
+    }
+    return inventoryView || "inventory";
+  })();
 
   const activeAuthChild = (function () {
     if (typeof window === "undefined") return authView;
@@ -413,13 +449,7 @@ export default function Sidebar({
     localStorage.setItem("pos_sidebar_collapsed", String(next));
     setCollapsed(next);
     setSidebarCollapsed(next);
-    if (!next) {
-      setContentMounted(true);
-    } else {
-      setTimeout(() => {
-        if (sidebarCollapsedRef.current) setContentMounted(false);
-      }, 300);
-    }
+    setContentMounted(!next);
   }
 
   function toggleSidebar() {
@@ -536,7 +566,7 @@ export default function Sidebar({
       />
     )}
     <aside
-      className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-all duration-[300ms] ease-in-out ${
+      className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-[width,min-width,transform] duration-200 ease-out will-change-[width,transform] transform-gpu ${
         sidebarCollapsed ? "max-md:-translate-x-full w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px] shadow-none"
       }`}
     >
@@ -650,7 +680,8 @@ export default function Sidebar({
 
         {allowedManagement.map((item) => {
           const isMenu = item.label === "Menu";
-          const active = isNavItemActive(item.label, item.href) || (isMenu && localActiveNav === "Menu");
+          const isInventory = item.label === "Inventory";
+          const active = isNavItemActive(item.label, item.href) || (isMenu && localActiveNav === "Menu") || (isInventory && localActiveNav === "Inventory");
 
           return (
             <div key={item.label}>
@@ -668,12 +699,14 @@ export default function Sidebar({
                   setLocalActiveNav(item.label);
                   if (isMenu) {
                     setMenuOpen((open) => !open);
+                  } else if (isInventory) {
+                    setInventoryOpen((open) => !open);
                   }
                 }}
                 icon={<item.icon active={active} />}
                 trailing={
-                  isMenu && !sidebarCollapsed ? (
-                    menuExpanded ? (
+                  (isMenu || isInventory) && !sidebarCollapsed ? (
+                    (isMenu ? menuExpanded : inventoryExpanded) ? (
                       <ChevronUp size={13} strokeWidth={2.2} />
                     ) : (
                       <ChevronDown size={13} strokeWidth={2.2} />
@@ -684,22 +717,22 @@ export default function Sidebar({
 
               {isMenu && (
                 <div
-                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
+                  className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
                     dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
                   }`}
                   style={{
-                    maxHeight: menuExpanded ? "120px" : "0px",
+                    gridTemplateRows: menuExpanded ? "1fr" : "0fr",
                     opacity: menuExpanded ? 1 : 0,
                     marginTop: menuExpanded ? "4px" : "0px",
                     marginBottom: menuExpanded ? "8px" : "0px",
                   }}
                 >
-                  <div className="space-y-1 py-1">
+                  <div className="overflow-hidden space-y-1 py-1">
                     {MENU_CHILDREN.map((child) => (
                       <MenuSubNavItem
                         key={child.key}
                         href={child.href}
-                        label={child.label}
+                        label={t.nav[child.label as keyof typeof t.nav] || child.label}
                         active={activeMenuChild === child.key}
                         dark={dark}
                         isKhmer={language === "km"}
@@ -709,6 +742,43 @@ export default function Sidebar({
                           setMenuView(child.key);
                           window.dispatchEvent(
                             new CustomEvent("pos-menu-view-change", {
+                              detail: child.key,
+                            }),
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isInventory && (
+                <div
+                  className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
+                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
+                  }`}
+                  style={{
+                    gridTemplateRows: inventoryExpanded ? "1fr" : "0fr",
+                    opacity: inventoryExpanded ? 1 : 0,
+                    marginTop: inventoryExpanded ? "4px" : "0px",
+                    marginBottom: inventoryExpanded ? "8px" : "0px",
+                  }}
+                >
+                  <div className="overflow-hidden space-y-1 py-1">
+                    {INVENTORY_CHILDREN.map((child) => (
+                      <MenuSubNavItem
+                        key={child.key}
+                        href={child.href}
+                        label={t.nav[child.label as keyof typeof t.nav] || child.label}
+                        active={activeInventoryChild === child.key}
+                        dark={dark}
+                        isKhmer={language === "km"}
+                        icon={<child.icon size={14} strokeWidth={1.9} />}
+                        onClick={() => {
+                          setLocalActiveNav("Inventory");
+                          setInventoryView(child.key);
+                          window.dispatchEvent(
+                            new CustomEvent("pos-inventory-view-change", {
                               detail: child.key,
                             }),
                           );
@@ -758,17 +828,17 @@ export default function Sidebar({
 
               {isAuth && (
                 <div
-                  className={`overflow-hidden transition-all duration-[300ms] ease-in-out ml-[18px] border-l pl-4 ${
+                  className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
                     dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
                   }`}
                   style={{
-                    maxHeight: authExpanded ? "200px" : "0px",
+                    gridTemplateRows: authExpanded ? "1fr" : "0fr",
                     opacity: authExpanded ? 1 : 0,
                     marginTop: authExpanded ? "4px" : "0px",
                     marginBottom: authExpanded ? "8px" : "0px",
                   }}
                 >
-                  <div className="space-y-1 py-1">
+                  <div className="overflow-hidden space-y-1 py-1">
                     {AUTH_CHILDREN.map((child) => (
                       <MenuSubNavItem
                         key={child.key}
@@ -890,7 +960,7 @@ export default function Sidebar({
         </div>
       </div>
     )}
-    <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-all duration-[300ms] ease-in-out`} aria-hidden="true" />
+    <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-[width,min-width] duration-200 ease-out will-change-[width]`} aria-hidden="true" />
     </>
   );
 }
@@ -1003,15 +1073,15 @@ function MenuSubNavItem({
       className={`group flex h-9 items-center gap-2 rounded-xl px-3 transition duration-150 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
-            ? "bg-[#55a060]/20 font-bold text-emerald-400"
+            ? "bg-[#55a060]/25 font-bold text-emerald-400"
             : "bg-emerald-50 font-bold text-[#55a060]"
           : dark 
-            ? "text-slate-300 hover:bg-[#55a060]/10 hover:text-emerald-400 font-normal"
-            : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-normal"
+            ? "text-slate-300 hover:bg-[#55a060]/15 hover:text-emerald-400 font-medium"
+            : "text-slate-600 hover:bg-emerald-50/60 hover:text-[#55a060] font-medium"
       } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
     >
-      <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#55a060] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-500 group-hover:text-slate-900"}`}>{icon}</span>
-      <span className={`truncate ${active ? "text-[#55a060] dark:text-emerald-400" : "group-hover:text-slate-900"}`}>{label}</span>
+      <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#55a060] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-500 group-hover:text-[#55a060]"}`}>{icon}</span>
+      <span className={`truncate ${active ? "text-[#55a060] dark:text-emerald-400" : "group-hover:text-[#55a060]"}`}>{label}</span>
     </Link>
   );
 }

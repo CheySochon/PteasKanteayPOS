@@ -151,6 +151,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [receiptFooterText, setReceiptFooterText] = useState(cachedSettings?.receiptFooter || "Thanks for visit. Come again");
   const [serviceRate, setServiceRate] = useState(cachedSettings?.serviceChargeRate != null ? Number(cachedSettings.serviceChargeRate) / 100 : SERVICE_RATE);
   const [vatRate, setVatRate] = useState(cachedSettings?.taxRate != null ? Number(cachedSettings.taxRate) / 100 : VAT_RATE);
+  const [exchangeRate, setExchangeRate] = useState<number>(cachedSettings?.exchangeRate ? Number(cachedSettings.exchangeRate) : 4100);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [splitCount, setSplitCount] = useState(2);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -522,6 +523,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
         localStorage.setItem("pos_restaurant_name", nextName);
         setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
         setVatRate(Number(appSettings.taxRate || 0) / 100);
+        if (appSettings.exchangeRate) setExchangeRate(Number(appSettings.exchangeRate));
       })
       .catch((err) => setMessage(err instanceof Error ? err.message : "Unable to load POS"))
       .finally(() => setInitialLoading(false));

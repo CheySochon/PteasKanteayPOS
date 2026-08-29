@@ -60,26 +60,28 @@ const SYSTEM_POS_MODULES: SystemPermissionModule[] = [
     label: "Dashboard & Analytics",
     subPermissions: [
       { key: "dashboard.view", label: "View Dashboard" },
-      { key: "dashboard.manage", label: "Manage Widgets" },
+      { key: "dashboard.add", label: "Add Widgets" },
+      { key: "dashboard.edit", label: "Edit Dashboard Layout" },
+      { key: "dashboard.delete", label: "Delete Widgets" },
     ],
   },
   {
     key: "pos",
     label: "Point of Sale (POS Terminal)",
     subPermissions: [
-      { key: "pos.order.create", label: "Create Order" },
-      { key: "pos.payment.process", label: "Process Payment" },
-      { key: "pos.invoice.void", label: "Void Invoice" },
-      { key: "pos.discount.apply", label: "Apply Discount" },
+      { key: "pos.order.create", label: "View POS Terminal & Create Order (Add)" },
+      { key: "pos.payment.process", label: "Process Payment & Discounts (Edit)" },
+      { key: "pos.invoice.void", label: "Void Invoice / Refund (Delete)" },
     ],
   },
   {
     key: "orders",
     label: "Orders Management",
     subPermissions: [
-      { key: "orders.view", label: "View Orders" },
-      { key: "orders.update", label: "Update Order Status" },
-      { key: "orders.delete", label: "Cancel / Delete Order" },
+      { key: "orders.view", label: "View Orders List" },
+      { key: "orders.add", label: "Add Manual Order" },
+      { key: "orders.edit", label: "Edit / Update Order Status" },
+      { key: "orders.delete", label: "Delete / Cancel Order" },
     ],
   },
   {
@@ -87,60 +89,74 @@ const SYSTEM_POS_MODULES: SystemPermissionModule[] = [
     label: "Kitchen Display System (KDS)",
     subPermissions: [
       { key: "kitchen.view", label: "View Kitchen Screen" },
-      { key: "kitchen.manage", label: "Update Cooking Status" },
+      { key: "kitchen.add", label: "Add Ticket / Dispatch" },
+      { key: "kitchen.edit", label: "Edit / Update Cooking Status" },
+      { key: "kitchen.delete", label: "Clear / Delete Ticket" },
     ],
   },
   {
     key: "tables",
     label: "Tables & Floor Plan",
     subPermissions: [
-      { key: "tables.view", label: "View Tables" },
-      { key: "tables.manage", label: "Manage Floor Plan & Tables" },
+      { key: "tables.view", label: "View Tables & Floor Plan" },
+      { key: "tables.add", label: "Add Table / Zone" },
+      { key: "tables.edit", label: "Edit Table Layout & Status" },
+      { key: "tables.delete", label: "Delete Table / Zone" },
     ],
   },
   {
     key: "menu",
     label: "Menu & Dish Catalog",
     subPermissions: [
-      { key: "pos.menu.manage", label: "Manage Menu Catalog" },
-      { key: "categories.manage", label: "Manage Categories" },
+      { key: "menu.view", label: "View Menu Items & Categories" },
+      { key: "menu.add", label: "Add Dish / Category" },
+      { key: "menu.edit", label: "Edit Price & Dish Details" },
+      { key: "menu.delete", label: "Delete Dish / Category" },
     ],
   },
   {
     key: "inventory",
-    label: "Inventory & Raw Stock",
+    label: "Inventory & Stock",
     subPermissions: [
-      { key: "inventory.view", label: "View Inventory" },
-      { key: "inventory.manage", label: "Restock & Stock Adjustments" },
+      { key: "inventory.view", label: "View Stock Items" },
+      { key: "inventory.add", label: "Add Stock Entry" },
+      { key: "inventory.edit", label: "Edit Stock Quantity & Unit" },
+      { key: "inventory.delete", label: "Delete Stock Record" },
     ],
   },
   {
     key: "reports",
     label: "Reports & Analytics",
     subPermissions: [
-      { key: "pos.reports.view", label: "View Reports" },
-      { key: "reports.export", label: "Export CSV Data" },
+      { key: "reports.view", label: "View Sales & Analytics Reports" },
+      { key: "reports.add", label: "Add / Generate Report" },
+      { key: "reports.edit", label: "Edit Report Filters" },
+      { key: "reports.delete", label: "Delete / Clear Logs" },
     ],
   },
   {
-    key: "auth",
-    label: "Auth & Team Management",
+    key: "users",
+    label: "Staff & Team Management",
     subPermissions: [
-      { key: "pos.users.manage", label: "Manage Staff & Groups" },
-      { key: "audit.view", label: "View Audit Logs" },
+      { key: "users.view", label: "View Staff & Access Groups" },
+      { key: "users.add", label: "Add Staff User / Group" },
+      { key: "users.edit", label: "Edit Staff User & Permissions" },
+      { key: "users.delete", label: "Delete Staff User / Group" },
     ],
   },
   {
     key: "settings",
-    label: "System Settings",
+    label: "System Settings & Backups",
     subPermissions: [
-      { key: "pos.settings.manage", label: "Manage System Settings" },
-      { key: "backups.manage", label: "Manage Backups" },
+      { key: "settings.view", label: "View System Settings" },
+      { key: "settings.add", label: "Add Integration / Config" },
+      { key: "settings.edit", label: "Edit System Settings" },
+      { key: "settings.delete", label: "Delete Config / Backup" },
     ],
   },
 ];
 
-export const ALL_PERM_KEYS = SYSTEM_POS_MODULES.flatMap((m) => [
+const ALL_PERM_KEYS = SYSTEM_POS_MODULES.flatMap((m) => [
   m.key,
   ...(m.subPermissions ? m.subPermissions.map((s) => s.key) : []),
 ]);

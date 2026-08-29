@@ -481,6 +481,8 @@ export default function TableQrPage({
       if (!socket.connected) socket.connect();
       socket.on("order:created", fetchActiveOrders);
       socket.on("order:updated", fetchActiveOrders);
+      socket.on("order:status_updated", fetchActiveOrders);
+      socket.on("kds:item_updated", fetchActiveOrders);
       socket.on("product:created", fetchMenu);
       socket.on("product:updated", fetchMenu);
       socket.on("product:deleted", fetchMenu);
@@ -496,6 +498,8 @@ export default function TableQrPage({
       if (socket) {
         socket.off("order:created", fetchActiveOrders);
         socket.off("order:updated", fetchActiveOrders);
+        socket.off("order:status_updated", fetchActiveOrders);
+        socket.off("kds:item_updated", fetchActiveOrders);
         socket.off("product:created", fetchMenu);
         socket.off("product:updated", fetchMenu);
         socket.off("product:deleted", fetchMenu);

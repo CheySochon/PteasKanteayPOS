@@ -336,34 +336,34 @@ export function hasFeaturePermission(
   const matchActionKey = (perms: string[]): boolean => {
     if (perms.includes(featureKey)) return true;
 
-    // Standard POS RBAC Permission Code Mapping
+    // Standard POS RBAC Permission Code Mapping with View, Add, Edit, Delete
     const codeMap: Record<string, string[]> = {
-      menu: ["pos.menu.manage", "categories.manage", "menu"],
-      inventory: ["inventory.view", "inventory.manage", "inventory"],
-      reports: ["pos.reports.view", "reports.export", "reports"],
-      auth: ["pos.users.manage", "audit.view", "users", "groups"],
-      users: ["pos.users.manage", "users"],
-      settings: ["pos.settings.manage", "backups.manage", "settings"],
-      orders: ["orders.view", "orders.update", "orders.delete", "orders"],
-      invoices: ["pos.invoice.void", "invoices.view", "invoices"],
-      tables: ["tables.view", "tables.manage", "tables"],
-      kitchen: ["kitchen.view", "kitchen.manage", "kitchen"],
-      pos: ["pos.order.create", "pos.payment.process", "pos.discount.apply", "pos"],
-      dashboard: ["dashboard.view", "dashboard.manage", "dashboard"],
+      dashboard: ["dashboard.view", "dashboard.add", "dashboard.edit", "dashboard.delete", "dashboard.manage", "dashboard"],
+      pos: ["pos.view", "pos.add", "pos.edit", "pos.delete", "pos.order.create", "pos.payment.process", "pos.discount.apply", "pos"],
+      orders: ["orders.view", "orders.add", "orders.edit", "orders.delete", "orders.update", "orders"],
+      kitchen: ["kitchen.view", "kitchen.add", "kitchen.edit", "kitchen.delete", "kitchen.manage", "kitchen"],
+      tables: ["tables.view", "tables.add", "tables.edit", "tables.delete", "tables.manage", "tables"],
+      menu: ["menu.view", "menu.add", "menu.edit", "menu.delete", "pos.menu.manage", "categories.manage", "menu"],
+      inventory: ["inventory.view", "inventory.add", "inventory.edit", "inventory.delete", "inventory.manage", "inventory"],
+      reports: ["reports.view", "reports.add", "reports.edit", "reports.delete", "pos.reports.view", "reports.export", "reports"],
+      auth: ["users.view", "users.add", "users.edit", "users.delete", "pos.users.manage", "audit.view", "users", "groups", "auth"],
+      users: ["users.view", "users.add", "users.edit", "users.delete", "pos.users.manage", "users"],
+      settings: ["settings.view", "settings.add", "settings.edit", "settings.delete", "pos.settings.manage", "backups.manage", "settings"],
+      invoices: ["invoices.view", "invoices.add", "invoices.edit", "invoices.delete", "pos.invoice.void", "invoices"],
     };
 
     const targetCodes = codeMap[featureKey] || [featureKey];
     if (targetCodes.some((code) => perms.includes(code))) return true;
 
     if (action === "view") {
-      if (perms.includes(`${featureKey}_view`) || perms.includes(`${featureKey}_read`)) return true;
-      if (perms.some((k) => k.startsWith(`${featureKey}_`) || k.startsWith(`pos.${featureKey}`))) return true;
+      if (perms.includes(`${featureKey}.view`) || perms.includes(`${featureKey}_view`) || perms.includes(`${featureKey}_read`)) return true;
+      if (perms.some((k) => k.startsWith(`${featureKey}.`) || k.startsWith(`${featureKey}_`) || k.startsWith(`pos.${featureKey}`))) return true;
     } else if (action === "add") {
-      if (perms.includes(`${featureKey}_add`) || perms.includes(`${featureKey}_create`)) return true;
+      if (perms.includes(`${featureKey}.add`) || perms.includes(`${featureKey}_add`) || perms.includes(`${featureKey}_create`)) return true;
     } else if (action === "edit") {
-      if (perms.includes(`${featureKey}_edit`) || perms.includes(`${featureKey}_update`)) return true;
+      if (perms.includes(`${featureKey}.edit`) || perms.includes(`${featureKey}_edit`) || perms.includes(`${featureKey}_update`)) return true;
     } else if (action === "delete") {
-      if (perms.includes(`${featureKey}_delete`) || perms.includes(`${featureKey}_remove`)) return true;
+      if (perms.includes(`${featureKey}.delete`) || perms.includes(`${featureKey}_delete`) || perms.includes(`${featureKey}_remove`)) return true;
     }
     return false;
   };

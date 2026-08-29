@@ -20,6 +20,8 @@ import settingRouter from "./routers/setting.router.js";
 import backupRouter from "./routers/backup.router.js";
 import auditRouter from "./routers/audit.router.js";
 import inventoryRouter from "./routers/inventory.router.js";
+import supplierRouter from "./routers/supplier.router.js";
+import purchaseOrderRouter from "./routers/purchaseOrder.router.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -118,6 +120,8 @@ app.use("/api/settings", settingRouter);
 app.use("/api/backups", backupRouter);
 app.use("/api/audit", auditRouter);
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/suppliers", supplierRouter);
+app.use("/api/purchase-orders", purchaseOrderRouter);
 
 /**
  * Health check endpoints

@@ -998,13 +998,13 @@ export default function MenuPage() {
                     onChange={(event) =>
                       setStatusFilter(event.target.value as "all" | "available" | "hidden")
                     }
-                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#0F522B] transition-all ${
+                    className={`h-9 rounded-lg border px-3 text-xs font-semibold outline-none focus:border-[#0F522B] transition-colors cursor-pointer ${
                       dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
                     }`}
                   >
-                    <option value="all">All Status</option>
-                    <option value="available">{t.available}</option>
-                    <option value="hidden">{t.hidden}</option>
+                    <option value="all" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>All Status</option>
+                    <option value="available" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>{t.available}</option>
+                    <option value="hidden" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>{t.hidden}</option>
                   </select>
 
                   {canCreate && (
@@ -1601,11 +1601,11 @@ function ProductEditor({
                   categoryId: event.target.value,
                 }))
               }
-              className={inputClass}
+              className={`${inputClass} cursor-pointer`}
             >
-              <option value="">{text.selectCategory}</option>
+              <option value="" className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">{text.selectCategory}</option>
               {categories.map((category) => (
-                <option key={category.id} value={category.id}>
+                <option key={category.id} value={category.id} className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">
                   {category.name}
                 </option>
               ))}

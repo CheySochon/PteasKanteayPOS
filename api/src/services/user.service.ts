@@ -65,6 +65,7 @@ function formatUserRoleCompatibility(user: any) {
     ...user,
     role: roleObj,
     roleName: primaryGroupName,
+    hasPin: Boolean(user.pin && String(user.pin).trim().length > 0),
     groups,
   };
 }
@@ -125,10 +126,12 @@ export const createUser = async (data: {
   const targetGroupIds: number[] = [];
 
   if (data.groupIds && data.groupIds.length > 0) {
-    targetGroupIds.push(...data.groupIds);
+    targetGroupIds.push(...data.groupIds.filter((gId) => gId !== 1));
   } else {
-    const selectedGroup = data.roleName ?? data.role ?? (data.groupNames ? data.groupNames[0] : "Cashier");
-    const groupRecord = await findOrCreateGroup(selectedGroup);
+    const rawSelected = data.roleName ?? data.role ?? (data.groupNames ? data.groupNames[0] : "Cashier Group");
+    const norm = rawSelected.trim().toLowerCase();
+    const safeSelectedGroup = (norm === "admin" || norm === "super admin" || norm === "super_admin") ? "Cashier Group" : rawSelected;
+    const groupRecord = await findOrCreateGroup(safeSelectedGroup);
     targetGroupIds.push(groupRecord.id);
   }
 
@@ -196,12 +199,14 @@ export const updateUser = async (
 
   const updateData: Record<string, unknown> = {};
 
-  if (data.email !== undefined) updateData.email = data.email;
-  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined && data.email.trim() !== "") updateData.email = data.email.trim();
+  if (data.name !== undefined && data.name.trim() !== "") updateData.name = data.name.trim();
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
-  if (data.pin !== undefined) updateData.pin = data.pin;
+  if (data.pin !== undefined && data.pin.trim() !== "") updateData.pin = data.pin.trim();
   if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
-  if (data.password) updateData.password = await hashPassword(data.password);
+  if (data.password !== undefined && data.password.trim() !== "") {
+    updateData.password = await hashPassword(data.password.trim());
+  }
 
   let targetGroupIds: number[] | null = null;
 
@@ -211,11 +216,13 @@ export const updateUser = async (
     targetGroupIds = [superGroup.id];
     updateData.isActive = true;
   } else if (data.groupIds !== undefined && data.groupIds.length > 0) {
-    targetGroupIds = data.groupIds;
+    targetGroupIds = data.groupIds.filter((gId) => gId !== 1);
   } else {
     const selectedGroup = data.roleName !== undefined ? data.roleName : data.role;
     if (selectedGroup !== undefined) {
-      const groupRecord = await findOrCreateGroup(selectedGroup);
+      const norm = selectedGroup.trim().toLowerCase();
+      const safeSelectedGroup = (norm === "admin" || norm === "super admin" || norm === "super_admin") ? "Cashier Group" : selectedGroup;
+      const groupRecord = await findOrCreateGroup(safeSelectedGroup);
       targetGroupIds = [groupRecord.id];
     }
   }

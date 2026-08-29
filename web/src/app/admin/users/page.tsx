@@ -52,6 +52,7 @@ import type { Role, User } from "../../../lib/types";
 import {
   getProfileImage,
   initials,
+  profileAvatarClass,
 } from "../../../lib/profile";
 
 type UserForm = {
@@ -148,6 +149,17 @@ export default function AdminUsersPage() {
 
     const socket = getSocket();
     const handleSocketUpdate = () => fetchUsersAndRoles(true);
+    const handleAuthLogin = (data: any) => {
+      const targetId = Number(data?.userId || data?.id);
+      const timeISO = data?.loginTime || data?.updatedAt || new Date().toISOString();
+      if (targetId) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === targetId ? { ...u, updatedAt: timeISO, lastLoginAt: timeISO } as any : u))
+        );
+      }
+      fetchUsersAndRoles(true);
+    };
+
     if (socket) {
       socket.on("user:created", handleSocketUpdate);
       socket.on("user:updated", handleSocketUpdate);
@@ -155,6 +167,8 @@ export default function AdminUsersPage() {
       socket.on("group:created", handleSocketUpdate);
       socket.on("group:updated", handleSocketUpdate);
       socket.on("group:deleted", handleSocketUpdate);
+      socket.on("auth:login", handleAuthLogin);
+      socket.on("user:login", handleAuthLogin);
     }
 
     return () => {
@@ -165,6 +179,8 @@ export default function AdminUsersPage() {
         socket.off("group:created", handleSocketUpdate);
         socket.off("group:updated", handleSocketUpdate);
         socket.off("group:deleted", handleSocketUpdate);
+        socket.off("auth:login", handleAuthLogin);
+        socket.off("user:login", handleAuthLogin);
       }
     };
   }, []);
@@ -186,11 +202,13 @@ export default function AdminUsersPage() {
     return user.roleName || "Cashier";
   };
 
-  // Filter out Root / Super Admin Group so normal staff assignment never shows Root group
+  // Filter out Root / Super Admin Group (ID 1 / "Admin") so staff creation/editing never shows Root Super Admin group
   const assignableGroups = useMemo(() => {
     return groups.filter((g) => {
+      const gId = typeof g === "object" && g !== null ? Number(g.id) : 0;
+      if (gId === 1) return false;
       const gName = (typeof g === "string" ? g : g?.name || "").toLowerCase().trim();
-      return !gName.includes("super admin") && !gName.includes("root");
+      return gName !== "admin" && gName !== "super admin" && gName !== "super_admin" && !gName.includes("root");
     });
   }, [groups]);
 
@@ -221,6 +239,30 @@ export default function AdminUsersPage() {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+  };
+
+  // Export CSV
+  const handleExportCSV = () => {
+    if (users.length === 0) return;
+    const headers = ["ID", "Username", "Nickname", "Group/Role", "Email", "POS PIN Status", "Status", "Created At"];
+    const rows = users.map((u) => [
+      u.id,
+      u.email.split("@")[0],
+      `"${u.name.replace(/"/g, '""')}"`,
+      `"${roleName(u)}"`,
+      u.email,
+      (u as any).pin || (u as any).hasPin ? "Configured (****)" : "No PIN Set",
+      u.isActive ? "Active (Normal)" : "Inactive",
+      u.createdAt || "-",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `staff_users_directory_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Bulk Delete
@@ -278,10 +320,6 @@ export default function AdminUsersPage() {
 
   // Open Edit Modal
   const openEditModal = (user: User) => {
-    if (user.id === 1) {
-      setError("Super Admin (ID 1) is a protected system owner and cannot be edited.");
-      return;
-    }
     const uRole = roleName(user) || "Cashier";
     setEditingUserId(user.id);
     setForm({
@@ -379,21 +417,84 @@ export default function AdminUsersPage() {
       <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
         <div className="mx-auto w-full max-w-[1720px] space-y-4">
           
-          {/* Header Title with "+ New User" Button */}
+          {/* Header Title with Export CSV & "+ New User" Buttons */}
           <div className="flex items-center justify-between gap-3 mb-2">
             <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
               {language === "km" ? "បុគ្គលិក (Admin & Staff)" : "Admin & Staff Users"}
             </h1>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
-              {language === "km" ? "ថ្មី" : "New User"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+                }`}
+              >
+                <Download size={14} />
+                Export CSV
+              </button>
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+              >
+                <Plus size={15} />
+                {language === "km" ? "បន្ថែមថ្មី" : "New User"}
+              </button>
+            </div>
+          </div>
+
+          {/* TOP KPI CARDS MATCHING TARGET SCREENSHOT media_1788002543317.png */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
+            {/* Card 1: Total Staff Accounts */}
+            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+              <div>
+                <div className="text-xs font-semibold text-slate-400 mb-1">Total Staff Accounts</div>
+                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{users.length}</div>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
+                <UsersRound size={18} />
+              </div>
+            </div>
+
+            {/* Card 2: Admins & Managers */}
+            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+              <div>
+                <div className="text-xs font-semibold text-slate-400 mb-1">Admins &amp; Managers</div>
+                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                  {users.filter((u) => roleName(u).toLowerCase().includes("admin") || roleName(u).toLowerCase().includes("super")).length}
+                </div>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
+                <Crown size={18} />
+              </div>
+            </div>
+
+            {/* Card 3: Cashiers & Staff */}
+            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+              <div>
+                <div className="text-xs font-semibold text-slate-400 mb-1">Cashiers &amp; Staff</div>
+                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                  {users.filter((u) => !roleName(u).toLowerCase().includes("admin") && !roleName(u).toLowerCase().includes("super")).length}
+                </div>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 shrink-0">
+                <CreditCard size={18} />
+              </div>
+            </div>
+
+            {/* Card 4: Active Status */}
+            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+              <div>
+                <div className="text-xs font-semibold text-slate-400 mb-1">Active Status</div>
+                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                  {users.filter((u) => u.isActive).length}
+                </div>
+              </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
+                <CheckCircle2 size={18} />
+              </div>
+            </div>
           </div>
 
           {/* MAIN TABLE PANEL MATCHING TARGET SCREENSHOT media_1787653557137.png */}
@@ -417,16 +518,6 @@ export default function AdminUsersPage() {
                   }`}
                 >
                   <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-                </button>
-
-                {/* 🟢 + Add Button */}
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="h-8 px-3.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                >
-                  <Plus size={14} />
-                  + Add
                 </button>
 
                 {/* 🔴 🗑️ Delete Button */}
@@ -456,30 +547,6 @@ export default function AdminUsersPage() {
                   />
                 </div>
 
-                {/* Utility Icons Toolbar (Columns / Grid / Users) */}
-                <div className="flex items-center border rounded-lg overflow-hidden border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800">
-                  <button
-                    type="button"
-                    title="Columns view"
-                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Columns size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Grid view"
-                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
-                  >
-                    <Grid size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    title="User filter"
-                    className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
-                  >
-                    <UsersRound size={14} />
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -503,6 +570,7 @@ export default function AdminUsersPage() {
                     <th className="py-3 px-4 font-bold">Nickname</th>
                     <th className="py-3 px-4 font-bold">Group</th>
                     <th className="py-3 px-4 font-bold">Email</th>
+                    <th className="py-3 px-4 font-bold">POS PIN</th>
                     <th className="py-3 px-4 w-28 font-bold">Status</th>
                     <th className="py-3 px-4 w-44 font-bold">Login time</th>
                     <th className="py-3 px-4 w-28 text-right font-bold">Operate</th>
@@ -511,14 +579,14 @@ export default function AdminUsersPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <td colSpan={10} className="py-12 text-center text-slate-400">
                         <Loader2 className="animate-spin inline mr-2" size={18} />
                         Loading staff users...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400 font-normal">
+                      <td colSpan={10} className="py-12 text-center text-slate-400 font-normal">
                         No user accounts found matching search query.
                       </td>
                     </tr>
@@ -529,6 +597,8 @@ export default function AdminUsersPage() {
                       const usernameStr = user.email.split("@")[0] || `user_${user.id}`;
                       const matchedGroup = groups.find((g) => g.name === uRole || g.name.toLowerCase().includes(uRole.toLowerCase()) || String(g.id) === String((user as any).groupId));
                       const groupBadgeName = matchedGroup ? matchedGroup.name : (uRole === "Super Admin" ? "Super Admin Group" : uRole === "Admin" ? "Admin Group" : `${uRole} Group`);
+                      const hasPinConfigured = Boolean((user as any).pin || (user as any).hasPin);
+                      const avatarUrl = user.imageUrl || getProfileImage({ id: user.id, name: user.name, email: user.email, role: uRole });
 
                       return (
                         <tr
@@ -554,9 +624,23 @@ export default function AdminUsersPage() {
                             {user.id}
                           </td>
 
-                          {/* Username */}
+                          {/* Username with Avatar */}
                           <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-200">
-                            {usernameStr}
+                            <div className="flex items-center gap-2.5">
+                              {avatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={avatarUrl}
+                                  alt={user.name}
+                                  className="h-7 w-7 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                                />
+                              ) : (
+                                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 ${profileAvatarClass(user.name)}`}>
+                                  {initials(user.name)}
+                                </div>
+                              )}
+                              <span>{usernameStr}</span>
+                            </div>
                           </td>
 
                           {/* Nickname */}
@@ -564,9 +648,15 @@ export default function AdminUsersPage() {
                             {user.name}
                           </td>
 
-                          {/* Group (Clean Fit Badge) */}
+                          {/* Group (Theme Matched Badge) */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-[#2b303a] text-slate-100 dark:bg-slate-700 dark:text-slate-100 shadow-2xs">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                              groupBadgeName.toLowerCase().includes("admin") || groupBadgeName.toLowerCase().includes("super")
+                                ? "bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] border border-emerald-200 dark:border-emerald-800"
+                                : groupBadgeName.toLowerCase().includes("cashier")
+                                ? "bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] border border-cyan-200 dark:border-cyan-800"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                            }`}>
                               {groupBadgeName}
                             </span>
                           </td>
@@ -574,6 +664,19 @@ export default function AdminUsersPage() {
                           {/* Email */}
                           <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
                             {user.email}
+                          </td>
+
+                          {/* POS PIN Status Badge */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {hasPinConfigured ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-[#55a060] border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 text-[10px] font-bold">
+                                🔒 PIN Set
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 px-2.5 py-0.5 text-[10px] font-bold">
+                                ⚠️ No PIN
+                              </span>
+                            )}
                           </td>
 
                           {/* Status (● Normal) */}
@@ -593,7 +696,7 @@ export default function AdminUsersPage() {
 
                           {/* Login time */}
                           <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
-                            {formatDate(user.createdAt)}
+                            {formatDate((user as any).lastLoginAt || user.updatedAt || user.createdAt)}
                           </td>
 
                           {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}

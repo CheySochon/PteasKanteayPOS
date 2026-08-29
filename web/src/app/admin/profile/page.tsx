@@ -14,9 +14,15 @@ import {
   Crown,
   CreditCard,
   ChefHat,
+  KeyRound,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
-import { getMe } from "../../../lib/api";
+import AnimatedToast from "../../../components/AnimatedToast";
+import { getMe, updateUser } from "../../../lib/api";
 import {
   clearProfileImage,
   compressImageBase64,
@@ -58,6 +64,13 @@ export default function ProfilePage() {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
   const [apiUser, setApiUser] = useState<any>(null);
+
+  // Password & Security States
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -171,16 +184,70 @@ export default function ProfilePage() {
   function saveChanges() {
     if (removeImage) {
       clearProfileImage(user);
-      setMessage("Profile image removed.");
     } else if (pendingImage) {
       saveProfileImage(user, pendingImage);
-      setMessage("Profile image updated.");
     }
 
     setPendingImage(null);
     setRemoveImage(false);
     setError("");
   }
+
+  async function handleSaveSecurityAndProfile() {
+    if (!user?.id) {
+      setError("Unable to identify logged-in user.");
+      return;
+    }
+
+    if (newPassword && newPassword.length < 4) {
+      setError("Password must be at least 4 characters.");
+      return;
+    }
+
+    if (newPassword && newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (pinInput && !/^\d{4}$/.test(pinInput)) {
+      setError("PIN must be exactly 4 digits.");
+      return;
+    }
+
+    setSavingProfile(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const payload: any = {};
+      if (newPassword) payload.password = newPassword;
+      if (pinInput) payload.pin = pinInput;
+
+      if (Object.keys(payload).length > 0) {
+        const updated = await updateUser(user.id, payload);
+        if (updated) setApiUser(updated);
+      }
+
+      if (hasChanges) {
+        saveChanges();
+      } else if (Object.keys(payload).length === 0) {
+        setError("No changes to save.");
+        setSavingProfile(false);
+        return;
+      }
+
+      setNewPassword("");
+      setConfirmPassword("");
+      setPinInput("");
+      setMessage("Profile & Password updated successfully!");
+    } catch (err: any) {
+      setError(err?.message || "Failed to update password.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  const canSave = hasChanges || Boolean(newPassword && newPassword === confirmPassword && newPassword.length >= 4) || Boolean(pinInput && /^\d{4}$/.test(pinInput));
 
   return (
     <main className={`flex-1 overflow-y-auto ${softSurface}`}>
@@ -193,60 +260,53 @@ export default function ProfilePage() {
           </h1>
         </div>
 
-        {/* Error and Success Alerts */}
+        {/* Error Alert */}
         {error && (
-          <div className="mb-5 rounded-xl border border-red-150 bg-red-50 px-4 py-2.5 text-xs font-medium text-red-600">
-            {error}
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+            <AnimatedToast key={error} message={error} onClose={() => setError("")} type="error" />
+          </div>
+        )}
+        {message && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+            <AnimatedToast key={message} message={message} onClose={() => setMessage("")} type="success" />
           </div>
         )}
 
-
-
-        {/* Profile details grid */}
-        <section className="grid gap-6 md:grid-cols-[320px_1fr] animate-[profilePageIn_560ms_ease-out]">
-          {/* Avatar / Photo Panel */}
-          <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol} flex flex-col items-center justify-center text-center`}>
-            {/* Clickable Avatar Photo Container with Camera Icon */}
-            <label className="relative group cursor-pointer block" title="Click to upload profile photo">
-              {previewImage ? (
-                <img
-                  src={previewImage}
-                  alt={user.name}
-                  className="h-32 w-32 rounded-full object-cover border-4 border-slate-100 dark:border-slate-800 shadow-md transition-all duration-200 group-hover:brightness-90 group-hover:scale-105"
-                />
-              ) : (
-                <div
-                  className={`flex h-32 w-32 items-center justify-center rounded-full text-3xl font-black text-white shadow-md border-4 border-slate-100 dark:border-slate-800 transition-all duration-200 group-hover:scale-105 ${profileAvatarClass(
-                    user.role,
-                  )}`}
-                >
-                  {initials(user.name)}
+        {/* Profile Details & Image Grid */}
+        <section className="grid gap-6 lg:grid-cols-2">
+          {/* Avatar Panel */}
+          <div className={`rounded-2xl border p-6 ${surface} ${borderCol} flex flex-col items-center text-center justify-between`}>
+            <div className="flex flex-col items-center">
+              <div className="relative group">
+                <div className={`h-28 w-28 overflow-hidden rounded-full border-2 border-dashed ${borderCol} p-1`}>
+                  {previewImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewImage}
+                      alt={user.name}
+                      className="h-full w-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className={profileAvatarClass(user.name)}>
+                      {initials(user.name)}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
-              <span className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#55a060] text-white shadow-md shadow-[#55a060]/30 transition-transform duration-200 group-hover:scale-110 group-hover:bg-[#488c52]">
-                <Camera size={16} />
-              </span>
-
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={uploadProfileImage}
-              />
-            </label>
-
-            <h2 className={`mt-5 text-base font-semibold ${textPrimary}`}>
-              {user.name}
-            </h2>
-            
-            <div className="mt-2.5 flex items-center gap-1.5 rounded-md px-3 py-1 bg-[#55a060]/10 text-[#55a060]">
-              <RoleIcon role={user.role} />
-              <span className="text-xs font-medium capitalize">{user.role}</span>
+              <h2 className={`mt-4 text-lg font-semibold ${textPrimary}`}>
+                {user.name}
+              </h2>
+              <div className="mt-1 flex items-center justify-center gap-1.5">
+                <RoleIcon role={user.role} />
+                <span className={profileRoleClass(user.role)}>
+                  {user.role}
+                </span>
+              </div>
             </div>
 
-            <div className="mt-6 flex w-full gap-3">
-              <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#55a060] px-4 text-xs font-medium text-white hover:bg-[#488c52] hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200">
+            <div className="mt-6 flex items-center gap-2">
+              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] transition active:scale-95 duration-200">
                 <UploadCloud size={15} />
                 Upload Photo
                 <input
@@ -261,7 +321,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={removeProfileImage}
                 disabled={!previewImage}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-all active:scale-95 duration-200"
                 title="Remove photo"
               >
                 <Trash2 size={15} />
@@ -269,48 +329,112 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Account Details Panel */}
+          {/* Account Details & Security Panel */}
           <div className={`rounded-2xl border shadow-none p-6 ${surface} ${borderCol} flex flex-col justify-between`}>
-            <div>
-              <div className="mb-5">
-                <h2 className={`text-base font-medium ${textPrimary}`}>
+            <div className="space-y-6">
+              <div>
+                <h2 className={`text-base font-medium mb-4 ${textPrimary}`}>
                   Account Details
                 </h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {details.map(({ label, value, Icon, colorClass }) => (
+                    <div
+                      key={label}
+                      className={`flex items-center gap-3 rounded-xl border p-3 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""}`}
+                    >
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {label}
+                        </div>
+                        <div className={`mt-0.5 truncate text-xs font-semibold ${textPrimary}`}>
+                          {value}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {details.map(({ label, value, Icon, colorClass }) => (
-                  <div
-                    key={label}
-                    className={`flex items-center gap-3.5 rounded-xl border p-4 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""} ${
-                      label === "User ID" ? "sm:col-span-2" : ""
-                    }`}
-                  >
-                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
-                      <Icon size={18} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        {label}
-                      </div>
-                      <div className={`mt-0.5 truncate text-sm font-medium ${textPrimary}`}>
-                        {value}
-                      </div>
+              {/* Password & Security Section */}
+              <div className={`pt-5 border-t ${dark ? "border-slate-800" : "border-slate-100"}`}>
+                <div className="flex items-center gap-2 mb-3.5">
+                  <KeyRound size={16} className="text-[#55a060]" />
+                  <h3 className={`text-sm font-bold ${textPrimary}`}>
+                    Change Password &amp; Security PIN
+                  </h3>
+                </div>
+
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password (min 4 chars)"
+                        className={`w-full rounded-xl border px-3 py-2 pr-9 text-xs outline-none transition ${
+                          dark ? "border-[#3b3c54] bg-[#232333] text-white" : "border-slate-300 bg-white text-slate-800"
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
                     </div>
                   </div>
-                ))}
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Confirm Password
+                    </label>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      className={`w-full rounded-xl border px-3 py-2 text-xs outline-none transition ${
+                        dark ? "border-[#3b3c54] bg-[#232333] text-white" : "border-slate-300 bg-white text-slate-800"
+                      }`}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      4-Digit POS Security PIN (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+                      placeholder="e.g. 1234"
+                      className={`w-full rounded-xl border px-3 py-2 text-xs font-mono tracking-widest outline-none transition ${
+                        dark ? "border-[#3b3c54] bg-[#232333] text-white" : "border-slate-300 bg-white text-slate-800"
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Bottom Save Changes Button (Matching Settings Page) */}
+            {/* Bottom Save Changes Button */}
             <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 flex justify-end">
               <button
                 type="button"
-                onClick={saveChanges}
-                disabled={!hasChanges}
+                onClick={handleSaveSecurityAndProfile}
+                disabled={!canSave || savingProfile}
                 className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] px-6 text-sm font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 transition-all active:scale-95 duration-200 cursor-pointer"
               >
-                <Save size={16} />
+                {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 Save Changes
               </button>
             </div>

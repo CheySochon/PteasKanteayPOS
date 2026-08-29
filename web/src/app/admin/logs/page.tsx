@@ -11,12 +11,13 @@ import {
   ShieldCheck,
   RefreshCw,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import AnimatedToast from "../../../components/AnimatedToast";
-import { getAuditLogs } from "../../../lib/api";
+import { getAuditLogs, clearAuditLogs } from "../../../lib/api";
 
 type AuditLog = {
   id: number;
@@ -25,19 +26,11 @@ type AuditLog = {
   action: string;
   ipAddress?: string;
   status: "SUCCESS" | "FAILED";
+  details?: string;
   createdAt: string;
 };
 
-const DEFAULT_DEMO_LOGS: AuditLog[] = [
-  { id: 1, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "175.100.20.108", status: "SUCCESS", createdAt: "2026-08-25T15:22:00Z" },
-  { id: 2, userName: "Admin", userRole: "Admin", action: "LOGIN_PIN", ipAddress: "127.0.0.1", status: "SUCCESS", createdAt: "2026-08-25T11:23:00Z" },
-  { id: 3, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "119.10.136.210", status: "SUCCESS", createdAt: "2026-08-25T11:15:00Z" },
-  { id: 4, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "175.100.20.108", status: "SUCCESS", createdAt: "2026-08-25T10:36:00Z" },
-  { id: 5, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "175.100.20.108", status: "SUCCESS", createdAt: "2026-08-25T09:44:00Z" },
-  { id: 6, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "127.0.0.1", status: "SUCCESS", createdAt: "2026-08-25T08:31:00Z" },
-  { id: 7, userName: "Admin", userRole: "Admin", action: "LOGIN_PIN", ipAddress: "127.0.0.1", status: "SUCCESS", createdAt: "2026-08-25T08:30:00Z" },
-  { id: 8, userName: "Admin", userRole: "Admin", action: "LOGIN", ipAddress: "127.0.0.1", status: "SUCCESS", createdAt: "2026-08-25T08:20:00Z" },
-];
+const DEFAULT_DEMO_LOGS: AuditLog[] = [];
 
 export default function AdminLogsPage() {
   const [theme] = useAppTheme();
@@ -49,6 +42,7 @@ export default function AdminLogsPage() {
   const [auditTotalPages, setAuditTotalPages] = useState(1);
   const [auditSearch, setAuditSearch] = useState("");
   const [auditStatusFilter, setAuditStatusFilter] = useState("all");
+  const [auditActionFilter, setAuditActionFilter] = useState("all");
   const [auditPage, setAuditPage] = useState(1);
   const [auditLoading, setAuditLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -58,27 +52,54 @@ export default function AdminLogsPage() {
   const textPrimary = dark ? "text-slate-100" : "text-slate-800";
   const textSecondary = dark ? "text-slate-400" : "text-slate-500";
 
+  const [isClearing, setIsClearing] = useState(false);
+
   // Load audit logs
-  const loadAuditLogs = async (search = auditSearch, status = auditStatusFilter, page = auditPage) => {
+  const loadAuditLogs = async (search = auditSearch, status = auditStatusFilter, action = auditActionFilter, page = auditPage) => {
     setAuditLoading(true);
     try {
-      const res = await getAuditLogs({ search, status: status === "all" ? undefined : status, page, limit: 8 });
+      const res = await getAuditLogs({
+        search,
+        status: status === "all" ? undefined : status,
+        action: action === "all" ? undefined : action,
+        page,
+        limit: 8,
+      });
       const itemsList = (res as any)?.items || (res as any)?.logs;
-      if (res && Array.isArray(itemsList) && itemsList.length > 0) {
+      if (res && Array.isArray(itemsList)) {
         setAuditLogs(itemsList);
-        setAuditTotal(res.total || itemsList.length);
-        setAuditTotalPages(res.totalPages || Math.ceil((res.total || itemsList.length) / 8));
+        setAuditTotal(res.total ?? itemsList.length);
+        setAuditTotalPages(res.totalPages || Math.max(1, Math.ceil((res.total ?? itemsList.length) / 8)));
       } else {
-        setAuditLogs(DEFAULT_DEMO_LOGS);
-        setAuditTotal(379);
-        setAuditTotalPages(48);
+        setAuditLogs([]);
+        setAuditTotal(0);
+        setAuditTotalPages(1);
       }
     } catch {
-      setAuditLogs(DEFAULT_DEMO_LOGS);
-      setAuditTotal(379);
-      setAuditTotalPages(48);
+      setAuditLogs([]);
+      setAuditTotal(0);
+      setAuditTotalPages(1);
     } finally {
       setAuditLoading(false);
+    }
+  };
+
+  const handleResetAuditLogs = async () => {
+    if (!window.confirm(language === "km" ? "តើអ្នកប្រាកដជាចង់លុបទិន្នន័យកំណត់ត្រាសកម្មភាពទាំងអស់មែនទេ?" : "Are you sure you want to clear all audit log data?")) {
+      return;
+    }
+    setIsClearing(true);
+    try {
+      await clearAuditLogs();
+      setAuditLogs([]);
+      setAuditTotal(0);
+      setAuditTotalPages(1);
+      setMessage(language === "km" ? "ទិន្នន័យកំណត់ត្រាត្រូវ បានលុបរួចរាល់!" : "Audit log data reset successfully!");
+    } catch (err: any) {
+      console.error(err);
+      setMessage(err?.message || "Failed to clear audit logs");
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -107,24 +128,36 @@ export default function AdminLogsPage() {
               <span className="text-[#55a060]">Admin Log</span>
             </div>
             <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
-              {language === "km" ? "កំណត់ត្រាសកម្មភាពបុគ្គលិក" : "Staff Login Audit Logs"}
+              {language === "km" ? "កំណត់ត្រាសកម្មភាពបុគ្គលិក & ប្រព័ន្ធ" : "Staff & System Audit Logs"}
             </h1>
             <p className="mt-0.5 text-xs text-slate-400 font-normal">
-              {language === "km" ? "ពិនិត្យប្រវត្តិផ្លូវការ ការចូលប្រើប្រាស់ និងសកម្មភាពឧបករណ៍ IP" : "Track authentication history, devices, and IP addresses."}
+              {language === "km" ? "ពិនិត្យប្រវត្តិការចូលប្រើប្រាស់ សុវត្ថិភាព និងការកែប្រែទិន្នន័យប្រព័ន្ធ" : "Track authentication history, security alerts, and admin updates."}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              loadAuditLogs(auditSearch, auditStatusFilter, auditPage);
-              setMessage("Audit logs refreshed.");
-            }}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#488c52] transition-all cursor-pointer active:scale-95"
-          >
-            <RefreshCw size={14} className={auditLoading ? "animate-spin" : ""} />
-            {language === "km" ? "ថ្មី/Refresh" : "Refresh Logs"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetAuditLogs}
+              disabled={isClearing}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Trash2 size={14} className={isClearing ? "animate-spin" : ""} />
+              {language === "km" ? "លុបទិន្នន័យ (Reset Data)" : "Reset Data"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                loadAuditLogs(auditSearch, auditStatusFilter, auditActionFilter, auditPage);
+                setMessage("Audit logs refreshed.");
+              }}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#488c52] transition-all cursor-pointer active:scale-95"
+            >
+              <RefreshCw size={14} className={auditLoading ? "animate-spin" : ""} />
+              {language === "km" ? "ថ្មី/Refresh" : "Refresh Logs"}
+            </button>
+          </div>
         </div>
 
         {/* Main Audit Log Card */}
@@ -138,20 +171,20 @@ export default function AdminLogsPage() {
               </div>
               <div>
                 <h3 className={`text-sm font-semibold ${textPrimary}`}>Audit History Log</h3>
-                <p className="text-[11px] text-slate-400 font-normal">Showing real-time authentication events</p>
+                <p className="text-[11px] text-slate-400 font-normal">Showing real-time authentication events & admin updates</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
               {/* Search Bar */}
-              <div className="relative flex-1 sm:w-64">
+              <div className="relative flex-1 sm:w-56">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={auditSearch}
                   onChange={(e) => {
                     setAuditSearch(e.target.value);
-                    loadAuditLogs(e.target.value, auditStatusFilter, 1);
+                    loadAuditLogs(e.target.value, auditStatusFilter, auditActionFilter, 1);
                   }}
                   placeholder="Search staff, IP, device..."
                   className={`h-9 w-full rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
@@ -160,12 +193,31 @@ export default function AdminLogsPage() {
                 />
               </div>
 
+              {/* Action Filter Dropdown */}
+              <select
+                value={auditActionFilter}
+                onChange={(e) => {
+                  setAuditActionFilter(e.target.value);
+                  loadAuditLogs(auditSearch, auditStatusFilter, e.target.value, 1);
+                }}
+                className={`h-9 rounded-xl border px-3 text-xs font-medium outline-none transition focus:border-[#55a060] cursor-pointer ${
+                  dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-800"
+                }`}
+              >
+                <option value="all">{language === "km" ? "គ្រប់សកម្មភាព" : "All Actions"}</option>
+                <option value="LOGIN">LOGIN</option>
+                <option value="FAILED_LOGIN">FAILED_LOGIN</option>
+                <option value="USER_CREATE">USER_CREATE</option>
+                <option value="USER_UPDATE">USER_UPDATE</option>
+                <option value="SETTING_UPDATE">SETTING_UPDATE</option>
+              </select>
+
               {/* Status Filter Dropdown */}
               <select
                 value={auditStatusFilter}
                 onChange={(e) => {
                   setAuditStatusFilter(e.target.value);
-                  loadAuditLogs(auditSearch, e.target.value, 1);
+                  loadAuditLogs(auditSearch, e.target.value, auditActionFilter, 1);
                 }}
                 className={`h-9 rounded-xl border px-3 text-xs font-medium outline-none transition focus:border-[#55a060] cursor-pointer ${
                   dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-800"
@@ -183,12 +235,13 @@ export default function AdminLogsPage() {
             <table className="w-full text-left text-xs table-fixed border-collapse">
               <thead>
                 <tr className={`border-b ${dark ? "bg-[#232333] border-[#4e4f6e]" : "bg-slate-50/80 border-slate-200/80"}`}>
-                  <th className={`w-[26%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ឈ្មោះបុគ្គលិក" : "STAFF NAME"}</th>
-                  <th className={`w-[14%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "តួនាទី" : "ROLE"}</th>
-                  <th className={`w-[18%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "សកម្មភាព" : "ACTION"}</th>
-                  <th className={`w-[16%] px-5 py-3.5 font-bold ${textSecondary}`}>IP / DEVICE</th>
-                  <th className={`w-[14%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ស្ថានភាព" : "STATUS"}</th>
-                  <th className={`w-[18%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ពេលវេលា" : "TIME"}</th>
+                  <th className={`w-[18%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ឈ្មោះបុគ្គលិក" : "STAFF NAME"}</th>
+                  <th className={`w-[11%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "តួនាទី" : "ROLE"}</th>
+                  <th className={`w-[15%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "សកម្មភាព" : "ACTION"}</th>
+                  <th className={`w-[26%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ព័ត៌មានលម្អិត" : "DETAILS"}</th>
+                  <th className={`w-[12%] px-5 py-3.5 font-bold ${textSecondary}`}>IP / DEVICE</th>
+                  <th className={`w-[10%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ស្ថានភាព" : "STATUS"}</th>
+                  <th className={`w-[14%] px-5 py-3.5 font-bold ${textSecondary}`}>{language === "km" ? "ពេលវេលា" : "TIME"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -202,7 +255,18 @@ export default function AdminLogsPage() {
                         {log.userRole}
                       </td>
                       <td className={`px-5 py-3.5 text-xs font-bold truncate ${textPrimary}`}>
-                        {log.action}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          log.action.includes("LOGIN") && log.status === "SUCCESS"
+                            ? "bg-emerald-50 text-[#55a060] dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
+                            : log.action.includes("FAILED") || log.status === "FAILED"
+                            ? "bg-rose-50 text-rose-600 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800"
+                            : "bg-cyan-50 text-[#03c3ec] dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800"
+                        }`}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className={`px-5 py-3.5 text-xs font-medium truncate ${textPrimary}`} title={log.details || "-"}>
+                        {log.details || "-"}
                       </td>
                       <td className={`px-5 py-3.5 font-mono text-xs truncate text-slate-400`}>
                         {log.ipAddress || "127.0.0.1"}
@@ -243,7 +307,7 @@ export default function AdminLogsPage() {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => { const prev = Math.max(1, auditPage - 1); setAuditPage(prev); loadAuditLogs(auditSearch, auditStatusFilter, prev); }}
+                onClick={() => { const prev = Math.max(1, auditPage - 1); setAuditPage(prev); loadAuditLogs(auditSearch, auditStatusFilter, auditActionFilter, prev); }}
                 disabled={auditPage <= 1}
                 className={`flex h-8 w-8 items-center justify-center rounded-xl border text-xs transition-all disabled:opacity-40 cursor-pointer ${
                   dark ? "border-slate-700 bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
@@ -264,7 +328,7 @@ export default function AdminLogsPage() {
                   <button
                     key={pNum}
                     type="button"
-                    onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, pNum); }}
+                    onClick={() => { setAuditPage(pNum); loadAuditLogs(auditSearch, auditStatusFilter, auditActionFilter, pNum); }}
                     className={`h-8 w-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       auditPage === pNum
                         ? "bg-[#55a060] text-white shadow-xs"
@@ -277,7 +341,7 @@ export default function AdminLogsPage() {
               })()}
               <button
                 type="button"
-                onClick={() => { const next = Math.min(auditTotalPages, auditPage + 1); setAuditPage(next); loadAuditLogs(auditSearch, auditStatusFilter, next); }}
+                onClick={() => { const next = Math.min(auditTotalPages, auditPage + 1); setAuditPage(next); loadAuditLogs(auditSearch, auditStatusFilter, auditActionFilter, next); }}
                 disabled={auditPage >= auditTotalPages}
                 className={`flex h-8 w-8 items-center justify-center rounded-xl border text-xs transition-all disabled:opacity-40 cursor-pointer ${
                   dark ? "border-slate-700 bg-[#232333] text-slate-300 hover:bg-white/10" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"

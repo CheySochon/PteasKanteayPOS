@@ -94,7 +94,7 @@ const KdsOrderCard = memo(function KdsOrderCard({
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-normal text-slate-600 dark:text-slate-300">
-              Token: <span className="text-sm font-normal text-slate-900 dark:text-white">{tokenNo}</span>
+              ID: <span className="text-sm font-normal text-slate-900 dark:text-white">{tokenNo}</span>
             </span>
             <button
               type="button"

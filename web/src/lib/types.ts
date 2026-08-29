@@ -23,6 +23,7 @@ export type AppSettings = {
   address: string;
   vatTin?: string;
   currency: string;
+  exchangeRate?: number;
   taxRate: number;
   serviceChargeRate: number;
   receiptFooter: string;
@@ -53,6 +54,8 @@ export type User = {
   role?: Role | string;
   roleName?: string;
   isActive: boolean;
+  pin?: string;
+  hasPin?: boolean;
   imageUrl?: string;
   createdAt?: string;
   updatedAt?: string;

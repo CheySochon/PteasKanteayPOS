@@ -6,6 +6,8 @@ import {
 } from "../services/setting.service.js";
 import { UpdateSettingsBody } from "../schemas/setting.schema.js";
 
+import { createAuditLog } from "../services/audit.service.js";
+
 export const list = asyncHandler(async (_req: Request, res: Response) => {
   const data = await listSettings();
   res.json({ success: true, message: "Settings fetched", data });
@@ -21,6 +23,22 @@ export const update = asyncHandler(
         io.emit("group:updated", req.body.adminGroups);
       }
     }
+
+    const currentUser = (req as any).user;
+    const detailsStr = req.body.exchangeRate
+      ? `Updated USD to KHR Exchange Rate to 1 USD = ${req.body.exchangeRate} KHR`
+      : "Updated store configuration & app settings";
+
+    await createAuditLog({
+      userId: currentUser?.id,
+      userName: currentUser?.name || "Admin",
+      userRole: currentUser?.role || "ADMIN",
+      action: "SETTING_UPDATE",
+      ipAddress: req.ip || "Localhost",
+      status: "SUCCESS",
+      details: detailsStr,
+    });
+
     res.json({ success: true, message: "Settings updated", data });
   },
 );

@@ -286,7 +286,7 @@ export default function InvoicesPage() {
                         : "bg-slate-50 border-slate-200/80 text-slate-600"
                     }`}>
                       <th className="px-4 py-3.5 whitespace-nowrap">INVOICE ID:</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">TOKENS</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">ORDER ID</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">CUSTOMER</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">SUBTOTAL</th>
                       <th className="px-4 py-3.5 whitespace-nowrap">TAX</th>
@@ -297,9 +297,9 @@ export default function InvoicesPage() {
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
-                    {filteredInvoices.map((inv: any, idx: number) => {
+                    {filteredInvoices.map((inv: any) => {
                       const isVoid = inv.status === "cancelled";
-                      const tokenNum = idx + 1;
+                      const orderDbId = `#${inv.id}`;
                       const customerName = inv.userName || inv.createdBy?.name || "WALKIN";
                       const subtotal = Number(inv.subtotal || inv.totalAmount || 0);
                       const tax = Number(inv.taxAmount || 0);
@@ -328,12 +328,12 @@ export default function InvoicesPage() {
                             </div>
                           </td>
 
-                          {/* TOKENS */}
+                          {/* ORDER ID */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <span className={`inline-flex h-6 min-w-[24px] items-center justify-center rounded-lg px-2 text-xs font-bold ${
                               dark ? "bg-[#383a54] text-white" : "bg-slate-100 text-slate-800"
                             }`}>
-                              {tokenNum}
+                              {orderDbId}
                             </span>
                           </td>
 

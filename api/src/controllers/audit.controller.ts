@@ -88,3 +88,13 @@ export const testTelegramBotHandler = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const clearAuditLogsHandler = async (_req: Request, res: Response) => {
+  try {
+    const { clearAuditLogs } = await import("../services/audit.service.js");
+    const result = await clearAuditLogs();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

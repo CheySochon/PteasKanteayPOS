@@ -23,12 +23,12 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   email: z.email().trim().toLowerCase().max(254).optional(),
-  password: z.string().min(4).max(64).optional(),
+  password: z.union([z.string().min(4).max(64), z.literal("")]).optional(),
   name: z.string().trim().min(1).max(100).optional(),
   role: z.string().optional(),
   roleName: z.string().optional(),
   isActive: z.boolean().optional(),
-  pin: z.string().regex(/^\d{4}$/, { message: "PIN must be exactly 4 digits" }).optional(),
+  pin: z.union([z.string().regex(/^\d{4}$/, { message: "PIN must be 4 digits" }), z.literal("")]).optional(),
   imageUrl: z.string().trim().optional(),
   permissions: z.array(z.any()).optional(),
 });

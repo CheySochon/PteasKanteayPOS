@@ -79,6 +79,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   restaurantImageUrl: "",
   address: "Bangkok, Thailand",
   currency: "USD",
+  exchangeRate: 4100,
   taxRate: 7,
   serviceChargeRate: 10,
   receiptFooter: "Thank you for dining with us.",
@@ -878,20 +879,43 @@ export default function SettingsPage() {
                     {/* ── LEFT: Form fields ── */}
                     <div className={`flex-1 rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
 
-                      {/* Currency */}
-                      <div className="space-y-1.5">
-                        <label className={`block text-xs font-semibold ${textSecondary}`}>
-                          {language === "km" ? "រូបិយប័ណ្ណ" : "Currency"}
-                        </label>
-                        <select
-                          value={settings.currency}
-                          onChange={(event) => update("currency", event.target.value)}
-                          className={`${inputClass} w-full`}
-                        >
-                          <option value="USD">United States dollar – ($)</option>
-                          <option value="KHR">Cambodian Riel – (៛)</option>
-                          <option value="THB">Thai Baht – (฿)</option>
-                        </select>
+                      {/* Currency & Exchange Rate */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "រូបិយប័ណ្ណគោល" : "Base Currency"}
+                          </label>
+                          <select
+                            value={settings.currency}
+                            onChange={(event) => update("currency", event.target.value)}
+                            className={`${inputClass} w-full`}
+                          >
+                            <option value="USD">United States dollar – ($)</option>
+                            <option value="KHR">Cambodian Riel – (៛)</option>
+                            <option value="THB">Thai Baht – (฿)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "អត្រាប្តូរប្រាក់ (1 USD = ? KHR)" : "Exchange Rate (1 USD = ? KHR)"}
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={1000}
+                              max={10000}
+                              step={1}
+                              value={settings.exchangeRate ?? 4100}
+                              onChange={(event) => update("exchangeRate", Number(event.target.value))}
+                              placeholder="e.g. 4100 or 4032"
+                              className={`${inputClass} w-full font-bold text-emerald-600 dark:text-emerald-400`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                              ៛ / $
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Tax Rate + Service Charge */}
@@ -1004,11 +1028,24 @@ export default function SettingsPage() {
                       <div className={`border-t pt-3 ${dark ? "border-[#4e4f6e]/40" : "border-slate-100"}`}>
                         <div className="flex items-center justify-between">
                           <span className={`text-xs font-black ${textPrimary}`}>
-                            {language === "km" ? "សរុប" : "Total"}
+                            {language === "km" ? "សរុប (USD)" : "Total (USD)"}
                           </span>
                           <span className="text-lg font-black text-[#696cff]">
                             ${(42 + 42 * (Number(settings.taxRate || 0) / 100) + 42 * (Number(settings.serviceChargeRate || 0) / 100)).toFixed(2)}
                           </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                          <span>{language === "km" ? "សរុប (KHR)" : "Total (KHR)"}</span>
+                          <span>
+                            {Math.round(
+                              (42 + 42 * (Number(settings.taxRate || 0) / 100) + 42 * (Number(settings.serviceChargeRate || 0) / 100)) *
+                                (Number(settings.exchangeRate) || 4100)
+                            ).toLocaleString()}{" "}
+                            ៛
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-[10px] text-slate-400 text-right font-mono">
+                          Rate: 1$ = {(Number(settings.exchangeRate) || 4100).toLocaleString()} ៛
                         </div>
                         {settings.receiptFooter && (
                           <div className={`mt-2 text-center text-[10px] ${textSecondary} italic`}>

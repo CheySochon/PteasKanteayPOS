@@ -95,3 +95,8 @@ export async function getAuditLogs(query?: {
 
   return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
 }
+
+export async function clearAuditLogs() {
+  await prisma.auditLog.deleteMany({});
+  return { success: true, message: "All audit logs cleared successfully" };
+}
