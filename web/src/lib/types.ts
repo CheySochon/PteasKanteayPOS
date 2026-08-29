@@ -66,6 +66,7 @@ export type Category = {
   name: string;
   slug: string;
   description?: string | null;
+  imageUrl?: string | null;
   deletedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;

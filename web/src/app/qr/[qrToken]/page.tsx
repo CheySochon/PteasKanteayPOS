@@ -531,6 +531,7 @@ export default function TableQrPage({
             price: parsePriceNumber(product.basePrice),
             quantity: 1,
             imageUrl: product.imageUrl,
+            prepTime: product.prepTime || 10,
           },
         ];
       }
@@ -1020,10 +1021,14 @@ export default function TableQrPage({
                         {product.name}
                       </h4>
 
-                      {/* Price Tag matching POS System Style - Lighter font weight */}
+                      {/* Price Tag & Cooking Duration Badge */}
                       <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-sm sm:text-base font-semibold text-[#4EA668]">
                           {formatPrice(Number(product.basePrice), locale)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
+                          <Clock size={11} className="stroke-[2.2]" />
+                          <span>{(product as any).prepTime || 10} {locale === "KH" ? "នាទី" : "mins"}</span>
                         </span>
                       </div>
                     </div>
@@ -1284,7 +1289,12 @@ export default function TableQrPage({
               <h2 className="text-2xl font-black">Table {tableName}</h2>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-bold text-white backdrop-blur-xs">
                 <Clock size={15} />
-                <span>{t("Est. ready in 10-15 mins", "រៀបចំរួចរាល់ក្នុងរយៈពេល 10-15 នាទី")}</span>
+                <span>
+                  {t(
+                    `Est. ready in ~${Math.max(10, ...cart.map((i) => i.prepTime || 10))} mins`,
+                    `រៀបចំរួចរាល់ក្នុងរយៈពេល ~${Math.max(10, ...cart.map((i) => i.prepTime || 10))} នាទី`
+                  )}
+                </span>
               </div>
             </div>
 

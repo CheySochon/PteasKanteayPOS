@@ -230,8 +230,9 @@ function KdsContent() {
   const activeOrders = useMemo(() => {
     let rows = orders.filter((order) => {
       const s = (order.status || "pending").toLowerCase();
-      // Hide orders once they are ready, served, completed, or cancelled
-      return s !== "cancelled" && s !== "served" && s !== "completed" && s !== "ready";
+      const hasItems = Array.isArray(order.items) && order.items.length > 0;
+      // Hide orders once they are ready, served, completed, or cancelled, or if they have 0 items
+      return s !== "cancelled" && s !== "served" && s !== "completed" && s !== "ready" && hasItems;
     });
 
     if (statusFilter !== "all") {

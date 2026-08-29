@@ -65,6 +65,7 @@ export const createProduct = async (data: {
   imageUrl?: string;
   basePrice: number;
   isAvailable?: boolean;
+  prepTime?: number;
   unit?: string;
   trackStock?: boolean;
 }) => {
@@ -79,6 +80,7 @@ export const createProduct = async (data: {
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable ?? true,
+      prepTime: data.prepTime ?? 10,
       unit: data.unit ?? "pc",
       trackStock: data.trackStock ?? false,
       inventory: {
@@ -102,6 +104,7 @@ export const updateProduct = async (
     imageUrl?: string | null;
     basePrice?: number;
     isAvailable?: boolean;
+    prepTime?: number;
     unit?: string;
     trackStock?: boolean;
   },
@@ -121,6 +124,7 @@ export const updateProduct = async (
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable,
+      prepTime: data.prepTime,
       unit: data.unit,
       trackStock: data.trackStock,
     },

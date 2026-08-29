@@ -14,6 +14,7 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  Package,
   Trash2,
   Utensils,
   MapPin,
@@ -91,7 +92,26 @@ let cachedProducts: Product[] | null = null;
 let cachedTables: DiningTable[] | null = null;
 let cachedSettings: any = null;
 
-export default function PosPage({ isAdminView = false }: { isAdminView?: boolean }) {
+function getPosDisplayTableName(table: DiningTable, qrOrders: any[], language: string) {
+  const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
+  const tableOrder = qrOrders.find(
+    (o) => (o.tableId === table.id || o.table?.id === table.id) && activeStatuses.includes(o.status) && o.notes
+  );
+
+  if (tableOrder?.notes) {
+    if (tableOrder.notes.includes("Merged with ")) {
+      const mergedPart = tableOrder.notes.split("Merged with ")[1]?.split(")")[0]?.trim();
+      if (mergedPart) {
+        return language === "km" ? `តុ ${table.name} & ${mergedPart}` : `${table.name} & ${mergedPart}`;
+      }
+    }
+  }
+
+  return language === "km" ? `តុ ${table.name}` : table.name;
+}
+
+export default function PosPage(props?: { isAdminView?: boolean; params?: Promise<any>; searchParams?: Promise<any> }) {
+  const isAdminView = props?.isAdminView ?? false;
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useAppTheme();
   const dark = theme === "dark";
@@ -101,6 +121,7 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
   const [tables, setTables] = useState<DiningTable[]>(cachedTables || []);
   const [categoryId, setCategoryId] = useState<number | "all">("all");
   const [tableId, setTableId] = useState<number | undefined>();
+  const [diningOption, setDiningOption] = useState<"dine-in" | "takeaway">("dine-in");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mobileTab, setMobileTab] = useState<"menu" | "cart">("menu");
   const [query, setQuery] = useState("");
@@ -1041,41 +1062,51 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
               dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
             }`}>
 
-            {/* ── Category Pills + Search row ── */}
-            <div className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 ${
-              dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"
+            {/* ── Category Pills + Search row (Glassmorphism Backdrop Blur) ── */}
+            <div className={`sticky top-0 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 backdrop-blur-md transition-all ${
+              dark
+                ? "bg-[#2b2c40]/85 border-[#3b3c54]/70 shadow-xs"
+                : "bg-white/80 border-slate-200/70 shadow-xs"
             }`}>
-              {/* Left Scrollable Pills Wrapper */}
-              <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-2 sm:pr-4">
-                <button
-                  type="button"
-                  onClick={() => setCategoryId("all")}
-                  className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-normal transition-all cursor-pointer ${
-                    categoryId === "all"
-                      ? "bg-[#55a060] text-white shadow-sm"
-                      : dark
-                      ? "border border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]"
-                      : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  }`}
+              {/* Left Scrollable Pills Wrapper with Pure CSS Linear Alpha Fade Mask (No White Box Artifact) */}
+              <div className="flex-1 min-w-0 flex items-center pr-2 sm:pr-4">
+                <div
+                  className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0"
+                  style={{
+                    maskImage: "linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 82%, rgba(0,0,0,0) 100%)",
+                    WebkitMaskImage: "linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 82%, rgba(0,0,0,0) 100%)",
+                  }}
                 >
-                  All
-                </button>
-                {categories.map((category) => (
                   <button
-                    key={category.id}
                     type="button"
-                    onClick={() => setCategoryId(category.id)}
-                    className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-normal transition-all cursor-pointer whitespace-nowrap ${
-                      categoryId === category.id
+                    onClick={() => setCategoryId("all")}
+                    className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-all cursor-pointer ${
+                      categoryId === "all"
                         ? "bg-[#55a060] text-white shadow-sm"
                         : dark
                         ? "border border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]"
                         : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    {category.name}
+                    All
                   </button>
-                ))}
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setCategoryId(category.id)}
+                      className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-all cursor-pointer whitespace-nowrap ${
+                        categoryId === category.id
+                          ? "bg-[#55a060] text-white shadow-sm"
+                          : dark
+                          ? "border border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]"
+                          : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Right Fixed Search & Layout Grid Wrapper */}
@@ -1087,10 +1118,8 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search"
-                    className={`h-10 w-full rounded-xl border pl-9 pr-3 text-[13.5px] font-medium outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all ${
-                      dark
-                        ? "border-[#3b3c54] bg-[#232333] text-slate-100 focus:bg-[#2b2c40]"
-                        : "border-slate-200/90 bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-700"
+                    className={`h-10 w-full rounded-xl border pl-9 pr-3 text-[13.5px] font-medium outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all backdrop-blur-md ${
+                      dark ? "border-slate-700/80 bg-[#232333]/80 text-slate-100" : "border-slate-200/90 bg-slate-50/80 text-slate-800"
                     }`}
                   />
                 </div>
@@ -1165,34 +1194,66 @@ export default function PosPage({ isAdminView = false }: { isAdminView?: boolean
             {/* ── Select Dining Option + Select Table ── */}
             <div className={`flex gap-2 px-4.5 py-3.5 border-b shrink-0 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"}`}>
               <div className="relative flex-1">
-                <select
-                  value={tableId ? "dine-in" : "walk-in"}
-                  onChange={(e) => { if (e.target.value === "walk-in") setTableId(undefined); }}
-                  className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
-                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
-                  } ${language === "km" ? "font-khmer" : ""}`}
-                >
-                  <option value="walk-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជម្រើសញ៉ាំ" : "Select Dining Option"}</option>
-                  <option value="dine-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ញ៉ាំនៅទីនេះ (Dine In)" : "Dine In"}</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-              </div>
-              <div className="relative flex-1">
-                <select
-                  value={tableId || ""}
-                  onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
-                  className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
-                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
-                  } ${language === "km" ? "font-khmer" : ""}`}
-                >
-                  <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជ្រើសរើសតុ" : "Select Table"}</option>
-                  {tables.map((table) => (
-                    <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
-                      {language === "km" ? `តុ ${table.name}` : table.name}
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 pointer-events-none text-slate-400 z-10">
+                    {diningOption === "takeaway" ? <Package size={14} className="text-[#55a060]" /> : <Utensils size={14} className="text-[#55a060]" />}
+                  </span>
+                  <select
+                    value={diningOption}
+                    onChange={(e) => {
+                      const val = e.target.value as "dine-in" | "takeaway";
+                      setDiningOption(val);
+                      if (val === "takeaway") {
+                        setTableId(undefined);
+                      }
+                    }}
+                    className={`h-10 w-full rounded-xl border pl-9 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
+                      dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
+                    } ${language === "km" ? "font-khmer" : ""}`}
+                  >
+                    <option value="dine-in" className={dark ? "bg-[#232333] text-slate-200" : ""}>
+                      {language === "km" ? "ញ៉ាំនៅទីនេះ (Dine In)" : "Dine In"}
                     </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <option value="takeaway" className={dark ? "bg-[#232333] text-slate-200" : ""}>
+                      {language === "km" ? "ខ្ចប់ទៅផ្ទះ (Takeaway)" : "Takeaway"}
+                    </option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                </div>
+              </div>
+
+              <div className="relative flex-1">
+                {diningOption === "takeaway" ? (
+                  <div className={`h-10 w-full rounded-xl border px-3 sm:px-3.5 flex items-center gap-2 text-xs font-bold transition-all ${
+                    dark ? "border-emerald-900/60 bg-emerald-950/40 text-emerald-300" : "border-emerald-200/90 bg-emerald-50/90 text-emerald-800"
+                  }`}>
+                    <Package size={15} className="text-[#55a060] shrink-0" />
+                    <span className="truncate text-xs font-bold min-w-0">
+                      {language === "km" ? "ខ្ចប់ទៅផ្ទះ" : "Takeaway"}
+                    </span>
+                    <span className="ml-auto rounded-md bg-[#55a060]/15 dark:bg-[#55a060]/25 px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-[#55a060] dark:text-emerald-400 shrink-0">
+                      {language === "km" ? "គ្មានតុ" : "No Table"}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={tableId || ""}
+                      onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
+                      className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
+                        dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
+                      } ${language === "km" ? "font-khmer" : ""}`}
+                    >
+                      <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជ្រើសរើសតុ" : "Select Table"}</option>
+                      {tables.map((table) => (
+                        <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
+                          {getPosDisplayTableName(table, qrOrders, language)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  </>
+                )}
               </div>
             </div>
 
@@ -2787,13 +2848,22 @@ const ProductListItem = memo(
     const [imgFailed, setImgFailed] = useState(false);
 
     return (
-      <div className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-colors duration-150 ease-out h-[105px] ${
-        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
-      }`}>
-        {/* Product Image Cover (Left Side) */}
-        <div className={`w-[110px] sm:w-[120px] relative overflow-hidden shrink-0 border-r flex items-center justify-center ${
-          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
-        }`}>
+      <button
+        type="button"
+        onClick={() => !unavailable && onAdd(product)}
+        disabled={unavailable}
+        className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-all duration-150 ease-out h-[105px] w-full cursor-pointer active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60 ${
+          dark
+            ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#55a060]/60 hover:bg-[#282a3d]"
+            : "bg-white border-slate-200/90 text-slate-800 hover:border-[#55a060]/50 hover:bg-slate-50/80"
+        }`}
+      >
+        {/* Product Image Cover (Clickable Left Side) */}
+        <div
+          className={`w-[110px] sm:w-[120px] relative overflow-hidden shrink-0 border-r flex items-center justify-center cursor-pointer ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
+          }`}
+        >
           {product.category && (
             <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9px] font-bold px-2 py-0.5 rounded-br-md z-10">
               {product.category.name}
@@ -2805,7 +2875,7 @@ const ProductListItem = memo(
               src={imageUrl}
               alt={product.name}
               onError={() => setImgFailed(true)}
-              className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
+              className="h-full w-full object-cover transition-all duration-200 group-hover:scale-105 group-hover:opacity-95"
             />
           ) : (
             <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
@@ -2858,17 +2928,16 @@ const ProductListItem = memo(
 
           {/* Bottom Action Row: ADD Button */}
           <div className="flex items-center justify-end mt-1">
-            <button
-              type="button"
-              onClick={() => onAdd(product)}
-              disabled={unavailable}
-              className="rounded-lg bg-[#55a060] px-4 py-1 text-[11px] font-bold text-white shadow-2xs hover:bg-[#439150] active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            <span
+              className={`rounded-lg bg-[#55a060] px-4 py-1 text-[11px] font-bold text-white shadow-2xs group-hover:bg-[#439150] transition-all cursor-pointer ${
+                unavailable ? "opacity-40" : ""
+              }`}
             >
               ADD
-            </button>
+            </span>
           </div>
         </div>
-      </div>
+      </button>
     );
   },
   (prev, next) =>

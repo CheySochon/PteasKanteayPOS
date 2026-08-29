@@ -9,6 +9,7 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  Clock,
   Coffee,
   Eye,
   FolderOpen,
@@ -55,6 +56,7 @@ type ProductForm = {
   basePrice: string;
   description: string;
   imageUrl: string;
+  prepTime: string;
   isAvailable: boolean;
 };
 
@@ -62,6 +64,7 @@ type CategoryForm = {
   id?: number;
   name: string;
   description: string;
+  imageUrl?: string;
 };
 
 type MenuNotification = {
@@ -76,12 +79,14 @@ const EMPTY_PRODUCT: ProductForm = {
   basePrice: "",
   description: "",
   imageUrl: "",
+  prepTime: "10",
   isAvailable: true,
 };
 
 const EMPTY_CATEGORY: CategoryForm = {
   name: "",
   description: "",
+  imageUrl: "",
 };
 
 const TEXT = {
@@ -133,6 +138,7 @@ const TEXT = {
     category: "Category",
     selectCategory: "Select category",
     basePrice: "Base Price",
+    cookingDuration: "Cooking Duration (mins)",
     availableToggle: "Available",
     availableNote: "Show item on the menu.",
     clearForm: "Clear form",
@@ -187,6 +193,7 @@ const TEXT = {
     category: "ប្រភេទ",
     selectCategory: "ជ្រើសរើសប្រភេទ",
     basePrice: "តម្លៃមូលដ្ឋាន",
+    cookingDuration: "រយៈពេលធ្វើ (នាទី)",
     availableToggle: "អាចលក់បាន",
     availableNote: "បង្ហាញមុខម្ហូបក្នុងម៉ឺនុយ។",
     clearForm: "សម្អាតទម្រង់",
@@ -313,6 +320,8 @@ export default function MenuPage() {
   const [query, setQuery] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
   const [categoryForm, setCategoryForm] = useState<CategoryForm>(EMPTY_CATEGORY);
+  const [categoryImageFile, setCategoryImageFile] = useState<File | null>(null);
+  const [categoryImagePreview, setCategoryImagePreview] = useState("");
   const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -477,16 +486,37 @@ export default function MenuPage() {
     return categoryCountsMap[categoryId] || 0;
   }
 
+  function handleCategoryImageFile(file: File | null) {
+    setCategoryImageFile(file);
+    if (!file) {
+      setCategoryImagePreview(categoryForm.imageUrl ? resolveImageUrl(categoryForm.imageUrl) : "");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCategoryImagePreview(String(reader.result || ""));
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function submitCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     setError("");
 
     try {
+      let imageUrl = categoryForm.imageUrl || "";
+
+      if (categoryImageFile) {
+        const uploaded = await uploadProductImage(categoryImageFile);
+        imageUrl = uploaded.imageUrl;
+      }
+
       if (categoryForm.id) {
         const updated = await updateCategory(categoryForm.id, {
           name: categoryForm.name,
           description: categoryForm.description,
+          imageUrl,
         });
 
         setCategories((current) =>
@@ -508,6 +538,7 @@ export default function MenuPage() {
         const created = await createCategory({
           name: categoryForm.name,
           description: categoryForm.description,
+          imageUrl,
         });
 
         setCategories((current) =>
@@ -533,7 +564,10 @@ export default function MenuPage() {
       id: category.id,
       name: category.name,
       description: category.description || "",
+      imageUrl: category.imageUrl || "",
     });
+    setCategoryImageFile(null);
+    setCategoryImagePreview(category.imageUrl ? resolveImageUrl(category.imageUrl) : "");
     setMessage("");
     setError("");
     setCategoryEditorOpen(true);
@@ -541,6 +575,8 @@ export default function MenuPage() {
 
   function resetCategoryForm() {
     setCategoryForm(EMPTY_CATEGORY);
+    setCategoryImageFile(null);
+    setCategoryImagePreview("");
   }
 
   function createNewCategory() {
@@ -606,6 +642,7 @@ export default function MenuPage() {
         basePrice: Number(productForm.basePrice || 0),
         description: productForm.description,
         imageUrl,
+        prepTime: Number(productForm.prepTime || 10),
         isAvailable: productForm.isAvailable,
       };
 
@@ -721,6 +758,7 @@ export default function MenuPage() {
       basePrice: String(product.basePrice),
       description: product.description || "",
       imageUrl: product.imageUrl || "",
+      prepTime: String(product.prepTime || 10),
       isAvailable: product.isAvailable,
     });
 
@@ -904,7 +942,22 @@ export default function MenuPage() {
                           >
                             <td className="px-5 py-3">
                               <div className="flex items-center gap-3">
-                                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded border transition-transform duration-300 hover:scale-105 ${style.bg} ${style.text} ${style.border}`}>
+                                {category.imageUrl ? (
+                                  <img
+                                    src={resolveImageUrl(category.imageUrl)}
+                                    alt={category.name}
+                                    className="h-9 w-9 rounded-xl object-cover ring-1 ring-slate-200/80 dark:ring-slate-700/80 shrink-0 shadow-2xs transition-transform duration-300 hover:scale-105"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLElement).style.display = "none";
+                                      const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                      if (fallback) fallback.style.display = "flex";
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  style={{ display: category.imageUrl ? "none" : "flex" }}
+                                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-transform duration-300 hover:scale-105 ${style.bg} ${style.text} ${style.border}`}
+                                >
                                   <CategoryIcon size={16} />
                                 </div>
                                 <span className={`text-sm font-semibold ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
@@ -1218,6 +1271,8 @@ export default function MenuPage() {
                 <CategoryEditor
                   categoryForm={categoryForm}
                   setCategoryForm={setCategoryForm}
+                  categoryImagePreview={categoryImagePreview}
+                  handleCategoryImageFile={handleCategoryImageFile}
                   submitCategory={submitCategory}
                   resetCategoryForm={resetCategoryForm}
                   onOpenChange={setCategoryEditorOpen}
@@ -1382,8 +1437,10 @@ function MenuCard({
 function CategoryEditor({
   categoryForm,
   setCategoryForm,
-  submitCategory,
+  categoryImagePreview,
+  handleCategoryImageFile,
   resetCategoryForm,
+  submitCategory,
   onOpenChange,
   onDelete,
   inputClass,
@@ -1396,6 +1453,8 @@ function CategoryEditor({
 }: {
   categoryForm: CategoryForm;
   setCategoryForm: React.Dispatch<React.SetStateAction<CategoryForm>>;
+  categoryImagePreview?: string;
+  handleCategoryImageFile?: (file: File | null) => void;
   resetCategoryForm: () => void;
   submitCategory: (event: FormEvent<HTMLFormElement>) => void;
   onOpenChange: (open: boolean) => void;
@@ -1441,6 +1500,33 @@ function CategoryEditor({
       </div>
 
       <form onSubmit={submitCategory} className="space-y-4 p-6">
+        {/* Category Image Picker (Hybrid Upload or Lucide Icon Fallback) */}
+        {handleCategoryImageFile && (
+          <label
+            className={`mx-auto flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
+          >
+            {categoryImagePreview ? (
+              <img
+                src={categoryImagePreview}
+                alt="Category preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
+                <ImagePlus size={24} />
+                <span className="text-[10.5px] font-bold">Category Image</span>
+              </div>
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => handleCategoryImageFile(event.target.files?.[0] || null)}
+            />
+          </label>
+        )}
+
         <Field label={text.categoryName}>
           <input
             required
@@ -1612,29 +1698,56 @@ function ProductEditor({
             </select>
           </Field>
 
-          <Field label={text.basePrice}>
-            <div className="relative">
-              <BadgeDollarSign
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={16}
-              />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={text.basePrice}>
+              <div className="relative">
+                <BadgeDollarSign
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={16}
+                />
 
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                value={productForm.basePrice}
-                onChange={(event) =>
-                  setProductForm((current) => ({
-                    ...current,
-                    basePrice: event.target.value,
-                  }))
-                }
-                className={`${inputClass} pl-10`}
-              />
-            </div>
-          </Field>
+                <input
+                  required
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={productForm.basePrice}
+                  onChange={(event) =>
+                    setProductForm((current) => ({
+                      ...current,
+                      basePrice: event.target.value,
+                    }))
+                  }
+                  className={`${inputClass} pl-10`}
+                />
+              </div>
+            </Field>
+
+            <Field label={text.cookingDuration}>
+              <div className="relative">
+                <Clock
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#55a060]"
+                  size={16}
+                />
+
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="10"
+                  value={productForm.prepTime}
+                  onChange={(event) =>
+                    setProductForm((current) => ({
+                      ...current,
+                      prepTime: event.target.value,
+                    }))
+                  }
+                  className={`${inputClass} pl-10`}
+                />
+              </div>
+            </Field>
+          </div>
 
           <Field label={text.description}>
             <textarea

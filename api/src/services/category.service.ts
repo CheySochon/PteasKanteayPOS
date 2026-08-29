@@ -45,6 +45,7 @@ export const createCategory = async (data: {
   name: string;
   slug?: string;
   description?: string;
+  imageUrl?: string | null;
 }) => {
   const cleanName = data.name.trim();
   const baseSlug = data.slug || cleanName;
@@ -67,6 +68,7 @@ export const createCategory = async (data: {
         data: {
           name: cleanName,
           description: data.description,
+          imageUrl: data.imageUrl,
           deletedAt: null,
         },
       });
@@ -84,6 +86,7 @@ export const createCategory = async (data: {
       name: cleanName,
       slug,
       description: data.description,
+      imageUrl: data.imageUrl,
     },
   });
 };
@@ -94,6 +97,7 @@ export const updateCategory = async (
     name?: string;
     slug?: string;
     description?: string;
+    imageUrl?: string | null;
   },
 ) => {
   const cleanName = data.name?.trim();
@@ -108,6 +112,7 @@ export const updateCategory = async (
       ...(cleanName ? { name: cleanName } : {}),
       ...(slug ? { slug } : {}),
       description: data.description,
+      ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl } : {}),
     },
   });
 };

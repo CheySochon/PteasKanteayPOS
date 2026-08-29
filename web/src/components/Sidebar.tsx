@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -352,33 +352,35 @@ export default function Sidebar({
   const inventoryExpanded = !sidebarCollapsed && contentMounted && inventoryOpen;
   const authExpanded = !sidebarCollapsed && contentMounted && authOpen;
   const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
-  const activeMenuChild = menuView === "categories" ? "categories" : "list";
+  const tabParam = searchParams.get("tab");
+  const typeParam = searchParams.get("type");
+  const viewParam = searchParams.get("view");
 
-  const activeInventoryChild = (function () {
-    if (typeof window === "undefined") return inventoryView;
-    const pathname = window.location.pathname;
-    const search = new URLSearchParams(window.location.search);
+  const activeMenuChild = useMemo(() => {
+    if (pathname.startsWith("/admin/menu")) {
+      if (viewParam === "categories") return "categories";
+      return "list";
+    }
+    return menuView === "categories" ? "categories" : "list";
+  }, [pathname, viewParam, menuView]);
+
+  const activeInventoryChild = useMemo(() => {
     if (pathname.startsWith("/admin/inventory")) {
-      const tab = search.get("tab");
-      const type = search.get("type");
-      if (tab === "suppliers") return "supplier";
-      if (tab === "movements" && type === "damage") return "spoilage";
-      if (tab === "movements") return "history";
+      if (tabParam === "suppliers") return "supplier";
+      if (tabParam === "movements" && typeParam === "damage") return "spoilage";
+      if (tabParam === "movements") return "history";
       return "inventory";
     }
     return inventoryView || "inventory";
-  })();
+  }, [pathname, tabParam, typeParam, inventoryView]);
 
-  const activeAuthChild = (function () {
-    if (typeof window === "undefined") return authView;
-    const pathname = window.location.pathname;
-    const tab = new URLSearchParams(window.location.search).get("tab");
-    if (pathname.startsWith("/admin/logs") || (pathname.startsWith("/admin/settings") && tab === "security")) return "logs";
+  const activeAuthChild = useMemo(() => {
+    if (pathname.startsWith("/admin/logs") || (pathname.startsWith("/admin/settings") && tabParam === "security")) return "logs";
     if (pathname.startsWith("/admin/groups")) return "group";
     if (pathname.startsWith("/admin/roles")) return "rule";
     if (pathname.startsWith("/admin/users")) return "admin";
     return authView || "admin";
-  })();
+  }, [pathname, tabParam, authView]);
 
   const widthClass = sidebarCollapsed ? "w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px]";
   const contentMotionClass = "";
@@ -593,7 +595,7 @@ export default function Sidebar({
 
           {!sidebarCollapsed && (
             <div className="min-w-0 flex-1 overflow-hidden transition-opacity duration-150">
-              <div className={`font-khmer whitespace-nowrap leading-5 tracking-normal ${brandNameClass} ${language === "km" ? "text-[14px] font-bold" : "text-[13px] font-black"}`}>
+              <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[17px] font-medium" : "text-[16px] font-medium"}`}>
                 {restaurantName}
               </div>
             </div>

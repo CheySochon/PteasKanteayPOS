@@ -8,12 +8,14 @@ export const createCategorySchema = z.object({
     .max(100),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(500).optional(),
+  imageUrl: z.string().trim().optional().nullable(),
 });
 
 export const updateCategorySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(500).optional(),
+  imageUrl: z.string().trim().optional().nullable(),
 });
 
 export type CreateCategoryBody = z.infer<typeof createCategorySchema>;

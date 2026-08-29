@@ -42,6 +42,8 @@ import {
   Truck,
   FileText,
   CheckCircle,
+  ShoppingBag,
+  RotateCw,
 } from "lucide-react";
 
 type InventoryItem = {
@@ -281,34 +283,37 @@ export default function InventoryPage() {
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
 
   useEffect(() => {
-    if (tabParam === "suppliers") {
-      setActiveTab("suppliers");
-    } else if (tabParam === "movements") {
-      setActiveTab("movements");
-    } else if (tabParam === "po") {
-      setActiveTab("po");
-    } else if (tabParam === "dashboard") {
-      setActiveTab("dashboard");
+    function syncTabFromQuery() {
+      const currentTab = new URLSearchParams(window.location.search).get("tab") || tabParam;
+      if (currentTab === "suppliers") {
+        setActiveTab("suppliers");
+      } else if (currentTab === "movements") {
+        setActiveTab("movements");
+      } else if (currentTab === "po") {
+        setActiveTab("po");
+      } else if (currentTab === "dashboard") {
+        setActiveTab("dashboard");
+      }
     }
 
-    if (typeParam) {
-      setMovementTypeFilter(typeParam);
-    } else {
-      setMovementTypeFilter("all");
-    }
-  }, [tabParam, typeParam]);
+    syncTabFromQuery();
 
-  useEffect(() => {
-    const handleViewChange = (e: any) => {
-      const key = e.detail;
-      if (key === "supplier" || key === "suppliers") setActiveTab("suppliers");
-      else if (key === "history" || key === "movements") setActiveTab("movements");
-      else if (key === "inventory" || key === "dashboard") setActiveTab("dashboard");
-    };
+    function handleViewChange(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail === "supplier" || detail === "suppliers") setActiveTab("suppliers");
+      else if (detail === "history" || detail === "movements") setActiveTab("movements");
+      else if (detail === "po") setActiveTab("po");
+      else if (detail === "inventory" || detail === "dashboard") setActiveTab("dashboard");
+    }
 
     window.addEventListener("pos-inventory-view-change", handleViewChange);
-    return () => window.removeEventListener("pos-inventory-view-change", handleViewChange);
-  }, []);
+    window.addEventListener("popstate", syncTabFromQuery);
+
+    return () => {
+      window.removeEventListener("pos-inventory-view-change", handleViewChange);
+      window.removeEventListener("popstate", syncTabFromQuery);
+    };
+  }, [tabParam, typeParam]);
 
   // Modals State
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
@@ -979,7 +984,7 @@ export default function InventoryPage() {
                 className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer"
               >
                 <Plus size={14} />
-                <span>+ បន្ថែមអ្នកផ្គត់ផ្គង់</span>
+                <span>{language === "km" ? "បន្ថែមអ្នកផ្គត់ផ្គង់" : "Add Supplier"}</span>
               </button>
             )}
 
@@ -994,7 +999,7 @@ export default function InventoryPage() {
                 className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer"
               >
                 <Plus size={14} />
-                <span>+ បង្កើតប័ណ្ណបញ្ជាទិញ (PO)</span>
+                <span>{language === "km" ? "បង្កើតប័ណ្ណបញ្ជាទិញ (PO)" : "Create Purchase Order"}</span>
               </button>
             )}
           </div>
@@ -1292,24 +1297,24 @@ export default function InventoryPage() {
                               </td>
                               <td className="px-6 py-3">
                                 {moveType === "restock" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                                    <Plus size={10} /> RESTOCK
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <Plus size={11} className="stroke-[2.5]" /> RESTOCK
                                   </span>
                                 ) : moveType === "sale" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                                    🛒 POS SALE
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <ShoppingBag size={11} className="stroke-[2.2]" /> POS SALE
                                   </span>
                                 ) : moveType === "damage" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                                    ⚠️ SPOILAGE
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <AlertTriangle size={11} className="stroke-[2.2]" /> SPOILAGE
                                   </span>
                                 ) : moveType === "expired" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                                    🟠 EXPIRED
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <Clock size={11} className="stroke-[2.2]" /> EXPIRED
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
-                                    ⚙️ ADJUSTMENT
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <RotateCw size={11} className="stroke-[2.2]" /> ADJUSTMENT
                                   </span>
                                 )}
                               </td>

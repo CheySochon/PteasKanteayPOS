@@ -650,10 +650,14 @@ export default function TablesPage() {
                       ? dark ? "bg-[#8592a3]/10" : "bg-[#eceef1]/10"
                       : surface;
 
+                  const isMergedTable =
+                    state === "merged" ||
+                    Boolean(order?.notes && (order.notes.includes("Merged with") || order.notes.includes("Merged into")));
+
                   return (
                     <div
                       key={table.id}
-                      className={`w-full h-[225px] rounded-2xl border p-4 shadow-xs hover:shadow transition-all duration-150 flex flex-col justify-between flex-shrink-0 ${
+                      className={`w-full min-h-[220px] rounded-2xl border p-4 shadow-xs hover:shadow-md transition-all duration-150 flex flex-col justify-between flex-shrink-0 ${
                         dark ? "border-[#4e4f6e]" : styles.border
                       } ${cardBackground}`}
                     >
@@ -689,13 +693,13 @@ export default function TablesPage() {
                         </div>
                       </div>
 
-                      {/* Middle Content Box (Fixed Height h-[58px]) */}
-                      <div className="my-auto h-[58px] flex flex-col justify-center">
+                      {/* Middle Content Box */}
+                      <div className="my-2 min-h-[54px] flex flex-col justify-center">
                         {order ? (
-                          <div className="w-full rounded bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60">
+                          <div className="w-full rounded-xl bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60 dark:border-slate-800">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-[#55a060]">{formatShortOrderNo(order)}</span>
-                              <span className="rounded bg-[#eceef1] px-1.5 py-0.5 text-[8px] font-bold uppercase">{order.status}</span>
+                              <span className="rounded bg-[#eceef1] dark:bg-slate-800 px-1.5 py-0.5 text-[8px] font-bold uppercase">{order.status}</span>
                             </div>
                             <div className="mt-1 flex items-center gap-1.5 text-[#a1acb8]">
                               <Clock3 size={11} />
@@ -718,7 +722,7 @@ export default function TablesPage() {
                             type="button"
                             disabled={clearingId === order.id}
                             onClick={() => clearTable(order)}
-                            className="mb-2 w-full rounded bg-[#ffab00] hover:bg-[#e09600] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                            className="mb-2 w-full rounded-xl bg-[#ffab00] hover:bg-[#e09600] px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer"
                           >
                             {clearingId === order.id ? (
                               <>
@@ -730,23 +734,34 @@ export default function TablesPage() {
                             )}
                           </button>
                         )}
-                        {(state === "merged" || (order?.notes && (order.notes.includes("Merged with") || order.notes.includes("Merged into")))) && (
-                          <button
-                            type="button"
-                            onClick={() => handleUnmergeTable(table)}
-                            className="mb-2 w-full rounded border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-3 py-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95"
-                          >
-                            <GitPullRequest size={12} />
-                            {language === "km" ? "បំបែកតុ (Unmerge)" : "Unmerge Table"}
-                          </button>
-                        )}
 
-                        {order && (state === "occupied" || state === "dirty") && !order.notes?.includes("Merged into") && (
+                        {/* Action Toolbar for Merged / Occupied Tables */}
+                        {isMergedTable ? (
+                          <div className="mb-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleUnmergeTable(table)}
+                              className="flex-1 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-2 py-1.5 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                            >
+                              <GitPullRequest size={12} />
+                              {language === "km" ? "បំបែកតុ" : "Unmerge"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openMoveModal(table)}
+                              className="flex-1 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Move Table"
+                            >
+                              <ArrowRightLeft size={11} />
+                              {language === "km" ? "ប្តូរតុ" : "Move"}
+                            </button>
+                          </div>
+                        ) : order && (state === "occupied" || state === "dirty") ? (
                           <div className="mb-2 flex gap-1.5">
                             <button
                               type="button"
                               onClick={() => openMoveModal(table)}
-                              className="flex-1 rounded border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              className="flex-1 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                               title="Move Table"
                             >
                               <ArrowRightLeft size={11} />
@@ -755,14 +770,14 @@ export default function TablesPage() {
                             <button
                               type="button"
                               onClick={() => openMergeModal(table)}
-                              className="flex-1 rounded border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-2 py-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              className="flex-1 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-2 py-1.5 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                               title="Merge Table"
                             >
                               <GitMerge size={11} />
                               {language === "km" ? "រួមតុ" : "Merge"}
                             </button>
                           </div>
-                        )}
+                        ) : null}
 
                         <div className="flex gap-2">
                           {table.qrToken && (

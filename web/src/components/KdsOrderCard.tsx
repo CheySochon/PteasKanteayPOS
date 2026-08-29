@@ -38,7 +38,16 @@ const KdsOrderCard = memo(function KdsOrderCard({
   const tokenNo = formatTokenNo(order);
   const rawTable = order.tableNo || order.table?.name;
   const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || !rawTable;
-  const orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
+  
+  let orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
+  if (!isTakeaway && rawTable && order.notes) {
+    if (order.notes.includes("Merged with ")) {
+      const mergedPart = order.notes.split("Merged with ")[1]?.split(")")[0]?.trim();
+      if (mergedPart) {
+        orderTypeLabel = `${rawTable} & ${mergedPart}`;
+      }
+    }
+  }
 
   function handleItemAction(itemId: number, currentItemStatus: string, itemName: string) {
     const nextStatus: "pending" | "preparing" | "completed" =

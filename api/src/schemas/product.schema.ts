@@ -12,6 +12,7 @@ export const createProductSchema = z.object({
   imageUrl: z.string().trim().optional(),
   basePrice: z.number().nonnegative(),
   isAvailable: z.boolean().default(true).optional(),
+  prepTime: z.number().int().nonnegative().optional(),
   unit: z.string().trim().max(50).default("pc").optional(),
   trackStock: z.boolean().default(false).optional(),
 });
@@ -24,6 +25,7 @@ export const updateProductSchema = z.object({
   imageUrl: z.string().trim().optional().nullable(),
   basePrice: z.number().nonnegative().optional(),
   isAvailable: z.boolean().optional(),
+  prepTime: z.number().int().nonnegative().optional(),
   unit: z.string().trim().max(50).optional(),
   trackStock: z.boolean().optional(),
 });
