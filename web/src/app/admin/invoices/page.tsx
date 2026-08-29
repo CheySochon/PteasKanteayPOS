@@ -185,9 +185,8 @@ export default function InvoicesPage() {
   }
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-        <div className="mx-auto w-full max-w-[1720px] ">
+      <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
           
           {/* Header Title + Controls Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
@@ -200,31 +199,37 @@ export default function InvoicesPage() {
               </p>
             </div>
 
-            {/* Right Search Input + Green Search Button + Filter Icon */}
+            {/* Right Search Input (Live Instant Search with Search Icon) + Filter Icon */}
             <div className="flex items-center gap-2">
               <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setActiveSearch(searchQuery);
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setActiveSearch(e.target.value);
                   }}
-                  placeholder={language === "km" ? "ស្វែងរកវិក្កយបត្រ..." : "Search Invoices"}
-                  className={`h-9 w-48 sm:w-60 rounded-xl border px-3.5 text-xs font-medium outline-none transition-all ${
+                  placeholder={language === "km" ? "ស្វែងរកវិក្កយបត្រ..." : "Search Invoices..."}
+                  className={`h-9 w-52 sm:w-64 rounded-xl border pl-9 pr-8 text-xs font-medium outline-none transition-all ${
                     dark
                       ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 placeholder:text-slate-400 focus:border-[#55a060]"
                       : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 focus:border-[#55a060] shadow-xs"
                   }`}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setActiveSearch("");
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setActiveSearch(searchQuery)}
-                className="h-9 px-4 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white text-xs font-semibold shadow-xs active:scale-95 transition-all cursor-pointer"
-              >
-                {language === "km" ? "ស្វែងរក" : "Search"}
-              </button>
               <button
                 type="button"
                 onClick={() => setShowFilterModal(!showFilterModal)}
@@ -417,7 +422,6 @@ export default function InvoicesPage() {
             )}
           </div>
         </div>
-      </div>
 
       {/* DYNAMIC FILTER BACKDROP MODAL OVERLAY (100% identical to Report page filter) */}
       {showFilterModal && (

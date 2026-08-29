@@ -52,15 +52,29 @@ export default function AdminKitchenPage() {
     }
 
     if (socket) {
+      if (!socket.connected) {
+        socket.connect();
+      }
       socket.on("order:created", handleOrderEvent);
       socket.on("order:updated", handleOrderEvent);
+      socket.on("table:merged", handleOrderEvent);
+      socket.on("table:moved", handleOrderEvent);
     }
+
+    window.addEventListener("pos-order-change", handleOrderEvent);
+    window.addEventListener("pos-table-change", handleOrderEvent);
+    window.addEventListener("storage", handleOrderEvent);
 
     return () => {
       if (socket) {
         socket.off("order:created", handleOrderEvent);
         socket.off("order:updated", handleOrderEvent);
+        socket.off("table:merged", handleOrderEvent);
+        socket.off("table:moved", handleOrderEvent);
       }
+      window.removeEventListener("pos-order-change", handleOrderEvent);
+      window.removeEventListener("pos-table-change", handleOrderEvent);
+      window.removeEventListener("storage", handleOrderEvent);
     };
   }, []);
 
@@ -68,7 +82,6 @@ export default function AdminKitchenPage() {
     try {
       const updated = await updateOrderStatus(orderId, status);
       setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      setMessage(language === "km" ? "ប្តូរបរិមាណ/ស្ថានភាពជោគជ័យ" : "Order status updated!");
     } catch (err: any) {
       setError(err?.message || "Failed to update status");
     }
@@ -85,9 +98,9 @@ export default function AdminKitchenPage() {
   }, [orders]);
 
   return (
-    <div className={`flex-1 overflow-y-auto flex flex-col ${dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-800"}`}>
+    <div className={`flex-1 overflow-y-auto flex flex-col ${dark ? "bg-[#232333] text-slate-100" : "bg-[#f8faf9] text-slate-800"}`}>
 
-      <main className="px-3.5 sm:px-4 pt-2.5 pb-5 space-y-4 flex-1 max-w-[1720px] w-full mx-auto ">
+      <main className="px-4 py-4 lg:px-6 space-y-4 flex-1 max-w-[1400px] w-full mx-auto">
         {/* Header Action Row matching screenshot */}
         <div className="flex items-center justify-between gap-4 pb-2">
           <div className="flex items-center gap-3.5">

@@ -586,8 +586,8 @@ export default function OrdersPage() {
   const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
 
   return (
-    <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 ">
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
           {/* Orders Page Header Title Block */}
           <div className="mb-5 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">

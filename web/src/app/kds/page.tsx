@@ -204,9 +204,19 @@ function KdsContent() {
         });
       };
 
+      const handleTableChange = () => {
+        syncOrders();
+      };
+
       socket.on("order:created", handleNewOrder);
       socket.on("order:new", handleNewOrder);
       socket.on("order:updated", handleUpdateOrder);
+      socket.on("table:merged", handleTableChange);
+      socket.on("table:moved", handleTableChange);
+
+      window.addEventListener("pos-order-change", handleTableChange);
+      window.addEventListener("pos-table-change", handleTableChange);
+      window.addEventListener("storage", handleTableChange);
 
       return () => {
         mounted = false;
@@ -214,12 +224,24 @@ function KdsContent() {
         socket.off("order:created", handleNewOrder);
         socket.off("order:new", handleNewOrder);
         socket.off("order:updated", handleUpdateOrder);
+        socket.off("table:merged", handleTableChange);
+        socket.off("table:moved", handleTableChange);
+        window.removeEventListener("pos-order-change", handleTableChange);
+        window.removeEventListener("pos-table-change", handleTableChange);
+        window.removeEventListener("storage", handleTableChange);
       };
     }
+
+    window.addEventListener("pos-order-change", syncOrders);
+    window.addEventListener("pos-table-change", syncOrders);
+    window.addEventListener("storage", syncOrders);
 
     return () => {
       mounted = false;
       clearInterval(pollInterval);
+      window.removeEventListener("pos-order-change", syncOrders);
+      window.removeEventListener("pos-table-change", syncOrders);
+      window.removeEventListener("storage", syncOrders);
     };
   }, []);
 

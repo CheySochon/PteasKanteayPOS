@@ -840,7 +840,7 @@ export default function InventoryPage() {
 
   // Theme Helpers
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const bgMain = dark ? "bg-[#232333]" : "bg-white";
+  const bgMain = dark ? "bg-[#232333]" : "bg-[#f8faf9]";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-100";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
@@ -854,7 +854,7 @@ export default function InventoryPage() {
     <main className={`flex-1 overflow-y-auto ${bgMain} ${language === "km" ? "font-khmer" : ""}`}>
 
 
-      <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-3 pb-6 ">
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         {/* Error Alert matching screenshot top placement */}
         {error && (
           <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/50 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-300 animate-[fadeIn_200ms_ease-out]">
@@ -1900,95 +1900,118 @@ export default function InventoryPage() {
 
       {/* Add Supplier Modal */}
       {isSupplierModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
-          <div className={`w-full max-w-md rounded-2xl border ${borderCol} ${surface} shadow-xl p-6 relative`}>
-            <button
-              onClick={() => setIsSupplierModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <X size={15} className="stroke-[2.5]" />
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-[2px] animate-[fadeIn_150ms_ease-out]">
+          <div className={`w-full max-w-[460px] rounded-2xl border p-6 shadow-2xl ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100/90 text-slate-800"} relative`}>
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
+                  <Truck size={18} />
+                </div>
+                <h2 className={`text-lg font-bold ${textPrimary} ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "បន្ថែមអ្នកផ្គត់ផ្គង់ថ្មី" : "Add Supplier"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSupplierModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
 
-            <h2 className={`text-base font-bold ${textPrimary} mb-4 flex items-center gap-2`}>
-              <Truck size={18} className="text-[#55a060]" />
-              <span>បន្ថែមអ្នកផ្គត់ផ្គង់ថ្មី (Add Supplier)</span>
-            </h2>
-
-            <form onSubmit={handleSupplierSubmit} className="space-y-3.5">
+            <form onSubmit={handleSupplierSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  ឈ្មោះអ្នកផ្គត់ផ្គង់ (Supplier Name) *
+                <label className={`block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះអ្នកផ្គត់ផ្គង់ *" : "Supplier Name *"}
                 </label>
                 <input
                   type="text"
-                  placeholder="ឧ. ក្រុមហ៊ុន Boba Supply Co."
+                  placeholder={language === "km" ? "ឧ. ក្រុមហ៊ុន Boba Supply Co." : "e.g. Boba Supply Co."}
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
-                  className={inputClass}
+                  className={`h-10 w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  ឈ្មោះក្រុមហ៊ុន (Company Name)
+                <label className={`block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះក្រុមហ៊ុន" : "Company Name"}
                 </label>
                 <input
                   type="text"
-                  placeholder="ឧ. Boba Supply Ltd"
+                  placeholder={language === "km" ? "ឧ. Boba Supply Ltd" : "e.g. Boba Supply Ltd"}
                   value={supplierCompany}
                   onChange={(e) => setSupplierCompany(e.target.value)}
-                  className={inputClass}
+                  className={`h-10 w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                    លេខទូរស័ព្ទ (Phone)
+                  <label className={`block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "លេខទូរស័ព្ទ" : "Phone"}
                   </label>
                   <input
                     type="text"
                     placeholder="012 345 678"
                     value={supplierPhone}
                     onChange={(e) => setSupplierPhone(e.target.value)}
-                    className={inputClass}
+                    className={`h-10 w-full rounded-xl border ${
+                      dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                    } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                    អ៊ីមែល (Email)
+                  <label className={`block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "អ៊ីមែល" : "Email"}
                   </label>
                   <input
                     type="email"
                     placeholder="supplier@mail.com"
                     value={supplierEmail}
                     onChange={(e) => setSupplierEmail(e.target.value)}
-                    className={inputClass}
+                    className={`h-10 w-full rounded-xl border ${
+                      dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                    } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                  អាសយដ្ឋាន (Address)
+                <label className={`block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "អាសយដ្ឋាន" : "Address"}
                 </label>
                 <input
                   type="text"
-                  placeholder="ភ្នំពេញ, កម្ពុជា"
+                  placeholder={language === "km" ? "ភ្នំពេញ, កម្ពុជា" : "Phnom Penh, Cambodia"}
                   value={supplierAddress}
                   onChange={(e) => setSupplierAddress(e.target.value)}
-                  className={inputClass}
+                  className={`h-10 w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-3.5 mt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSupplierModalOpen(false)}
+                  className="h-10 rounded-xl border border-slate-200 dark:border-[#3b3c54] bg-white dark:bg-[#232333] px-5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#34354e] transition-all cursor-pointer outline-none active:scale-[0.98]"
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full rounded-xl bg-[#55a060] hover:bg-[#46894f] py-2.5 text-xs font-bold text-white shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+                  className="h-10 rounded-xl bg-[#55a060] hover:bg-[#488c52] px-5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  {submitting ? "Saving..." : "រក្សាទុក (Save)"}
+                  {submitting ? (language === "km" ? "កំពុងរក្សាទុក..." : "Saving...") : (language === "km" ? "រក្សាទុក" : "Save")}
                 </button>
               </div>
             </form>

@@ -98,6 +98,8 @@ export default function AdminUsersPage() {
   const [theme] = useAppTheme();
   const language = useAppLanguage();
   const dark = theme === "dark";
+  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -396,11 +398,18 @@ export default function AdminUsersPage() {
     if (!dateStr) return "--";
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "--";
-    return d.toISOString().replace("T", " ").substring(0, 19);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const minutes = pad(d.getMinutes());
+    const seconds = pad(d.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   };
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       
       {/* Toast Notifications */}
       {message && (
@@ -414,38 +423,37 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-        <div className="mx-auto w-full max-w-[1720px] space-y-4">
-          
-          {/* Header Title with Export CSV & "+ New User" Buttons */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              {language === "km" ? "បុគ្គលិក (Admin & Staff)" : "Admin & Staff Users"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
-                }`}
-              >
-                <Download size={14} />
-                Export CSV
-              </button>
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
-              >
-                <Plus size={15} />
-                {language === "km" ? "បន្ថែមថ្មី" : "New User"}
-              </button>
-            </div>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        
+        {/* Header Title matching Profile Account Page */}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
+            {language === "km" ? "បុគ្គលិក (Admin & Staff Users)" : "Admin & Staff Users"}
+          </h1>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+              }`}
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+            >
+              <Plus size={15} />
+              {language === "km" ? "បន្ថែមថ្មី" : "New User"}
+            </button>
           </div>
+        </div>
 
-          {/* TOP KPI CARDS MATCHING TARGET SCREENSHOT media_1788002543317.png */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
+        {/* TOP KPI CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* Card 1: Total Staff Accounts */}
             <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
               <div>
@@ -596,7 +604,12 @@ export default function AdminUsersPage() {
                       const uRole = roleName(user) || "Cashier";
                       const usernameStr = user.email.split("@")[0] || `user_${user.id}`;
                       const matchedGroup = groups.find((g) => g.name === uRole || g.name.toLowerCase().includes(uRole.toLowerCase()) || String(g.id) === String((user as any).groupId));
-                      const groupBadgeName = matchedGroup ? matchedGroup.name : (uRole === "Super Admin" ? "Super Admin Group" : uRole === "Admin" ? "Admin Group" : `${uRole} Group`);
+                      const isSuperOrAdmin = user.id === 1 || uRole === "Super Admin" || uRole === "Admin" || uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("super");
+                      const groupBadgeName = isSuperOrAdmin
+                        ? "Admin Group"
+                        : matchedGroup
+                          ? (matchedGroup.name.toLowerCase().endsWith("group") ? matchedGroup.name : `${matchedGroup.name} Group`)
+                          : `${uRole} Group`;
                       const hasPinConfigured = Boolean((user as any).pin || (user as any).hasPin);
                       const avatarUrl = user.imageUrl || getProfileImage({ id: user.id, name: user.name, email: user.email, role: uRole });
 
@@ -769,7 +782,6 @@ export default function AdminUsersPage() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* CREATE / EDIT USER MODAL */}
       {isUserModalOpen && (

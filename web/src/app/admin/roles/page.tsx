@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
+  CheckCircle2,
   Plus,
   Trash2,
   Edit3,
@@ -316,8 +317,11 @@ export default function RolesPage() {
     );
   }, [rules, searchQuery]);
 
+  const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
+  const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
+
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       
       {/* Toast Notifications */}
       {message && (
@@ -331,33 +335,81 @@ export default function RolesPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-        <div className="mx-auto w-full max-w-[1720px] space-y-4">
-          
-          {/* Title & "+ New Rule" Button Header matching POS System standard */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              {language === "km" ? "សិទ្ធិប្រព័ន្ធ" : "Rules & Matrix"}
-            </h1>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
-              {language === "km" ? "ថ្មី" : "New Rule"}
-            </button>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        
+        {/* Header Title matching Profile & Users Page */}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
+            {language === "km" ? "សិទ្ធិប្រព័ន្ធ (Rules & Matrix)" : "Rules & Matrix"}
+          </h1>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+          >
+            <Plus size={15} />
+            {language === "km" ? "បន្ថែមសិទ្ធិថ្មី" : "New Rule"}
+          </button>
+        </div>
+
+        {/* TOP KPI CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Card 1: Total Rules */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Total System Rules</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{rules.length}</div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
+              <ShieldCheck size={18} />
+            </div>
           </div>
 
-          {/* MAIN RULE TABLE PANEL MATCHING TARGET SCREENSHOT */}
-        <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
+          {/* Card 2: Menu Modules */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Menu Modules</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {rules.filter((r) => r.ismenu).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <LayoutDashboard size={18} />
+            </div>
+          </div>
+
+          {/* Card 3: Active Status */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Active Rules</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {rules.filter((r) => r.status === "Normal" || !r.status).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+          </div>
+
+          {/* Card 4: Action Permissions */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Sub Permissions</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {rules.filter((r) => !r.ismenu).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">
+              <SlidersHorizontal size={18} />
+            </div>
+          </div>
+        </div>
+
+        {/* MAIN RULE TABLE PANEL */}
+        <div className={`rounded-2xl border ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"} shadow-xs overflow-hidden`}>
           
-          {/* TOP ACTION TOOLBAR MATCHING TARGET SCREENSHOT */}
-          <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
-            dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
-          }`}>
+          {/* TOP ACTION TOOLBAR */}
+          <div className={`p-4 border-b ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"} flex flex-wrap items-center justify-between gap-3`}>
             
             {/* Left Action Buttons Toolbar matching screenshot buttons */}
             <div className="flex flex-wrap items-center gap-2">
@@ -665,7 +717,6 @@ export default function RolesPage() {
           </div>
         </div>
       </div>
-    </div>
 
       {/* CREATE / EDIT RULE MODAL */}
       {isRuleModalOpen && (

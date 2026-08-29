@@ -99,10 +99,21 @@ function getPosDisplayTableName(table: DiningTable, qrOrders: any[], language: s
   );
 
   if (tableOrder?.notes) {
-    if (tableOrder.notes.includes("Merged with ")) {
-      const mergedPart = tableOrder.notes.split("Merged with ")[1]?.split(")")[0]?.trim();
-      if (mergedPart) {
-        return language === "km" ? `តុ ${table.name} & ${mergedPart}` : `${table.name} & ${mergedPart}`;
+    const match = tableOrder.notes.match(/Merged (?:with|into|from) ([^)\n,]+)/i);
+    if (match && match[1]) {
+      const mergedPart = match[1].trim();
+      const cleanMerged = mergedPart.toLowerCase().startsWith("table ") ? `T${mergedPart.slice(6).trim()}` : (mergedPart.startsWith("T") ? mergedPart : `T${mergedPart}`);
+      const cleanBase = table.name.toLowerCase().startsWith("table ") ? `T${table.name.slice(6).trim()}` : (table.name.startsWith("T") ? table.name : `T${table.name}`);
+
+      if (cleanMerged && cleanBase.toLowerCase() !== cleanMerged.toLowerCase()) {
+        const numBase = parseInt(cleanBase.replace(/\D/g, ""), 10);
+        const numOther = parseInt(cleanMerged.replace(/\D/g, ""), 10);
+        let combined = `${cleanBase} & ${cleanMerged}`;
+        if (!isNaN(numBase) && !isNaN(numOther)) {
+          const sorted = [numBase, numOther].sort((a, b) => a - b);
+          combined = `T${sorted[0]} & T${sorted[1]}`;
+        }
+        return language === "km" ? `តុ ${combined}` : combined;
       }
     }
   }
@@ -317,6 +328,20 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       const key = tableId ? `table-${tableId}` : "takeaway";
       setTableIsSent((prev) => ({ ...prev, [key]: true }));
 
+      const displayTableName = selectedTable ? getPosDisplayTableName(selectedTable, qrOrders, "en").replace(/^តុ\s*/, "") : "";
+
+      let finalNotes = orderNote;
+      if (displayTableName.includes("&")) {
+        if (!finalNotes || !finalNotes.includes("Merged")) {
+          const parts = displayTableName.split("&").map((p) => p.trim());
+          const baseName = selectedTable?.name.startsWith("T") ? selectedTable.name : `T${selectedTable?.name}`;
+          const otherPart = parts.find((p) => p.toLowerCase() !== baseName.toLowerCase());
+          if (otherPart) {
+            finalNotes = finalNotes ? `${finalNotes} (Merged with ${otherPart})` : `Merged with ${otherPart}`;
+          }
+        }
+      }
+
       const payload = {
         tableId,
         orderNumber: ticketNumber,
@@ -326,6 +351,8 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         taxAmount: serviceFee + vat,
         userName: currentUserName,
         createdBy: { name: currentUserName },
+        notes: finalNotes,
+        tableNo: displayTableName || (selectedTable ? selectedTable.name : undefined),
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -333,7 +360,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           unitPrice: i.unitPrice,
           notes: i.notes || "",
         })),
-        table: selectedTable ? { name: selectedTable.name } : null,
+        table: selectedTable ? { name: displayTableName || selectedTable.name } : null,
       };
 
       const createdOrder = await createOrder(payload);
@@ -344,9 +371,11 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         orderNumber: createdOrder?.orderNumber || ticketNumber,
         status: createdOrder?.status || "pending",
         totalAmount: total,
+        notes: createdOrder?.notes || finalNotes,
+        tableNo: displayTableName || (selectedTable ? selectedTable.name : null),
         items: (createdOrder?.items && createdOrder.items.length > 0) ? createdOrder.items : payload.items,
-        table: createdOrder?.table || payload.table,
-        tableName: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Takeaway",
+        table: createdOrder?.table || { name: displayTableName || selectedTable?.name },
+        tableName: displayTableName || (selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Takeaway"),
         ...createdOrder,
       };
 
@@ -787,16 +816,33 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     setMessage("");
 
     try {
+      const displayTableName = selectedTable ? getPosDisplayTableName(selectedTable, qrOrders, "en").replace(/^តុ\s*/, "") : "";
+
+      let finalNotes = orderNote;
+      if (displayTableName.includes("&")) {
+        if (!finalNotes || !finalNotes.includes("Merged")) {
+          const parts = displayTableName.split("&").map((p) => p.trim());
+          const baseName = selectedTable?.name.startsWith("T") ? selectedTable.name : `T${selectedTable?.name}`;
+          const otherPart = parts.find((p) => p.toLowerCase() !== baseName.toLowerCase());
+          if (otherPart) {
+            finalNotes = finalNotes ? `${finalNotes} (Merged with ${otherPart})` : `Merged with ${otherPart}`;
+          }
+        }
+      }
+
       const payload: any = {
         tableId,
         discountAmount,
         taxAmount: serviceFee + vat,
         userName: currentUserName,
         createdBy: { name: currentUserName },
+        notes: finalNotes,
+        tableNo: displayTableName || (selectedTable ? selectedTable.name : undefined),
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
         })),
+        table: selectedTable ? { name: displayTableName || selectedTable.name } : null,
         _paymentMethod: paymentMethod,
       };
 
@@ -808,9 +854,11 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         orderNumber: order?.orderNumber || ticketNumber,
         status: order?.status || "pending",
         totalAmount: total,
+        notes: order?.notes || finalNotes,
+        tableNo: displayTableName || (selectedTable ? selectedTable.name : null),
         items: (order?.items && order.items.length > 0) ? order.items : cart.map((i) => ({ productId: i.productId, quantity: i.quantity, name: i.name, unitPrice: i.unitPrice, notes: i.notes || "" })),
-        table: order?.table || (selectedTable ? { name: selectedTable.name } : null),
-        tableName: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Walk-in / Takeaway",
+        table: order?.table || { name: displayTableName || selectedTable?.name },
+        tableName: displayTableName || (selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "Walk-in / Takeaway"),
         ...order,
       };
 
@@ -913,14 +961,14 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   }
 
   const mainContent = (
-    <main className={`overflow-hidden flex flex-col print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'} ${
-      dark ? "bg-[#232333] text-slate-100" : "bg-white text-slate-700"
+    <main className={`overflow-y-auto flex flex-col print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'} ${
+      dark ? "bg-[#232333] text-slate-100" : "bg-[#f8faf9] text-slate-700"
     }`}>
 
-      {/* VIEW 2: Ordering Interface — full screen, no padding wrapper */}
-      <div className="flex flex-1 flex-col overflow-hidden w-full min-h-0 ">
-          {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons (Spans Full Width) ── */}
-          <header className={`flex flex-col md:flex-row items-stretch md:items-center justify-between pt-3 pb-3 px-3.5 sm:px-4 shrink-0 gap-3 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+      {/* VIEW 2: Ordering Interface — matching profile account layout container */}
+      <div className="flex flex-1 flex-col overflow-hidden w-full max-w-[1400px] mx-auto px-4 py-4 lg:px-6 min-h-0">
+          {/* ── Top Full-Width Header: "POS - Point of Sale" + action buttons ── */}
+          <header className="flex flex-col md:flex-row items-stretch md:items-center justify-between pb-3 shrink-0 gap-3 bg-transparent">
             <div className="flex items-center justify-between w-full md:w-auto">
               <h1 className={`text-lg sm:text-xl font-normal shrink-0 ${dark ? "text-slate-100" : "text-slate-800"}`}>
                 POS &ndash; Point of Sale
@@ -1054,7 +1102,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             </button>
           </div>
 
-          <div className={`flex flex-col lg:flex-row flex-1 overflow-y-auto no-scrollbar lg:overflow-hidden w-full min-h-0 pt-0 px-3.5 sm:px-4 pb-4 sm:pb-6 gap-4 sm:gap-6 ${dark ? "bg-[#232333]" : "bg-white"}`}>
+          <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto no-scrollbar lg:overflow-hidden w-full min-h-0 pt-0 pb-4 sm:pb-6 gap-4 sm:gap-6 bg-transparent">
             {/* LEFT: Product Catalogue */}
             <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
               mobileTab === "cart" ? "hidden lg:flex" : "flex"

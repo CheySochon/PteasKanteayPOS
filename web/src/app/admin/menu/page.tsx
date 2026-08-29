@@ -385,10 +385,10 @@ export default function MenuPage() {
   const canEdit = canEditFeature(currentUser, "menu");
   const canDelete = canDeleteFeature(currentUser, "menu");
 
-  const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none placeholder-[#b4bdc6] focus:border-[#55a060] focus:ring-4 focus:ring-[#55a060]/10 transition-all duration-150 ${
+  const inputClass = `h-10 w-full rounded-xl border px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer ${
     dark
-      ? "border-[#4e4f6e] bg-[#232333] text-slate-100"
-      : "border-[#d9dee3] bg-white text-[#566a7f]"
+      ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500"
+      : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
   }`;
 
   useEffect(() => {
@@ -787,11 +787,22 @@ export default function MenuPage() {
   }
 
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
-
-
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-4 sm:pt-5 pb-6">
-        <div className="mx-auto w-full max-w-[1720px]">
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        {/* Menu Page Header Title Block */}
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
+            <Utensils size={20} />
+          </div>
+          <div>
+            <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
+              {t.badge}
+            </h1>
+            <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
+              {t.subtitle}
+            </p>
+          </div>
+        </div>
           {error && (
             <div className="mb-5 rounded border px-4 py-2.5 text-xs font-semibold border-red-150 bg-red-50 text-red-600">
               {error}
@@ -1075,7 +1086,7 @@ export default function MenuPage() {
 
               <section>
                 {loading ? (
-                  <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  <div className="grid gap-3.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {Array.from({ length: 12 }).map((_, idx) => (
                       <div
                         key={idx}
@@ -1100,7 +1111,7 @@ export default function MenuPage() {
                     {t.empty}
                   </EmptyState>
                 ) : (
-                  <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  <div className="grid gap-3.5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {filteredProducts.map((product) => (
                       <MenuCard
                         key={product.id}
@@ -1294,8 +1305,7 @@ export default function MenuPage() {
             </div>
           )}
         </div>
-      </div>
-    </main>
+      </main>
   );
 }
 
@@ -1468,21 +1478,17 @@ function CategoryEditor({
   text: typeof TEXT.en;
 }) {
   return (
-    <section className={`overflow-hidden rounded-[24px] border shadow-2xl ${panelBg} ${borderCol}`}>
+    <section className={`overflow-hidden rounded-2xl border p-6 shadow-2xl ${panelBg} ${borderCol}`}>
       {/* Modal Header */}
-      <div className={`flex items-center justify-between gap-3 px-6 py-5 border-b ${borderCol} ${textPrimary}`}>
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#55a060] text-white shadow-sm shadow-[#55a060]/20">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
             {categoryForm.id ? <Pencil size={18} /> : <Tags size={18} />}
           </div>
-
           <div>
-            <h3 className="text-base font-bold leading-snug">
+            <h3 className={`text-lg font-bold ${textPrimary}`}>
               {categoryForm.id ? text.editCategory : text.createCategory}
             </h3>
-            <p className={`text-xs font-medium ${textSecondary}`}>
-              {categoryForm.id ? text.updateFilter : text.addFilter}
-            </p>
           </div>
         </div>
 
@@ -1492,18 +1498,18 @@ function CategoryEditor({
             resetCategoryForm();
             onOpenChange(false);
           }}
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${textSecondary} hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0`}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer shrink-0"
           title={text.cancelCategory}
         >
-          <X size={18} />
+          <X size={15} />
         </button>
       </div>
 
-      <form onSubmit={submitCategory} className="space-y-4 p-6">
-        {/* Category Image Picker (Hybrid Upload or Lucide Icon Fallback) */}
+      <form onSubmit={submitCategory} className="space-y-4">
+        {/* Category Image Picker */}
         {handleCategoryImageFile && (
           <label
-            className={`mx-auto flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
+            className={`mx-auto flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
           >
             {categoryImagePreview ? (
               <img
@@ -1514,7 +1520,7 @@ function CategoryEditor({
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
                 <ImagePlus size={24} />
-                <span className="text-[10.5px] font-bold">Category Image</span>
+                <span className="text-[11px] font-semibold">Category Image</span>
               </div>
             )}
 
@@ -1537,6 +1543,7 @@ function CategoryEditor({
                 name: event.target.value,
               }))
             }
+            placeholder={text.categoryName}
             className={inputClass}
           />
         </Field>
@@ -1550,8 +1557,9 @@ function CategoryEditor({
                 description: event.target.value,
               }))
             }
-            rows={4}
-            className={`${inputClass} resize-none`}
+            rows={3}
+            placeholder="Optional description"
+            className={`${inputClass} resize-none h-auto py-2.5`}
           />
         </Field>
 
@@ -1560,19 +1568,19 @@ function CategoryEditor({
             <button
               type="button"
               onClick={onDelete}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 cursor-pointer transition-all shadow-xs"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 active:scale-95 cursor-pointer transition-all shadow-xs"
               title={text.deleteCategory}
             >
-              <Trash2 size={18} />
+              <Trash2 size={16} />
             </button>
           )}
 
           <button
             type="submit"
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-bold text-white hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer shadow-sm shadow-[#55a060]/20"
+            className="h-10 flex-1 rounded-xl bg-[#55a060] hover:bg-[#488c52] px-5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98] flex items-center justify-center gap-2"
           >
-            <Save size={17} />
-            {categoryForm.id ? text.updateCategory : text.saveCategory}
+            <Save size={15} />
+            <span>{categoryForm.id ? text.updateCategory : text.saveCategory}</span>
           </button>
         </div>
       </form>
@@ -1618,190 +1626,191 @@ function ProductEditor({
   text: typeof TEXT.en;
 }) {
   return (
-    <section className={`overflow-hidden rounded-[24px] border shadow-2xl ${panelBg} ${borderCol}`}>
-      <button
-        type="button"
-        onClick={() => onOpenChange(!open)}
-        className={`flex w-full items-center justify-between gap-3 px-6 py-5 text-left ${textPrimary}`}
-      >
-        <span className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#55a060] text-white shadow-sm shadow-[#55a060]/30">
+    <section className={`overflow-hidden rounded-2xl border p-6 shadow-2xl ${panelBg} ${borderCol}`}>
+      <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
             {productForm.id ? <Pencil size={18} /> : <ShoppingBag size={18} />}
-          </span>
-
-          <span className="block text-base font-bold">
-            {productForm.id ? text.editItem : text.itemCrud}
-          </span>
-        </span>
-
-        {open ? <X size={18} /> : <Plus size={18} />}
-      </button>
-
-      {open && (
-        <form onSubmit={submitProduct} className={`space-y-4 border-t p-6 ${borderCol}`}>
-          <label
-            className={`mx-auto flex h-32 w-32 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed ${borderCol} ${mutedPanel}`}
-          >
-            {imagePreview ? (
-              <img
-                src={imagePreview}
-                alt="Product preview"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center text-slate-400">
-                <ImagePlus size={30} />
-                <span className="text-xs font-bold">{text.uploadImage}</span>
-              </div>
-            )}
-
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
-            />
-          </label>
-
-          <Field label={text.productName}>
-            <input
-              required
-              value={productForm.name}
-              onChange={(event) =>
-                setProductForm((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label={text.category}>
-            <select
-              required
-              value={productForm.categoryId}
-              onChange={(event) =>
-                setProductForm((current) => ({
-                  ...current,
-                  categoryId: event.target.value,
-                }))
-              }
-              className={`${inputClass} cursor-pointer`}
-            >
-              <option value="" className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">{text.selectCategory}</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id} className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={text.basePrice}>
-              <div className="relative">
-                <BadgeDollarSign
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={16}
-                />
-
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={productForm.basePrice}
-                  onChange={(event) =>
-                    setProductForm((current) => ({
-                      ...current,
-                      basePrice: event.target.value,
-                    }))
-                  }
-                  className={`${inputClass} pl-10`}
-                />
-              </div>
-            </Field>
-
-            <Field label={text.cookingDuration}>
-              <div className="relative">
-                <Clock
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#55a060]"
-                  size={16}
-                />
-
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="10"
-                  value={productForm.prepTime}
-                  onChange={(event) =>
-                    setProductForm((current) => ({
-                      ...current,
-                      prepTime: event.target.value,
-                    }))
-                  }
-                  className={`${inputClass} pl-10`}
-                />
-              </div>
-            </Field>
           </div>
+          <h3 className={`text-lg font-bold ${textPrimary}`}>
+            {productForm.id ? text.editItem : text.itemCrud}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+        >
+          <X size={15} />
+        </button>
+      </div>
 
-          <Field label={text.description}>
-            <textarea
-              value={productForm.description}
-              onChange={(event) =>
-                setProductForm((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-              rows={3}
-              className={`${inputClass} resize-none`}
+      <form onSubmit={submitProduct} className="space-y-4">
+        <label
+          className={`mx-auto flex h-32 w-32 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
+        >
+          {imagePreview ? (
+            <img
+              src={imagePreview}
+              alt="Product preview"
+              className="h-full w-full object-cover"
             />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
+              <ImagePlus size={24} />
+              <span className="text-[11px] font-semibold">{text.uploadImage}</span>
+            </div>
+          )}
+
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
+          />
+        </label>
+
+        <Field label={text.productName}>
+          <input
+            required
+            value={productForm.name}
+            onChange={(event) =>
+              setProductForm((current) => ({
+                ...current,
+                name: event.target.value,
+              }))
+            }
+            placeholder={text.productName}
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label={text.category}>
+          <select
+            required
+            value={productForm.categoryId}
+            onChange={(event) =>
+              setProductForm((current) => ({
+                ...current,
+                categoryId: event.target.value,
+              }))
+            }
+            className={`${inputClass} cursor-pointer`}
+          >
+            <option value="" className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">{text.selectCategory}</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id} className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={text.basePrice}>
+            <div className="relative">
+              <BadgeDollarSign
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={16}
+              />
+
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={productForm.basePrice}
+                onChange={(event) =>
+                  setProductForm((current) => ({
+                    ...current,
+                    basePrice: event.target.value,
+                  }))
+                }
+                className={`${inputClass} pl-9`}
+              />
+            </div>
           </Field>
 
-          <label className={`flex items-center justify-between rounded-xl p-3 ${mutedPanel}`}>
-            <span className="flex items-center gap-2">
-              <CheckCircle2 size={17} className="text-[#55a060]" />
+          <Field label={text.cookingDuration}>
+            <div className="relative">
+              <Clock
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#55a060]"
+                size={16}
+              />
 
-              <span>
-                <span className={`block text-sm font-bold ${textPrimary}`}>
-                  {text.availableToggle}
-                </span>
-                <span className={`block text-xs ${textSecondary}`}>
-                  {text.availableNote}
-                </span>
+              <input
+                required
+                type="number"
+                min="1"
+                step="1"
+                placeholder="10"
+                value={productForm.prepTime}
+                onChange={(event) =>
+                  setProductForm((current) => ({
+                    ...current,
+                    prepTime: event.target.value,
+                  }))
+                }
+                className={`${inputClass} pl-9`}
+              />
+            </div>
+          </Field>
+        </div>
+
+        <Field label={text.description}>
+          <textarea
+            value={productForm.description}
+            onChange={(event) =>
+              setProductForm((current) => ({
+                ...current,
+                description: event.target.value,
+              }))
+            }
+            rows={3}
+            className={`${inputClass} resize-none h-auto py-2.5`}
+          />
+        </Field>
+
+        <label className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer ${
+          panelBg.includes("#2b2c40") ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200/90 bg-white shadow-xs"
+        }`}>
+          <span className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-[#55a060]" />
+
+            <span>
+              <span className={`block text-xs font-semibold ${textPrimary}`}>
+                {text.availableToggle}
+              </span>
+              <span className="block text-[11px] text-slate-400 font-normal">
+                {text.availableNote}
               </span>
             </span>
+          </span>
 
-            <input
-              type="checkbox"
-              checked={productForm.isAvailable}
-              onChange={(event) =>
-                setProductForm((current) => ({
-                  ...current,
-                  isAvailable: event.target.checked,
-                }))
-              }
-              className="h-5 w-5 accent-[#55a060] cursor-pointer"
-            />
-          </label>
+          <input
+            type="checkbox"
+            checked={productForm.isAvailable}
+            onChange={(event) =>
+              setProductForm((current) => ({
+                ...current,
+                isAvailable: event.target.checked,
+              }))
+            }
+            className="h-4 w-4 accent-[#55a060] cursor-pointer rounded"
+          />
+        </label>
 
-          <div className="pt-1">
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-bold text-white hover:bg-[#46894f] active:scale-95 transition-all shadow-sm shadow-[#55a060]/20 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-            >
-              {saving ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
-              {productForm.id ? text.saveItem : text.createItem}
-            </button>
-          </div>
-        </form>
-      )}
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="h-10 w-full rounded-xl bg-[#55a060] hover:bg-[#488c52] px-5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />}
+            <span>{productForm.id ? text.saveItem : text.createItem}</span>
+          </button>
+        </div>
+      </form>
     </section>
   );
 }
@@ -1922,7 +1931,7 @@ function IconButton({
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+      <span className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
         {label}
       </span>
       {children}

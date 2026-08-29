@@ -421,10 +421,11 @@ export default function GroupsPage() {
     return result;
   }, [groups, searchQuery]);
 
+
   return (
-    <main className={`flex flex-1 flex-col overflow-hidden ${dark ? "bg-[#232333]" : "bg-white"}`}>
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       
-      {/* Toast notifications matching exact screenshot styling */}
+      {/* Toast notifications */}
       {message && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
@@ -436,49 +437,101 @@ export default function GroupsPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3.5 sm:px-4 pt-2.5 pb-5">
-        <div className="mx-auto w-full max-w-[1720px] space-y-4">
-          
-          {/* Header Title Bar */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
-              {language === "km" ? "ក្រុមបុគ្គលិក" : "Admin Groups"}
-            </h1>
-            <button
-              type="button"
-              onClick={() => openCreateModal()}
-              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold transition-all cursor-pointer ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              <Plus size={14} className="text-[#55a060] stroke-[2.2]" />
-              {language === "km" ? "ថ្មី" : "New Group"}
-            </button>
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
+        
+        {/* Header Title matching Profile & Users Page */}
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
+            {language === "km" ? "ក្រុមបុគ្គលិក (Admin Groups)" : "Admin Groups"}
+          </h1>
+          <button
+            type="button"
+            onClick={() => openCreateModal()}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+          >
+            <Plus size={15} />
+            {language === "km" ? "បន្ថែមក្រុមថ្មី" : "New Group"}
+          </button>
+        </div>
+
+        {/* TOP KPI CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Card 1: Total Groups */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Total Admin Groups</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{groups.length}</div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
+              <FolderTree size={18} />
+            </div>
           </div>
 
-          {/* Main Card Container */}
-          <div className={`rounded-2xl border ${surface} ${borderCol} shadow-none overflow-hidden`}>
+          {/* Card 2: Root & Admin Groups */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">System Groups</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {groups.filter((g) => g.parentId === 0 || g.id === 1).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Shield size={18} />
+            </div>
+          </div>
+
+          {/* Card 3: Sub / Role Groups */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Sub / Role Groups</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {groups.filter((g) => g.parentId !== 0 && g.id !== 1).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] shrink-0">
+              <Layers size={18} />
+            </div>
+          </div>
+
+          {/* Card 4: Active Status */}
+          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-1">Active Groups</div>
+              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {groups.filter((g) => g.status === "Normal" || !g.status).length}
+              </div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Card Container */}
+        <div className={`rounded-2xl border ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"} shadow-xs overflow-hidden`}>
           
           {/* Top Action Toolbar */}
-          <div className={`p-4 border-b ${borderCol} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
+          <div className={`p-4 border-b ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
             
             {/* Left Action Buttons */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={handleRefresh}
                 title="Refresh group list"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#4f46e5] text-white hover:bg-[#4338ca] transition-all cursor-pointer shadow-xs active:scale-95"
+                className={`h-8 w-8 flex items-center justify-center rounded-lg transition cursor-pointer ${
+                  dark ? "bg-[#1e293b] hover:bg-[#334155] text-slate-200" : "bg-[#2d3748] hover:bg-[#1a202c] text-white"
+                }`}
               >
-                <RefreshCw size={15} className={isRefreshing ? "animate-spin" : ""} />
+                <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
               </button>
 
               <button
                 type="button"
                 onClick={() => openCreateModal()}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#488c52] transition-all cursor-pointer active:scale-95"
+                className="h-8 px-3.5 rounded-lg bg-[#55a060] hover:bg-[#488c52] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
               >
-                <Plus size={15} strokeWidth={2.5} />
+                <Plus size={13} strokeWidth={2.5} />
                 Add
               </button>
 
@@ -587,7 +640,7 @@ export default function GroupsPage() {
                             {node.prefix}
                           </span>
                           <span className={node.level === 0 ? "font-semibold text-slate-800 dark:text-slate-100" : ""}>
-                            {node.name}
+                            {node.id === 1 || node.name.toLowerCase() === "admin" ? "Admin Group" : node.name}
                           </span>
                         </td>
 
@@ -704,7 +757,6 @@ export default function GroupsPage() {
           </div>
         </div>
       </div>
-    </div>
 
       {/* CREATE / EDIT GROUP MODAL */}
       {isModalOpen && (

@@ -968,7 +968,7 @@ export default function DashboardPage() {
 
   return (
     <main
-        className={`flex-1 overflow-y-auto ${language === "km" ? "font-khmer" : ""}`}
+        className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"} ${language === "km" ? "font-khmer" : ""}`}
       >
 
         {toastNotification && (
@@ -990,7 +990,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-[1720px] px-3.5 sm:px-4 pt-2.5 pb-5 dash-animate">
+        <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6 dash-animate">
           {/* Dashboard Page Header */}
           <div className="mb-5 flex items-center gap-3  dash-delay-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#48cf38]/10 text-[#48cf38]">

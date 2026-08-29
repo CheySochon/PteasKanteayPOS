@@ -17,6 +17,53 @@ function formatTokenNo(order: Order) {
   return String(raw);
 }
 
+export function formatKdsTableLabel(order: Order): string {
+  const rawTable = order.tableNo || order.table?.name || (order as any).tableName || (order as any).table_name || "";
+  const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || (!rawTable && !order.notes?.toLowerCase().includes("merged"));
+  if (isTakeaway && !rawTable) return "WALKIN";
+
+  const notes = order.notes || "";
+
+  // 1. If rawTable already has merged format like "T2 & T3" or "T2 + T3"
+  if (rawTable && (rawTable.includes("&") || rawTable.includes("+"))) {
+    return rawTable;
+  }
+
+  // Helper to format table name strings nicely (e.g. "Table 3" -> "T3", "3" -> "T3")
+  const cleanName = (str: string) => {
+    const s = str.trim();
+    if (/^\d+$/.test(s)) return `T${s}`;
+    if (s.toLowerCase().startsWith("table ")) return `T${s.slice(6).trim()}`;
+    return s;
+  };
+
+  // 2. Parse notes for merged patterns: "Merged with T2", "Merged into T3", "Merged from T2", "Joined with T3", etc.
+  const mergeMatch = notes.match(/Merged (?:with|into|from) ([^)\n,]+)/i) || notes.match(/Joined (?:with|into|from) ([^)\n,]+)/i);
+  if (mergeMatch && mergeMatch[1]) {
+    const otherTable = cleanName(mergeMatch[1]);
+    const baseTable = cleanName(rawTable || "Table");
+
+    if (otherTable.toLowerCase() !== baseTable.toLowerCase()) {
+      // Extract numbers to format "T2 & T3" in natural sorted order
+      const numBase = parseInt(baseTable.replace(/\D/g, ""), 10);
+      const numOther = parseInt(otherTable.replace(/\D/g, ""), 10);
+
+      if (!isNaN(numBase) && !isNaN(numOther)) {
+        const sorted = [numBase, numOther].sort((a, b) => a - b);
+        return `T${sorted[0]} & T${sorted[1]}`;
+      }
+      return `${baseTable} & ${otherTable}`;
+    }
+  }
+
+  // 3. Fallback formatting for table name
+  if (rawTable) {
+    return cleanName(rawTable);
+  }
+
+  return "WALKIN";
+}
+
 const KdsOrderCard = memo(function KdsOrderCard({
   order,
   onUpdate,
@@ -36,18 +83,8 @@ const KdsOrderCard = memo(function KdsOrderCard({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const tokenNo = formatTokenNo(order);
-  const rawTable = order.tableNo || order.table?.name;
-  const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || !rawTable;
-  
-  let orderTypeLabel = isTakeaway ? "WALKIN" : rawTable || "null";
-  if (!isTakeaway && rawTable && order.notes) {
-    if (order.notes.includes("Merged with ")) {
-      const mergedPart = order.notes.split("Merged with ")[1]?.split(")")[0]?.trim();
-      if (mergedPart) {
-        orderTypeLabel = `${rawTable} & ${mergedPart}`;
-      }
-    }
-  }
+  const orderTypeLabel = formatKdsTableLabel(order);
+  const isTakeaway = orderTypeLabel === "WALKIN";
 
   function handleItemAction(itemId: number, currentItemStatus: string, itemName: string) {
     const nextStatus: "pending" | "preparing" | "completed" =

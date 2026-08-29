@@ -15,32 +15,26 @@ const PROFILE_IMAGE_PREFIX = "pos_profile_image";
 const PROFILE_VERSION_KEY = "pos_profile_updated_at";
 
 export function parseProfileUserSnapshot(snapshot: string | null): ProfileUser {
-  if (!snapshot) return { id: 1, name: "Admin", email: "cheychon258@gmail.com", role: "Admin" };
+  if (!snapshot) return { id: 1, name: "Super Admin", email: "cheychon258@gmail.com", role: "Super Admin" };
 
   try {
-    const user = JSON.parse(snapshot) as {
-      id?: number;
-      name?: string;
-      email?: string;
-      role?: string | { name?: string };
-      isActive?: boolean;
-      createdAt?: string;
-      updatedAt?: string;
-    };
+    const user = JSON.parse(snapshot) as any;
 
-    const roleName = typeof user.role === "string" ? user.role : user.role?.name || "Admin";
+    const rawRole = typeof user.role === "string" ? user.role : user.role?.name || user.roleName || "";
+    const isSuperAdmin = user.id === 1 || String(rawRole).toLowerCase().includes("super") || user.email === "cheychon258@gmail.com";
+    const resolvedRole = isSuperAdmin ? "Super Admin" : (rawRole || "Admin");
 
     return {
-      id: user.id || (roleName.toLowerCase().includes("admin") || user.email === "cheychon258@gmail.com" ? 1 : undefined),
-      name: user.name || "Admin",
+      id: user.id || 1,
+      name: user.name || "Super Admin",
       email: user.email || "cheychon258@gmail.com",
-      role: roleName,
+      role: resolvedRole,
       isActive: user.isActive,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
   } catch {
-    return { id: 1, name: "Admin", email: "cheychon258@gmail.com", role: "Admin" };
+    return { id: 1, name: "Super Admin", email: "cheychon258@gmail.com", role: "Super Admin" };
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Camera,
   CheckCircle2,
@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import AnimatedToast from "../../../components/AnimatedToast";
@@ -65,11 +66,13 @@ export default function ProfilePage() {
   const [removeImage, setRemoveImage] = useState(false);
   const [apiUser, setApiUser] = useState<any>(null);
 
-  // Password & Security States
+  // Password, Nickname & Security States
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [nicknameInput, setNicknameInput] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   useEffect(() => {
@@ -80,16 +83,19 @@ export default function ProfilePage() {
           const storedRaw = localStorage.getItem("pos_user");
           let stored: any = {};
           try { if (storedRaw) stored = JSON.parse(storedRaw); } catch {}
+          const rName = typeof meUser.role === "string" ? meUser.role : meUser.role?.name || meUser.roleName || "";
+          const resolvedRole = (meUser.id === 1 || String(rName).toLowerCase().includes("super") || meUser.email === "cheychon258@gmail.com") ? "Super Admin" : (rName || "Admin");
           const updated = {
             ...stored,
             ...meUser,
             id: meUser.id,
             name: meUser.name,
             email: meUser.email,
-            role: typeof meUser.role === "string" ? meUser.role : meUser.role?.name || "Admin",
+            role: resolvedRole,
           };
           localStorage.setItem("pos_user", JSON.stringify(updated));
           window.dispatchEvent(new Event("pos-auth-change"));
+          window.dispatchEvent(new Event("storage"));
         }
       })
       .catch(() => {});
@@ -106,11 +112,13 @@ export default function ProfilePage() {
 
   const user = useMemo(() => {
     if (apiUser) {
+      const rName = typeof apiUser.role === "string" ? apiUser.role : apiUser.role?.name || apiUser.roleName || "";
+      const resolvedRole = (apiUser.id === 1 || String(rName).toLowerCase().includes("super") || apiUser.email === "cheychon258@gmail.com") ? "Super Admin" : (rName || localUser.role || "Admin");
       return {
         id: apiUser.id,
         name: apiUser.name || localUser.name,
         email: apiUser.email || localUser.email,
-        role: typeof apiUser.role === "string" ? apiUser.role : apiUser.role?.name || localUser.role,
+        role: resolvedRole,
         isActive: apiUser.isActive !== undefined ? apiUser.isActive : localUser.isActive,
         createdAt: apiUser.createdAt,
         updatedAt: apiUser.updatedAt,
@@ -118,6 +126,12 @@ export default function ProfilePage() {
     }
     return localUser;
   }, [apiUser, localUser]);
+
+  useEffect(() => {
+    if (user?.name && !nicknameInput) {
+      setNicknameInput(user.name);
+    }
+  }, [user?.name, nicknameInput]);
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -127,7 +141,8 @@ export default function ProfilePage() {
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
   const image = getProfileImage(user);
   const previewImage = removeImage ? "" : pendingImage || image;
-  const hasChanges = Boolean(pendingImage || removeImage);
+  const isNicknameChanged = Boolean(nicknameInput.trim() && nicknameInput.trim() !== user.name);
+  const hasChanges = Boolean(pendingImage || removeImage || isNicknameChanged);
 
   const details = useMemo(
     () => [
@@ -222,10 +237,25 @@ export default function ProfilePage() {
       const payload: any = {};
       if (newPassword) payload.password = newPassword;
       if (pinInput) payload.pin = pinInput;
+      if (isNicknameChanged) payload.name = nicknameInput.trim();
 
       if (Object.keys(payload).length > 0) {
         const updated = await updateUser(user.id, payload);
-        if (updated) setApiUser(updated);
+        if (updated) {
+          setApiUser(updated);
+          const storedRaw = localStorage.getItem("pos_user");
+          let stored: any = {};
+          try { if (storedRaw) stored = JSON.parse(storedRaw); } catch {}
+          const updatedUserLocal = {
+            ...stored,
+            ...updated,
+            name: updated.name || payload.name,
+          };
+          localStorage.setItem("pos_user", JSON.stringify(updatedUserLocal));
+          window.dispatchEvent(new Event("pos-auth-change"));
+          window.dispatchEvent(new Event("storage"));
+          window.dispatchEvent(new Event("pos-profile-change"));
+        }
       }
 
       if (hasChanges) {
@@ -239,15 +269,15 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
       setPinInput("");
-      setMessage("Profile & Password updated successfully!");
+      setMessage("Profile & Account details updated successfully!");
     } catch (err: any) {
-      setError(err?.message || "Failed to update password.");
+      setError(err?.message || "Failed to update profile.");
     } finally {
       setSavingProfile(false);
     }
   }
 
-  const canSave = hasChanges || Boolean(newPassword && newPassword === confirmPassword && newPassword.length >= 4) || Boolean(pinInput && /^\d{4}$/.test(pinInput));
+  const canSave = hasChanges || isNicknameChanged || Boolean(newPassword && newPassword === confirmPassword && newPassword.length >= 4) || Boolean(pinInput && /^\d{4}$/.test(pinInput));
 
   return (
     <main className={`flex-1 overflow-y-auto ${softSurface}`}>
@@ -260,72 +290,134 @@ export default function ProfilePage() {
           </h1>
         </div>
 
-        {/* Error Alert */}
-        {error && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
-            <AnimatedToast key={error} message={error} onClose={() => setError("")} type="error" />
-          </div>
-        )}
-        {message && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
-            <AnimatedToast key={message} message={message} onClose={() => setMessage("")} type="success" />
-          </div>
-        )}
+        {/* Toast Alerts (Single Instance Only) */}
+        {error ? (
+          <AnimatedToast message={error} onClose={() => setError("")} type="error" />
+        ) : message ? (
+          <AnimatedToast message={message} onClose={() => setMessage("")} type="success" />
+        ) : null}
 
         {/* Profile Details & Image Grid */}
         <section className="grid gap-6 lg:grid-cols-2">
-          {/* Avatar Panel */}
-          <div className={`rounded-2xl border p-6 ${surface} ${borderCol} flex flex-col items-center text-center justify-between`}>
-            <div className="flex flex-col items-center">
-              <div className="relative group">
-                <div className={`h-28 w-28 overflow-hidden rounded-full border-2 border-dashed ${borderCol} p-1`}>
-                  {previewImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={previewImage}
-                      alt={user.name}
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className={profileAvatarClass(user.name)}>
-                      {initials(user.name)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <h2 className={`mt-4 text-lg font-semibold ${textPrimary}`}>
-                {user.name}
-              </h2>
-              <div className="mt-1 flex items-center justify-center gap-1.5">
-                <RoleIcon role={user.role} />
-                <span className={profileRoleClass(user.role)}>
-                  {user.role}
-                </span>
+          {/* Avatar & Hero Panel */}
+          <div className={`overflow-hidden rounded-2xl border ${surface} ${borderCol} flex flex-col justify-between shadow-xs`}>
+            {/* Top Cover Banner with Gradient Mesh */}
+            <div className="relative h-32 w-full bg-gradient-to-r from-[#4EA668] via-emerald-600 to-teal-700 p-4">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/20 via-transparent to-black/20" />
+              <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-md border border-white/20">
+                <ShieldCheck size={13} />
+                <span>Verified Account</span>
               </div>
             </div>
 
-            <div className="mt-6 flex items-center gap-2">
-              <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] transition active:scale-95 duration-200">
-                <UploadCloud size={15} />
-                Upload Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={uploadProfileImage}
-                />
-              </label>
+            {/* Profile Info Overlayed */}
+            <div className="relative px-6 pb-6 pt-0 flex flex-col items-center text-center -mt-14 flex-1 justify-between">
+              <div className="flex flex-col items-center w-full">
+                {/* Avatar with Camera Upload Overlay */}
+                <div className="relative group mb-3">
+                  <div className={`h-28 w-28 overflow-hidden rounded-full border-4 ${dark ? "border-[#2b2c40]" : "border-white"} shadow-lg p-0.5 bg-white dark:bg-[#2b2c40]`}>
+                    {previewImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={previewImage}
+                        alt={user.name}
+                        className="h-full w-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className={profileAvatarClass(user.name)}>
+                        {initials(user.name)}
+                      </div>
+                    )}
+                  </div>
 
-              <button
-                type="button"
-                onClick={removeProfileImage}
-                disabled={!previewImage}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-all active:scale-95 duration-200"
-                title="Remove photo"
-              >
-                <Trash2 size={15} />
-              </button>
+                  <label
+                    className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#55a060] text-white shadow-md hover:bg-[#488c52] hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white dark:border-[#2b2c40]"
+                    title="Change Photo"
+                  >
+                    <Camera size={16} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={uploadProfileImage}
+                    />
+                  </label>
+                </div>
+
+                <div className="relative inline-flex items-center justify-center gap-1 group max-w-full mx-auto">
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={nicknameInput}
+                    onChange={(e) => setNicknameInput(e.target.value)}
+                    placeholder="Enter nickname..."
+                    title="Click to edit nickname"
+                    style={{ width: `${Math.max((nicknameInput || "User").length + 1, 6)}ch` }}
+                    className={`text-xl font-bold text-center border-b-2 border-transparent hover:border-[#55a060]/40 focus:border-[#55a060] bg-transparent outline-none transition-all px-1 py-0.5 max-w-[280px] ${textPrimary}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => nameInputRef.current?.focus()}
+                    className="p-1 text-slate-400 group-hover:text-[#55a060] hover:scale-110 active:scale-95 transition-all cursor-pointer outline-none shrink-0"
+                    title="Edit nickname"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                </div>
+                <div className="mt-1 flex items-center justify-center gap-1.5">
+                  <RoleIcon role={user.role} />
+                  <span className={profileRoleClass(user.role)}>
+                    {user.role}
+                  </span>
+                </div>
+
+                {/* Account Overview Metadata Grid */}
+                <div className="w-full mt-6 grid grid-cols-2 gap-3 text-left">
+                  <div className={`rounded-xl border p-3 ${borderCol} ${dark ? "bg-[#232333]/60" : "bg-slate-50/80"}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Member Since
+                    </div>
+                    <div className={`mt-0.5 text-xs font-semibold ${textPrimary}`}>
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "Aug 2026"}
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl border p-3 ${borderCol} ${dark ? "bg-[#232333]/60" : "bg-slate-50/80"}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Security Status
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>PIN Protected</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo Action Row */}
+              <div className="mt-6 flex items-center justify-center gap-2.5 w-full pt-4 border-t border-slate-100 dark:border-slate-800">
+                <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] transition active:scale-95 duration-200 shadow-sm">
+                  <UploadCloud size={15} />
+                  Upload Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={uploadProfileImage}
+                  />
+                </label>
+
+                {previewImage && (
+                  <button
+                    type="button"
+                    onClick={removeProfileImage}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition-all active:scale-95 duration-200"
+                  >
+                    <Trash2 size={15} />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -345,13 +437,22 @@ export default function ProfilePage() {
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
                         <Icon size={16} />
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           {label}
                         </div>
-                        <div className={`mt-0.5 truncate text-xs font-semibold ${textPrimary}`}>
-                          {value}
-                        </div>
+                        {label === "Name" ? (
+                          <input
+                            type="text"
+                            value={nicknameInput}
+                            onChange={(e) => setNicknameInput(e.target.value)}
+                            className={`mt-0.5 w-full bg-transparent text-xs font-semibold outline-none border-b border-dashed border-slate-300 dark:border-slate-600 focus:border-[#55a060] ${textPrimary}`}
+                          />
+                        ) : (
+                          <div className={`mt-0.5 truncate text-xs font-semibold ${textPrimary}`}>
+                            {value}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

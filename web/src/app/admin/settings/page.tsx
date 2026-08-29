@@ -631,7 +631,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <main className={`flex flex-1 flex-col overflow-y-auto ${dark ? "bg-[#232333]" : "bg-white"}`}>
+      <main className={`flex flex-1 flex-col overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
 
         {/* Secondary Sub-Navigation Bar */}
         <div className={`border-b shrink-0 ${
