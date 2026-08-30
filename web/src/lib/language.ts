@@ -34,3 +34,19 @@ function getLanguageSnapshot(): Language {
 function getServerLanguageSnapshot(): Language {
   return "en";
 }
+
+export function resolveCategoryName(category?: { name: string; nameKm?: string | null } | null, language: Language = "en"): string {
+  if (!category) return "";
+  if (language === "km" && category.nameKm && category.nameKm.trim()) {
+    return category.nameKm.trim();
+  }
+  return category.name || category.nameKm || "";
+}
+
+export function resolveProductName(product?: { name: string; nameKm?: string | null } | null, language: Language = "en"): string {
+  if (!product) return "";
+  if (language === "km" && product.nameKm && product.nameKm.trim()) {
+    return product.nameKm.trim();
+  }
+  return product.name || product.nameKm || "";
+}

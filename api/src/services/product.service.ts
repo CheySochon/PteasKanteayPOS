@@ -60,8 +60,10 @@ export const getProduct = async (id: number) => {
 export const createProduct = async (data: {
   categoryId: number;
   name: string;
+  nameKm?: string | null;
   slug?: string;
   description?: string;
+  descriptionKm?: string | null;
   imageUrl?: string;
   basePrice: number;
   isAvailable?: boolean;
@@ -75,8 +77,10 @@ export const createProduct = async (data: {
     data: {
       categoryId: data.categoryId,
       name: data.name,
+      nameKm: data.nameKm ? data.nameKm.trim() : null,
       slug,
       description: data.description,
+      descriptionKm: data.descriptionKm ? data.descriptionKm.trim() : null,
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable ?? true,
@@ -99,8 +103,10 @@ export const updateProduct = async (
   data: {
     categoryId?: number;
     name?: string;
+    nameKm?: string | null;
     slug?: string;
     description?: string;
+    descriptionKm?: string | null;
     imageUrl?: string | null;
     basePrice?: number;
     isAvailable?: boolean;
@@ -119,8 +125,10 @@ export const updateProduct = async (
     data: {
       categoryId: data.categoryId,
       name: data.name,
+      ...(data.nameKm !== undefined ? { nameKm: data.nameKm ? data.nameKm.trim() : null } : {}),
       slug,
       description: data.description,
+      ...(data.descriptionKm !== undefined ? { descriptionKm: data.descriptionKm ? data.descriptionKm.trim() : null } : {}),
       imageUrl: data.imageUrl,
       basePrice: data.basePrice,
       isAvailable: data.isAvailable,

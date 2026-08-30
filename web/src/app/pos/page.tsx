@@ -50,7 +50,7 @@ import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
 import TopBar from "../../components/TopBar";
 import { useAppTheme } from "../../lib/theme";
-import { useAppLanguage, setAppLanguage } from "../../lib/language";
+import { useAppLanguage, setAppLanguage, resolveCategoryName, resolveProductName } from "../../lib/language";
 import {
   apiOrigin,
   createOrder,
@@ -1151,7 +1151,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                           : "border border-slate-200/90 bg-slate-50 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
-                      {category.name}
+                      {resolveCategoryName(category, language)}
                     </button>
                   ))}
                 </div>
@@ -2779,6 +2779,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
 const ProductCard = memo(
   function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: (product: Product) => void }) {
+    const appLanguage = useAppLanguage();
     const imageUrl = resolveImageUrl(product.imageUrl);
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
@@ -2798,14 +2799,14 @@ const ProductCard = memo(
         }`}>
           {product.category && (
             <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9.5px] font-bold px-2.5 py-1 rounded-br-lg z-10">
-              {product.category.name}
+              {resolveCategoryName(product.category, appLanguage)}
             </span>
           )}
 
           {imageUrl && !imgFailed ? (
             <img loading="lazy"
               src={imageUrl}
-              alt={product.name}
+              alt={resolveProductName(product, appLanguage)}
               onError={() => setImgFailed(true)}
               className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
             />
@@ -2847,7 +2848,7 @@ const ProductCard = memo(
               <h3 className={`line-clamp-1 text-[12.5px] font-semibold leading-snug font-khmer ${
                 dark ? "text-slate-100" : "text-slate-800"
               }`}>
-                {product.name}
+                {resolveProductName(product, appLanguage)}
               </h3>
 
               {/* Reserved Middle Slot for Stock / Variants Info */}

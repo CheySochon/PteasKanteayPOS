@@ -109,15 +109,17 @@ model AppSetting {
 }
 
 model Category {
-  id          Int       @id @default(autoincrement())
-  name        String
-  slug        String    @unique
-  description String?
-  imageUrl    String?   @map("image_url")
-  products    Product[]
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  name          String
+  nameKm        String?   @map("name_km")
+  slug          String    @unique
+  description   String?
+  descriptionKm String?   @map("description_km")
+  imageUrl      String?   @map("image_url")
+  products      Product[]
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([deletedAt])
 }
@@ -129,8 +131,10 @@ model Product {
   supplierId         Int?                 @map("supplier_id")
   supplier           Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   name               String
+  nameKm             String?              @map("name_km")
   slug               String               @unique
   description        String?
+  descriptionKm      String?              @map("description_km")
   imageUrl           String?
   basePrice          Decimal              @db.Decimal(10, 2)
   isAvailable        Boolean              @default(true)

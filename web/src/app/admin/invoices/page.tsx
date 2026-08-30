@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Check,
   FileText,
@@ -12,15 +12,32 @@ import {
   SlidersHorizontal,
   X,
   ChevronDown,
+  Banknote,
+  CreditCard,
 } from "lucide-react";
 import { getOrders } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { getSocket } from "../../../lib/socket";
 import { useAppTheme } from "../../../lib/theme";
 import type { Order } from "../../../lib/types";
+import {
+  getProfileImage,
+  getProfileVersionSnapshot,
+  getServerProfileVersionSnapshot,
+  resolveStaffProfileImage,
+  subscribeToProfileChanges,
+} from "../../../lib/profile";
+
+const RIEL_RATE = 4100;
 
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function moneyRiel(value: number | string) {
+  const num = Number(value || 0);
+  const riel = Math.round(num * RIEL_RATE);
+  return `${riel.toLocaleString("en-US")}៛`;
 }
 
 function formatDate(iso: string) {
@@ -28,18 +45,110 @@ function formatDate(iso: string) {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "-";
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }) + ", " + d.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return (
+      d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }) +
+      ", " +
+      d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    );
   } catch {
     return "-";
   }
+}
+
+function cashierName(inv: any) {
+  if (inv.userName) return inv.userName;
+  if (inv.createdBy?.name) return inv.createdBy.name;
+  if (inv.user?.name) return inv.user.name;
+  if (inv.notes) {
+    const lines = inv.notes.split("\n");
+    const foundLine = lines.find((l: string) => l.toLowerCase().includes("by:") || l.toLowerCase().includes("cashier:"));
+    if (foundLine) return foundLine.replace(/.*(by|cashier):\s*/i, "").trim();
+  }
+  return "Cashier";
+}
+
+function cashierImage(inv: any): string | null {
+  const staff = cashierName(inv);
+  const userObj = inv.user || inv.createdBy;
+  let rawUrl = userObj?.imageUrl || userObj?.avatar || inv.userImageUrl || inv.userAvatar || "";
+
+  if (staff) {
+    const localProfileImg = resolveStaffProfileImage(staff);
+    if (localProfileImg) return localProfileImg;
+  }
+
+  if (typeof window !== "undefined") {
+    try {
+      const storedUser = localStorage.getItem("pos_user");
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u && (u.name === staff || u.email === inv.userEmail)) {
+          if (u.imageUrl) return u.imageUrl;
+          const profileImg = getProfileImage({ id: u.id, name: u.name, email: u.email, role: u.roleName || "USER" });
+          if (profileImg) return profileImg;
+        }
+      }
+    } catch {}
+  }
+
+  if (rawUrl) {
+    if (rawUrl.startsWith("data:image/") || /^https?:\/\//i.test(rawUrl)) return rawUrl;
+    const apiOrigin = process.env.NEXT_PUBLIC_API_URL
+      ? process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, "")
+      : "http://localhost:5000";
+    return `${apiOrigin}${rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`}`;
+  }
+  return null;
+}
+
+function paymentMethod(inv: any) {
+  const pm = (inv.paymentMethod || inv.paymentType || "").toLowerCase();
+  if (pm.includes("qr") || pm.includes("khqr") || pm.includes("aba")) {
+    return {
+      label: "ABA KHQR",
+      type: "khqr" as const,
+      badge: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/40",
+    };
+  }
+  if (pm.includes("card") || pm.includes("credit")) {
+    return {
+      label: "Card",
+      type: "card" as const,
+      badge: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200/60 dark:border-blue-800/40",
+    };
+  }
+  return {
+    label: "Cash",
+    type: "cash" as const,
+    badge: "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/40",
+  };
+}
+
+function tableTypeLabel(inv: any) {
+  const tableName = inv.table?.name || inv.tableName || inv.tableNo;
+  if (tableName) {
+    const cleanName = String(tableName).replace(/^table\s*/i, "T-");
+    return { label: cleanName, type: "Dine-in", isTakeout: false };
+  }
+  return { label: "Takeout", type: "Takeout", isTakeout: true };
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function dayInputValue(date = new Date()) {
@@ -59,12 +168,17 @@ export default function InvoicesPage() {
   const [theme] = useAppTheme();
   const dark = theme === "dark";
 
+  useSyncExternalStore(
+    subscribeToProfileChanges,
+    getProfileVersionSnapshot,
+    getServerProfileVersionSnapshot
+  );
+
   const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
   const [loading, setLoading] = useState(!cachedOrders);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   
-  // Date filter states matching Report page 100%
   const [selectedPeriod, setSelectedPeriod] = useState<"day" | "month" | "year">("month");
   const [selectedDay, setSelectedDay] = useState(() => dayInputValue(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(() => monthInputValue(new Date()));
@@ -143,52 +257,57 @@ export default function InvoicesPage() {
     return `${selectedMonth}-${String(lastDay).padStart(2, "0")}`;
   }, [selectedPeriod, selectedDay, selectedMonth]);
 
-  const filteredInvoices = useMemo(() => {
-    const term = (activeSearch || searchQuery).trim().toLowerCase();
-    const startObj = new Date(computedFromDateStr);
-    startObj.setHours(0, 0, 0, 0);
-
-    const endObj = new Date(computedToDateStr);
-    endObj.setHours(23, 59, 59, 999);
-
-    return orders.filter((order) => {
-      // 1. Text Search Filter
-      if (term) {
-        const idStr = String(order.id);
-        const numStr = String(order.orderNumber || "");
-        const custStr = String(order.userName || order.createdBy?.name || "WALKIN").toLowerCase();
-        const matchesText = idStr.includes(term) || numStr.toLowerCase().includes(term) || custStr.includes(term);
-        if (!matchesText) return false;
-      }
-
-      // 2. Date Range Filter (Report Page 100% logic)
-      if (order.createdAt) {
-        const orderDate = new Date(order.createdAt);
-        if (!isNaN(orderDate.getTime())) {
-          if (orderDate < startObj || orderDate > endObj) return false;
-        }
-      }
-
-      return true;
-    });
-  }, [orders, activeSearch, searchQuery, computedFromDateStr, computedToDateStr]);
-
-  const isFiltered = searchQuery !== "" || activeSearch !== "";
-
-  function resetAllFilters() {
+  const resetAllFilters = () => {
     setSearchQuery("");
     setActiveSearch("");
     setSelectedPeriod("month");
     setSelectedDay(dayInputValue(new Date()));
     setSelectedMonth(monthInputValue(new Date()));
     setSelectedYear(String(new Date().getFullYear()));
-  }
+  };
+
+  const filteredInvoices = useMemo(() => {
+    return orders.filter((inv: any) => {
+      if (activeSearch.trim()) {
+        const q = activeSearch.trim().toLowerCase();
+        const invoiceNum = (inv.orderNumber || `#${inv.id}`).toLowerCase();
+        const orderId = `#${inv.id}`.toLowerCase();
+        const staff = cashierName(inv).toLowerCase();
+        const matches = invoiceNum.includes(q) || orderId.includes(q) || staff.includes(q);
+        if (!matches) return false;
+      }
+
+      const invDate = new Date(inv.createdAt);
+      if (isNaN(invDate.getTime())) return true;
+
+      if (selectedPeriod === "day") {
+        const targetDay = new Date(selectedDay);
+        return (
+          invDate.getFullYear() === targetDay.getFullYear() &&
+          invDate.getMonth() === targetDay.getMonth() &&
+          invDate.getDate() === targetDay.getDate()
+        );
+      }
+
+      if (selectedPeriod === "month") {
+        const [y, m] = selectedMonth.split("-").map(Number);
+        return invDate.getFullYear() === y && invDate.getMonth() + 1 === m;
+      }
+
+      if (selectedPeriod === "year") {
+        return invDate.getFullYear() === Number(selectedYear);
+      }
+
+      return true;
+    });
+  }, [orders, activeSearch, selectedPeriod, selectedDay, selectedMonth, selectedYear]);
+
+  const isFiltered = activeSearch !== "" || selectedPeriod !== "month";
 
   return (
       <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
         <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
           
-          {/* Header Title + Controls Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
             <div>
               <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
@@ -199,7 +318,6 @@ export default function InvoicesPage() {
               </p>
             </div>
 
-            {/* Right Search Input (Live Instant Search with Search Icon) + Filter Icon */}
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
@@ -208,7 +326,9 @@ export default function InvoicesPage() {
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
-                    setActiveSearch(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if(e.key === 'Enter') setActiveSearch(searchQuery);
                   }}
                   placeholder={language === "km" ? "ស្វែងរកវិក្កយបត្រ..." : "Search Invoices..."}
                   className={`h-9 w-52 sm:w-64 rounded-xl border pl-9 pr-8 text-xs font-medium outline-none transition-all ${
@@ -249,16 +369,15 @@ export default function InvoicesPage() {
             </div>
           </div>
 
-          {/* Active Filter Badges Indicator Bar */}
           {isFiltered && (
             <div className="flex items-center gap-2 flex-wrap mb-3">
               <span className="text-xs font-semibold text-slate-400">Filters:</span>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50">
                 Period: {selectedPeriod}
               </span>
-              {searchQuery && (
+              {activeSearch && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] text-[11px] font-bold border border-emerald-200 dark:border-emerald-900/50">
-                  Search: "{searchQuery}"
+                  Search: "{activeSearch}"
                 </span>
               )}
               <button
@@ -271,7 +390,6 @@ export default function InvoicesPage() {
             </div>
           )}
 
-          {/* Invoices Table Container */}
           <div className={`mt-4 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400">
@@ -279,7 +397,7 @@ export default function InvoicesPage() {
               </div>
             ) : filteredInvoices.length === 0 ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400">
-                No invoices found for today.
+                No invoices found.
               </div>
             ) : (
               <div className="overflow-x-auto no-scrollbar">
@@ -290,29 +408,27 @@ export default function InvoicesPage() {
                         ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300"
                         : "bg-slate-50 border-slate-200/80 text-slate-600"
                     }`}>
-                      <th className="px-4 py-3.5 whitespace-nowrap">INVOICE ID:</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">ORDER ID</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">CUSTOMER</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">SUBTOTAL</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">TAX</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">DISCOUNT</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">TOTAL</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap">DATE</th>
-                      <th className="px-4 py-3.5 whitespace-nowrap text-center">ACTION</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">INVOICE ID</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">ORDER #</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">TABLE / TYPE</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">CASHIER</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">PAYMENT</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">STATUS</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap text-right">TOTAL AMOUNT</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">DATE & TIME</th>
+                      <th className="px-3 py-3.5 whitespace-nowrap text-center">ACTION</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
-                    {filteredInvoices.map((inv: any) => {
+                    {filteredInvoices.map((inv: any, index: number) => {
                       const isVoid = inv.status === "cancelled";
                       const orderDbId = `#${inv.id}`;
-                      const customerName = inv.userName || inv.createdBy?.name || "WALKIN";
-                      const subtotal = Number(inv.subtotal || inv.totalAmount || 0);
-                      const tax = Number(inv.taxAmount || 0);
-                      const serviceCharge = Number(inv.serviceFee || 0);
-                      const discount = Number(inv.discountAmount || 0);
+                      const staff = cashierName(inv);
+                      const staffImg = cashierImage(inv);
                       const total = Number(inv.totalAmount || 0);
-                      const deliveryType = inv.table?.name ? `Dinein (${inv.table.name})` : "-";
                       const invoiceId = inv.orderNumber || `#${inv.id}`;
+                      const tblInfo = tableTypeLabel(inv);
+                      const payInfo = paymentMethod(inv);
 
                       return (
                         <tr
@@ -321,20 +437,11 @@ export default function InvoicesPage() {
                             dark ? "hover:bg-[#34354e]" : "hover:bg-emerald-50/40"
                           }`}
                         >
-                          {/* INVOICE ID */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-bold ${dark ? "text-slate-400" : "text-slate-600"}`}>
-                            <div className="flex items-center gap-2">
-                              <span>{invoiceId}</span>
-                              {isVoid && (
-                                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                                  VOID
-                                </span>
-                              )}
-                            </div>
+                          <td className={`px-4 py-3.5 whitespace-nowrap font-bold ${dark ? "text-slate-300" : "text-slate-700"}`}>
+                            <span>{invoiceId}</span>
                           </td>
 
-                          {/* ORDER ID */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
                             <span className={`inline-flex h-6 min-w-[24px] items-center justify-center rounded-lg px-2 text-xs font-bold ${
                               dark ? "bg-[#383a54] text-white" : "bg-slate-100 text-slate-800"
                             }`}>
@@ -342,38 +449,94 @@ export default function InvoicesPage() {
                             </span>
                           </td>
 
-                          {/* CUSTOMER */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-bold uppercase ${dark ? "text-slate-200" : "text-slate-800"}`}>
-                            {customerName}
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold ${
+                              tblInfo.isTakeout
+                                ? dark
+                                  ? "bg-slate-800 text-slate-300 border border-slate-700"
+                                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                                : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/40"
+                            }`}>
+                              {tblInfo.label}
+                            </span>
                           </td>
 
-                          {/* SUBTOTAL */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-700"}`}>
-                            {money(subtotal)}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {staffImg ? (
+                                <img
+                                  src={staffImg}
+                                  alt={staff}
+                                  className="h-7 w-7 rounded-full object-cover ring-1 ring-emerald-600/30 shadow-2xs shrink-0"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                    const next = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                    if (next) next.style.display = "flex";
+                                  }}
+                                />
+                              ) : null}
+
+                              <div
+                                style={{ display: staffImg ? "none" : "flex" }}
+                                className={`h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-2xs ${
+                                  index % 4 === 0
+                                    ? "bg-[#55a060]"
+                                    : index % 4 === 1
+                                      ? "bg-slate-700"
+                                      : index % 4 === 2
+                                        ? "bg-emerald-700"
+                                        : "bg-amber-600"
+                                }`}
+                              >
+                                {initials(staff)}
+                              </div>
+                              <span className={`font-semibold ${dark ? "text-slate-200" : "text-slate-800"}`}>
+                                {staff}
+                              </span>
+                            </div>
                           </td>
 
-                          {/* TAX */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
-                            {money(tax)}
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10.5px] font-bold border ${payInfo.badge}`}>
+                              {payInfo.type === "khqr" ? (
+                                <QrCode size={13} className="shrink-0" />
+                              ) : payInfo.type === "card" ? (
+                                <CreditCard size={13} className="shrink-0" />
+                              ) : (
+                                <Banknote size={13} className="shrink-0" />
+                              )}
+                              <span>{payInfo.label}</span>
+                            </span>
                           </td>
 
-                          {/* DISCOUNT */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
-                            {money(discount)}
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center">
+                            {isVoid ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-900/50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                VOID
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50 px-2.5 py-0.5 text-[10px] font-bold">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                Paid
+                              </span>
+                            )}
                           </td>
 
-                          {/* TOTAL */}
-                          <td className={`px-4 py-3.5 whitespace-nowrap font-extrabold ${dark ? "text-emerald-400" : "text-[#55a060]"}`}>
-                            {money(total)}
+                          <td className="px-4 py-3.5 whitespace-nowrap text-right">
+                            <div className={`font-black text-xs ${dark ? "text-emerald-400" : "text-[#55a060]"}`}>
+                              {money(total)}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400">
+                              {moneyRiel(total)}
+                            </div>
                           </td>
 
-                          {/* DATE */}
                           <td className={`px-4 py-3.5 whitespace-nowrap font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>
                             {formatDate(inv.createdAt)}
                           </td>
 
-                          {/* ACTION */}
-                          <td className="px-4 py-3.5 whitespace-nowrap text-center relative">
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center relative">
                             <button
                               type="button"
                               onClick={() => setActionMenuId(actionMenuId === inv.id ? null : inv.id)}
@@ -384,7 +547,6 @@ export default function InvoicesPage() {
                               <MoreVertical size={16} />
                             </button>
 
-                            {/* Dropdown Menu */}
                             {actionMenuId === inv.id && (
                               <div
                                 onClick={(e) => e.stopPropagation()}

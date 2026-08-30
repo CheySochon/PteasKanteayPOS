@@ -7,8 +7,10 @@ export const createProductSchema = z.object({
     .trim()
     .min(1, { error: "Name is required" })
     .max(200),
+  nameKm: z.string().trim().max(200).optional().nullable(),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(1000).optional(),
+  descriptionKm: z.string().trim().max(1000).optional().nullable(),
   imageUrl: z.string().trim().optional(),
   basePrice: z.number().nonnegative(),
   isAvailable: z.boolean().default(true).optional(),
@@ -20,8 +22,10 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   categoryId: z.number().int().positive().optional(),
   name: z.string().trim().min(1).max(200).optional(),
+  nameKm: z.string().trim().max(200).optional().nullable(),
   slug: z.string().trim().toLowerCase().optional(),
   description: z.string().trim().max(1000).optional(),
+  descriptionKm: z.string().trim().max(1000).optional().nullable(),
   imageUrl: z.string().trim().optional().nullable(),
   basePrice: z.number().nonnegative().optional(),
   isAvailable: z.boolean().optional(),

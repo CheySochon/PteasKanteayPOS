@@ -45,9 +45,59 @@ export function profileImageKey(user: ProfileUser) {
 }
 
 export function getProfileImage(user: ProfileUser) {
-  if (typeof window === "undefined") return "";
-  const key = profileImageKey(user);
-  return memoryImageStore.get(key) || localStorage.getItem(key) || "";
+  if (typeof window === "undefined" || !user) return "";
+  const keys = [
+    user.id ? `${PROFILE_IMAGE_PREFIX}_${user.id}` : null,
+    user.email ? `${PROFILE_IMAGE_PREFIX}_${user.email}` : null,
+    user.name ? `${PROFILE_IMAGE_PREFIX}_${user.name}` : null,
+  ].filter(Boolean) as string[];
+
+  for (const k of keys) {
+    const memoryVal = memoryImageStore.get(k);
+    if (memoryVal) return memoryVal;
+    const localVal = localStorage.getItem(k);
+    if (localVal) return localVal;
+  }
+  return "";
+}
+
+/**
+ * Universal resolver to get profile image by staff name or role
+ */
+export function resolveStaffProfileImage(userName: string, userRole?: string): string {
+  if (typeof window === "undefined" || !userName) return "";
+  const normName = userName.trim().toLowerCase();
+
+  // 1. Check logged-in user in localStorage (pos_user)
+  const storedUserRaw = localStorage.getItem("pos_user");
+  if (storedUserRaw) {
+    try {
+      const u = JSON.parse(storedUserRaw);
+      const uName = (u.name || "").trim().toLowerCase();
+      const uEmail = (u.email || "").trim().toLowerCase();
+      if (uName === normName || (uEmail && normName.includes(uEmail.split("@")[0]))) {
+        if (u.imageUrl && typeof u.imageUrl === "string" && u.imageUrl.trim()) return u.imageUrl.trim();
+        if (u.image && typeof u.image === "string" && u.image.trim()) return u.image.trim();
+        const profileImg = getProfileImage({ id: u.id, name: u.name, email: u.email, role: u.roleName || "USER" });
+        if (profileImg) return profileImg;
+      }
+    } catch {}
+  }
+
+  // 2. Direct getProfileImage check by name
+  const byName = getProfileImage({ name: userName, role: userRole || "Staff" });
+  if (byName) return byName;
+
+  // 3. Scan all localStorage keys starting with pos_profile_image_
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith("pos_profile_image_")) {
+      const val = localStorage.getItem(key);
+      if (val && val.trim()) return val.trim();
+    }
+  }
+
+  return "";
 }
 
 /**

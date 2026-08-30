@@ -319,6 +319,8 @@ export default function RolesPage() {
 
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
 
   return (
     <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
@@ -337,70 +339,91 @@ export default function RolesPage() {
 
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         
-        {/* Header Title matching Profile & Users Page */}
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
-            {language === "km" ? "សិទ្ធិប្រព័ន្ធ (Rules & Matrix)" : "Rules & Matrix"}
-          </h1>
+        {/* Page Breadcrumb & Title */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
+              <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
+              <ChevronRight size={12} />
+              <span className="text-[#55a060]">Rule</span>
+            </div>
+            <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
+              {language === "km" ? "សិទ្ធិប្រព័ន្ធ (Rules & Matrix)" : "Rules & Matrix"}
+            </h1>
+            <p className="text-xs text-slate-400 font-normal">
+              {language === "km" ? "កំណត់ច្បាប់សិទ្ធិប្រើប្រាស់តាមម៉ូឌុល និងមុខងារប្រព័ន្ធ POS" : "Configure module access rules and granular feature permissions."}
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={openCreateModal}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
           >
             <Plus size={15} />
             {language === "km" ? "បន្ថែមសិទ្ធិថ្មី" : "New Rule"}
           </button>
         </div>
 
-        {/* TOP KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* TOP KPI CARDS (Matching Admin Log Style) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
           {/* Card 1: Total Rules */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-            <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Total System Rules</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{rules.length}</div>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <ShieldCheck size={20} />
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
-              <ShieldCheck size={18} />
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ច្បាប់សិទ្ធិសរុប" : "Total System Rules"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {rules.length}
+              </div>
             </div>
           </div>
 
           {/* Card 2: Menu Modules */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <LayoutDashboard size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Menu Modules</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ម៉ូឌុលមេនូ (Menu Modules)" : "Menu Modules"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {rules.filter((r) => r.ismenu).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
-              <LayoutDashboard size={18} />
             </div>
           </div>
 
           {/* Card 3: Active Status */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Active Rules</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "សិទ្ធិសកម្ម" : "Active Rules"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {rules.filter((r) => r.status === "Normal" || !r.status).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] shrink-0">
-              <CheckCircle2 size={18} />
             </div>
           </div>
 
           {/* Card 4: Action Permissions */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400 flex items-center justify-center shrink-0">
+              <SlidersHorizontal size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Sub Permissions</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "សិទ្ធិរង (Sub Permissions)" : "Sub Permissions"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {rules.filter((r) => !r.ismenu).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">
-              <SlidersHorizontal size={18} />
             </div>
           </div>
         </div>

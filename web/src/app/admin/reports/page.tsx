@@ -39,6 +39,7 @@ import {
   exportReportsCsv,
   getDailySales,
   getMonthlySales,
+  getOrders,
   getSettings,
   getTopProducts,
   request,
@@ -395,7 +396,6 @@ function exportPdfDirect({
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
   doc.line(14, finalY, 196, finalY);
-
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(71, 85, 105);
@@ -456,6 +456,7 @@ export default function ReportsPage() {
   const [daily, setDaily] = useState<DailySalesReport | null>(null);
   const [monthly, setMonthly] = useState<MonthlySalesReport | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductReport[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [error, setError] = useState("");
   useAutoDismiss(error, setError);
   const [loading, setLoading] = useState(true);
@@ -529,13 +530,15 @@ export default function ReportsPage() {
       getTopProducts(selectedDate, selectedPeriod),
       request<any[]>("/inventory").catch(() => []),
       request<any[]>("/inventory/transactions").catch(() => []),
+      getOrders().catch(() => []),
     ])
-      .then(([dailyRows, monthlyRows, topRows, invRows, movRows]) => {
+      .then(([dailyRows, monthlyRows, topRows, invRows, movRows, allOrders]) => {
         setDaily(dailyRows);
         setMonthly(monthlyRows);
         setTopProducts(topRows);
         setInventoryItems(Array.isArray(invRows) ? invRows : []);
         setStockMovements(Array.isArray(movRows) ? movRows : []);
+        setOrders(Array.isArray(allOrders) ? allOrders : []);
         setLastUpdated(new Date());
         setError("");
       })
@@ -561,23 +564,95 @@ export default function ReportsPage() {
     refreshReports();
 
     const socket = getSocket();
-    const onRealtimeUpdate = () => refreshReports();
-    const refreshTimer = window.setInterval(refreshReports, 60000);
+    const onRealtimeUpdate = () => {
+      refreshReports();
+    };
 
-    socket?.on("dashboard:update", onRealtimeUpdate);
-    socket?.on("order:created", onRealtimeUpdate);
-    socket?.on("order:updated", onRealtimeUpdate);
+    if (socket) {
+      socket.on("connect", onRealtimeUpdate);
+      socket.on("dashboard:update", onRealtimeUpdate);
+      socket.on("order:new", onRealtimeUpdate);
+      socket.on("order:created", onRealtimeUpdate);
+      socket.on("order:updated", onRealtimeUpdate);
+      socket.on("order:deleted", onRealtimeUpdate);
+      socket.on("order:status_changed", onRealtimeUpdate);
+      socket.on("inventory:updated", onRealtimeUpdate);
+    }
+
+    const refreshTimer = window.setInterval(refreshReports, 10000);
 
     return () => {
-      socket?.off("dashboard:update", onRealtimeUpdate);
-      socket?.off("order:created", onRealtimeUpdate);
-      socket?.off("order:updated", onRealtimeUpdate);
+      if (socket) {
+        socket.off("connect", onRealtimeUpdate);
+        socket.off("dashboard:update", onRealtimeUpdate);
+        socket.off("order:new", onRealtimeUpdate);
+        socket.off("order:created", onRealtimeUpdate);
+        socket.off("order:updated", onRealtimeUpdate);
+        socket.off("order:deleted", onRealtimeUpdate);
+        socket.off("order:status_changed", onRealtimeUpdate);
+        socket.off("inventory:updated", onRealtimeUpdate);
+      }
       window.clearInterval(refreshTimer);
     };
   }, [refreshReports]);
 
-  const totalRevenue = Number(monthly?.totalSales || daily?.totalSales || 0);
-  const totalOrders = Number(monthly?.orderCount || daily?.orderCount || 0);
+  // Compute Realtime Filtered Orders from real-time database
+  const filteredRealtimeOrders = useMemo(() => {
+    return orders.filter((o: any) => {
+      if (!o.createdAt) return false;
+      const d = new Date(o.createdAt);
+      if (isNaN(d.getTime())) return false;
+      const isNotCancelled = (o.status || "").toLowerCase() !== "cancelled";
+      if (!isNotCancelled) return false;
+
+      if (selectedPeriod === "day") {
+        const targetDay = new Date(`${selectedDay}T00:00:00`);
+        return (
+          d.getFullYear() === targetDay.getFullYear() &&
+          d.getMonth() === targetDay.getMonth() &&
+          d.getDate() === targetDay.getDate()
+        );
+      }
+
+      if (selectedPeriod === "month") {
+        const [y, m] = selectedMonth.split("-").map(Number);
+        return d.getFullYear() === y && d.getMonth() + 1 === m;
+      }
+
+      if (selectedPeriod === "year") {
+        return d.getFullYear() === Number(selectedYear);
+      }
+
+      return true;
+    });
+  }, [orders, selectedPeriod, selectedDay, selectedMonth, selectedYear]);
+
+  const realTimeRevenue = useMemo(() => {
+    return filteredRealtimeOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+  }, [filteredRealtimeOrders]);
+
+  const realTimeOrderCount = useMemo(() => {
+    return filteredRealtimeOrders.length;
+  }, [filteredRealtimeOrders]);
+
+  const totalRevenue =
+    orders.length > 0
+      ? realTimeRevenue
+      : selectedPeriod === "day"
+        ? Number(daily?.totalSales ?? 0)
+        : selectedPeriod === "year"
+          ? Number(monthly?.totalSales ?? 0)
+          : Number(monthly?.totalSales ?? daily?.totalSales ?? 0);
+
+  const totalOrders =
+    orders.length > 0
+      ? realTimeOrderCount
+      : selectedPeriod === "day"
+        ? Number(daily?.orderCount ?? 0)
+        : selectedPeriod === "year"
+          ? Number(monthly?.orderCount ?? 0)
+          : Number(monthly?.orderCount ?? daily?.orderCount ?? 0);
+
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   const todayRevenue = Number(daily?.totalSales || 0);
   const tableTurnover =
@@ -853,6 +928,12 @@ export default function ReportsPage() {
                     </span>
                   )}
                 </button>
+              </div>
+
+              {/* Pulsing Live Realtime Status Badge */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold shrink-0">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>{language === "km" ? "ផ្ទាល់ទាន់ហេតុការណ៍ (Live Realtime)" : "Live Realtime"}</span>
               </div>
 
               {/* Funnel Filter Icon Button with Text */}

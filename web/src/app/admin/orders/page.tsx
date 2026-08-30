@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Check,
   CheckCircle2,
@@ -27,6 +27,13 @@ import { getSocket } from "../../../lib/socket";
 import { useAppTheme } from "../../../lib/theme";
 import type { AppSettings, Order, OrderStatus } from "../../../lib/types";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
+import {
+  getProfileImage,
+  getProfileVersionSnapshot,
+  getServerProfileVersionSnapshot,
+  resolveStaffProfileImage,
+  subscribeToProfileChanges,
+} from "../../../lib/profile";
 
 // Simplified 4 core statuses: Pending, Preparing, Completed, Cancelled
 const statusOptions: OrderStatus[] = [
@@ -271,24 +278,31 @@ function serverName(order: Order) {
 }
 
 function serverImage(order: Order): string | null {
+  const staff = serverName(order);
   const userObj = (order as any).user || order.createdBy;
   let rawUrl = userObj?.imageUrl || userObj?.avatar || (order as any).userImageUrl || (order as any).userAvatar || "";
 
-  if (!rawUrl && typeof window !== "undefined") {
+  if (staff) {
+    const localProfileImg = resolveStaffProfileImage(staff);
+    if (localProfileImg) return localProfileImg;
+  }
+
+  if (typeof window !== "undefined") {
     try {
       const storedUser = localStorage.getItem("pos_user");
       if (storedUser) {
         const u = JSON.parse(storedUser);
-        const name = serverName(order);
-        if (u && (u.name === name || u.email === (order as any).userEmail) && u.imageUrl) {
-          rawUrl = u.imageUrl;
+        if (u && (u.name === staff || u.email === (order as any).userEmail)) {
+          if (u.imageUrl) return u.imageUrl;
+          const profileImg = getProfileImage({ id: u.id, name: u.name, email: u.email, role: u.roleName || "USER" });
+          if (profileImg) return profileImg;
         }
       }
     } catch {}
   }
 
   if (rawUrl) {
-    if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+    if (rawUrl.startsWith("data:image/") || /^https?:\/\//i.test(rawUrl)) return rawUrl;
     const apiOrigin = process.env.NEXT_PUBLIC_API_URL
       ? process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, "")
       : "http://localhost:5000";
@@ -319,6 +333,12 @@ export default function OrdersPage() {
   const language = useAppLanguage();
   const t = TEXT[language];
   const [theme] = useAppTheme();
+
+  useSyncExternalStore(
+    subscribeToProfileChanges,
+    getProfileVersionSnapshot,
+    getServerProfileVersionSnapshot
+  );
   const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
   const [filter, setFilter] = useState<OrderTab>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");

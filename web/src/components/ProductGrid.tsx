@@ -4,6 +4,8 @@ import { ImageIcon } from "lucide-react";
 import type { Product } from "../lib/types";
 import { apiOrigin } from "../lib/api";
 
+import { resolveCategoryName, resolveProductName, useAppLanguage } from "../lib/language";
+
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
@@ -21,6 +23,8 @@ export default function ProductGrid({
   products: Product[];
   onAdd: (product: Product) => void;
 }) {
+  const appLanguage = useAppLanguage();
+
   if (products.length === 0) {
     return <div className="rounded-lg border border-dashed border-gray-200 bg-white p-8 text-center text-sm text-gray-500">No products available</div>;
   }
@@ -29,6 +33,8 @@ export default function ProductGrid({
     <div className="grid h-fit content-start items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {products.map((product) => {
         const imageUrl = resolveImageUrl(product.imageUrl);
+        const displayName = resolveProductName(product, appLanguage);
+        const displayCategory = resolveCategoryName(product.category, appLanguage) || "Uncategorized";
 
         const isOutOfStock = product.trackStock && Number(product.inventory?.quantity ?? 0) <= 0;
         const isDisabled = !product.isAvailable || isOutOfStock;
@@ -50,7 +56,7 @@ export default function ProductGrid({
               {imageUrl ? (
                 <img
                   src={imageUrl}
-                  alt={product.name}
+                  alt={displayName}
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                   loading="lazy"
                 />
@@ -64,8 +70,8 @@ export default function ProductGrid({
             <div className="p-3.5">
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate text-base font-bold leading-tight text-gray-900">{product.name}</div>
-                  <div className="mt-1 truncate text-[11px] uppercase text-gray-400">{product.category?.name || "Uncategorized"}</div>
+                  <div className="truncate text-base font-bold leading-tight text-gray-900">{displayName}</div>
+                  <div className="mt-1 truncate text-[11px] uppercase text-gray-400">{displayCategory}</div>
                 </div>
                 <div className="shrink-0 rounded-md bg-[#E1F5EE] px-2 py-1 text-xs font-bold text-[#0F6E56]">{money(product.basePrice)}</div>
               </div>

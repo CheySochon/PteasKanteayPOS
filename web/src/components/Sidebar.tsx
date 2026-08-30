@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
+import React, { Fragment, useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -595,7 +595,7 @@ export default function Sidebar({
 
           {!sidebarCollapsed && (
             <div className="min-w-0 flex-1 overflow-hidden transition-opacity duration-150">
-              <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[17px] font-medium" : "text-[16px] font-medium"}`}>
+              <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[19.5px] font-medium" : "text-[18.5px] font-medium"}`}>
                 {restaurantName}
               </div>
             </div>
@@ -651,7 +651,7 @@ export default function Sidebar({
       <button
         type="button"
         onClick={toggleSidebar}
-        className="absolute -right-3 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-slate-800 hover:scale-105 cursor-pointer"
+        className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 flex h-6 w-6 items-center justify-center rounded-full bg-slate-100/90 text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-slate-800 hover:scale-105 cursor-pointer"
         title={sidebarCollapsed ? t.expand : t.collapse}
       >
         {sidebarCollapsed ? <ChevronRight size={12} strokeWidth={2.8} /> : <ChevronLeft size={12} strokeWidth={2.8} />}
@@ -659,8 +659,8 @@ export default function Sidebar({
 
       {/* Nav */}
       <div
-        className={`flex-1 overflow-y-auto overflow-x-hidden no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${
-          sidebarCollapsed ? "px-2 py-3 flex flex-col items-center" : "px-3 py-3"
+        className={`flex-1 overflow-y-auto overflow-x-hidden space-y-7 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 ${
+          sidebarCollapsed ? "px-2 py-4 flex flex-col items-center" : "px-3.5 py-4"
         }`}
       >
         {allowedMain.map((item) => (
@@ -686,7 +686,7 @@ export default function Sidebar({
           const active = isNavItemActive(item.label, item.href) || (isMenu && localActiveNav === "Menu") || (isInventory && localActiveNav === "Inventory");
 
           return (
-            <div key={item.label}>
+            <Fragment key={item.label}>
               <SideNavItem
                 {...item}
                 label={t.nav[item.label as keyof typeof t.nav] || item.label}
@@ -697,11 +697,17 @@ export default function Sidebar({
                 dark={dark}
                 isKhmer={language === "km"}
                 contentClass={contentMotionClass}
-                onClick={() => {
+                onClick={(e) => {
                   setLocalActiveNav(item.label);
                   if (isMenu) {
+                    if (pathname.startsWith("/admin/menu")) {
+                      e.preventDefault();
+                    }
                     setMenuOpen((open) => !open);
                   } else if (isInventory) {
+                    if (pathname.startsWith("/admin/inventory")) {
+                      e.preventDefault();
+                    }
                     setInventoryOpen((open) => !open);
                   }
                 }}
@@ -717,16 +723,16 @@ export default function Sidebar({
                 }
               />
 
-              {isMenu && (
+              {isMenu && menuExpanded && (
                 <div
                   className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
                     dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
                   }`}
                   style={{
-                    gridTemplateRows: menuExpanded ? "1fr" : "0fr",
-                    opacity: menuExpanded ? 1 : 0,
-                    marginTop: menuExpanded ? "4px" : "0px",
-                    marginBottom: menuExpanded ? "8px" : "0px",
+                    gridTemplateRows: "1fr",
+                    opacity: 1,
+                    marginTop: "2px",
+                    marginBottom: "2px",
                   }}
                 >
                   <div className="overflow-hidden space-y-1 py-1">
@@ -754,16 +760,16 @@ export default function Sidebar({
                 </div>
               )}
 
-              {isInventory && (
+              {isInventory && inventoryExpanded && (
                 <div
                   className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
                     dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
                   }`}
                   style={{
-                    gridTemplateRows: inventoryExpanded ? "1fr" : "0fr",
-                    opacity: inventoryExpanded ? 1 : 0,
-                    marginTop: inventoryExpanded ? "4px" : "0px",
-                    marginBottom: inventoryExpanded ? "8px" : "0px",
+                    gridTemplateRows: "1fr",
+                    opacity: 1,
+                    marginTop: "2px",
+                    marginBottom: "2px",
                   }}
                 >
                   <div className="overflow-hidden space-y-1 py-1">
@@ -790,7 +796,7 @@ export default function Sidebar({
                   </div>
                 </div>
               )}
-            </div>
+            </Fragment>
           );
         })}
 
@@ -799,7 +805,7 @@ export default function Sidebar({
           const active = isNavItemActive(item.label, item.href) || (isAuth && (localActiveNav === "Auth" || pathname.startsWith("/admin/users")));
 
           return (
-            <div key={item.label}>
+            <Fragment key={item.label}>
               <SideNavItem
                 {...item}
                 label={isAuth ? (t.nav["Auth"] || "Auth") : (t.nav[item.label as keyof typeof t.nav] || item.label)}
@@ -810,9 +816,12 @@ export default function Sidebar({
                 dark={dark}
                 isKhmer={language === "km"}
                 contentClass={contentMotionClass}
-                onClick={() => {
+                onClick={(e) => {
                   setLocalActiveNav(isAuth ? "Auth" : item.label);
                   if (isAuth) {
+                    if (pathname.startsWith("/admin/users") || pathname.startsWith("/admin/logs") || pathname.startsWith("/admin/groups") || pathname.startsWith("/admin/roles")) {
+                      e.preventDefault();
+                    }
                     setAuthOpen((open) => !open);
                   }
                 }}
@@ -828,16 +837,16 @@ export default function Sidebar({
                 }
               />
 
-              {isAuth && (
+              {isAuth && authExpanded && (
                 <div
                   className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
                     dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
                   }`}
                   style={{
-                    gridTemplateRows: authExpanded ? "1fr" : "0fr",
-                    opacity: authExpanded ? 1 : 0,
-                    marginTop: authExpanded ? "4px" : "0px",
-                    marginBottom: authExpanded ? "8px" : "0px",
+                    gridTemplateRows: "1fr",
+                    opacity: 1,
+                    marginTop: "2px",
+                    marginBottom: "2px",
                   }}
                 >
                   <div className="overflow-hidden space-y-1 py-1">
@@ -864,7 +873,7 @@ export default function Sidebar({
                   </div>
                 </div>
               )}
-            </div>
+            </Fragment>
           );
         })}
       </div>
@@ -875,26 +884,26 @@ export default function Sidebar({
           type="button"
           onClick={() => setShowLogoutModal(true)}
           title={sidebarCollapsed ? (language === "km" ? "ចាកចេញ" : "Logout") : undefined}
-          className={`group flex items-center border-none cursor-pointer transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] ${
+          className={`group flex items-center border-none cursor-pointer my-1 transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] ${
             sidebarCollapsed
-              ? "h-10 w-10 mx-auto justify-center rounded-xl px-0"
-              : "w-full h-10 gap-2.5 rounded-xl px-1.5 justify-start"
+              ? "h-11 w-11 mx-auto justify-center rounded-full px-0"
+              : "w-full h-[46px] gap-3.5 rounded-full px-4.5 justify-start"
           } ${
             dark
               ? "text-slate-300 hover:bg-rose-500/10 hover:text-rose-400"
               : "text-slate-700 hover:bg-rose-50 hover:text-rose-600"
           }`}
         >
-          <span className={`w-10 h-10 shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${
+          <span className={`${sidebarCollapsed ? "w-11 h-11" : "w-6 h-6"} shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${
             dark ? "text-slate-400 group-hover:text-rose-400" : "text-slate-500 group-hover:text-rose-600"
           }`}>
             <LogOut size={18} strokeWidth={1.75} color="currentColor" />
           </span>
 
           {!sidebarCollapsed && (
-            <span className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 font-normal text-[14px] ${
+            <span className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 font-normal text-[15.5px] ${
               dark ? "text-slate-200 group-hover:text-rose-400" : "text-slate-700 group-hover:text-rose-600"
-            } ${language === "km" ? "font-khmer text-[14px]" : ""}`}>
+            } ${language === "km" ? "font-khmer text-[15.5px]" : ""}`}>
               {language === "km" ? "ចាកចេញ" : "Logout"}
             </span>
           )}
@@ -997,11 +1006,11 @@ function SideNavItem({
       }}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`group flex items-center border-none cursor-pointer mb-1 transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
+      className={`group flex items-center border-none cursor-pointer my-1 transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
         ${
           collapsed
-            ? "h-10 w-10 mx-auto justify-center rounded-xl px-0"
-            : "w-full h-10 gap-2.5 rounded-xl px-1.5 justify-start"
+            ? "h-11 w-11 mx-auto justify-center rounded-full px-0"
+            : "w-full h-[46px] gap-3.5 rounded-full px-4.5 justify-start"
         }
         ${
           active
@@ -1012,16 +1021,16 @@ function SideNavItem({
               ? "text-slate-300 hover:bg-[#232333]/80 hover:text-white"
               : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
         }
-        ${isKhmer ? "font-medium text-[14px] leading-normal" : active ? "font-semibold text-[14px]" : "font-normal text-[14px]"}
+        ${isKhmer ? "font-medium text-[15.5px] leading-normal" : active ? "font-semibold text-[15.5px]" : "font-medium text-[15.5px]"}
       `}
     >
-      <span className={`w-10 h-10 shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
+      <span className={`${collapsed ? "w-11 h-11" : "w-6 h-6"} shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
         {icon}
       </span>
 
       {!collapsed && (
         <span
-          className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 ${contentClass} ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[14px]" : "text-[14px]"}`}
+          className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 ${contentClass} ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}
         >
           {label}
         </span>
@@ -1029,7 +1038,7 @@ function SideNavItem({
 
       {!collapsed && trailing && (
         <span
-          className={`shrink-0 pr-3 transition-opacity duration-150 ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-400 group-hover:text-slate-900"}`}
+          className={`shrink-0 pr-1.5 flex items-center justify-center transition-opacity duration-150 ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-400 group-hover:text-slate-900"}`}
         >
           {trailing}
         </span>
@@ -1072,7 +1081,7 @@ function MenuSubNavItem({
         }
       }}
       onClick={onClick}
-      className={`group flex h-9 items-center gap-2 rounded-xl px-3 transition duration-150 active:scale-[0.98] active:translate-y-[0.5px] ${
+      className={`group flex h-9 items-center gap-2 rounded-full px-3.5 transition duration-150 active:scale-[0.98] active:translate-y-[0.5px] ${
         active
           ? dark
             ? "bg-[#55a060]/25 font-bold text-emerald-400"

@@ -43,11 +43,14 @@ export const listCategories = async () => {
 
 export const createCategory = async (data: {
   name: string;
+  nameKm?: string | null;
   slug?: string;
   description?: string;
+  descriptionKm?: string | null;
   imageUrl?: string | null;
 }) => {
   const cleanName = data.name.trim();
+  const cleanNameKm = data.nameKm ? data.nameKm.trim() : null;
   const baseSlug = data.slug || cleanName;
   const targetSlug = slugify(baseSlug);
 
@@ -67,7 +70,9 @@ export const createCategory = async (data: {
         where: { id: existing.id },
         data: {
           name: cleanName,
+          nameKm: cleanNameKm,
           description: data.description,
+          descriptionKm: data.descriptionKm,
           imageUrl: data.imageUrl,
           deletedAt: null,
         },
@@ -84,8 +89,10 @@ export const createCategory = async (data: {
   return prisma.category.create({
     data: {
       name: cleanName,
+      nameKm: cleanNameKm,
       slug,
       description: data.description,
+      descriptionKm: data.descriptionKm,
       imageUrl: data.imageUrl,
     },
   });
@@ -95,12 +102,15 @@ export const updateCategory = async (
   id: number,
   data: {
     name?: string;
+    nameKm?: string | null;
     slug?: string;
     description?: string;
+    descriptionKm?: string | null;
     imageUrl?: string | null;
   },
 ) => {
   const cleanName = data.name?.trim();
+  const cleanNameKm = data.nameKm !== undefined ? (data.nameKm ? data.nameKm.trim() : null) : undefined;
   const slug =
     data.slug ?? cleanName
       ? await uniqueCategorySlug((data.slug ?? cleanName)!, id)
@@ -110,8 +120,10 @@ export const updateCategory = async (
     where: { id },
     data: {
       ...(cleanName ? { name: cleanName } : {}),
+      ...(cleanNameKm !== undefined ? { nameKm: cleanNameKm } : {}),
       ...(slug ? { slug } : {}),
-      description: data.description,
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.descriptionKm !== undefined ? { descriptionKm: data.descriptionKm } : {}),
       ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl } : {}),
     },
   });

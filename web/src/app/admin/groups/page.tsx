@@ -439,70 +439,91 @@ export default function GroupsPage() {
 
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         
-        {/* Header Title matching Profile & Users Page */}
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
-            {language === "km" ? "ក្រុមបុគ្គលិក (Admin Groups)" : "Admin Groups"}
-          </h1>
+        {/* Page Breadcrumb & Title */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
+              <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
+              <ChevronRight size={12} />
+              <span className="text-[#55a060]">Group</span>
+            </div>
+            <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
+              {language === "km" ? "ក្រុមបុគ្គលិក (Admin Groups)" : "Admin Groups"}
+            </h1>
+            <p className="text-xs text-slate-400 font-normal">
+              {language === "km" ? "គ្រប់គ្រងក្រុមសិទ្ធិបុគ្គលិក ឋានានុក្រមប្រព័ន្ធ និងការបែងចែកសិទ្ធិ" : "Manage staff role groups, system hierarchy, and module access matrix."}
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={() => openCreateModal()}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
           >
             <Plus size={15} />
             {language === "km" ? "បន្ថែមក្រុមថ្មី" : "New Group"}
           </button>
         </div>
 
-        {/* TOP KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* TOP KPI CARDS (Matching Admin Log Style) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
           {/* Card 1: Total Groups */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-            <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Total Admin Groups</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{groups.length}</div>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <FolderTree size={20} />
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
-              <FolderTree size={18} />
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ក្រុមសរុប" : "Total Admin Groups"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {groups.length}
+              </div>
             </div>
           </div>
 
-          {/* Card 2: Root & Admin Groups */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          {/* Card 2: System Groups */}
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Shield size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">System Groups</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ក្រុមប្រព័ន្ធ (System Groups)" : "System Groups"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {groups.filter((g) => g.parentId === 0 || g.id === 1).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
-              <Shield size={18} />
             </div>
           </div>
 
           {/* Card 3: Sub / Role Groups */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400 flex items-center justify-center shrink-0">
+              <Layers size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Sub / Role Groups</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ក្រុមរង (Sub / Role Groups)" : "Sub / Role Groups"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {groups.filter((g) => g.parentId !== 0 && g.id !== 1).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] shrink-0">
-              <Layers size={18} />
             </div>
           </div>
 
           {/* Card 4: Active Status */}
-          <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 mb-1">Active Groups</div>
-              <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "ក្រុមដំណើរការ" : "Active Groups"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
                 {groups.filter((g) => g.status === "Normal" || !g.status).length}
               </div>
-            </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
-              <CheckCircle2 size={18} />
             </div>
           </div>
         </div>

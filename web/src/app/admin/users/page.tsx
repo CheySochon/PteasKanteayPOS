@@ -33,6 +33,7 @@ import {
   Columns,
   Grid,
   UsersRound,
+  ChevronRight,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage } from "../../../lib/language";
@@ -100,6 +101,8 @@ export default function AdminUsersPage() {
   const dark = theme === "dark";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
+  const surface = dark ? "bg-[#2b2c40]" : "bg-white";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
 
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -425,16 +428,27 @@ export default function AdminUsersPage() {
 
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         
-        {/* Header Title matching Profile Account Page */}
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className={`text-2xl font-medium tracking-normal ${textPrimary}`}>
-            {language === "km" ? "បុគ្គលិក (Admin & Staff Users)" : "Admin & Staff Users"}
-          </h1>
+        {/* Page Breadcrumb & Title */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
+              <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
+              <ChevronRight size={12} />
+              <span className="text-[#55a060]">Admin</span>
+            </div>
+            <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
+              {language === "km" ? "បុគ្គលិក (Admin & Staff Users)" : "Admin & Staff Users"}
+            </h1>
+            <p className="text-xs text-slate-400 font-normal">
+              {language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក កំណត់ត្រាសិទ្ធិ និង PIN លក់ POS" : "Manage staff accounts, access permissions, and POS PIN entry."}
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleExportCSV}
-              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
                 dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
               }`}
             >
@@ -444,7 +458,7 @@ export default function AdminUsersPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-bold shadow-sm shadow-[#55a060]/20 transition-all cursor-pointer active:scale-95"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
             >
               <Plus size={15} />
               {language === "km" ? "បន្ថែមថ្មី" : "New User"}
@@ -452,60 +466,70 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* TOP KPI CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Card 1: Total Staff Accounts */}
-            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-1">Total Staff Accounts</div>
-                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>{users.length}</div>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
-                <UsersRound size={18} />
-              </div>
+        {/* TOP KPI CARDS (Matching Admin Log Style) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          {/* Card 1: Total Staff Accounts */}
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <UsersRound size={20} />
             </div>
-
-            {/* Card 2: Admins & Managers */}
-            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-1">Admins &amp; Managers</div>
-                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                  {users.filter((u) => roleName(u).toLowerCase().includes("admin") || roleName(u).toLowerCase().includes("super")).length}
-                </div>
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "គណនីបុគ្គលិកសរុប" : "Total Staff Accounts"}
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
-                <Crown size={18} />
-              </div>
-            </div>
-
-            {/* Card 3: Cashiers & Staff */}
-            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-1">Cashiers &amp; Staff</div>
-                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                  {users.filter((u) => !roleName(u).toLowerCase().includes("admin") && !roleName(u).toLowerCase().includes("super")).length}
-                </div>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 shrink-0">
-                <CreditCard size={18} />
-              </div>
-            </div>
-
-            {/* Card 4: Active Status */}
-            <div className={`rounded-2xl border p-5 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/60"} shadow-none flex items-center justify-between`}>
-              <div>
-                <div className="text-xs font-semibold text-slate-400 mb-1">Active Status</div>
-                <div className={`text-2xl font-extrabold ${dark ? "text-slate-100" : "text-slate-800"}`}>
-                  {users.filter((u) => u.isActive).length}
-                </div>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#696cff]/10 text-[#696cff] shrink-0">
-                <CheckCircle2 size={18} />
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {users.length}
               </div>
             </div>
           </div>
 
-          {/* MAIN TABLE PANEL MATCHING TARGET SCREENSHOT media_1787653557137.png */}
+          {/* Card 2: Admins & Managers */}
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Crown size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "អ្នកគ្រប់គ្រង (Admins & Managers)" : "Admins & Managers"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {users.filter((u) => roleName(u).toLowerCase().includes("admin") || roleName(u).toLowerCase().includes("super")).length}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Cashiers & Staff */}
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <CreditCard size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "អ្នកគិតលុយ (Cashiers & Staff)" : "Cashiers & Staff"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {users.filter((u) => !roleName(u).toLowerCase().includes("admin") && !roleName(u).toLowerCase().includes("super")).length}
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Active Status */}
+          <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
+            <div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                {language === "km" ? "គណនីសកម្ម" : "Active Status"}
+              </div>
+              <div className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                {users.filter((u) => u.isActive).length}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MAIN TABLE PANEL MATCHING TARGET SCREENSHOT media_1787653557137.png */}
           <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
             
             {/* TOP ACTION TOOLBAR MATCHING TARGET SCREENSHOT */}

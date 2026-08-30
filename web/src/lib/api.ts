@@ -234,6 +234,14 @@ export const createPurchaseOrder = (body: any) => request<any>("/purchase-orders
 export const receivePurchaseOrderStock = (id: number) => request<any>(`/purchase-orders/${id}/receive`, { method: "POST" });
 
 const DEFAULT_PRODUCT_IMAGES: Record<string, string> = {
+  beer: "https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=600&q=80",
+  corona: "https://images.unsplash.com/photo-1608270586620-248524c67de9?auto=format&fit=crop&w=600&q=80",
+  heineken: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?auto=format&fit=crop&w=600&q=80",
+  rice: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
+  beef: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+  chicken: "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=600&q=80",
+  pork: "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&w=600&q=80",
+  asian: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80",
   cheesecake: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=600&q=80",
   "chocolate frappe": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=600&q=80",
   croissant: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80",
@@ -276,12 +284,31 @@ export const getProducts = async () => {
   // Assign high quality food photos for items without photos
   list = list.map((p) => {
     if (!p.imageUrl) {
-      const lowerName = (p.name || "").toLowerCase().trim();
-      const fallbackUrl = DEFAULT_PRODUCT_IMAGES[lowerName] || 
-        (lowerName.includes("tea") ? DEFAULT_PRODUCT_IMAGES["green tea"] :
-         lowerName.includes("frappe") ? DEFAULT_PRODUCT_IMAGES["chocolate frappe"] :
-         lowerName.includes("cake") ? DEFAULT_PRODUCT_IMAGES["cheesecake"] :
-         lowerName.includes("coffee") || lowerName.includes("latte") ? DEFAULT_PRODUCT_IMAGES["latte"] : "");
+      const lowerName = `${p.name} ${p.nameKm || ""} ${p.category?.name || ""} ${p.category?.nameKm || ""}`.toLowerCase().trim();
+      let fallbackUrl = "";
+
+      if (lowerName.includes("beer") || lowerName.includes("corona") || lowerName.includes("heineken") || lowerName.includes("ស្រា") || lowerName.includes("បៀរ")) {
+        fallbackUrl = lowerName.includes("heineken") ? DEFAULT_PRODUCT_IMAGES["heineken"] : DEFAULT_PRODUCT_IMAGES["beer"];
+      } else if (lowerName.includes("គោ") || lowerName.includes("beef")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["beef"];
+      } else if (lowerName.includes("មាន់") || lowerName.includes("chicken")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["chicken"];
+      } else if (lowerName.includes("ជ្រូក") || lowerName.includes("pork") || lowerName.includes("បំពង") || lowerName.includes("អាំង")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["pork"];
+      } else if (lowerName.includes("បាយ") || lowerName.includes("rice") || lowerName.includes("ឆា") || lowerName.includes("ម្ហូប")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["rice"];
+      } else if (lowerName.includes("tea") || lowerName.includes("តែ")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["green tea"];
+      } else if (lowerName.includes("frappe")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["chocolate frappe"];
+      } else if (lowerName.includes("cake") || lowerName.includes("នំ")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["cheesecake"];
+      } else if (lowerName.includes("coffee") || lowerName.includes("latte") || lowerName.includes("កាហ្វេ")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["latte"];
+      } else {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["asian"];
+      }
+
       if (fallbackUrl) {
         return { ...p, imageUrl: fallbackUrl };
       }

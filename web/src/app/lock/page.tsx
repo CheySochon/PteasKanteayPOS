@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { loginPin, apiOrigin } from "../../lib/api";
+import { getProfileImage } from "../../lib/profile";
 
 export default function LockScreen() {
   const router = useRouter();
@@ -19,11 +20,12 @@ export default function LockScreen() {
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
+        const resolvedImage = u.imageUrl || u.image || getProfileImage({ id: u.id, name: u.name, email: u.email, role: u.roleName || u.role || "USER" }) || "";
         setLockedUser({
           id: u.id,
           name: u.name,
-          role: u.roleName || "USER",
-          imageUrl: u.imageUrl || u.image || "",
+          role: u.roleName || (typeof u.role === "string" ? u.role : u.role?.name) || "USER",
+          imageUrl: resolvedImage,
           avatarBg: "bg-[#55a060]",
           initial: (u.name || "U")[0].toUpperCase(),
         });
@@ -90,7 +92,7 @@ export default function LockScreen() {
           <div className="flex flex-col items-center text-center shrink-0">
             {lockedUser.imageUrl ? (
               <img
-                src={lockedUser.imageUrl.startsWith("http") ? lockedUser.imageUrl : `${apiOrigin}${lockedUser.imageUrl}`}
+                src={lockedUser.imageUrl.startsWith("data:") || lockedUser.imageUrl.startsWith("http") ? lockedUser.imageUrl : `${apiOrigin}${lockedUser.imageUrl}`}
                 alt={lockedUser.name}
                 className="h-16 w-16 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
               />

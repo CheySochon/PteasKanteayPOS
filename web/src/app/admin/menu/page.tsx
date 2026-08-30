@@ -27,7 +27,7 @@ import {
   Utensils,
   X,
 } from "lucide-react";
-import { useAppLanguage } from "../../../lib/language";
+import { resolveCategoryName, resolveProductName, useAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
 import { canAddFeature, canEditFeature, canDeleteFeature } from "../../../lib/permissions";
@@ -52,9 +52,11 @@ import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 type ProductForm = {
   id?: number;
   name: string;
+  nameKm: string;
   categoryId: string;
   basePrice: string;
   description: string;
+  descriptionKm: string;
   imageUrl: string;
   prepTime: string;
   isAvailable: boolean;
@@ -63,7 +65,9 @@ type ProductForm = {
 type CategoryForm = {
   id?: number;
   name: string;
+  nameKm: string;
   description: string;
+  descriptionKm: string;
   imageUrl?: string;
 };
 
@@ -75,9 +79,11 @@ type MenuNotification = {
 
 const EMPTY_PRODUCT: ProductForm = {
   name: "",
+  nameKm: "",
   categoryId: "",
   basePrice: "",
   description: "",
+  descriptionKm: "",
   imageUrl: "",
   prepTime: "10",
   isAvailable: true,
@@ -85,7 +91,9 @@ const EMPTY_PRODUCT: ProductForm = {
 
 const EMPTY_CATEGORY: CategoryForm = {
   name: "",
+  nameKm: "",
   description: "",
+  descriptionKm: "",
   imageUrl: "",
 };
 
@@ -515,7 +523,9 @@ export default function MenuPage() {
       if (categoryForm.id) {
         const updated = await updateCategory(categoryForm.id, {
           name: categoryForm.name,
+          nameKm: categoryForm.nameKm,
           description: categoryForm.description,
+          descriptionKm: categoryForm.descriptionKm,
           imageUrl,
         });
 
@@ -537,7 +547,9 @@ export default function MenuPage() {
       } else {
         const created = await createCategory({
           name: categoryForm.name,
+          nameKm: categoryForm.nameKm,
           description: categoryForm.description,
+          descriptionKm: categoryForm.descriptionKm,
           imageUrl,
         });
 
@@ -563,7 +575,9 @@ export default function MenuPage() {
     setCategoryForm({
       id: category.id,
       name: category.name,
+      nameKm: category.nameKm || "",
       description: category.description || "",
+      descriptionKm: category.descriptionKm || "",
       imageUrl: category.imageUrl || "",
     });
     setCategoryImageFile(null);
@@ -638,9 +652,11 @@ export default function MenuPage() {
 
       const payload = {
         name: productForm.name,
+        nameKm: productForm.nameKm,
         categoryId: Number(productForm.categoryId),
         basePrice: Number(productForm.basePrice || 0),
         description: productForm.description,
+        descriptionKm: productForm.descriptionKm,
         imageUrl,
         prepTime: Number(productForm.prepTime || 10),
         isAvailable: productForm.isAvailable,
@@ -754,9 +770,11 @@ export default function MenuPage() {
     setProductForm({
       id: product.id,
       name: product.name,
+      nameKm: product.nameKm || "",
       categoryId: String(product.categoryId),
       basePrice: String(product.basePrice),
       description: product.description || "",
+      descriptionKm: product.descriptionKm || "",
       imageUrl: product.imageUrl || "",
       prepTime: String(product.prepTime || 10),
       isAvailable: product.isAvailable,
@@ -792,14 +810,18 @@ export default function MenuPage() {
         {/* Menu Page Header Title Block */}
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#55a060]/10 text-[#55a060]">
-            <Utensils size={20} />
+            {isCategoriesView ? <Tags size={20} /> : <Utensils size={20} />}
           </div>
           <div>
             <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
-              {t.badge}
+              {isCategoriesView
+                ? (language === "km" ? "គ្រប់គ្រងប្រភេទមុខម្ហូប" : "Category Management")
+                : t.badge}
             </h1>
             <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
-              {t.subtitle}
+              {isCategoriesView
+                ? (language === "km" ? "គ្រប់គ្រងប្រភេទ រូបតំណាង និង ការបែងចែកក្រុមមុខម្ហូប។" : "Manage product categories, labels, icons, and menu groupings.")
+                : t.subtitle}
             </p>
           </div>
         </div>
@@ -925,9 +947,6 @@ export default function MenuPage() {
                           {language === "km" ? "ឈ្មោះប្រភេទ" : "CATEGORY"}
                         </th>
                         <th className="px-5 py-3">
-                          {language === "km" ? "ការពណ៌នា" : "DESCRIPTION"}
-                        </th>
-                        <th className="px-5 py-3">
                           {language === "km" ? "ចំនួនមុខម្ហូប" : "PRODUCTS"}
                         </th>
                         <th className="px-5 py-3">
@@ -972,16 +991,9 @@ export default function MenuPage() {
                                   <CategoryIcon size={16} />
                                 </div>
                                 <span className={`text-sm font-semibold ${dark ? "text-slate-100" : "text-[#566a7f]"}`}>
-                                  {category.name}
+                                  {resolveCategoryName(category, language)}
                                 </span>
                               </div>
-                            </td>
-                            <td className={`px-5 py-3 text-sm max-w-xs truncate ${
-                              category.description
-                                ? (dark ? "text-slate-400" : "text-[#8592a3]")
-                                : "text-slate-400/60 dark:text-slate-500/60 italic"
-                            }`}>
-                              {category.description || (language === "km" ? "គ្មានការពណ៌នា" : "No description")}
                             </td>
                             <td className="px-5 py-3">
                               <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
@@ -1051,7 +1063,7 @@ export default function MenuPage() {
                       dark={dark}
                       count={categoryCount(category.id)}
                     >
-                      {category.name}
+                      {resolveCategoryName(category, language)}
                     </FilterButton>
                   ))}
                 </div>
@@ -1334,6 +1346,9 @@ function MenuCard({
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-[#d9dee3]";
   const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
+  const appLanguage = useAppLanguage();
+  const displayName = resolveProductName(product, appLanguage);
+  const displayCategoryName = resolveCategoryName(product.category, appLanguage) || text.noDescription;
   const imgSrc = getFallbackProductImage(product);
 
   return (
@@ -1343,7 +1358,7 @@ function MenuCard({
           {imgSrc ? (
             <img
               src={imgSrc}
-              alt={product.name}
+              alt={displayName}
               loading="lazy"
               decoding="async"
               className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03] ${unavailable ? "grayscale opacity-60" : ""}`}
@@ -1367,10 +1382,10 @@ function MenuCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-xs sm:text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors font-khmer">
-                {product.name}
+                {displayName}
               </h3>
               <p className="mt-0.5 truncate text-[11px] font-medium text-[#a1acb8] font-khmer">
-                {product.category?.name || text.noDescription}
+                {displayCategoryName}
               </p>
             </div>
 
@@ -1533,35 +1548,36 @@ function CategoryEditor({
           </label>
         )}
 
-        <Field label={text.categoryName}>
-          <input
-            required
-            value={categoryForm.name}
-            onChange={(event) =>
-              setCategoryForm((current) => ({
-                ...current,
-                name: event.target.value,
-              }))
-            }
-            placeholder={text.categoryName}
-            className={inputClass}
-          />
-        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="Category Name (English / ភាសាអង់គ្លេស)">
+            <input
+              required
+              value={categoryForm.name}
+              onChange={(event) =>
+                setCategoryForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Beef Burger"
+              className={inputClass}
+            />
+          </Field>
 
-        <Field label={text.description}>
-          <textarea
-            value={categoryForm.description}
-            onChange={(event) =>
-              setCategoryForm((current) => ({
-                ...current,
-                description: event.target.value,
-              }))
-            }
-            rows={3}
-            placeholder="Optional description"
-            className={`${inputClass} resize-none h-auto py-2.5`}
-          />
-        </Field>
+          <Field label="Category Name (Khmer / ឈ្មោះភាសាខ្មែរ)">
+            <input
+              value={categoryForm.nameKm}
+              onChange={(event) =>
+                setCategoryForm((current) => ({
+                  ...current,
+                  nameKm: event.target.value,
+                }))
+              }
+              placeholder="ឧទាហរណ៍ ៖ ប៊ឺហ្គឺ សាច់គោ"
+              className={inputClass}
+            />
+          </Field>
+        </div>
 
         <div className="pt-2 flex gap-2.5">
           {categoryForm.id && (
@@ -1670,20 +1686,36 @@ function ProductEditor({
           />
         </label>
 
-        <Field label={text.productName}>
-          <input
-            required
-            value={productForm.name}
-            onChange={(event) =>
-              setProductForm((current) => ({
-                ...current,
-                name: event.target.value,
-              }))
-            }
-            placeholder={text.productName}
-            className={inputClass}
-          />
-        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="Item Name (English / ភាសាអង់គ្លេស)">
+            <input
+              required
+              value={productForm.name}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Beef Burger"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Item Name (Khmer / ឈ្មោះភាសាខ្មែរ)">
+            <input
+              value={productForm.nameKm}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  nameKm: event.target.value,
+                }))
+              }
+              placeholder="ឧទាហរណ៍ ៖ ប៊ឺហ្គឺ សាច់គោ"
+              className={inputClass}
+            />
+          </Field>
+        </div>
 
         <Field label={text.category}>
           <select
@@ -1700,7 +1732,7 @@ function ProductEditor({
             <option value="" className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">{text.selectCategory}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id} className="bg-white text-slate-800 dark:bg-[#2b2c40] dark:text-slate-100">
-                {category.name}
+                {category.nameKm ? `${category.name} (${category.nameKm})` : category.name}
               </option>
             ))}
           </select>
@@ -1757,19 +1789,37 @@ function ProductEditor({
           </Field>
         </div>
 
-        <Field label={text.description}>
-          <textarea
-            value={productForm.description}
-            onChange={(event) =>
-              setProductForm((current) => ({
-                ...current,
-                description: event.target.value,
-              }))
-            }
-            rows={3}
-            className={`${inputClass} resize-none h-auto py-2.5`}
-          />
-        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="Description (English)">
+            <textarea
+              value={productForm.description}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              rows={2}
+              placeholder="English description..."
+              className={`${inputClass} resize-none h-auto py-2`}
+            />
+          </Field>
+
+          <Field label="Description (Khmer / ការពណ៌នាខ្មែរ)">
+            <textarea
+              value={productForm.descriptionKm}
+              onChange={(event) =>
+                setProductForm((current) => ({
+                  ...current,
+                  descriptionKm: event.target.value,
+                }))
+              }
+              rows={2}
+              placeholder="ការពណ៌នាជាភាសាខ្មែរ..."
+              className={`${inputClass} resize-none h-auto py-2`}
+            />
+          </Field>
+        </div>
 
         <label className={`flex items-center justify-between rounded-xl border p-3 cursor-pointer ${
           panelBg.includes("#2b2c40") ? "border-[#3b3c54] bg-[#232333]" : "border-slate-200/90 bg-white shadow-xs"

@@ -376,7 +376,62 @@ export default function DashboardPage() {
     [activeOrders, clearedActiveOrderIds]
   );
 
-  const recentOrders = useMemo(() => orders.slice(0, 4), [orders]);
+  const [trendRange, setTrendRange] = useState<"today" | "yesterday" | "7days" | "month">("7days");
+  const [trendMenuOpen, setTrendMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClose = () => setTrendMenuOpen(false);
+    window.addEventListener("click", handleClose);
+    return () => window.removeEventListener("click", handleClose);
+  }, []);
+
+  const selectedRangeOrders = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+
+    if (trendRange === "today") {
+      return orders.filter((o) => {
+        const d = new Date(o.createdAt);
+        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr;
+      });
+    }
+
+    if (trendRange === "yesterday") {
+      const yest = new Date();
+      yest.setDate(yest.getDate() - 1);
+      const yestStr = yest.toDateString();
+      return orders.filter((o) => {
+        const d = new Date(o.createdAt);
+        return !Number.isNaN(d.getTime()) && d.toDateString() === yestStr;
+      });
+    }
+
+    if (trendRange === "7days") {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      return orders.filter((o) => {
+        const d = new Date(o.createdAt);
+        return !Number.isNaN(d.getTime()) && d >= sevenDaysAgo;
+      });
+    }
+
+    if (trendRange === "month") {
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      firstDayOfMonth.setHours(0, 0, 0, 0);
+      return orders.filter((o) => {
+        const d = new Date(o.createdAt);
+        return !Number.isNaN(d.getTime()) && d >= firstDayOfMonth;
+      });
+    }
+
+    return orders;
+  }, [orders, trendRange]);
+
+  const recentOrders = useMemo(() => {
+    const targetList = selectedRangeOrders.length > 0 ? selectedRangeOrders : orders;
+    return targetList.slice(0, 4);
+  }, [selectedRangeOrders, orders]);
 
   const centerTextPlugin = useMemo(() => ({
     id: "centerText",
@@ -385,7 +440,9 @@ export default function DashboardPage() {
       if (!chartArea) return;
       ctx.save();
       
-      const activeCount = activeOrders.length;
+      const activeCount = selectedRangeOrders.filter(
+        (o) => !["completed", "cancelled"].includes((o.status || "").toLowerCase())
+      ).length;
       
       ctx.font = "bold 20px 'Public Sans', sans-serif";
       ctx.fillStyle = dark ? "#f8fafc" : "#1e293b";
@@ -403,7 +460,7 @@ export default function DashboardPage() {
       
       ctx.restore();
     }
-  }), [activeOrders.length, dark, language]);
+  }), [selectedRangeOrders, dark, language]);
 
   const verticalLinePlugin = useMemo(() => ({
     id: "verticalLine",
@@ -428,6 +485,8 @@ export default function DashboardPage() {
     },
   }), [dark]);
 
+
+
   const STATUS_CONFIG = useMemo(
     () => [
       { key: "pending", label: "pending", keys: ["pending"], color: "#71dd37" },
@@ -440,7 +499,7 @@ export default function DashboardPage() {
 
   const orderStatusChartData = useMemo(() => {
     const counts = STATUS_CONFIG.map(
-      (cfg) => orders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length
+      (cfg) => selectedRangeOrders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length
     );
 
     return {
@@ -456,7 +515,7 @@ export default function DashboardPage() {
         },
       ],
     };
-  }, [orders, dark, STATUS_CONFIG]);
+  }, [selectedRangeOrders, dark, STATUS_CONFIG]);
 
   const salesByHour = useMemo(() => {
     const rows = Array.from({ length: 24 }, (_, hour) => ({
@@ -525,58 +584,48 @@ export default function DashboardPage() {
   const hourlySalesTotals = salesByHour.map((h) => h.total);
   const hourlyOrderCounts = salesByHour.map((h) => h.count);
 
-  const computedTodaySales = useMemo(() => {
-    const todayStr = new Date().toDateString();
-    const sumFromOrders = orders
+  const computedRangeSales = useMemo(() => {
+    const sumFromOrders = selectedRangeOrders
       .filter((o) => {
-        const d = new Date(o.createdAt);
         const st = (o.status || "").toLowerCase();
-        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "served");
+        return st === "completed" || st === "served" || st === "paid";
       })
       .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
     if (sumFromOrders > 0) return sumFromOrders;
-    return Number(dailySales?.totalSales || 0);
-  }, [dailySales, orders]);
+    if (trendRange === "today") return Number(dailySales?.totalSales || 0);
+    return orders
+      .filter((o) => (o.status || "").toLowerCase() !== "cancelled")
+      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+  }, [selectedRangeOrders, trendRange, dailySales, orders]);
 
   const computedPaidTotal = useMemo(() => {
-    const todayStr = new Date().toDateString();
-    const paidFromOrders = orders
+    const paidFromOrders = selectedRangeOrders
       .filter((o) => {
-        const d = new Date(o.createdAt);
         const st = (o.status || "").toLowerCase();
-        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (st === "completed" || st === "paid" || st === "served");
+        return st === "completed" || st === "paid" || st === "served";
       })
       .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
 
     if (paidFromOrders > 0) return paidFromOrders;
-    return Number(dailySales?.paidTotal || 0);
-  }, [dailySales, orders]);
+    if (trendRange === "today") return Number(dailySales?.paidTotal || 0);
+    return computedRangeSales;
+  }, [selectedRangeOrders, trendRange, dailySales, computedRangeSales]);
 
-  const computedTodayOrdersCount = useMemo(() => {
-    const todayStr = new Date().toDateString();
-    const countFromOrders = orders.filter((o) => {
-      const d = new Date(o.createdAt);
-      return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr;
-    }).length;
-
-    if (countFromOrders > 0) return countFromOrders;
-    return Number(dailySales?.orderCount || 0);
-  }, [dailySales, orders]);
+  const computedRangeOrdersCount = useMemo(() => {
+    if (selectedRangeOrders.length > 0) return selectedRangeOrders.length;
+    if (trendRange === "today") return Number(dailySales?.orderCount || 0);
+    return orders.length;
+  }, [selectedRangeOrders, trendRange, dailySales, orders]);
 
   const computedTopProducts = useMemo(() => {
     const stripExt = (name: string) => (name || "").replace(/\.(jpg|jpeg|png|webp|gif)$/i, "").trim();
 
-    if (topProducts && topProducts.length > 0) {
-      return topProducts.map((p) => ({
-        ...p,
-        productName: stripExt(p.productName || (p as any).name || "Item"),
-      }));
-    }
-
+    const targetList = selectedRangeOrders.length > 0 ? selectedRangeOrders : orders;
     const map = new Map<string, { productId: number; productName: string; totalSales: number }>();
-    orders.forEach((o) => {
-      if (o.status === "cancelled") return;
+
+    targetList.forEach((o) => {
+      if ((o.status || "").toLowerCase() === "cancelled") return;
       (o.items || []).forEach((item: any) => {
         const rawName = item.product?.name || item.name || "Item";
         const pName = stripExt(rawName);
@@ -591,21 +640,45 @@ export default function DashboardPage() {
       });
     });
 
-    return Array.from(map.values()).sort((a, b) => b.totalSales - a.totalSales);
-  }, [topProducts, orders]);
+    const result = Array.from(map.values()).sort((a, b) => b.totalSales - a.totalSales);
+    if (result.length > 0) return result;
+
+    if (topProducts && topProducts.length > 0) {
+      return topProducts.map((p) => ({
+        ...p,
+        productName: stripExt(p.productName || (p as any).name || "Item"),
+      }));
+    }
+
+    return [];
+  }, [selectedRangeOrders, orders, topProducts]);
+
+  const salesCardLabel = useMemo(() => {
+    if (trendRange === "today") return t.todaySales;
+    if (trendRange === "yesterday") return language === "km" ? "ការលក់ម្សិលមិញ" : "Yesterday Sales";
+    if (trendRange === "month") return language === "km" ? "ការលក់ខែនេះ" : "This Month Sales";
+    return language === "km" ? "ការលក់ ៧ ថ្ងៃចុងក្រោយ" : "Last 7 Days Sales";
+  }, [trendRange, language, t.todaySales]);
+
+  const ordersCardLabel = useMemo(() => {
+    if (trendRange === "today") return t.todayOrders;
+    if (trendRange === "yesterday") return language === "km" ? "ការបញ្ជាទិញម្សិលមិញ" : "Yesterday Orders";
+    if (trendRange === "month") return language === "km" ? "ការបញ្ជាទិញខែនេះ" : "This Month Orders";
+    return language === "km" ? "ការបញ្ជាទិញ ៧ ថ្ងៃចុងក្រោយ" : "Last 7 Days Orders";
+  }, [trendRange, language, t.todayOrders]);
 
   const stats = [
     {
-      label: t.todaySales,
-      value: money(computedTodaySales),
+      label: salesCardLabel,
+      value: money(computedRangeSales),
       note: `${t.paid} ${money(computedPaidTotal)}`,
       tone: "green" as const,
       Icon: DollarSign,
     },
     {
-      label: t.todayOrders,
-      value: String(computedTodayOrdersCount),
-      note: t.ordersCreatedToday,
+      label: ordersCardLabel,
+      value: String(computedRangeOrdersCount),
+      note: trendRange === "today" ? t.ordersCreatedToday : `${computedRangeOrdersCount} orders`,
       tone: "blue" as const,
       Icon: ShoppingBag,
     },
@@ -618,7 +691,16 @@ export default function DashboardPage() {
     },
     {
       label: t.completedOrders,
-      value: String(orders.filter((order) => order.status === "completed").length),
+      value: String(
+        (() => {
+          const completed = selectedRangeOrders.filter((o) => {
+            const st = (o.status || "").toLowerCase();
+            return st === "completed" || st === "paid" || st === "served";
+          }).length;
+          if (completed > 0) return completed;
+          return orders.filter((o) => ["completed", "paid", "served"].includes((o.status || "").toLowerCase())).length;
+        })()
+      ),
       note: t.ordersCompleted,
       tone: "green" as const,
       Icon: CheckCircle2,
@@ -700,14 +782,7 @@ export default function DashboardPage() {
     ],
   };
 
-  const [trendRange, setTrendRange] = useState<"today" | "yesterday" | "7days" | "month">("7days");
-  const [trendMenuOpen, setTrendMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const handleClose = () => setTrendMenuOpen(false);
-    window.addEventListener("click", handleClose);
-    return () => window.removeEventListener("click", handleClose);
-  }, []);
 
   const salesTrendData = useMemo(() => {
     const now = new Date();
@@ -1145,8 +1220,8 @@ export default function DashboardPage() {
                 {/* Premium Custom HTML Legend Grid */}
                 <div className={`grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] font-bold ${dark ? "text-slate-400 border-[#4e4f6e]/30" : "text-slate-500 border-slate-100"} border-t pt-3 mt-1.5`}>
                   {STATUS_CONFIG.map((cfg) => {
-                    const count = orders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length;
-                    const total = orders.length || 1;
+                    const count = selectedRangeOrders.filter((o) => cfg.keys.includes((o.status || "").toLowerCase())).length;
+                    const total = selectedRangeOrders.length || 1;
                     const pct = Math.round((count / total) * 100);
                     
                     // Localized label mapping to prevent modifying application logic

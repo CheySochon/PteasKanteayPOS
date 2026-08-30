@@ -135,8 +135,8 @@ export default function ProfilePage() {
 
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
-  const softSurface = dark ? "bg-[#232333]" : "bg-white";
-  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/80";
+  const softSurface = dark ? "bg-[#232333]" : "bg-[#f8faf9]";
+  const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
   const image = getProfileImage(user);
@@ -155,38 +155,77 @@ export default function ProfilePage() {
     [user.email, user.id, user.isActive, user.name, user.role]
   );
 
-  function uploadProfileImage(event: ChangeEvent<HTMLInputElement>) {
+  async function uploadProfileImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     setMessage("");
     setError("");
 
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file.");
+
+    const isHeic =
+      file.type === "image/heic" ||
+      file.type === "image/heif" ||
+      /\.(heic|heif)$/i.test(file.name);
+
+    const isImageFile =
+      isHeic ||
+      file.type.startsWith("image/") ||
+      /\.(jpg|jpeg|png|webp|gif|bmp|tiff|svg)$/i.test(file.name);
+
+    if (!isImageFile) {
+      setError("Please choose a valid image file (JPG, PNG, WEBP, HEIC, etc.).");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      if (typeof reader.result !== "string") {
-        setError("Unable to read image.");
-        return;
+    try {
+      let blobToRead: Blob = file;
+
+      if (isHeic) {
+        setMessage("Converting iPhone HEIC photo to JPEG...");
+        try {
+          const heic2anyModule = await import("heic2any");
+          const heic2any = heic2anyModule.default;
+          const converted = await heic2any({
+            blob: file,
+            toType: "image/jpeg",
+            quality: 0.85,
+          });
+          blobToRead = Array.isArray(converted) ? converted[0] : converted;
+        } catch (heicErr) {
+          console.warn("HEIC conversion fallback:", heicErr);
+        }
       }
 
-      try {
-        const compressed = await compressImageBase64(reader.result, 256, 0.75);
-        setPendingImage(compressed);
-        setRemoveImage(false);
-        setMessage("Image ready. Click Save Changes to apply.");
-      } catch {
-        setPendingImage(reader.result);
-        setRemoveImage(false);
-        setMessage("Image ready. Click Save Changes to apply.");
-      }
-    };
-    reader.onerror = () => setError("Unable to read image.");
-    reader.readAsDataURL(file);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        let rawResult = reader.result;
+        if (typeof rawResult !== "string") {
+          setError("Unable to read image file.");
+          return;
+        }
+
+        if (!rawResult.startsWith("data:image/")) {
+          const base64Content = rawResult.split(",")[1] || rawResult;
+          rawResult = `data:image/jpeg;base64,${base64Content}`;
+        }
+
+        try {
+          const compressed = await compressImageBase64(rawResult, 300, 0.8);
+          setPendingImage(compressed);
+          setRemoveImage(false);
+          setMessage("Image selected! Click 'Save Changes' to update profile photo.");
+        } catch {
+          setPendingImage(rawResult);
+          setRemoveImage(false);
+          setMessage("Image selected! Click 'Save Changes' to update profile photo.");
+        }
+      };
+      reader.onerror = () => setError("Unable to read image file.");
+      reader.readAsDataURL(blobToRead);
+    } catch (err: any) {
+      setError(err?.message || "Failed to process image file.");
+    }
   }
 
   function removeProfileImage() {
@@ -337,7 +376,7 @@ export default function ProfilePage() {
                     <Camera size={16} />
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.heic,.heif,image/heic,image/heif"
                       className="hidden"
                       onChange={uploadProfileImage}
                     />
@@ -401,7 +440,7 @@ export default function ProfilePage() {
                   Upload Photo
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.heif,image/heic,image/heif"
                     className="hidden"
                     onChange={uploadProfileImage}
                   />
@@ -432,7 +471,7 @@ export default function ProfilePage() {
                   {details.map(({ label, value, Icon, colorClass }) => (
                     <div
                       key={label}
-                      className={`flex items-center gap-3 rounded-xl border p-3 ${borderCol} bg-[#fcfcfd] ${dark ? "bg-[#232333]/40" : ""}`}
+                      className={`flex items-center gap-3 rounded-xl border p-3 ${borderCol} ${dark ? "bg-[#232333]/60" : "bg-slate-50/80"}`}
                     >
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
                         <Icon size={16} />

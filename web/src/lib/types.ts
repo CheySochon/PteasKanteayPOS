@@ -64,8 +64,10 @@ export type User = {
 export type Category = {
   id: number;
   name: string;
+  nameKm?: string | null;
   slug: string;
   description?: string | null;
+  descriptionKm?: string | null;
   imageUrl?: string | null;
   deletedAt?: string | null;
   createdAt?: string;
@@ -87,8 +89,10 @@ export type Product = {
   categoryId: number;
   category?: Category;
   name: string;
+  nameKm?: string | null;
   slug: string;
   description?: string | null;
+  descriptionKm?: string | null;
   imageUrl?: string | null;
   basePrice: Money;
   isAvailable: boolean;

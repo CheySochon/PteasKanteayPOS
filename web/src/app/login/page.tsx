@@ -9,6 +9,7 @@ import { useAutoDismiss } from "../../lib/useAutoDismiss";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage } from "../../lib/language";
 import { getSocket } from "../../lib/socket";
+import { getProfileImage } from "../../lib/profile";
 import { Eye, EyeOff, Lock, Mail, Server, Clock, Calendar, Loader2, Store, KeyRound, ShieldCheck, ArrowLeft, RefreshCw, CheckCircle2, X, Check, ChevronRight, Users } from "lucide-react";
 
 const DEFAULT_POS_NAME = "PteasKanteay POS 60";
@@ -156,13 +157,14 @@ export default function LoginPage() {
             const roleStr = String(role);
             const isCashier = roleStr.toLowerCase().includes("cashier") || (u.email && u.email.includes("cashier"));
             const isStaff = roleStr.toLowerCase().includes("staff") || (u.email && u.email.includes("staff"));
+            const resolvedImg = u.imageUrl || u.image || getProfileImage({ id: u.id, name: u.name, email: u.email, role: roleStr });
             return {
               id: u.id || i + 1,
               name: u.name || "User",
               role: roleStr,
               email: u.email,
               pin: u.pin || (isCashier ? "1234" : isStaff ? "5678" : "0000"),
-              imageUrl: u.imageUrl || u.image || "",
+              imageUrl: resolvedImg || "",
               avatarBg: isCashier ? "bg-emerald-600" : isStaff ? "bg-amber-600" : "bg-[#6ab070]",
               initial: (u.name || "U")[0].toUpperCase(),
             };
@@ -181,7 +183,11 @@ export default function LoginPage() {
 
     loadDynamicUsers();
 
-    // 📡 Real-time WebSockets Listener for Staff Login Accounts
+    // 📡 Real-time WebSockets & LocalStorage Listeners for Staff Login Accounts & Profile Images
+    window.addEventListener("storage", loadDynamicUsers);
+    window.addEventListener("pos-profile-change", loadDynamicUsers);
+    window.addEventListener("pos-auth-change", loadDynamicUsers);
+
     const socket = getSocket();
     if (socket) {
       socket.on("user:created", loadDynamicUsers);
@@ -190,6 +196,9 @@ export default function LoginPage() {
     }
 
     return () => {
+      window.removeEventListener("storage", loadDynamicUsers);
+      window.removeEventListener("pos-profile-change", loadDynamicUsers);
+      window.removeEventListener("pos-auth-change", loadDynamicUsers);
       if (socket) {
         socket.off("user:created", loadDynamicUsers);
         socket.off("user:updated", loadDynamicUsers);
@@ -611,6 +620,16 @@ export default function LoginPage() {
         newOtp[i] = d;
       });
       setOtpDigits(newOtp);
+
+      if (newOtp.join("").length === 6) {
+        if (newOtp.join("") !== generatedOtp) {
+          setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+        } else {
+          setError("");
+          setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+        }
+      }
+
       // focus the next empty input or the last one
       const focusIndex = Math.min(digits.length, 5);
       const nextEl = document.getElementById(`otp-digit-${focusIndex}`);
@@ -628,12 +647,30 @@ export default function LoginPage() {
         if (i < 6) newOtp[i] = d;
       });
       setOtpDigits(newOtp);
+
+      if (newOtp.join("").length === 6) {
+        if (newOtp.join("") !== generatedOtp) {
+          setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+        } else {
+          setError("");
+          setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+        }
+      }
       return;
     }
 
     const newOtp = [...otpDigits];
     newOtp[index] = cleanVal.slice(-1);
     setOtpDigits(newOtp);
+
+    if (newOtp.join("").length === 6) {
+      if (newOtp.join("") !== generatedOtp) {
+        setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+      } else {
+        setError("");
+        setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+      }
+    }
 
     // Auto advance focus
     if (cleanVal && index < 5) {
@@ -880,17 +917,20 @@ export default function LoginPage() {
 
               {/* User Details & Avatar Badge */}
               <div className="flex flex-col items-center text-center shrink-0">
-                {selectedStaff.imageUrl ? (
-                  <img
-                    src={selectedStaff.imageUrl.startsWith("http") ? selectedStaff.imageUrl : `${apiOrigin}${selectedStaff.imageUrl}`}
-                    alt={selectedStaff.name}
-                    className="h-13 w-13 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
-                  />
-                ) : (
-                  <div className={`h-13 w-13 rounded-2xl ${selectedStaff.avatarBg} text-white flex items-center justify-center text-base font-black shadow-sm mb-2 ring-4 ring-emerald-500/10`}>
-                    {selectedStaff.initial}
-                  </div>
-                )}
+                {(() => {
+                  const selImg = selectedStaff.imageUrl || getProfileImage({ id: selectedStaff.id, name: selectedStaff.name, email: selectedStaff.email, role: selectedStaff.role });
+                  return selImg ? (
+                    <img
+                      src={selImg.startsWith("data:") || selImg.startsWith("http") ? selImg : `${apiOrigin}${selImg}`}
+                      alt={selectedStaff.name}
+                      className="h-13 w-13 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
+                    />
+                  ) : (
+                    <div className={`h-13 w-13 rounded-2xl ${selectedStaff.avatarBg} text-white flex items-center justify-center text-base font-black shadow-sm mb-2 ring-4 ring-emerald-500/10`}>
+                      {selectedStaff.initial}
+                    </div>
+                  );
+                })()}
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
                   {selectedStaff.name}
                 </h3>
@@ -997,35 +1037,38 @@ export default function LoginPage() {
                 </div>
               ) : (
                 <div className="space-y-3 w-full">
-                  {staffPresets.map((staff) => (
-                    <button
-                      key={staff.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedStaff(staff);
-                        setPin("");
-                        setError("");
-                      }}
-                      className="w-full flex items-center gap-3.5 p-3 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/50 hover:bg-emerald-50/50 dark:hover:bg-slate-800/90 hover:border-[#55a060]/50 dark:hover:border-emerald-500/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-left group"
-                    >
-                      {staff.imageUrl ? (
-                        <img
-                          src={staff.imageUrl.startsWith("http") ? staff.imageUrl : `${apiOrigin}${staff.imageUrl}`}
-                          alt={staff.name}
-                          className="h-10.5 w-10.5 rounded-lg object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
-                        />
-                      ) : (
-                        <div className={`h-10.5 w-10.5 rounded-lg ${staff.avatarBg} text-white flex items-center justify-center text-sm font-bold shadow-xs shrink-0 group-hover:scale-105 transition-transform`}>
-                          {staff.initial}
+                  {staffPresets.map((staff) => {
+                    const staffImg = staff.imageUrl || getProfileImage({ id: staff.id, name: staff.name, email: staff.email, role: staff.role });
+                    return (
+                      <button
+                        key={staff.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStaff(staff);
+                          setPin("");
+                          setError("");
+                        }}
+                        className="w-full flex items-center gap-3.5 p-3 rounded-lg border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-800/50 hover:bg-emerald-50/50 dark:hover:bg-slate-800/90 hover:border-[#55a060]/50 dark:hover:border-emerald-500/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer text-left group"
+                      >
+                        {staffImg ? (
+                          <img
+                            src={staffImg.startsWith("data:") || staffImg.startsWith("http") ? staffImg : `${apiOrigin}${staffImg}`}
+                            alt={staff.name}
+                            className="h-10.5 w-10.5 rounded-lg object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
+                          />
+                        ) : (
+                          <div className={`h-10.5 w-10.5 rounded-lg ${staff.avatarBg} text-white flex items-center justify-center text-sm font-bold shadow-xs shrink-0 group-hover:scale-105 transition-transform`}>
+                            {staff.initial}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
+                          <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
-                        <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
-                      </div>
-                      <ChevronRight size={18} className="text-slate-400 group-hover:text-[#55a060] dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 mr-0.5" />
-                    </button>
-                  ))}
+                        <ChevronRight size={18} className="text-slate-400 group-hover:text-[#55a060] dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 mr-0.5" />
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -1260,70 +1303,76 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
-                New Password
-              </label>
-              <div className="relative">
-                <input
-                  value={newPassword}
-                  onChange={(e) => {
-                    if (error) setError("");
-                    setNewPassword(e.target.value);
-                  }}
-                  onFocus={() => setError("")}
-                  type={showNewPassword ? "text" : "password"}
-                  placeholder={language === "km" ? "បញ្ចូលពាក្យសម្ងាត់ថ្មី (យ៉ាងហោច ៨ តួអក្សរ)..." : "Enter new password (min 8 characters)..."}
-                  className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
-                >
-                  {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+            {/* DYNAMIC DROPDOWN: REVEALS NEW PASSWORD & CONFIRM FIELDS ONLY WHEN STRICT CORRECT 6-DIGIT OTP IS ENTERED */}
+            {otpDigits.join("").length === 6 && otpDigits.join("") === generatedOtp && (
+              <div className="space-y-4 pt-1 animate-[fadeIn_200ms_ease-out]">
+                <div className="space-y-2">
+                  <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      value={newPassword}
+                      onChange={(e) => {
+                        if (error) setError("");
+                        setNewPassword(e.target.value);
+                      }}
+                      onFocus={() => setError("")}
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="Enter new password (min 8 characters)..."
+                      className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
+                      required
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
+                    >
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
-                Confirm New Password
-              </label>
-              <div className="relative">
-                <input
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    if (error) setError("");
-                    setConfirmPassword(e.target.value);
-                  }}
-                  onFocus={() => setError("")}
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Re-enter new password..."
-                  className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
-                >
-                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        if (error) setError("");
+                        setConfirmPassword(e.target.value);
+                      }}
+                      onFocus={() => setError("")}
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Re-enter new password..."
+                      className="w-full h-11 sm:h-12 rounded-xl border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
 
-            <div className="pt-2.5">
-              <button
-                type="submit"
-                disabled={loading || otpDigits.join("").length < 6}
-                className="w-full h-11 sm:h-12 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
-              >
-                {loading ? <Loader2 className="animate-spin" size={16} /> : <KeyRound size={16} />}
-                {loading ? "Updating Password..." : "Reset & Update Password"}
-              </button>
-            </div>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={loading || !newPassword || !confirmPassword}
+                    className="w-full h-11 sm:h-12 rounded-xl bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={16} /> : <KeyRound size={16} />}
+                    {loading ? "Updating Password..." : "Reset & Update Password"}
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         )}
 

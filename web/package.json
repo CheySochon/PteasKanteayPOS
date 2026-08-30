@@ -12,6 +12,7 @@
     "@types/nodemailer": "^8.0.1",
     "bakong-khqr": "^1.0.20",
     "chart.js": "^4.5.1",
+    "heic2any": "^0.0.4",
     "idb": "^8.0.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

@@ -87,6 +87,16 @@ export async function getAuditLogs(query?: {
     prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            imageUrl: true,
+          },
+        },
+      },
       take: limit,
       skip,
     }),
