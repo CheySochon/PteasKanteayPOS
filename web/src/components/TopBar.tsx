@@ -573,7 +573,7 @@ export default function TopBar({
                   : "border-slate-200/80 bg-slate-100 text-slate-500 hover:bg-slate-200/60"
               }`}
             >
-              Search
+              {(language || appLanguage) === "km" ? "ស្វែងរក..." : "Search..."}
             </div>
           </button>
         </div>
@@ -604,7 +604,7 @@ export default function TopBar({
                       setInternalQuery(val);
                       onSearchChange?.(val);
                     }}
-                    placeholder="Search"
+                    placeholder={(language || appLanguage) === "km" ? "ស្វែងរក..." : "Search..."}
                     className={`h-11 w-full rounded-xl border pl-11 pr-4 text-sm font-semibold outline-none transition placeholder:text-slate-400 focus:border-[#0F522B] focus:ring-2 focus:ring-[#0F522B]/10 ${
                       isDark
                         ? "border-slate-700/80 bg-[#232333] text-slate-100"

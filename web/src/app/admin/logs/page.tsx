@@ -46,6 +46,7 @@ export default function AdminLogsPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isClearing, setIsClearing] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
@@ -100,23 +101,8 @@ export default function AdminLogsPage() {
     }
   };
 
-  const handleResetAuditLogs = async () => {
-    if (!window.confirm(language === "km" ? "តើអ្នកប្រាកដជាចង់លុបទិន្នន័យកំណត់ត្រាសកម្មភាពទាំងអស់មែនទេ?" : "Are you sure you want to clear all audit log data?")) {
-      return;
-    }
-    setIsClearing(true);
-    try {
-      await clearAuditLogs();
-      setAuditLogs([]);
-      setAuditTotal(0);
-      setAuditTotalPages(1);
-      setMessage(language === "km" ? "ទិន្នន័យកំណត់ត្រាត្រូវ បានលុបរួចរាល់!" : "Audit log data reset successfully!");
-    } catch (err: any) {
-      console.error(err);
-      setMessage(err?.message || "Failed to clear audit logs");
-    } finally {
-      setIsClearing(false);
-    }
+  const handleResetAuditLogs = () => {
+    setShowResetModal(true);
   };
 
   useEffect(() => {
@@ -452,6 +438,79 @@ export default function AdminLogsPage() {
           </div>
         </div>
       </div>
+
+      {/* Custom Reset Data Modal Overlay */}
+      {showResetModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[1px] animate-[fadeIn_150ms_ease-out]"
+          onClick={() => {
+            if (!isClearing) setShowResetModal(false);
+          }}
+        >
+          <div
+            className={`relative w-full max-w-md rounded-2xl border ${borderCol} ${surface} p-6 shadow-2xl animate-[scaleIn_150ms_ease-out] overflow-hidden`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Warning Icon Badge */}
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 ring-8 ring-rose-500/5">
+              <AlertTriangle size={28} />
+            </div>
+
+            {/* Header Title */}
+            <h3 className={`text-center text-lg font-bold ${textPrimary} mb-2`}>
+              {language === "km" ? "តើអ្នកប្រាកដជាចង់លុបទិន្នន័យ?" : "Clear All Audit Logs?"}
+            </h3>
+
+            {/* Description Text */}
+            <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400 mb-6">
+              {language === "km"
+                ? "ការអនុវត្តនេះនឹងធ្វើការលុបទិន្នន័យកំណត់ត្រាសកម្មភាពទាំងអស់ចេញពី Database។"
+                : "This will permanently delete all audit activity logs from the database."}
+            </p>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                disabled={isClearing}
+                className={`flex-1 h-10 rounded-xl border ${
+                  dark
+                    ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                } text-xs font-semibold transition-all cursor-pointer outline-none active:scale-[0.98] disabled:opacity-50`}
+              >
+                {language === "km" ? "បោះបង់" : "Cancel"}
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsClearing(true);
+                  try {
+                    await clearAuditLogs();
+                    setAuditLogs([]);
+                    setAuditTotal(0);
+                    setAuditTotalPages(1);
+                    setMessage(language === "km" ? "ទិន្នន័យកំណត់ត្រាត្រូវបានលុបរួចរាល់!" : "Audit log data reset successfully!");
+                    setShowResetModal(false);
+                  } catch (err: any) {
+                    console.error(err);
+                    setMessage(err?.message || "Failed to clear audit logs");
+                  } finally {
+                    setIsClearing(false);
+                  }
+                }}
+                disabled={isClearing}
+                className="flex-1 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-sm shadow-rose-600/20 transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isClearing ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>{language === "km" ? "យល់ព្រមលុប" : "Yes, Clear Logs"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

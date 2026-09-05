@@ -136,14 +136,18 @@ export default function AdminKitchenPage() {
             ))}
           </div>
         ) : (
-          <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-[#3b3c54] bg-white dark:bg-[#2b2c40] p-12 text-center transition-all">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 mb-4 border border-emerald-100 dark:border-emerald-900/50">
+          <div className={`mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed p-12 text-center transition-all ${
+            dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200 bg-white"
+          }`}>
+            <div className={`flex h-16 w-16 items-center justify-center rounded-2xl mb-4 border ${
+              dark ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/50" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+            }`}>
               <ChefHat size={30} strokeWidth={1.8} />
             </div>
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 mb-1">
+            <h3 className={`text-base font-bold mb-1 ${dark ? "text-slate-100" : "text-slate-800"}`}>
               {language === "km" ? "មិនមានការបញ្ជាទិញក្នុងផ្ទះបាយទេ" : "No Active Kitchen Orders"}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
+            <p className={`text-xs max-w-md leading-relaxed ${dark ? "text-slate-400" : "text-slate-500"}`}>
               {language === "km" 
                 ? "នៅពេលមានការបញ្ជាទិញថ្មីពីកន្លែងលក់ (POS) វានឹងបង្ហាញនៅលើអេក្រង់នេះដោយស្វ័យប្រវត្តិ។" 
                 : "New customer orders sent from POS will automatically appear here in real-time."}

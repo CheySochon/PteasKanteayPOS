@@ -46,6 +46,11 @@ import {
 import { getSocket } from "../../../lib/socket";
 import type { DiningTable, Order, TableZone } from "../../../lib/types";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
+import {
+  canAddFeature,
+  canEditFeature,
+  canDeleteFeature,
+} from "../../../lib/permissions";
 
 function formatShortOrderNo(order: Order) {
   const raw = order.orderNumber || order.orderId || `#${order.id}`;
@@ -209,6 +214,19 @@ export default function TablesPage() {
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("pos_user");
+      if (stored) setCurrentUser(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  const canAddTables = useMemo(() => canAddFeature(currentUser, "tables"), [currentUser]);
+  const canEditTables = useMemo(() => canEditFeature(currentUser, "tables"), [currentUser]);
+  const canDeleteTables = useMemo(() => canDeleteFeature(currentUser, "tables"), [currentUser]);
+
   useEffect(() => {
     cachedTables = tables;
     cachedOrders = orders;
@@ -273,6 +291,16 @@ export default function TablesPage() {
     event.preventDefault();
     setMessage("");
 
+    if (tableForm.id && !canEditTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែតុឡើយ!" : "You do not have permission to edit tables.");
+      return;
+    }
+
+    if (!tableForm.id && !canAddTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិបន្ថែមតុថ្មីឡើយ!" : "You do not have permission to add tables.");
+      return;
+    }
+
     try {
       const payload = {
         name: tableForm.name,
@@ -312,6 +340,10 @@ export default function TablesPage() {
   }
 
   function editTable(table: DiningTable) {
+    if (!canEditTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែតុឡើយ!" : "You do not have permission to edit tables.");
+      return;
+    }
     setTableForm({
       id: table.id,
       name: table.name,
@@ -329,6 +361,10 @@ export default function TablesPage() {
   }
 
   function openCreateTableModal() {
+    if (!canAddTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិបន្ថែមតុថ្មីឡើយ!" : "You do not have permission to add tables.");
+      return;
+    }
     resetTableForm();
     setMessage("");
     setIsTableModalOpen(true);
@@ -340,6 +376,10 @@ export default function TablesPage() {
   }
 
   function openMoveModal(sourceTable?: DiningTable) {
+    if (!canEditTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិប្តូរតុឡើយ!" : "You do not have permission to move tables.");
+      return;
+    }
     setMoveSourceTable(sourceTable || null);
     setMoveTargetTableId(null);
     setMessage("");
@@ -347,6 +387,10 @@ export default function TablesPage() {
   }
 
   function openMergeModal(sourceTable?: DiningTable) {
+    if (!canEditTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិរួមតុឡើយ!" : "You do not have permission to merge tables.");
+      return;
+    }
     setMergeSourceTable(sourceTable || null);
     setMergeTargetTableId(null);
     setMessage("");
@@ -610,32 +654,38 @@ export default function TablesPage() {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openMoveModal()}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 active:scale-95 transition-all cursor-pointer"
-                  title="Move Table"
-                >
-                  <ArrowRightLeft size={14} />
-                  {language === "km" ? "ប្តូរតុ" : "Move Table"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openMergeModal()}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-3 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 active:scale-95 transition-all cursor-pointer"
-                  title="Merge Table"
-                >
-                  <GitMerge size={14} />
-                  {language === "km" ? "រួមតុ" : "Merge Table"}
-                </button>
-                <button
-                  type="button"
-                  onClick={openCreateTableModal}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/25 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
-                >
-                  <Plus size={14} />
-                  {language === "km" ? "បន្ថែមតុថ្មី" : "Add Table"}
-                </button>
+                {canEditTables && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openMoveModal()}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 active:scale-95 transition-all cursor-pointer"
+                      title="Move Table"
+                    >
+                      <ArrowRightLeft size={14} />
+                      {language === "km" ? "ប្តូរតុ" : "Move Table"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openMergeModal()}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 px-3 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 active:scale-95 transition-all cursor-pointer"
+                      title="Merge Table"
+                    >
+                      <GitMerge size={14} />
+                      {language === "km" ? "រួមតុ" : "Merge Table"}
+                    </button>
+                  </>
+                )}
+                {canAddTables && (
+                  <button
+                    type="button"
+                    onClick={openCreateTableModal}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/25 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    {language === "km" ? "បន្ថែមតុថ្មី" : "Add Table"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -816,30 +866,34 @@ export default function TablesPage() {
                               QR
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => editTable(table)}
-                            className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded border text-xs font-bold transition-all ${
-                              dark
-                                ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:border-[#55a060] hover:text-[#55a060]"
-                                : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#55a060] hover:text-[#55a060]"
-                            }`}
-                          >
-                            <Pencil size={13} />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirmTable(table)}
-                            className={`flex h-9 w-9 items-center justify-center rounded border transition-all ${
-                              dark
-                                ? "border-[#4e4f6e] bg-[#232333] text-[#ff3e1d] hover:bg-[#ff3e1d]/10"
-                                : "border-[#d9dee3] bg-white text-[#ff3e1d] hover:bg-[#ffe5e5]"
-                            }`}
-                            title="Delete table"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {canEditTables && (
+                            <button
+                              type="button"
+                              onClick={() => editTable(table)}
+                              className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded border text-xs font-bold transition-all ${
+                                dark
+                                  ? "border-[#4e4f6e] bg-[#232333] text-slate-300 hover:border-[#55a060] hover:text-[#55a060]"
+                                  : "border-[#d9dee3] bg-white text-[#8592a3] hover:border-[#55a060] hover:text-[#55a060]"
+                              }`}
+                            >
+                              <Pencil size={13} />
+                              Edit
+                            </button>
+                          )}
+                          {canDeleteTables && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmTable(table)}
+                              className={`flex h-9 w-9 items-center justify-center rounded border transition-all ${
+                                dark
+                                  ? "border-[#4e4f6e] bg-[#232333] text-[#ff3e1d] hover:bg-[#ff3e1d]/10"
+                                  : "border-[#d9dee3] bg-white text-[#ff3e1d] hover:bg-[#ffe5e5]"
+                              }`}
+                              title="Delete table"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

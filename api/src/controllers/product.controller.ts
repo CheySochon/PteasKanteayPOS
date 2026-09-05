@@ -30,6 +30,8 @@ export const create = asyncHandler(
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("inventory:updated", data);
+      io.emit("product:updated", data);
+      io.emit("menu:updated", data);
     }
     res.status(201).json({ success: true, message: "Product created", data });
   },
@@ -44,6 +46,8 @@ export const update = asyncHandler(
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("inventory:updated", data);
+      io.emit("product:updated", data);
+      io.emit("menu:updated", data);
     }
     res.json({ success: true, message: "Product updated", data });
   },
@@ -55,6 +59,8 @@ export const remove = asyncHandler(
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("inventory:updated", { id: Number(req.params.id), deleted: true });
+      io.emit("product:updated", { id: Number(req.params.id), deleted: true });
+      io.emit("menu:updated", { id: Number(req.params.id), deleted: true });
     }
     res.json({ success: true, message: "Product deleted" });
   },

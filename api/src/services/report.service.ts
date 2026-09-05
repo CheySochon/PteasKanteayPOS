@@ -1,24 +1,41 @@
 import { prisma } from "../config/prisma.js";
-import { toCsv } from "../utils/csv.js";
+import { toCsv, toCsvBuffer } from "../utils/csv.js";
 
 function toNum(value: unknown): number {
   return Number(value ?? 0);
 }
 
-function dayRange(date = new Date()): { start: Date; end: Date } {
+function parseLocalDate(dateString?: string): Date {
+  if (!dateString) return new Date();
+  if (dateString.includes("T")) return new Date(dateString);
+  if (dateString.length === 7) return new Date(`${dateString}-01T00:00:00`);
+  return new Date(`${dateString}T00:00:00`);
+}
+
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dayRange(dateInput?: Date | string): { start: Date; end: Date } {
+  const date = typeof dateInput === "string" ? parseLocalDate(dateInput) : dateInput || new Date();
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
   return { start, end };
 }
 
-function monthRange(date = new Date()): { start: Date; end: Date } {
+function monthRange(dateInput?: Date | string): { start: Date; end: Date } {
+  const date = typeof dateInput === "string" ? parseLocalDate(dateInput) : dateInput || new Date();
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
   const end = new Date(date.getFullYear(), date.getMonth() + 1, 1);
   return { start, end };
 }
 
-function yearRange(date = new Date()): { start: Date; end: Date } {
+function yearRange(dateInput?: Date | string): { start: Date; end: Date } {
+  const date = typeof dateInput === "string" ? parseLocalDate(dateInput) : dateInput || new Date();
   const start = new Date(date.getFullYear(), 0, 1);
   const end = new Date(date.getFullYear() + 1, 0, 1);
   return { start, end };
@@ -28,7 +45,7 @@ function rangeForPeriod(
   dateString?: string,
   period = "month",
 ): { start: Date; end: Date } {
-  const date = dateString ? new Date(dateString) : new Date();
+  const date = parseLocalDate(dateString);
   if (period === "day") return dayRange(date);
   if (period === "year") return yearRange(date);
   return monthRange(date);
@@ -58,9 +75,7 @@ async function salesSummary(range: { start: Date; end: Date }) {
 }
 
 export const getDailySales = async (dateString?: string) => {
-  const summary = await salesSummary(
-    dayRange(dateString ? new Date(dateString) : new Date()),
-  );
+  const summary = await salesSummary(dayRange(dateString));
 
   const hourlySales = Array.from({ length: 24 }, (_, hour) => ({
     hour,
@@ -77,7 +92,7 @@ export const getDailySales = async (dateString?: string) => {
 };
 
 export const getMonthlySales = async (dateString?: string) => {
-  const baseDate = dateString ? new Date(dateString) : new Date();
+  const baseDate = parseLocalDate(dateString);
   const range = monthRange(baseDate);
   const summary = await salesSummary(range);
   const daysInMonth = new Date(
@@ -86,16 +101,19 @@ export const getMonthlySales = async (dateString?: string) => {
     0,
   ).getDate();
 
-  const dailyTotals = Array.from({ length: daysInMonth }, (_, i) => ({
-    date: new Date(baseDate.getFullYear(), baseDate.getMonth(), i + 1)
-      .toISOString()
-      .slice(0, 10),
-    total: 0,
-  }));
+  const dailyTotals = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), i + 1);
+    return {
+      date: formatLocalDate(d),
+      total: 0,
+    };
+  });
 
   summary.orders.forEach((o) => {
     const day = o.createdAt.getDate() - 1;
-    dailyTotals[day].total += toNum(o.totalAmount);
+    if (dailyTotals[day]) {
+      dailyTotals[day].total += toNum(o.totalAmount);
+    }
   });
 
   const { orders: _orders, ...totals } = summary;
@@ -127,17 +145,31 @@ export const getTopProducts = async (
     include: { category: true },
   });
 
-  return rows.map((row) => ({
-    productId: row.productId,
-    productName:
-      products.find((p) => p.id === row.productId)?.name ?? "Unknown",
-    categoryName:
-      products.find((p) => p.id === row.productId)?.category?.name ??
-      "Uncategorized",
-    quantity: row._sum.quantity ?? 0,
-    totalSales: toNum(row._sum.totalPrice),
-  }));
+  return rows.map((row) => {
+    const prod = products.find((p) => p.id === row.productId);
+    let categoryName = prod?.category?.name ?? "Uncategorized";
+    if (categoryName.toLowerCase() === "inventory") {
+      categoryName = "Drink";
+    }
+    return {
+      productId: row.productId,
+      productName: prod?.name ?? "Unknown",
+      categoryName,
+      quantity: row._sum.quantity ?? 0,
+      totalSales: toNum(row._sum.totalPrice),
+    };
+  });
 };
+
+function formatLocalDateTime(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+}
 
 export const exportCsv = async (dateString?: string, period = "month") => {
   const range = dateString ? rangeForPeriod(dateString, period) : null;
@@ -154,8 +186,9 @@ export const exportCsv = async (dateString?: string, period = "month") => {
     orderBy: { createdAt: "desc" },
   });
 
-  return toCsv(
+  return toCsvBuffer(
     orders.flatMap((order) => {
+      const formattedDate = formatLocalDateTime(order.createdAt);
       if (!order.items.length) {
         return [
           {
@@ -166,7 +199,7 @@ export const exportCsv = async (dateString?: string, period = "month") => {
             quantity: 0,
             status: order.status,
             totalAmount: toNum(order.totalAmount),
-            createdAt: order.createdAt.toISOString(),
+            createdAt: formattedDate,
           },
         ];
       }
@@ -174,12 +207,12 @@ export const exportCsv = async (dateString?: string, period = "month") => {
       return order.items.map((item) => ({
         orderNumber: order.orderNumber,
         table: order.table?.name ?? "Walk-in",
-        item: item.product?.name ?? "Unknown",
-        category: item.product?.category?.name ?? "Uncategorized",
+        item: item.product?.name ?? item.product?.nameKm ?? "Unknown",
+        category: item.product?.category?.name ?? item.product?.category?.nameKm ?? "Uncategorized",
         quantity: item.quantity,
         status: order.status,
         totalAmount: toNum(item.totalPrice),
-        createdAt: order.createdAt.toISOString(),
+        createdAt: formattedDate,
       }));
     }),
     [
@@ -193,4 +226,94 @@ export const exportCsv = async (dateString?: string, period = "month") => {
       { key: "createdAt", label: "Created At" },
     ],
   );
+};
+
+export const getPurchaseReportSummary = async (dateString?: string, period = "month") => {
+  const range = rangeForPeriod(dateString, period);
+
+  const purchaseOrders = await prisma.purchaseOrder.findMany({
+    where: {
+      createdAt: { gte: range.start, lt: range.end },
+    },
+    include: {
+      supplier: true,
+      items: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const totalPurchaseCost = purchaseOrders.reduce(
+    (sum, po) => sum + toNum(po.totalAmount),
+    0,
+  );
+  const activeSuppliersCount = await prisma.supplier.count({
+    where: { isActive: true },
+  });
+
+  return {
+    totalPurchaseCost,
+    orderCount: purchaseOrders.length,
+    activeSuppliersCount,
+    purchaseOrders: purchaseOrders.map((po) => ({
+      id: po.id,
+      poNumber: po.poNumber,
+      supplierName: po.supplier?.name ?? "Unknown Supplier",
+      itemCount: po.items.length,
+      totalAmount: toNum(po.totalAmount),
+      status: po.status,
+      createdAt: po.createdAt,
+    })),
+  };
+};
+
+export const getPaymentMethodBreakdown = async (dateString?: string, period = "month") => {
+  const range = rangeForPeriod(dateString, period);
+
+  const orders = await prisma.order.findMany({
+    where: {
+      deletedAt: null,
+      createdAt: { gte: range.start, lt: range.end },
+      status: { not: "cancelled" },
+    },
+  });
+
+  const breakdownMap: Record<string, { method: string; txns: number; total: number }> = {};
+  let grossRevenue = 0;
+
+  orders.forEach((o: any) => {
+    const rawMethod = (o.paymentMethod || "aba_khqr").toLowerCase();
+    let label = "ABA KHQR (Scan to Pay)";
+    let key = "khqr";
+
+    if (rawMethod.includes("cash") || rawMethod.includes("សាច់ប្រាក់")) {
+      label = "Cash (សាច់ប្រាក់)";
+      key = "cash";
+    } else if (rawMethod.includes("card") || rawMethod.includes("credit") || rawMethod.includes("visa")) {
+      label = "Credit Card / Other";
+      key = "card";
+    } else if (rawMethod.includes("wing") || rawMethod.includes("pipay") || rawMethod.includes("bakong")) {
+      label = "Other E-Wallet";
+      key = "e_wallet";
+    }
+
+    if (!breakdownMap[key]) {
+      breakdownMap[key] = { method: label, txns: 0, total: 0 };
+    }
+
+    const amt = toNum(o.totalAmount);
+    breakdownMap[key].txns += 1;
+    breakdownMap[key].total += amt;
+    grossRevenue += amt;
+  });
+
+  const items = Object.values(breakdownMap).map((b) => ({
+    ...b,
+    percentage: grossRevenue > 0 ? Math.round((b.total / grossRevenue) * 100) : 0,
+  }));
+
+  return {
+    grossRevenue,
+    totalTransactions: orders.length,
+    breakdown: items,
+  };
 };

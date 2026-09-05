@@ -47,13 +47,28 @@ export const update = asyncHandler(
       res.status(404).json({ success: false, message: "User not found" });
       return;
     }
-    const user = await updateUser(idVal, req.body);
+
+    const currentUser = (req as any).user;
+    const isSuperAdmin = currentUser?.userId === 1;
+    const isAdmin =
+      isSuperAdmin ||
+      (currentUser?.role &&
+        String(currentUser.role).toLowerCase().includes("admin"));
+
+    const updatePayload: Record<string, unknown> = { ...req.body };
+    if (!isAdmin) {
+      delete updatePayload.role;
+      delete updatePayload.roleName;
+      delete updatePayload.permissions;
+      delete updatePayload.groupIds;
+    }
+
+    const user = await updateUser(idVal, updatePayload);
     const io = req.app.get("io");
     if (io) io.emit("user:updated", user);
 
-    const currentUser = (req as any).user;
     await createAuditLog({
-      userId: currentUser?.id || idVal,
+      userId: currentUser?.userId || idVal,
       userName: currentUser?.name || user.name || "Admin",
       userRole: currentUser?.role || "ADMIN",
       action: "USER_UPDATE",

@@ -49,8 +49,9 @@ import {
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
 import TopBar from "../../components/TopBar";
+import AnimatedToast from "../../components/AnimatedToast";
 import { useAppTheme } from "../../lib/theme";
-import { useAppLanguage, setAppLanguage, resolveCategoryName, resolveProductName } from "../../lib/language";
+import { useAppLanguage, setAppLanguage, resolveCategoryName, resolveProductName, getProductCategoryBadgeName } from "../../lib/language";
 import {
   apiOrigin,
   createOrder,
@@ -60,6 +61,7 @@ import {
   getTables,
   getOrders,
   deleteOrder,
+  updateOrderApi,
 } from "../../lib/api";
 import { getSocket } from "../../lib/socket";
 import type { Category, DiningTable, Product, OrderStatus } from "../../lib/types";
@@ -183,7 +185,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [receiptFooterText, setReceiptFooterText] = useState(cachedSettings?.receiptFooter || "Thanks for visit. Come again");
   const [serviceRate, setServiceRate] = useState(cachedSettings?.serviceChargeRate != null ? Number(cachedSettings.serviceChargeRate) / 100 : SERVICE_RATE);
   const [vatRate, setVatRate] = useState(cachedSettings?.taxRate != null ? Number(cachedSettings.taxRate) / 100 : VAT_RATE);
-  const [exchangeRate, setExchangeRate] = useState<number>(cachedSettings?.exchangeRate ? Number(cachedSettings.exchangeRate) : 4100);
+  const [exchangeRate, setExchangeRate] = useState<number>(cachedSettings?.exchangeRate ? Number(cachedSettings.exchangeRate) : 4000);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [splitCount, setSplitCount] = useState(2);
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -193,12 +195,90 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [splitPaymentOpen, setSplitPaymentOpen] = useState(false);
   const [splitPaymentMethod, setSplitPaymentMethod] = useState<"cash" | "qr">("cash");
   const [splitCashReceived, setSplitCashReceived] = useState(0);
-  const [message, setMessage] = useState("");
-  useAutoDismiss(message, setMessage);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const showSuccessToast = useCallback((msg: string) => {
+    if (!msg) return;
+    setToast({ message: msg, type: "success" });
+  }, []);
+
+  const showErrorToast = useCallback((msg: string) => {
+    if (!msg) return;
+    setToast({ message: msg, type: "error" });
+  }, []);
+
+  const setMessage = showSuccessToast;
+  const setErrorMessage = showErrorToast;
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(!cachedCategories);
   const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
+
+  function cancelEditOrder() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("pos_editing_order");
+    }
+    setEditingOrder(null);
+    setCart([]);
+    setOrderNote("");
+    setDiscountPercent(0);
+  }
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedEdit = localStorage.getItem("pos_editing_order");
+        if (storedEdit) {
+          const orderToEdit = JSON.parse(storedEdit);
+          setEditingOrder(orderToEdit);
+
+          if (orderToEdit.items && Array.isArray(orderToEdit.items)) {
+            const loadedCart: CartItem[] = orderToEdit.items.map((it: any) => {
+              const prod = it.product || {
+                id: it.productId,
+                name: it.name || it.productName || "Product",
+                basePrice: it.unitPrice || it.price || 0,
+              };
+              return {
+                productId: Number(it.productId || prod.id),
+                product: prod,
+                name: prod.name || it.name,
+                unitPrice: Number(it.unitPrice || it.price || prod.basePrice || 0),
+                quantity: Number(it.quantity || 1),
+                price: Number(it.unitPrice || it.price || prod.basePrice || 0),
+                totalPrice: Number(it.totalPrice || ((it.unitPrice || prod.basePrice) * (it.quantity || 1))),
+                notes: it.notes || "",
+              };
+            });
+            setCart(loadedCart);
+          }
+
+          if (orderToEdit.tableId) {
+            setTableId(Number(orderToEdit.tableId));
+            setOrderingMode(true);
+          }
+
+          if (orderToEdit.notes) {
+            setOrderNote(orderToEdit.notes);
+            setShowNoteInput(true);
+          }
+
+          if (orderToEdit.orderNumber || orderToEdit.orderId) {
+            setTicketNumber(String(orderToEdit.orderNumber || orderToEdit.orderId).slice(-4));
+          }
+        }
+      } catch {}
+    }
+  }, []);
   
   // Payment State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -363,10 +443,29 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         table: selectedTable ? { name: displayTableName || selectedTable.name } : null,
       };
 
+      if (editingOrder && editingOrder.id) {
+        const updatedOrder = await updateOrderApi(editingOrder.id, payload);
+        const socket = getSocket();
+        if (socket) {
+          socket.emit("order:updated", updatedOrder);
+        }
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("pos_editing_order");
+          window.dispatchEvent(new Event("pos-order-updated"));
+        }
+        setEditingOrder(null);
+        setCart([]);
+        setDiscountPercent(0);
+        setOrderNote("");
+        setSendKitchenModalOpen(false);
+        setMessage(language === "km" ? `កែប្រែការបញ្ជាទិញជោគជ័យ!` : `Order updated successfully!`);
+        return;
+      }
+
       const createdOrder = await createOrder(payload);
 
       const fullOrder = {
-        id: createdOrder?.id || Date.now(),
+        id: createdOrder?.id || Math.floor(Date.now() % 2000000000),
         createdAt: createdOrder?.createdAt || new Date().toISOString(),
         orderNumber: createdOrder?.orderNumber || ticketNumber,
         status: createdOrder?.status || "pending",
@@ -408,9 +507,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       setOrderNote("");
       setSendKitchenModalOpen(false);
       setPrintSlipModalOpen(true);
-      setMessage(`Order ${fullOrder.orderNumber || `#${fullOrder.id}`} sent to kitchen!`);
+      showSuccessToast(`Order ${fullOrder.orderNumber || `#${fullOrder.id}`} sent to kitchen!`);
     } catch (err: any) {
-      alert(err?.message || "Failed to send order to kitchen");
+      showErrorToast(err?.message || "Failed to send order to kitchen");
     } finally {
       setLoading(false);
     }
@@ -621,21 +720,51 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
           setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
           setVatRate(Number(appSettings.taxRate || 0) / 100);
+          if (appSettings.exchangeRate != null) setExchangeRate(Number(appSettings.exchangeRate) || 4000);
         })
         .catch(() => undefined);
     }
 
     syncAuthUser();
-    window.addEventListener("storage", syncAuthUser);
-    window.addEventListener("pos-settings-change", syncAuthUser);
+    const handleSettingsAndAuth = () => {
+      syncAuthUser();
+      reloadMenuData();
+    };
+
+    window.addEventListener("storage", handleSettingsAndAuth);
+    window.addEventListener("pos-settings-change", handleSettingsAndAuth);
     window.addEventListener("pos-auth-change", syncAuthUser);
     window.addEventListener("pos-menu-change", reloadMenuData);
 
+    const socket = getSocket();
+    if (socket) {
+      socket.on("settings:updated", reloadMenuData);
+      socket.on("product:updated", reloadMenuData);
+      socket.on("product:created", reloadMenuData);
+      socket.on("product:deleted", reloadMenuData);
+      socket.on("inventory:updated", reloadMenuData);
+      socket.on("category:updated", reloadMenuData);
+      socket.on("category:created", reloadMenuData);
+      socket.on("category:deleted", reloadMenuData);
+      socket.on("menu:updated", reloadMenuData);
+    }
+
     return () => {
-      window.removeEventListener("storage", syncAuthUser);
-      window.removeEventListener("pos-settings-change", syncAuthUser);
+      window.removeEventListener("storage", handleSettingsAndAuth);
+      window.removeEventListener("pos-settings-change", handleSettingsAndAuth);
       window.removeEventListener("pos-auth-change", syncAuthUser);
       window.removeEventListener("pos-menu-change", reloadMenuData);
+      if (socket) {
+        socket.off("settings:updated", reloadMenuData);
+        socket.off("product:updated", reloadMenuData);
+        socket.off("product:created", reloadMenuData);
+        socket.off("product:deleted", reloadMenuData);
+        socket.off("inventory:updated", reloadMenuData);
+        socket.off("category:updated", reloadMenuData);
+        socket.off("category:created", reloadMenuData);
+        socket.off("category:deleted", reloadMenuData);
+        socket.off("menu:updated", reloadMenuData);
+      }
     };
   }, []);
 
@@ -658,7 +787,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       const matchesSearch =
         !search ||
         product.name.toLowerCase().includes(search) ||
-        (product.description || "").toLowerCase().includes(search);
+        (product.nameKm || "").toLowerCase().includes(search) ||
+        (product.description || "").toLowerCase().includes(search) ||
+        (product.descriptionKm || "").toLowerCase().includes(search);
 
       return matchesCategory && matchesSearch;
     });
@@ -796,7 +927,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       const nextQty = (existingItem?.quantity || 0) + 1;
 
       if (product.trackStock && Number(product.inventory?.quantity ?? 0) < nextQty) {
-        alert(`Insufficient stock for ${product.name}. Available: ${Number(product.inventory?.quantity).toFixed(0)} ${product.unit}`);
+        showErrorToast(`Insufficient stock for ${product.name}. Available: ${Number(product.inventory?.quantity).toFixed(0)} ${product.unit}`);
         return current;
       }
 
@@ -809,7 +940,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           : entry
       );
     });
-  }, []);
+  }, [showErrorToast]);
 
   async function processCheckout() {
     setLoading(true);
@@ -849,7 +980,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       const order = await createOrder(payload);
 
       const fullOrder = {
-        id: order?.id || Date.now(),
+        id: order?.id || Math.floor(Date.now() % 2000000000),
         createdAt: order?.createdAt || new Date().toISOString(),
         orderNumber: order?.orderNumber || ticketNumber,
         status: order?.status || "pending",
@@ -940,9 +1071,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       setTicketNumber(String(Date.now()).slice(-4));
       setTableId(undefined);
       setOrderingMode(false); // Return to Table Map
-      setMessage(`Order ${order.orderNumber || order.orderId} paid successfully.`);
+      showSuccessToast(`Order ${order.orderNumber || order.orderId} paid successfully.`);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to process payment");
+      showErrorToast(err instanceof Error ? err.message : "Unable to process payment");
     } finally {
       setLoading(false);
     }
@@ -964,6 +1095,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     <main className={`overflow-y-auto flex flex-col print:bg-white print:overflow-visible print:h-auto print:text-black ${isAdminView ? 'h-full flex-1 min-w-0' : 'h-full w-full'} ${
       dark ? "bg-[#232333] text-slate-100" : "bg-[#f8faf9] text-slate-700"
     }`}>
+      {toast && (
+        <AnimatedToast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
 
       {/* VIEW 2: Ordering Interface — matching profile account layout container */}
       <div className="flex flex-1 flex-col overflow-hidden w-full max-w-[1400px] mx-auto px-4 py-4 lg:px-6 min-h-0">
@@ -1219,13 +1357,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} dark={dark} onAdd={handleAddProduct} />
+                    <ProductCard key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} categories={categories} onAdd={handleAddProduct} />
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3.5">
                   {filteredProducts.map((product) => (
-                    <ProductListItem key={product.id} product={product} dark={dark} onAdd={handleAddProduct} />
+                    <ProductListItem key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} categories={categories} onAdd={handleAddProduct} />
                   ))}
                 </div>
               )}
@@ -1238,6 +1376,26 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           } ${
             dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
           }`}>
+
+            {/* Editing Order Banner */}
+            {editingOrder && (
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-amber-500 text-white text-xs font-bold shrink-0 border-b border-amber-600 shadow-xs">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Pencil size={14} className="shrink-0" />
+                  <span className="truncate">
+                    {language === "km" ? "កំពុងកែប្រែការបញ្ជាទិញ" : "Editing Order"} #{editingOrder.orderNumber || editingOrder.orderId || editingOrder.id}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelEditOrder}
+                  className="p-1 rounded-md hover:bg-amber-600 text-white transition-colors cursor-pointer shrink-0"
+                  title="Cancel Edit"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             {/* ── Select Dining Option + Select Table ── */}
             <div className={`flex gap-2 px-4.5 py-3.5 border-b shrink-0 ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100"}`}>
@@ -1327,12 +1485,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                         item={item}
                         dark={dark}
                         language={language}
+                        exchangeRate={exchangeRate}
                         imageUrl={resolveImageUrl(product?.imageUrl)}
                         onIncrement={() => {
                           const prod = products.find((p) => p.id === item.productId);
                           const nextQty = item.quantity + 1;
                           if (prod?.trackStock && Number(prod.inventory?.quantity ?? 0) < nextQty) {
-                            alert(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
+                            showErrorToast(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
                             return;
                           }
                           setCart((current) =>
@@ -1429,17 +1588,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 <div className="flex flex-col items-end">
                   <span className="text-2xl font-black text-[#55a060]">{money(total)}</span>
                   <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
-                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                    ({(Math.round(total * (exchangeRate || 4000))).toLocaleString()} ៛)
                   </span>
                 </div>
               </div>
 
-              {/* Draft & Send to Kitchen Buttons Row */}
+              {/* Draft & Send / Update Buttons Row */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleHoldOrder}
-                  disabled={cart.length === 0}
+                  disabled={cart.length === 0 || !!editingOrder}
                   className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     dark ? "border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                   } ${language === "km" ? "font-khmer" : ""}`}
@@ -1454,7 +1613,10 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     language === "km" ? "font-khmer" : ""
                   }`}
                 >
-                  <ChefHat size={14} /> {language === "km" ? "ផ្ញើទៅចង្ក្រាន" : "Send to Kitchen"}
+                  {editingOrder ? <Pencil size={14} /> : <ChefHat size={14} />} 
+                  {editingOrder 
+                    ? (language === "km" ? "កែប្រែការបញ្ជាទិញ" : "Update Order") 
+                    : (language === "km" ? "ផ្ញើទៅចង្ក្រាន" : "Send to Kitchen")}
                 </button>
               </div>
 
@@ -1467,7 +1629,10 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   language === "km" ? "font-khmer" : ""
                 }`}
               >
-                <Banknote size={16} /> {language === "km" ? "បង្កើតវិក្កយបត្រ & ទូទាត់" : "Create Receipt & Pay"}
+                <Banknote size={16} /> 
+                {editingOrder 
+                  ? (language === "km" ? "រក្សាទុក & ទូទាត់" : "Update & Pay") 
+                  : (language === "km" ? "បង្កើតវិក្កយបត្រ & ទូទាត់" : "Create Receipt & Pay")}
               </button>
             </div>
           </aside>
@@ -1526,7 +1691,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 <div className="flex flex-col items-end">
                   <span className="text-2xl font-bold text-[#55a060]">{money(total)}</span>
                   <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
-                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                    ({(Math.round(total * (exchangeRate || 4000))).toLocaleString()} ៛)
                   </span>
                 </div>
               </div>
@@ -1648,7 +1813,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     {money(total)}
                   </span>
                   <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
-                    ({(Math.round(total * 4100)).toLocaleString()} ៛)
+                    ({(Math.round(total * (exchangeRate || 4000))).toLocaleString()} ៛)
                   </span>
                 </div>
               </div>
@@ -1824,7 +1989,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               <div className="mb-5 text-center">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Amount</p>
                 <p className="text-2xl font-black text-[#696cff] leading-none mt-1.5">{money(total)}</p>
-                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(total * 4100).toLocaleString()} ៛</p>
+                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(total * (exchangeRate || 4000)).toLocaleString()} ៛</p>
               </div>
 
               {/* Split Count Selector */}
@@ -1941,7 +2106,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               <div className="mb-4 text-center">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Split Share</p>
                 <p className="text-2xl font-black text-[#696cff] leading-none mt-1">{money(total / splitCount)}</p>
-                <p className="text-[10px] font-bold text-slate-400 mt-0.5">~ {((total / splitCount) * 4100).toLocaleString()} ៛</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5">~ {((total / splitCount) * (exchangeRate || 4000)).toLocaleString()} ៛</p>
               </div>
 
               <div className="mb-4 flex gap-1.5">
@@ -2749,7 +2914,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   <span className="text-base text-[#55a060] font-bold">{money(printSlipData.total)}</span>
                 </div>
                 <div className="text-right text-[10.5px] text-slate-400 font-normal mt-0.5">
-                  ~ {(printSlipData.total * 4100).toLocaleString()} ៛
+                  ~ {(printSlipData.total * (exchangeRate || 4000)).toLocaleString()} ៛
                 </div>
               </div>
 
@@ -2778,11 +2943,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 }
 
 const ProductCard = memo(
-  function ProductCard({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: (product: Product) => void }) {
+  function ProductCard({ product, dark, exchangeRate = 4000, categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; categories?: Category[]; onAdd: (product: Product) => void }) {
     const appLanguage = useAppLanguage();
     const imageUrl = resolveImageUrl(product.imageUrl);
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
+
+    const categoryBadge = getProductCategoryBadgeName(product, categories, appLanguage);
 
     return (
       <button
@@ -2797,9 +2964,9 @@ const ProductCard = memo(
         <div className={`w-full aspect-[1.35] relative overflow-hidden shrink-0 border-b flex items-center justify-center ${
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
         }`}>
-          {product.category && (
+          {categoryBadge && (
             <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9.5px] font-bold px-2.5 py-1 rounded-br-lg z-10">
-              {resolveCategoryName(product.category, appLanguage)}
+              {categoryBadge}
             </span>
           )}
 
@@ -2851,31 +3018,18 @@ const ProductCard = memo(
                 {resolveProductName(product, appLanguage)}
               </h3>
 
-              {/* Reserved Middle Slot for Stock / Variants Info */}
-              <div className="min-h-[18px] flex items-center mt-0.5">
-                {(() => {
-                  const key = product.name.toLowerCase();
-                  let text = null;
-                  if (key.includes("pizza")) text = "2 Variants • 2 Addons";
-                  else if (key.includes("fries")) text = "1 Variants • 1 Addons";
-                  else if (key.includes("burger")) text = "2 Variants • 3 Addons";
-                  else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
-                  else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
-                  else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
-                  
-                  if (!text) return null;
-                  return (
-                    <span className="text-[10.5px] text-slate-400 block font-medium">
-                      {text}
-                    </span>
-                  );
-                })()}
-              </div>
+              {/* Reserved Middle Slot for Stock Info */}
+              <div className="min-h-[6px] flex items-center mt-0.5" />
             </div>
 
-            {/* Price ALWAYS aligned at the bottom */}
-            <div className="mt-1 text-[12.5px] font-black text-[#55a060]">
-              {money(product.basePrice)}
+            {/* Price ALWAYS aligned at the bottom with Dual Currency ($ USD + ៛ KHR) */}
+            <div className="mt-1 flex items-baseline justify-between gap-1">
+              <span className="text-[12.5px] font-black text-[#55a060]">
+                {money(product.basePrice)}
+              </span>
+              <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
+                {(Math.round(Number(product.basePrice || 0) * exchangeRate)).toLocaleString()} ៛
+              </span>
             </div>
           </div>
         </div>
@@ -2885,16 +3039,23 @@ const ProductCard = memo(
   (prev, next) =>
     prev.product.id === next.product.id &&
     prev.dark === next.dark &&
+    prev.exchangeRate === next.exchangeRate &&
+    prev.categories === next.categories &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
-    prev.product.name === next.product.name
+    prev.product.name === next.product.name &&
+    prev.product.categoryId === next.product.categoryId &&
+    prev.product.category?.name === next.product.category?.name
 );
 
 const ProductListItem = memo(
-  function ProductListItem({ product, dark, onAdd }: { product: Product; dark?: boolean; onAdd: (product: Product) => void }) {
+  function ProductListItem({ product, dark, exchangeRate = 4000, categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; categories?: Category[]; onAdd: (product: Product) => void }) {
+    const appLanguage = useAppLanguage();
     const imageUrl = resolveImageUrl(product.imageUrl);
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
+
+    const categoryBadge = getProductCategoryBadgeName(product, categories, appLanguage);
 
     return (
       <button
@@ -2913,9 +3074,9 @@ const ProductListItem = memo(
             dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50 border-slate-100"
           }`}
         >
-          {product.category && (
+          {categoryBadge && (
             <span className="absolute top-0 left-0 bg-[#55a060] text-white text-[9px] font-bold px-2 py-0.5 rounded-br-md z-10">
-              {product.category.name}
+              {categoryBadge}
             </span>
           )}
 
@@ -2951,29 +3112,18 @@ const ProductListItem = memo(
             }`}>
               {product.name}
             </h3>
-            <span className="text-xs font-black text-[#55a060] shrink-0">
-              {money(product.basePrice)}
-            </span>
+            <div className="flex flex-col items-end shrink-0">
+              <span className="text-xs font-black text-[#55a060]">
+                {money(product.basePrice)}
+              </span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400">
+                {(Math.round(Number(product.basePrice || 0) * exchangeRate)).toLocaleString()} ៛
+              </span>
+            </div>
           </div>
 
-          {/* Subtitle / Variants / Addons text */}
-          {(() => {
-            const key = product.name.toLowerCase();
-            let text = null;
-            if (key.includes("pizza")) text = "2 Variants • 2 Addons";
-            else if (key.includes("fries")) text = "1 Variants • 1 Addons";
-            else if (key.includes("burger")) text = "2 Variants • 3 Addons";
-            else if (key.includes("almuerzo") || key.includes("ejecutivo")) text = "4 Variants • 8 Addons";
-            else if (product.id % 3 === 0) text = "2 Variants • 4 Addons";
-            else if (product.id % 4 === 0) text = "1 Variants • 2 Addons";
-            
-            if (!text) return <div className="flex-1" />;
-            return (
-              <span className="text-[10px] text-slate-400 block line-clamp-1 font-medium">
-                {text}
-              </span>
-            );
-          })()}
+          {/* Spacer */}
+          <div className="flex-1" />
 
           {/* Bottom Action Row: ADD Button */}
           <div className="flex items-center justify-end mt-1">
@@ -2992,9 +3142,13 @@ const ProductListItem = memo(
   (prev, next) =>
     prev.product.id === next.product.id &&
     prev.dark === next.dark &&
+    prev.exchangeRate === next.exchangeRate &&
+    prev.categories === next.categories &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
-    prev.product.name === next.product.name
+    prev.product.name === next.product.name &&
+    prev.product.categoryId === next.product.categoryId &&
+    prev.product.category?.name === next.product.category?.name
 );
 
 function TicketItem({
@@ -3002,6 +3156,7 @@ function TicketItem({
   dark,
   language,
   imageUrl,
+  exchangeRate = 4000,
   onIncrement,
   onDecrement,
   onRemove,
@@ -3011,6 +3166,7 @@ function TicketItem({
   dark?: boolean;
   language?: string;
   imageUrl: string;
+  exchangeRate?: number;
   onIncrement: () => void;
   onDecrement: () => void;
   onRemove?: () => void;
@@ -3028,9 +3184,14 @@ function TicketItem({
           <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"} ${language === "km" ? "font-khmer" : ""}`}>
             {item.name}
           </h3>
-          <span className="text-xs font-semibold text-[#55a060] block mt-0.5">
-            {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
-          </span>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            <span className="text-xs font-semibold text-[#55a060]">
+              {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
+            </span>
+            <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
+              ({(Math.round(item.unitPrice * item.quantity * exchangeRate)).toLocaleString()} ៛)
+            </span>
+          </div>
           {item.notes && (
             <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
               {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}

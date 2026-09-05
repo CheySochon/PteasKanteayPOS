@@ -4,7 +4,7 @@ import { ImageIcon } from "lucide-react";
 import type { Product } from "../lib/types";
 import { apiOrigin } from "../lib/api";
 
-import { resolveCategoryName, resolveProductName, useAppLanguage } from "../lib/language";
+import { getProductCategoryBadgeName, resolveProductName, useAppLanguage } from "../lib/language";
 
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
@@ -34,7 +34,7 @@ export default function ProductGrid({
       {products.map((product) => {
         const imageUrl = resolveImageUrl(product.imageUrl);
         const displayName = resolveProductName(product, appLanguage);
-        const displayCategory = resolveCategoryName(product.category, appLanguage) || "Uncategorized";
+        const displayCategory = getProductCategoryBadgeName(product, [], appLanguage) || "Uncategorized";
 
         const isOutOfStock = product.trackStock && Number(product.inventory?.quantity ?? 0) <= 0;
         const isDisabled = !product.isAvailable || isOutOfStock;

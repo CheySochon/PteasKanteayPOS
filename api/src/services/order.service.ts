@@ -24,14 +24,37 @@ function normalizeStatus(status: unknown): string {
 export function formatOrder(order: Record<string, unknown> | null) {
   if (!order) return order;
   const table = order.table as { name?: string } | null;
+  const rawItems = Array.isArray(order.items) ? (order.items as any[]) : [];
+  const items = rawItems.map((item) => {
+    const u = toNum(item.unitPrice ?? item.price ?? item.product?.basePrice);
+    const qty = Math.max(1, toNum(item.quantity || 1));
+    const t = toNum(item.totalPrice) > 0 ? toNum(item.totalPrice) : u * qty;
+    return {
+      ...item,
+      unitPrice: u,
+      totalPrice: t,
+    };
+  });
+
+  const computedSubtotal = items.length > 0
+    ? items.reduce((sum, item) => sum + toNum(item.totalPrice), 0)
+    : toNum(order.subtotal);
+
+  const subtotal = toNum(order.subtotal) > 0 ? toNum(order.subtotal) : computedSubtotal;
+  const discountAmount = toNum(order.discountAmount);
+  const taxAmount = toNum(order.taxAmount);
+  const rawTotal = toNum(order.totalAmount);
+  const totalAmount = rawTotal > 0 ? rawTotal : Math.max(subtotal - discountAmount + taxAmount, 0);
+
   return {
     ...order,
+    items: rawItems.length > 0 ? items : order.items,
     orderId: order.orderNumber,
     tableNo: table?.name ?? null,
-    subtotal: toNum(order.subtotal),
-    discountAmount: toNum(order.discountAmount),
-    taxAmount: toNum(order.taxAmount),
-    totalAmount: toNum(order.totalAmount),
+    subtotal,
+    discountAmount,
+    taxAmount,
+    totalAmount,
   };
 }
 
@@ -90,6 +113,33 @@ export const getOrder = async (id: number) => {
   return formatOrder(order);
 };
 
+const MAX_INT = 2147483647;
+
+async function findProductSafely(productId: any, name?: string) {
+  const pid = Number(productId);
+  let product = null;
+
+  if (pid && !isNaN(pid) && pid > 0 && pid <= MAX_INT) {
+    product = await prisma.product.findUnique({
+      where: { id: pid },
+    });
+  }
+
+  if (!product && name && typeof name === "string" && name.trim()) {
+    product = await prisma.product.findFirst({
+      where: { name: { equals: name.trim(), mode: "insensitive" } },
+    });
+  }
+
+  if (!product) {
+    product = await prisma.product.findFirst({
+      where: { deletedAt: null },
+    });
+  }
+
+  return product;
+}
+
 export const createOrder = async (
   payload: {
     tableId?: number;
@@ -101,6 +151,7 @@ export const createOrder = async (
     totalAmount?: number;
     items?: {
       productId: number;
+      name?: string;
       quantity?: number;
       unitPrice?: number;
       price?: number;
@@ -114,9 +165,7 @@ export const createOrder = async (
   
   // Check stock availability first
   for (const item of rawItems) {
-    const product = await prisma.product.findUnique({
-      where: { id: Number(item.productId) },
-    });
+    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
     if (product?.trackStock) {
       const inventory = await prisma.inventory.findUnique({
         where: { productId: product.id },
@@ -133,9 +182,7 @@ export const createOrder = async (
   const itemsToCreate = [];
 
   for (const item of rawItems) {
-    const product = await prisma.product.findUnique({
-      where: { id: Number(item.productId) },
-    });
+    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
 
     const qty = Math.max(1, Number(item.quantity || 1));
     const unitPrice = toNum(item.unitPrice ?? item.price ?? product?.basePrice ?? 0);
@@ -144,7 +191,7 @@ export const createOrder = async (
     calculatedSubtotal += totalPrice;
 
     itemsToCreate.push({
-      productId: Number(item.productId),
+      productId: product ? product.id : 1,
       quantity: qty,
       unitPrice: unitPrice,
       totalPrice: totalPrice,
@@ -204,10 +251,10 @@ export const updateOrderStatus = async (id: number, status: string, userId?: num
   // If transitioning to cancelled
   if (newStatus === "cancelled" && currentOrder.status !== "cancelled") {
     for (const item of currentOrder.items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await findProductSafely(item.productId);
       if (product?.trackStock) {
         await adjustStock(
-          item.productId,
+          product.id,
           item.quantity,
           "return",
           currentOrder.orderNumber,
@@ -221,9 +268,9 @@ export const updateOrderStatus = async (id: number, status: string, userId?: num
   else if (currentOrder.status === "cancelled" && newStatus !== "cancelled") {
     // Check stock availability first
     for (const item of currentOrder.items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await findProductSafely(item.productId);
       if (product?.trackStock) {
-        const inventory = await prisma.inventory.findUnique({ where: { productId: item.productId } });
+        const inventory = await prisma.inventory.findUnique({ where: { productId: product.id } });
         const available = Number(inventory?.quantity ?? 0);
         if (available < item.quantity) {
           throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
@@ -232,10 +279,10 @@ export const updateOrderStatus = async (id: number, status: string, userId?: num
     }
     // Deduct stock again
     for (const item of currentOrder.items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await findProductSafely(item.productId);
       if (product?.trackStock) {
         await adjustStock(
-          item.productId,
+          product.id,
           -item.quantity,
           "sale",
           currentOrder.orderNumber,
@@ -255,22 +302,22 @@ export const updateOrderStatus = async (id: number, status: string, userId?: num
   return formatOrder(order);
 };
 
-export const deleteOrder = async (id: number) => {
+export const deleteOrder = async (id: number, userId?: number) => {
   const order = await prisma.order.findUnique({
     where: { id },
     include: { items: true },
   });
   if (order && order.status !== "cancelled") {
     for (const item of order.items) {
-      const product = await prisma.product.findUnique({ where: { id: item.productId } });
+      const product = await findProductSafely(item.productId);
       if (product?.trackStock) {
         await adjustStock(
-          item.productId,
+          product.id,
           item.quantity,
           "return",
           order.orderNumber,
           "Order deleted",
-          null
+          userId
         );
       }
     }
@@ -280,6 +327,153 @@ export const deleteOrder = async (id: number) => {
     where: { id },
     data: { deletedAt: new Date() },
   });
+};
+
+export const updateOrder = async (
+  id: number,
+  payload: {
+    tableId?: number | null;
+    status?: string;
+    notes?: string;
+    subtotal?: number;
+    discountAmount?: number;
+    taxAmount?: number;
+    totalAmount?: number;
+    items?: {
+      productId: number;
+      name?: string;
+      quantity?: number;
+      unitPrice?: number;
+      price?: number;
+      totalPrice?: number;
+      notes?: string;
+    }[];
+  },
+  userId?: number,
+) => {
+  const current = await prisma.order.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!current || current.deletedAt) throw new Error("Order not found");
+
+  const rawItems = payload.items || [];
+
+  // Check stock availability for new/increased items if trackStock is enabled
+  for (const item of rawItems) {
+    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
+    if (product?.trackStock) {
+      const inventory = await prisma.inventory.findUnique({
+        where: { productId: product.id },
+      });
+      const existingItem = current.items.find((i) => i.productId === product.id);
+      const prevQty = existingItem ? existingItem.quantity : 0;
+      const newQty = Math.max(1, Number(item.quantity || 1));
+      const diff = newQty - prevQty;
+
+      if (diff > 0) {
+        const available = Number(inventory?.quantity ?? 0);
+        if (available < diff) {
+          throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+        }
+      }
+    }
+  }
+
+  // Adjust stock differences for removed / changed items
+  for (const oldItem of current.items) {
+    const newItem = rawItems.find((i) => Number(i.productId) === oldItem.productId);
+    const product = await findProductSafely(oldItem.productId);
+    if (product?.trackStock) {
+      if (!newItem) {
+        await adjustStock(
+          product.id,
+          oldItem.quantity,
+          "return",
+          current.orderNumber,
+          "Item removed from order",
+          userId
+        );
+      } else {
+        const diff = Number(newItem.quantity || 1) - oldItem.quantity;
+        if (diff !== 0) {
+          await adjustStock(
+            product.id,
+            -diff,
+            diff > 0 ? "sale" : "return",
+            current.orderNumber,
+            "Order item quantity updated",
+            userId
+          );
+        }
+      }
+    }
+  }
+
+  // Stock for newly added items
+  for (const newItem of rawItems) {
+    const product = await findProductSafely(newItem.productId, (newItem as any).name || (newItem as any).productName);
+    const existing = product ? current.items.find((i) => i.productId === product.id) : null;
+    if (!existing && product?.trackStock) {
+      const qty = Math.max(1, Number(newItem.quantity || 1));
+      await adjustStock(
+        product.id,
+        -qty,
+        "sale",
+        current.orderNumber,
+        "New item added to order",
+        userId
+      );
+    }
+  }
+
+  // Delete old order items & recreate updated ones
+  await prisma.orderItem.deleteMany({ where: { orderId: id } });
+
+  let calculatedSubtotal = 0;
+  const itemsToCreate = [];
+
+  for (const item of rawItems) {
+    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
+
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const unitPrice = toNum(item.unitPrice ?? item.price ?? product?.basePrice ?? 0);
+    const totalPrice = toNum(item.totalPrice ?? (unitPrice * qty));
+
+    calculatedSubtotal += totalPrice;
+
+    itemsToCreate.push({
+      productId: product ? product.id : 1,
+      quantity: qty,
+      unitPrice,
+      totalPrice,
+      notes: item.notes || null,
+    });
+  }
+
+  const subtotal = payload.subtotal ? toNum(payload.subtotal) : calculatedSubtotal;
+  const discountAmount = toNum(payload.discountAmount);
+  const taxAmount = toNum(payload.taxAmount);
+  const totalAmount = payload.totalAmount ? toNum(payload.totalAmount) : Math.max(subtotal - discountAmount + taxAmount, 0);
+
+  const updated = await prisma.order.update({
+    where: { id },
+    data: {
+      tableId: payload.tableId !== undefined ? (payload.tableId ? Number(payload.tableId) : null) : current.tableId,
+      status: payload.status ? (normalizeStatus(payload.status) as OrderStatus) : current.status,
+      subtotal,
+      discountAmount,
+      taxAmount,
+      totalAmount,
+      notes: payload.notes !== undefined ? payload.notes : current.notes,
+      items: {
+        create: itemsToCreate,
+      },
+    },
+    include: buildOrderInclude(),
+  });
+
+  return formatOrder(updated);
 };
 
 export const addOrderItem = async (
@@ -294,9 +488,7 @@ export const addOrderItem = async (
 
   if (!order) throw new Error("Order not found");
 
-  const product = await prisma.product.findFirst({
-    where: { id: payload.productId, deletedAt: null, isAvailable: true },
-  });
+  const product = await findProductSafely(payload.productId, (payload as any).name || (payload as any).productName);
 
   if (!product) throw new Error(`Product not found: ${payload.productId}`);
 

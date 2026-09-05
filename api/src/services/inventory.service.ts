@@ -1,16 +1,21 @@
 import { prisma } from "../config/prisma.js";
 import { createProduct } from "./product.service.js";
 
+const MAX_INT = 2147483647;
+
 export const getOrCreateInventory = async (productId: number) => {
+  const pid = Number(productId);
+  if (!pid || isNaN(pid) || pid <= 0 || pid > MAX_INT) return null;
+
   const existing = await prisma.inventory.findUnique({
-    where: { productId },
+    where: { productId: pid },
   });
 
   if (existing) return existing;
 
   return prisma.inventory.create({
     data: {
-      productId,
+      productId: pid,
       quantity: 0,
       minStock: 0,
     },
@@ -53,10 +58,13 @@ export const adjustStock = async (
   notes: string | null = null,
   userId: number | null = null,
 ) => {
+  const pid = Number(productId);
+  if (!pid || isNaN(pid) || pid <= 0 || pid > MAX_INT) return null;
+
   return prisma.$transaction(async (tx) => {
     // 1. Get or create inventory
     let inventory = await tx.inventory.findUnique({
-      where: { productId },
+      where: { productId: pid },
     });
 
     if (!inventory) {
@@ -98,16 +106,19 @@ export const updateInventorySettings = async (
     unit?: string;
     name?: string;
     quantity?: number;
+    supplierId?: number | null;
+    categoryId?: number | null;
   },
   userId: number | null = null,
 ) => {
   return prisma.$transaction(async (tx) => {
-    // 1. Update product fields if provided (trackStock, unit, name, supplierId)
+    // 1. Update product fields if provided (trackStock, unit, name, supplierId, categoryId)
     const productUpdateData: any = {};
     if (data.trackStock !== undefined) productUpdateData.trackStock = data.trackStock;
     if (data.unit !== undefined) productUpdateData.unit = data.unit;
     if (data.name !== undefined) productUpdateData.name = data.name;
-    if ((data as any).supplierId !== undefined) productUpdateData.supplierId = (data as any).supplierId ? Number((data as any).supplierId) : null;
+    if (data.supplierId !== undefined) productUpdateData.supplierId = data.supplierId ? Number(data.supplierId) : null;
+    if (data.categoryId !== undefined && data.categoryId !== null) productUpdateData.categoryId = Number(data.categoryId);
 
     if (Object.keys(productUpdateData).length > 0) {
       await tx.product.update({
@@ -167,7 +178,7 @@ export const updateInventorySettings = async (
 
     return tx.product.findUnique({
       where: { id: productId },
-      include: { inventory: true, category: true },
+      include: { inventory: true, category: true, supplier: true },
     });
   });
 };
@@ -237,21 +248,70 @@ export const addInventoryItem = async (
     quantity: number;
     minStock: number;
     supplierId?: number | null;
+    categoryId?: number | null;
   },
   userId: number | null = null,
 ) => {
   return prisma.$transaction(async (tx) => {
-    // 1. Find or create default category "Inventory"
-    let category = await tx.category.findFirst({
-      where: { slug: "inventory" },
-    });
+    let category = null;
+
+    // 1. Check if categoryId was specified
+    if (data.categoryId) {
+      category = await tx.category.findFirst({
+        where: { id: Number(data.categoryId), deletedAt: null },
+      });
+    }
+
+    // 2. Check if item is a beverage / drink (e.g. ទឹកក្រូច, ទឹកសុទ្ធ, Coca, Sprite, Water...)
+    if (!category) {
+      const nameLower = data.name.toLowerCase();
+      const isBeverage = [
+        "coca", "cola", "sprite", "fanta", "pepsi", "water", "evian", "evlan",
+        "vital", "drink", "beverage", "juice", "coffee", "tea", "frappe", "smoothie",
+        "beer", "wine", "milk", "soda", "latte", "cappuccino", "espresso",
+        "ទឹកក្រូច", "ទឹកសុទ្ធ", "ភេសជ្ជៈ", "គ្រឿងផឹក"
+      ].some((kw) => nameLower.includes(kw));
+
+      if (isBeverage) {
+        category = await tx.category.findFirst({
+          where: {
+            deletedAt: null,
+            OR: [
+              { slug: "drink" },
+              { name: { contains: "Drink", mode: "insensitive" } },
+              { nameKm: { contains: "ភេសជ្ជៈ" } },
+            ],
+          },
+        });
+      }
+    }
+
+    // 3. Fallback to default "Drink" category if no category matched
+    if (!category) {
+      category = await tx.category.findFirst({
+        where: {
+          deletedAt: null,
+          OR: [
+            { slug: "drink" },
+            { name: { contains: "Drink", mode: "insensitive" } },
+          ],
+        },
+      });
+    }
+
+    if (!category) {
+      category = await tx.category.findFirst({
+        where: { deletedAt: null },
+      });
+    }
 
     if (!category) {
       category = await tx.category.create({
         data: {
-          name: "Inventory",
-          slug: "inventory",
-          description: "Default category for inventory stock items",
+          name: "Drink",
+          nameKm: "ភេសជ្ជៈ",
+          slug: "drink",
+          description: "Drink and beverage stock category",
         },
       });
     }
@@ -280,6 +340,7 @@ export const addInventoryItem = async (
       include: {
         inventory: true,
         category: true,
+        supplier: true,
       },
     });
 

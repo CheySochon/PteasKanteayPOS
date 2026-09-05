@@ -79,7 +79,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   restaurantImageUrl: "",
   address: "Bangkok, Thailand",
   currency: "USD",
-  exchangeRate: 4100,
+  exchangeRate: 4000,
   taxRate: 7,
   serviceChargeRate: 10,
   receiptFooter: "Thank you for dining with us.",
@@ -906,9 +906,9 @@ export default function SettingsPage() {
                               min={1000}
                               max={10000}
                               step={1}
-                              value={settings.exchangeRate ?? 4100}
+                              value={settings.exchangeRate ?? 4000}
                               onChange={(event) => update("exchangeRate", Number(event.target.value))}
-                              placeholder="e.g. 4100 or 4032"
+                              placeholder="e.g. 4000 or 4100"
                               className={`${inputClass} w-full font-bold text-emerald-600 dark:text-emerald-400`}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
@@ -1039,13 +1039,13 @@ export default function SettingsPage() {
                           <span>
                             {Math.round(
                               (42 + 42 * (Number(settings.taxRate || 0) / 100) + 42 * (Number(settings.serviceChargeRate || 0) / 100)) *
-                                (Number(settings.exchangeRate) || 4100)
+                                (Number(settings.exchangeRate) || 4000)
                             ).toLocaleString()}{" "}
                             ៛
                           </span>
                         </div>
                         <div className="mt-0.5 text-[10px] text-slate-400 text-right font-mono">
-                          Rate: 1$ = {(Number(settings.exchangeRate) || 4100).toLocaleString()} ៛
+                          Rate: 1$ = {(Number(settings.exchangeRate) || 4000).toLocaleString()} ៛
                         </div>
                         {settings.receiptFooter && (
                           <div className={`mt-2 text-center text-[10px] ${textSecondary} italic`}>

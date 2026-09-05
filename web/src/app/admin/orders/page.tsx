@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Utensils,
   X,
+  Pencil,
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
 import OrderStatusBadge from "../../../components/OrderStatusBadge";
@@ -34,6 +35,11 @@ import {
   resolveStaffProfileImage,
   subscribeToProfileChanges,
 } from "../../../lib/profile";
+import {
+  canAddFeature,
+  canEditFeature,
+  canDeleteFeature,
+} from "../../../lib/permissions";
 
 // Simplified 4 core statuses: Pending, Preparing, Completed, Cancelled
 const statusOptions: OrderStatus[] = [
@@ -193,8 +199,6 @@ const TEXT = {
 type OrderTab = "all" | "active" | "completed" | "cancelled";
 type OrderTypeFilter = "all" | "dine-in" | "takeout";
 
-const RIEL_RATE = 4100;
-
 function formatShortOrderNo(order: Order) {
   if (order.id) {
     return `#${String(order.id).padStart(4, "0")}`;
@@ -211,10 +215,34 @@ function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function moneyRiel(value: number | string) {
+function moneyRiel(value: number | string, rate: number = 4000) {
   const num = Number(value || 0);
-  const riel = Math.round(num * RIEL_RATE);
+  const riel = Math.round(num * rate);
   return `${riel.toLocaleString("en-US")}៛`;
+}
+
+function getItemUnitPrice(item: any): number {
+  const u = Number(item?.unitPrice ?? item?.price ?? item?.product?.basePrice ?? 0);
+  return isNaN(u) ? 0 : u;
+}
+
+function getItemTotalPrice(item: any): number {
+  const t = Number(item?.totalPrice);
+  if (!isNaN(t) && t > 0) return t;
+  const u = getItemUnitPrice(item);
+  const q = Math.max(1, Number(item?.quantity || 1));
+  return u * q;
+}
+
+function getOrderTotalAmount(order: any): number {
+  if (!order) return 0;
+  const directTotal = Number(order.totalAmount ?? 0);
+  if (!isNaN(directTotal) && directTotal > 0) return directTotal;
+  if (Array.isArray(order.items) && order.items.length > 0) {
+    const itemsSum = order.items.reduce((sum: number, item: any) => sum + getItemTotalPrice(item), 0);
+    if (itemsSum > 0) return itemsSum;
+  }
+  return 0;
 }
 
 function waitMinutes(order: Order) {
@@ -251,6 +279,13 @@ function dateTimeLabel(value: string) {
   if (Number.isNaN(date.getTime())) return "";
 
   return date.toLocaleString();
+}
+
+function handleEditOrder(order: any) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("pos_editing_order", JSON.stringify(order));
+    window.location.href = "/admin/pos";
+  }
 }
 
 function serverName(order: Order) {
@@ -491,9 +526,32 @@ export default function OrdersPage() {
 
   const lastVisible = Math.min(currentPage * rowsPerPage, filteredOrders.length);
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("pos_user");
+      if (stored) setCurrentUser(JSON.parse(stored));
+    } catch {}
+  }, []);
+
   async function changeStatus(order: Order, status: OrderStatus) {
     setMessage("");
     setOpenActionId(null);
+
+    // Permission validations
+    const canEdit = canEditFeature(currentUser, "orders");
+    const canDelete = canDeleteFeature(currentUser, "orders");
+
+    if (status === "cancelled" && !canDelete) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិលុប ឬលុបចោលការបញ្ជាទិញឡើយ!" : "You do not have permission to delete/cancel orders.");
+      return;
+    }
+
+    if (status !== "cancelled" && !canEdit) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែស្ថានភាពការបញ្ជាទិញឡើយ!" : "You do not have permission to edit order status.");
+      return;
+    }
 
     const updatedPayload = { ...order, status };
     setOrders((current) =>
@@ -603,7 +661,7 @@ export default function OrdersPage() {
 
   const cancelledCount = orders.filter((o) => o.status === "cancelled").length;
 
-  const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+  const totalRevenue = orders.reduce((sum, o) => sum + getOrderTotalAmount(o), 0);
 
   return (
     <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
@@ -889,7 +947,7 @@ export default function OrdersPage() {
                                     {order.items.slice(0, 3).map((item: any, idx: number) => (
                                       <div key={idx} className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                                         <span className="truncate max-w-[160px]">{item.quantity}x {item.product?.name || item.name}</span>
-                                        <span className="font-bold text-[#0F522B]">{money(item.totalPrice)}</span>
+                                        <span className="font-bold text-[#0F522B]">{money(getItemTotalPrice(item))}</span>
                                       </div>
                                     ))}
                                     {order.items.length > 3 && (
@@ -900,7 +958,7 @@ export default function OrdersPage() {
 
                                 <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2.5 text-xs font-black">
                                   <span>Total:</span>
-                                  <span className="text-[#0F522B] dark:text-emerald-400">{money(order.totalAmount)} ({moneyRiel(order.totalAmount)})</span>
+                                  <span className="text-[#0F522B] dark:text-emerald-400">{money(getOrderTotalAmount(order))} ({moneyRiel(getOrderTotalAmount(order), Number(appSettings?.exchangeRate) || 4000)})</span>
                                 </div>
                               </div>
                             )}
@@ -971,10 +1029,10 @@ export default function OrdersPage() {
                           </td>
 
                           <td className="px-3 py-3 text-right">
-                            <div className={`text-sm font-black leading-none ${textPrimary}`}>{money(order.totalAmount)}</div>
+                            <div className={`text-sm font-black leading-none ${textPrimary}`}>{money(getOrderTotalAmount(order))}</div>
                             <div className="mt-1">
                               <span className="inline-block rounded-md bg-[#E8F5ED] dark:bg-emerald-950/70 px-1.5 py-0.5 text-[10px] font-extrabold text-[#0F522B] dark:text-emerald-400">
-                                {moneyRiel(order.totalAmount)}
+                                {moneyRiel(getOrderTotalAmount(order), Number(appSettings?.exchangeRate) || 4000)}
                               </span>
                             </div>
                           </td>
@@ -1212,7 +1270,7 @@ export default function OrdersPage() {
                             </div>
                           </div>
                           <div className="text-xs font-bold text-[#55a060] dark:text-[#55a060]">
-                            {money(item.totalPrice || item.price * item.quantity)}
+                            {money(getItemTotalPrice(item))}
                           </div>
                         </div>
                       ))}
@@ -1228,11 +1286,21 @@ export default function OrdersPage() {
                 <div>
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Total Amount</span>
                   <div className="text-lg font-bold text-[#55a060] dark:text-[#55a060]">
-                    {money(selectedOrder.totalAmount)} <span className="text-xs font-medium text-slate-400">({moneyRiel(selectedOrder.totalAmount)})</span>
+                    {money(getOrderTotalAmount(selectedOrder))} <span className="text-xs font-medium text-slate-400">({moneyRiel(getOrderTotalAmount(selectedOrder), Number(appSettings?.exchangeRate) || 4000)})</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {selectedOrder.status !== "completed" && selectedOrder.status !== "cancelled" && (
+                    <button
+                      type="button"
+                      onClick={() => handleEditOrder(selectedOrder)}
+                      className="flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3.5 text-xs font-bold text-white transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
+                    >
+                      <Pencil size={15} />
+                      {language === "km" ? "កែប្រែ" : "Edit"}
+                    </button>
+                  )}
                   {selectedOrder.status !== "completed" ? (
                     <button
                       type="button"
@@ -1344,10 +1412,10 @@ export default function OrdersPage() {
                     <div key={idx} className="space-y-0.5">
                       <div className="flex justify-between items-baseline text-xs font-medium text-slate-800">
                         <span className="flex-1 pr-2 leading-snug">{item.product?.name || item.name}</span>
-                        <span className="font-semibold text-slate-900">{money(item.totalPrice || item.price * item.quantity)}</span>
+                        <span className="font-semibold text-slate-900">{money(getItemTotalPrice(item))}</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {item.quantity}x {money(item.price || item.unitPrice || 0)}
+                        {item.quantity}x {money(getItemUnitPrice(item))}
                       </div>
                       {item.notes && (
                         <div className="text-[10.5px] text-amber-700 italic pl-1.5 border-l border-amber-300 mt-0.5">
@@ -1363,7 +1431,7 @@ export default function OrdersPage() {
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between items-center text-slate-600">
                     <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-800">{money(printSlipOrder.subtotal || printSlipOrder.totalAmount)}</span>
+                    <span className="font-semibold text-slate-800">{money(printSlipOrder.subtotal || getOrderTotalAmount(printSlipOrder))}</span>
                   </div>
                   {Number(printSlipOrder.discountAmount) > 0 && (
                     <div className="flex justify-between items-center text-emerald-600">
@@ -1373,10 +1441,10 @@ export default function OrdersPage() {
                   )}
                   <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
                     <span>Total (PAID):</span>
-                    <span className="text-base text-[#55a060] font-bold">{money(printSlipOrder.totalAmount)}</span>
+                    <span className="text-base text-[#55a060] font-bold">{money(getOrderTotalAmount(printSlipOrder))}</span>
                   </div>
                   <div className="text-right text-[10.5px] text-slate-500 font-bold mt-0.5">
-                    ~ {moneyRiel(printSlipOrder.totalAmount)}
+                    ~ {moneyRiel(getOrderTotalAmount(printSlipOrder), Number(appSettings?.exchangeRate) || 4000)}
                   </div>
                 </div>
 

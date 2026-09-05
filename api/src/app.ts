@@ -25,6 +25,7 @@ import purchaseOrderRouter from "./routers/purchaseOrder.router.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 
 const app = express();
+app.disable("x-powered-by");
 
 /**
  * Security headers (basic HTTP hardening)
@@ -33,6 +34,20 @@ app.use(
   helmet({
     crossOriginResourcePolicy: false,
     crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        baseUri: ["'self'"],
+      },
+    },
   }),
 );
 

@@ -34,6 +34,7 @@ import {
   FileText,
   Truck,
   Trash2,
+  ShoppingCart,
 } from "lucide-react";
 import { apiOrigin, getAdminGroups, getSettings, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -77,6 +78,13 @@ const MENU_CHILDREN = [
 const INVENTORY_CHILDREN = [
   { key: "inventory", label: "Inventory", href: "/admin/inventory?tab=dashboard", icon: Boxes },
   { key: "supplier", label: "Supplier", href: "/admin/inventory?tab=suppliers", icon: Truck },
+];
+
+const REPORTS_CHILDREN = [
+  { key: "orders", label: "Orders Report", href: "/admin/reports?tab=orders", icon: ShoppingCart },
+  { key: "purchases", label: "Purchase Report", href: "/admin/reports?tab=purchases", icon: Truck },
+  { key: "payments", label: "Payment Report", href: "/admin/reports?tab=payments", icon: ReceiptText },
+  { key: "stock", label: "Stock Inventory Report", href: "/admin/reports?tab=stock", icon: Boxes },
   { key: "history", label: "Stock History", href: "/admin/inventory?tab=movements", icon: FileText },
 ];
 
@@ -122,6 +130,7 @@ const TEXT = {
       Orders: "Orders",
       Kitchen: "Kitchen",
       Menu: "Menu",
+      "Menu List": "Menu List",
       Inventory: "Inventory",
       Reports: "Reports",
       Tables: "Tables",
@@ -139,6 +148,15 @@ const TEXT = {
       Supplier: "Supplier",
       Spoilage: "Spoilage",
       "Stock History": "Stock History",
+      "Orders Report": "Orders Report",
+      "Purchase Report": "Purchase Report",
+      "Payment Report": "Payment Report",
+      "Stock Inventory Report": "Stock Inventory Report",
+      "General Info": "General Info",
+      "Billing & Receipt": "Billing & Receipt",
+      "Hardware & Printers": "Hardware & Printers",
+      Integrations: "Integrations",
+      "System & Backups": "System & Backups",
     },
   },
   km: {
@@ -159,6 +177,7 @@ const TEXT = {
       Orders: "ការបញ្ជាទិញ",
       Kitchen: "ផ្ទះបាយ (Kitchen)",
       Menu: "មុខម្ហូប",
+      "Menu List": "បញ្ជីមុខម្ហូប",
       Inventory: "ស្តុក",
       Reports: "របាយការណ៍",
       Tables: "តុ",
@@ -175,6 +194,15 @@ const TEXT = {
       Supplier: "អ្នកផ្គត់ផ្គង់",
       Spoilage: "ទំនិញខូចខាត (Spoilage)",
       "Stock History": "ប្រវត្តិចលនាស្តុក",
+      "Orders Report": "របាយការណ៍កុម្ម៉ង់",
+      "Purchase Report": "របាយការណ៍ការទិញ",
+      "Payment Report": "របាយការណ៍ការទូទាត់",
+      "Stock Inventory Report": "របាយការណ៍ស្តុកទំនិញ",
+      "General Info": "ព័ត៌មានទូទៅ",
+      "Billing & Receipt": "វិក្កយបត្រ និងបង្កាន់ដៃ",
+      "Hardware & Printers": "ម៉ាស៊ីនបោះពុម្ព និងឧបករណ៍",
+      Integrations: "ការតភ្ជាប់ប្រព័ន្ធ",
+      "System & Backups": "ប្រព័ន្ធ និងការបម្រុងទុក",
     },
   },
 };
@@ -221,13 +249,23 @@ export default function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const typeParam = searchParams.get("type");
+  const viewParam = searchParams.get("view");
+
   const [localActiveNav, setLocalActiveNav] = useState(() => {
     if (activeNav) return activeNav;
     if (pathname.startsWith("/admin/menu")) return "Menu";
     if (pathname === "/admin") return "Dashboard";
     if (pathname.startsWith("/admin/orders")) return "Orders";
     if (pathname.startsWith("/kds") || pathname.startsWith("/admin/kitchen")) return "Kitchen";
-    if (pathname.startsWith("/admin/inventory")) return "Inventory";
+    if (pathname.startsWith("/admin/inventory")) {
+      if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "movements") {
+        return "Reports";
+      }
+      return "Inventory";
+    }
     if (pathname.startsWith("/admin/reports")) return "Reports";
     if (pathname.startsWith("/admin/tables")) return "Tables";
     if (pathname.startsWith("/admin/users") || pathname.startsWith("/admin/permissions")) return "Users";
@@ -235,19 +273,22 @@ export default function Sidebar({
     if (pathname.startsWith("/pos") || pathname.startsWith("/admin/pos")) return "POS";
     return "";
   });
-  const searchParams = useSearchParams();
   const prevPathnameRef = useRef(pathname);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => getSavedSidebarCollapsed(collapsed));
   const [contentMounted, setContentMounted] = useState(() => !getSavedSidebarCollapsed(collapsed));
   const sidebarCollapsedRef = useRef(sidebarCollapsed);
   const [menuView, setMenuView] = useState("list");
   const [inventoryView, setInventoryView] = useState("inventory");
+  const [reportsView, setReportsView] = useState("sales");
   const [authView, setAuthView] = useState("admin");
   const [menuOpen, setMenuOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/menu"),
   );
   const [inventoryOpen, setInventoryOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/inventory"),
+  );
+  const [reportsOpen, setReportsOpen] = useState(
+    () => typeof window !== "undefined" && (window.location.pathname.startsWith("/admin/reports") || (window.location.pathname.startsWith("/admin/inventory") && window.location.search.includes("tab=movements"))),
   );
   const [authOpen, setAuthOpen] = useState(
     () => typeof window !== "undefined" && window.location.pathname.startsWith("/admin/users"),
@@ -305,6 +346,7 @@ export default function Sidebar({
 
     window.addEventListener("storage", handleUpdate);
     window.addEventListener("pos-groups-updated", handleUpdate);
+    window.addEventListener("pos-rules-updated", handleUpdate);
     window.addEventListener("pos-auth-change", handleUpdate);
     window.addEventListener("pos-user-change", handleUpdate);
 
@@ -314,18 +356,23 @@ export default function Sidebar({
       socket.on("group:created", handleUpdate);
       socket.on("group:updated", handleUpdate);
       socket.on("group:deleted", handleUpdate);
+      socket.on("rules:updated", handleUpdate);
+      socket.on("permissions:updated", handleUpdate);
       socket.on("settings:updated", handleUpdate);
     }
 
     return () => {
       window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("pos-groups-updated", handleUpdate);
+      window.removeEventListener("pos-rules-updated", handleUpdate);
       window.removeEventListener("pos-auth-change", handleUpdate);
       window.removeEventListener("pos-user-change", handleUpdate);
       if (socket) {
         socket.off("group:created", handleUpdate);
         socket.off("group:updated", handleUpdate);
         socket.off("group:deleted", handleUpdate);
+        socket.off("rules:updated", handleUpdate);
+        socket.off("permissions:updated", handleUpdate);
         socket.off("settings:updated", handleUpdate);
       }
     };
@@ -350,11 +397,9 @@ export default function Sidebar({
   const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
   const inventoryExpanded = !sidebarCollapsed && contentMounted && inventoryOpen;
+  const reportsExpanded = !sidebarCollapsed && contentMounted && reportsOpen;
   const authExpanded = !sidebarCollapsed && contentMounted && authOpen;
   const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
-  const tabParam = searchParams.get("tab");
-  const typeParam = searchParams.get("type");
-  const viewParam = searchParams.get("view");
 
   const activeMenuChild = useMemo(() => {
     if (pathname.startsWith("/admin/menu")) {
@@ -373,6 +418,19 @@ export default function Sidebar({
     }
     return inventoryView || "inventory";
   }, [pathname, tabParam, typeParam, inventoryView]);
+
+  const activeReportsChild = useMemo(() => {
+    if (pathname.startsWith("/admin/reports")) {
+      if (tabParam === "purchases") return "purchases";
+      if (tabParam === "payments") return "payments";
+      if (tabParam === "stock") return "stock";
+      return "orders";
+    }
+    if (pathname.startsWith("/admin/inventory") && tabParam === "movements") {
+      return "history";
+    }
+    return reportsView || "orders";
+  }, [pathname, tabParam, reportsView]);
 
   const activeAuthChild = useMemo(() => {
     if (pathname.startsWith("/admin/logs") || (pathname.startsWith("/admin/settings") && tabParam === "security")) return "logs";
@@ -497,6 +555,24 @@ export default function Sidebar({
       setMenuOpen(false);
     }
 
+    const wasOutsideReports = !prevPathname.startsWith("/admin/reports") && !(prevPathname.startsWith("/admin/inventory") && searchParams.get("tab") === "movements");
+    const isInsideReports = pathname.startsWith("/admin/reports") || (pathname.startsWith("/admin/inventory") && tabParam === "movements");
+
+    if (isInsideReports && wasOutsideReports) {
+      setReportsOpen(true);
+    } else if (!isInsideReports) {
+      setReportsOpen(false);
+    }
+
+    const wasOutsideInventory = !prevPathname.startsWith("/admin/inventory") || searchParams.get("tab") === "movements";
+    const isInsideInventory = pathname.startsWith("/admin/inventory") && tabParam !== "movements";
+
+    if (isInsideInventory && wasOutsideInventory) {
+      setInventoryOpen(true);
+    } else if (!isInsideInventory) {
+      setInventoryOpen(false);
+    }
+
     // 2. Sync Active Nav highlight state
     if (pathname.startsWith("/admin/menu")) {
       setLocalActiveNav("Menu");
@@ -507,7 +583,11 @@ export default function Sidebar({
     } else if (pathname.startsWith("/kds") || pathname.startsWith("/admin/kitchen")) {
       setLocalActiveNav("Kitchen");
     } else if (pathname.startsWith("/admin/inventory")) {
-      setLocalActiveNav("Inventory");
+      if (tabParam === "movements") {
+        setLocalActiveNav("Reports");
+      } else {
+        setLocalActiveNav("Inventory");
+      }
     } else if (pathname.startsWith("/admin/reports")) {
       setLocalActiveNav("Reports");
     } else if (pathname.startsWith("/admin/tables")) {
@@ -526,20 +606,45 @@ export default function Sidebar({
   useEffect(() => {
     let mounted = true;
 
-    getSettings()
-      .then((settings) => {
-        if (!mounted) return;
-        const nextName = settings.restaurantName || "The Tofu";
-        localStorage.setItem("pos_restaurant_name", nextName);
-        localStorage.setItem("pos_restaurant_image_url", settings.restaurantImageUrl || "");
-        localStorage.setItem("pos_staff_permissions", JSON.stringify(permissionsForUser(currentUser.id, settings.staffPermissions)));
-        window.dispatchEvent(new Event("pos-settings-change"));
-        window.dispatchEvent(new Event("pos-permissions-change"));
-      })
-      .catch(() => undefined);
+    const fetchAndSyncPermissions = () => {
+      if (!mounted) return;
+      getSettings()
+        .then((settings) => {
+          if (!mounted) return;
+          const nextName = settings.restaurantName || "The Tofu";
+          localStorage.setItem("pos_restaurant_name", nextName);
+          localStorage.setItem("pos_restaurant_image_url", settings.restaurantImageUrl || "");
+          localStorage.setItem("pos_staff_permissions", JSON.stringify(permissionsForUser(currentUser.id, settings.staffPermissions)));
+          window.dispatchEvent(new Event("pos-settings-change"));
+        })
+        .catch(() => undefined);
+    };
+
+    fetchAndSyncPermissions();
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on("group:updated", fetchAndSyncPermissions);
+      socket.on("group:created", fetchAndSyncPermissions);
+      socket.on("rules:updated", fetchAndSyncPermissions);
+      socket.on("permissions:updated", fetchAndSyncPermissions);
+      socket.on("user:updated", fetchAndSyncPermissions);
+    }
+
+    window.addEventListener("pos-rules-updated", fetchAndSyncPermissions);
+    window.addEventListener("pos-groups-updated", fetchAndSyncPermissions);
 
     return () => {
       mounted = false;
+      if (socket) {
+        socket.off("group:updated", fetchAndSyncPermissions);
+        socket.off("group:created", fetchAndSyncPermissions);
+        socket.off("rules:updated", fetchAndSyncPermissions);
+        socket.off("permissions:updated", fetchAndSyncPermissions);
+        socket.off("user:updated", fetchAndSyncPermissions);
+      }
+      window.removeEventListener("pos-rules-updated", fetchAndSyncPermissions);
+      window.removeEventListener("pos-groups-updated", fetchAndSyncPermissions);
     };
   }, [currentUser.id]);
 
@@ -683,7 +788,12 @@ export default function Sidebar({
         {allowedManagement.map((item) => {
           const isMenu = item.label === "Menu";
           const isInventory = item.label === "Inventory";
-          const active = isNavItemActive(item.label, item.href) || (isMenu && localActiveNav === "Menu") || (isInventory && localActiveNav === "Inventory");
+          const isReports = item.label === "Reports";
+          const active =
+            isNavItemActive(item.label, item.href) ||
+            (isMenu && localActiveNav === "Menu") ||
+            (isInventory && localActiveNav === "Inventory") ||
+            (isReports && localActiveNav === "Reports");
 
           return (
             <Fragment key={item.label}>
@@ -709,12 +819,17 @@ export default function Sidebar({
                       e.preventDefault();
                     }
                     setInventoryOpen((open) => !open);
+                  } else if (isReports) {
+                    if (pathname.startsWith("/admin/reports")) {
+                      e.preventDefault();
+                    }
+                    setReportsOpen((open) => !open);
                   }
                 }}
                 icon={<item.icon active={active} />}
                 trailing={
-                  (isMenu || isInventory) && !sidebarCollapsed ? (
-                    (isMenu ? menuExpanded : inventoryExpanded) ? (
+                  (isMenu || isInventory || isReports) && !sidebarCollapsed ? (
+                    (isMenu ? menuExpanded : isInventory ? inventoryExpanded : reportsExpanded) ? (
                       <ChevronUp size={13} strokeWidth={2.2} />
                     ) : (
                       <ChevronDown size={13} strokeWidth={2.2} />
@@ -787,6 +902,43 @@ export default function Sidebar({
                           setInventoryView(child.key);
                           window.dispatchEvent(
                             new CustomEvent("pos-inventory-view-change", {
+                              detail: child.key,
+                            }),
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isReports && reportsExpanded && (
+                <div
+                  className={`grid transition-[grid-template-rows,opacity,margin,padding] duration-200 ease-out ml-[18px] border-l pl-4 ${
+                    dark ? "border-[#4e4f6e]" : "border-[#e5e7eb]"
+                  }`}
+                  style={{
+                    gridTemplateRows: "1fr",
+                    opacity: 1,
+                    marginTop: "2px",
+                    marginBottom: "2px",
+                  }}
+                >
+                  <div className="overflow-hidden space-y-1 py-1">
+                    {REPORTS_CHILDREN.map((child) => (
+                      <MenuSubNavItem
+                        key={child.key}
+                        href={child.href}
+                        label={t.nav[child.label as keyof typeof t.nav] || child.label}
+                        active={activeReportsChild === child.key}
+                        dark={dark}
+                        isKhmer={language === "km"}
+                        icon={<child.icon size={14} strokeWidth={1.9} />}
+                        onClick={() => {
+                          setLocalActiveNav("Reports");
+                          setReportsView(child.key);
+                          window.dispatchEvent(
+                            new CustomEvent("pos-reports-view-change", {
                               detail: child.key,
                             }),
                           );
@@ -1089,7 +1241,7 @@ function MenuSubNavItem({
           : dark 
             ? "text-slate-300 hover:bg-[#55a060]/15 hover:text-emerald-400 font-medium"
             : "text-slate-600 hover:bg-emerald-50/60 hover:text-[#55a060] font-medium"
-      } ${isKhmer ? "text-[13.5px]" : "text-[13.5px]"}`}
+      } ${isKhmer ? "font-khmer text-[13.5px]" : "text-[13.5px]"}`}
     >
       <span className={`transition-all duration-200 transform group-hover:scale-105 group-hover:translate-x-0.5 ${active ? "text-[#55a060] dark:text-emerald-400" : dark ? "text-slate-400 group-hover:text-emerald-400" : "text-slate-500 group-hover:text-[#55a060]"}`}>{icon}</span>
       <span className={`truncate ${active ? "text-[#55a060] dark:text-emerald-400" : "group-hover:text-[#55a060]"}`}>{label}</span>

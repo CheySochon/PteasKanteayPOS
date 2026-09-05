@@ -27,10 +27,10 @@ import {
   Utensils,
   X,
 } from "lucide-react";
-import { resolveCategoryName, resolveProductName, useAppLanguage } from "../../../lib/language";
+import { resolveCategoryName, resolveProductName, resolveProductDescription, useAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
-import { canAddFeature, canEditFeature, canDeleteFeature } from "../../../lib/permissions";
+import { hasFeaturePermission, canAddFeature, canEditFeature, canDeleteFeature } from "../../../lib/permissions";
 import {
   apiOrigin,
   createCategory,
@@ -40,6 +40,7 @@ import {
   getCategories,
   getOrders,
   getProducts,
+  getSettings,
   updateCategory,
   updateProduct,
   uploadProductImage,
@@ -393,7 +394,11 @@ export default function MenuPage() {
   const canEdit = canEditFeature(currentUser, "menu");
   const canDelete = canDeleteFeature(currentUser, "menu");
 
-  const inputClass = `h-10 w-full rounded-xl border px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer ${
+  const canCreateCategory = hasFeaturePermission(currentUser, "categories", "add") || canCreate;
+  const canEditCategory = hasFeaturePermission(currentUser, "categories", "edit") || canEdit;
+  const canDeleteCategory = hasFeaturePermission(currentUser, "categories", "delete") || canDelete;
+
+  const inputClass = `h-10 w-full rounded-xl border px-3.5 text-xs font-normal outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer ${
     dark
       ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500"
       : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
@@ -421,6 +426,8 @@ export default function MenuPage() {
     };
   }, []);
 
+  const [exchangeRate, setExchangeRate] = useState<number>(4000);
+
   useEffect(() => {
     cachedCategories = categories;
     cachedProducts = products;
@@ -429,13 +436,14 @@ export default function MenuPage() {
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([getCategories(), getProducts()])
-      .then(([categoryRows, productRows]) => {
+    Promise.all([getCategories(), getProducts(), getSettings()])
+      .then(([categoryRows, productRows, settings]) => {
         if (!mounted) return;
         cachedCategories = categoryRows;
         cachedProducts = productRows;
         setCategories(cachedCategories);
         setProducts(cachedProducts);
+        if (settings?.exchangeRate) setExchangeRate(Number(settings.exchangeRate) || 4000);
       })
       .catch((err) => {
         if (!mounted) return;
@@ -469,7 +477,9 @@ export default function MenuPage() {
       const matchesQuery =
         !normalizedQuery ||
         product.name.toLowerCase().includes(normalizedQuery) ||
-        (product.description || "").toLowerCase().includes(normalizedQuery);
+        (product.nameKm || "").toLowerCase().includes(normalizedQuery) ||
+        (product.description || "").toLowerCase().includes(normalizedQuery) ||
+        (product.descriptionKm || "").toLowerCase().includes(normalizedQuery);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -511,6 +521,16 @@ export default function MenuPage() {
     event.preventDefault();
     setMessage("");
     setError("");
+
+    if (categoryForm.id && !canEditCategory) {
+      setError(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែប្រភេទមុខម្ហូបឡើយ!" : "You do not have permission to edit categories.");
+      return;
+    }
+
+    if (!categoryForm.id && !canCreateCategory) {
+      setError(language === "km" ? "អ្នកគ្មានសិទ្ធិបន្ថែមប្រភេទមុខម្ហូបឡើយ!" : "You do not have permission to add categories.");
+      return;
+    }
 
     try {
       let imageUrl = categoryForm.imageUrl || "";
@@ -572,6 +592,10 @@ export default function MenuPage() {
   }
 
   function editCategory(category: Category) {
+    if (!canEditCategory) {
+      setError(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែប្រភេទមុខម្ហូបឡើយ!" : "You do not have permission to edit categories.");
+      return;
+    }
     setCategoryForm({
       id: category.id,
       name: category.name,
@@ -594,6 +618,10 @@ export default function MenuPage() {
   }
 
   function createNewCategory() {
+    if (!canCreateCategory) {
+      setError(language === "km" ? "អ្នកគ្មានសិទ្ធិបន្ថែមប្រភេទមុខម្ហូបឡើយ!" : "You do not have permission to add categories.");
+      return;
+    }
     resetCategoryForm();
     setMessage("");
     setError("");
@@ -601,6 +629,10 @@ export default function MenuPage() {
   }
 
   async function removeCategory(category: Category) {
+    if (!canDeleteCategory) {
+      setError(language === "km" ? "អ្នកគ្មានសិទ្ធិលុបប្រភេទមុខម្ហូបឡើយ!" : "You do not have permission to delete categories.");
+      return;
+    }
     const productCount = products.filter(
       (product) => product.categoryId === category.id,
     ).length;
@@ -663,25 +695,36 @@ export default function MenuPage() {
       };
 
       const socket = getSocket();
+      const selectedCatObj = categories.find((c) => c.id === Number(productForm.categoryId));
+
       if (productForm.id) {
         const updated = await updateProduct(productForm.id, payload);
+        const productWithCategory = {
+          ...updated,
+          category: selectedCatObj || updated.category,
+        };
 
         setProducts((current) =>
-          current.map((product) => (product.id === updated.id ? updated : product)),
+          current.map((product) => (product.id === updated.id ? productWithCategory : product)),
         );
 
         if (socket) {
-          socket.emit("product:updated", updated);
+          socket.emit("product:updated", productWithCategory);
           socket.emit("menu:updated");
         }
 
         setMessage("Product updated successfully.");
       } else {
         const created = await createProduct(payload);
-        setProducts((current) => [created, ...current]);
+        const productWithCategory = {
+          ...created,
+          category: selectedCatObj || created.category,
+        };
+
+        setProducts((current) => [productWithCategory, ...current.filter((p) => p.id !== created.id)]);
 
         if (socket) {
-          socket.emit("product:created", created);
+          socket.emit("product:created", productWithCategory);
           socket.emit("menu:updated");
         }
 
@@ -917,14 +960,16 @@ export default function MenuPage() {
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={createNewCategory}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
-                >
-                  <Plus size={14} />
-                  {t.createCategory}
-                </button>
+                {canCreateCategory && (
+                  <button
+                    type="button"
+                    onClick={createNewCategory}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    {t.createCategory}
+                  </button>
+                )}
               </div>
 
               {/* Data Table */}
@@ -1014,22 +1059,26 @@ export default function MenuPage() {
                             </td>
                             <td className="px-5 py-3 text-center">
                               <div className="flex justify-center items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => editCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#55a060]/10 hover:text-[#55a060] transition-all duration-200 hover:scale-105 active:scale-95"
-                                  title={`Edit ${category.name}`}
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeCategory(category)}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all duration-200 hover:scale-105 active:scale-95"
-                                  title={`Delete ${category.name}`}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {canEditCategory && (
+                                  <button
+                                    type="button"
+                                    onClick={() => editCategory(category)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#55a060]/10 hover:text-[#55a060] transition-all duration-200 hover:scale-105 active:scale-95"
+                                    title={`Edit ${category.name}`}
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                )}
+                                {canDeleteCategory && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeCategory(category)}
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#8592a3] hover:bg-[#ff3e1d]/10 hover:text-[#ff3e1d] transition-all duration-200 hover:scale-105 active:scale-95"
+                                    title={`Delete ${category.name}`}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1052,7 +1101,7 @@ export default function MenuPage() {
                     dark={dark}
                     count={categoryCount("all")}
                   >
-                    All
+                    {language === "km" ? "ទាំងអស់" : "All"}
                   </FilterButton>
 
                   {categories.map((category) => (
@@ -1078,7 +1127,7 @@ export default function MenuPage() {
                       dark ? "border-[#4e4f6e] bg-[#232333] text-slate-100" : "border-slate-200 bg-white text-slate-700"
                     }`}
                   >
-                    <option value="all" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>All Status</option>
+                    <option value="all" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>{language === "km" ? "ស្ថានភាពទាំងអស់" : "All Status"}</option>
                     <option value="available" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>{t.available}</option>
                     <option value="hidden" className={dark ? "bg-[#2b2c40] text-slate-100" : "bg-white text-slate-800"}>{t.hidden}</option>
                   </select>
@@ -1090,7 +1139,7 @@ export default function MenuPage() {
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white shadow-sm shadow-[#55a060]/20 hover:bg-[#488c52] active:scale-95 transition-all cursor-pointer"
                     >
                       <Plus size={14} />
-                      Add New Product
+                      {language === "km" ? "បន្ថែមមុខម្ហូបថ្មី" : "Add New Product"}
                     </button>
                   )}
                 </div>
@@ -1136,6 +1185,7 @@ export default function MenuPage() {
                         dark={dark}
                         canEdit={canEdit}
                         canDelete={canDelete}
+                        exchangeRate={exchangeRate}
                       />
                     ))}
                   </div>
@@ -1145,7 +1195,7 @@ export default function MenuPage() {
           )}
 
           {!isCategoriesView && editorOpen && (
-            <div onClick={() => { resetCategoryForm(); setCategoryEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
+            <div onClick={() => { resetProductForm(); setEditorOpen(false); }} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] p-4 animate-[userModalBackdrop_180ms_ease-out]">
               <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md animate-[userModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]">
                 <ProductEditor
                   open={editorOpen}
@@ -1219,8 +1269,8 @@ export default function MenuPage() {
                     <span className={`block text-[11px] font-bold uppercase tracking-wider ${textSecondary} mb-1`}>
                       {language === "km" ? "ការពណ៌នា" : "Description"}
                     </span>
-                    <p className={`text-xs leading-relaxed ${textPrimary} ${!viewingProduct.description ? "italic text-slate-400" : ""}`}>
-                      {viewingProduct.description || (language === "km" ? "គ្មានការពណ៌នា" : "No description provided.")}
+                    <p className={`text-xs leading-relaxed ${textPrimary} ${!resolveProductDescription(viewingProduct, language) ? "italic text-slate-400" : ""}`}>
+                      {resolveProductDescription(viewingProduct, language) || (language === "km" ? "គ្មានការពណ៌នា" : "No description provided.")}
                     </p>
                   </div>
                 </div>
@@ -1331,6 +1381,7 @@ function MenuCard({
   dark,
   canEdit = true,
   canDelete = true,
+  exchangeRate = 4000,
 }: {
   product: Product;
   onEdit: () => void;
@@ -1341,6 +1392,7 @@ function MenuCard({
   dark: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  exchangeRate?: number;
 }) {
   const unavailable = !product.isAvailable;
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
@@ -1348,7 +1400,9 @@ function MenuCard({
   const softSurface = dark ? "bg-[#232333]" : "bg-[#f5f5f9]";
   const appLanguage = useAppLanguage();
   const displayName = resolveProductName(product, appLanguage);
-  const displayCategoryName = resolveCategoryName(product.category, appLanguage) || text.noDescription;
+  const displayDescription = resolveProductDescription(product, appLanguage);
+  const displayCategoryName = resolveCategoryName(product.category, appLanguage);
+  const displaySubText = displayDescription || displayCategoryName || text.noDescription;
   const imgSrc = getFallbackProductImage(product);
 
   return (
@@ -1384,8 +1438,8 @@ function MenuCard({
               <h3 className="truncate text-xs sm:text-sm font-bold text-[#566a7f] dark:text-[#c9d4ea] leading-tight group-hover:text-[#0F522B] transition-colors font-khmer">
                 {displayName}
               </h3>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-[#a1acb8] font-khmer">
-                {displayCategoryName}
+              <p className={`mt-0.5 truncate text-[11px] font-medium font-khmer ${!displayDescription && !displayCategoryName ? "italic text-slate-400" : "text-[#a1acb8]"}`}>
+                {displaySubText}
               </p>
             </div>
 
@@ -1394,7 +1448,7 @@ function MenuCard({
                 {money(product.basePrice)}
               </span>
               <span className="block text-[9.5px] font-semibold text-[#a1acb8]">
-                {Math.round(Number(product.basePrice || 0) * 4100).toLocaleString()} ៛
+                {Math.round(Number(product.basePrice || 0) * (exchangeRate || 4000)).toLocaleString()} ៛
               </span>
             </div>
           </div>
@@ -1430,7 +1484,7 @@ function MenuCard({
               type="button"
               onClick={onView}
               className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-[#696cff]/10 hover:text-[#696cff] transition-all dark:hover:bg-slate-700 dark:hover:text-[#c9d4ea] cursor-pointer"
-              title={product.description || text.noDescription}
+              title={displaySubText}
             >
               <Eye size={13} />
             </button>

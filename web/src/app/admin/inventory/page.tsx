@@ -7,6 +7,7 @@ import {
   request,
   getSuppliers,
   createSupplier,
+  updateSupplier,
   deleteSupplier,
   getPurchaseOrders,
   createPurchaseOrder,
@@ -14,7 +15,11 @@ import {
   getCategories,
 } from "../../../lib/api";
 import { useAppTheme } from "../../../lib/theme";
+import { resolveCategoryName } from "../../../lib/language";
 import { getSocket } from "../../../lib/socket";
+import AnimatedToast from "../../../components/AnimatedToast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Boxes,
   Check,
@@ -44,6 +49,7 @@ import {
   CheckCircle,
   ShoppingBag,
   RotateCw,
+  ChevronDown,
 } from "lucide-react";
 
 type InventoryItem = {
@@ -72,6 +78,8 @@ type StockMovement = {
   referenceId: string | null;
   notes: string | null;
   createdAt: string;
+  previousQty?: number;
+  balanceQty?: number;
   product: {
     id: number;
     name: string;
@@ -224,6 +232,12 @@ const TEXT = {
   },
 };
 
+function formatStockQuantity(value: number | string): string {
+  const num = Number(value || 0);
+  if (isNaN(num)) return "0";
+  return Number.isInteger(num) ? num.toString() : Number(num.toFixed(2)).toString();
+}
+
 function subscribeToLanguageChanges(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
   window.addEventListener("pos-language-change", onStoreChange);
@@ -275,12 +289,15 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "movements" | "suppliers" | "po">(
     tabParam === "suppliers" || tabParam === "movements" || tabParam === "po" ? (tabParam as any) : "dashboard"
   );
-  const [filterType, setFilterType] = useState<"all" | "available" | "low" | "out">("all");
+  const [filterType, setFilterType] = useState<"all" | "available" | "low" | "out" | "tracked">("all");
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>(typeParam || "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+  const [trackStockOnly, setTrackStockOnly] = useState<boolean>(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
+  const [supplierActionMenuOpen, setSupplierActionMenuOpen] = useState<number | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     function syncTabFromQuery() {
@@ -324,11 +341,32 @@ export default function InventoryPage() {
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
 
   // Supplier Form
+  const [editingSupplier, setEditingSupplier] = useState<SupplierItem | null>(null);
   const [supplierName, setSupplierName] = useState("");
   const [supplierCompany, setSupplierCompany] = useState("");
   const [supplierPhone, setSupplierPhone] = useState("");
   const [supplierEmail, setSupplierEmail] = useState("");
   const [supplierAddress, setSupplierAddress] = useState("");
+
+  const openAddSupplierModal = () => {
+    setEditingSupplier(null);
+    setSupplierName("");
+    setSupplierCompany("");
+    setSupplierPhone("");
+    setSupplierEmail("");
+    setSupplierAddress("");
+    setIsSupplierModalOpen(true);
+  };
+
+  const openEditSupplierModal = (s: SupplierItem) => {
+    setEditingSupplier(s);
+    setSupplierName(s.name || "");
+    setSupplierCompany(s.companyName || "");
+    setSupplierPhone(s.phone || "");
+    setSupplierEmail(s.email || "");
+    setSupplierAddress(s.address || "");
+    setIsSupplierModalOpen(true);
+  };
 
   // PO Form
   const [poSupplierId, setPoSupplierId] = useState("");
@@ -341,6 +379,7 @@ export default function InventoryPage() {
   const [addQuantity, setAddQuantity] = useState("");
   const [addMinStock, setAddMinStock] = useState("");
   const [addSupplierId, setAddSupplierId] = useState("");
+  const [addCategoryId, setAddCategoryId] = useState("");
 
   const [adjProductId, setAdjProductId] = useState("");
   const [adjType, setAdjType] = useState<"IN" | "OUT">("IN");
@@ -354,6 +393,7 @@ export default function InventoryPage() {
   const [settingsName, setSettingsName] = useState("");
   const [settingsQuantity, setSettingsQuantity] = useState("");
   const [settingsSupplierId, setSettingsSupplierId] = useState("");
+  const [settingsCategoryId, setSettingsCategoryId] = useState("");
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteProductId, setDeleteProductId] = useState<number | null>(null);
@@ -362,55 +402,53 @@ export default function InventoryPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch initial data
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     try {
-      const invData = await request<InventoryItem[]>("/inventory");
-      const movementsData = await request<StockMovement[]>("/inventory/transactions");
-      const suppliersData = await getSuppliers().catch(() => []);
-      const poData = await getPurchaseOrders().catch(() => []);
-      const catsData = await getCategories().catch(() => []);
-      setProducts(invData);
-      setMovements(movementsData);
+      const [invData, movementsData, suppliersData, poData, categoriesData] = await Promise.all([
+        request<InventoryItem[]>("/inventory"),
+        request<StockMovement[]>("/inventory/transactions"),
+        getSuppliers(),
+        getPurchaseOrders(),
+        getCategories(),
+      ]);
+
+      setProducts(invData || []);
+      setMovements(movementsData || []);
       setSuppliers(suppliersData || []);
       setPurchaseOrders(poData || []);
-      setCategories(catsData || []);
+      setCategories(categoriesData || []);
       setError("");
     } catch (err: any) {
       setError(err?.message || "Failed to load inventory data");
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(true);
 
-  // Listen to real-time events via Socket.io with background polling backup
-  useEffect(() => {
-    const handleUpdate = () => {
-      // Fetch updated stock levels and transaction lists silently in the background
-      request<InventoryItem[]>("/inventory").then(setProducts).catch(console.error);
-      request<StockMovement[]>("/inventory/transactions").then(setMovements).catch(console.error);
-    };
-
-    // Polling backup every 30 seconds for guaranteed real-time updates
-    const interval = setInterval(handleUpdate, 30000);
+    const handleSocketRefresh = () => fetchData(false);
 
     const socket = getSocket();
     if (socket) {
-      socket.on("inventory:updated", handleUpdate);
-      socket.on("order:created", handleUpdate);
-      socket.on("order:updated", handleUpdate);
+      socket.on("inventory:updated", handleSocketRefresh);
+      socket.on("stock:adjusted", handleSocketRefresh);
+      socket.on("stock:movement", handleSocketRefresh);
+      socket.on("order:new", handleSocketRefresh);
+      socket.on("order:created", handleSocketRefresh);
+      socket.on("order:updated", handleSocketRefresh);
     }
 
     return () => {
-      clearInterval(interval);
       if (socket) {
-        socket.off("inventory:updated", handleUpdate);
-        socket.off("order:created", handleUpdate);
-        socket.off("order:updated", handleUpdate);
+        socket.off("inventory:updated", handleSocketRefresh);
+        socket.off("stock:adjusted", handleSocketRefresh);
+        socket.off("stock:movement", handleSocketRefresh);
+        socket.off("order:new", handleSocketRefresh);
+        socket.off("order:created", handleSocketRefresh);
+        socket.off("order:updated", handleSocketRefresh);
       }
     };
   }, []);
@@ -432,7 +470,10 @@ export default function InventoryPage() {
 
   // Click outside to close action menu
   useEffect(() => {
-    const handleClose = () => setActionMenuOpen(null);
+    const handleClose = () => {
+      setActionMenuOpen(null);
+      setSupplierActionMenuOpen(null);
+    };
     window.addEventListener("click", handleClose);
     return () => {
       window.removeEventListener("click", handleClose);
@@ -449,14 +490,18 @@ export default function InventoryPage() {
     return "available";
   };
 
+  const trackedProducts = useMemo(() => {
+    return products;
+  }, [products]);
+
   // Metrics Count
   const metrics = useMemo(() => {
-    const total = products.length;
+    const total = trackedProducts.length;
     let available = 0;
     let low = 0;
     let out = 0;
 
-    products.forEach((p) => {
+    trackedProducts.forEach((p) => {
       const status = getProductStockStatus(p);
       if (status === "available") available++;
       else if (status === "low") low++;
@@ -464,11 +509,11 @@ export default function InventoryPage() {
     });
 
     return { total, available, low, out };
-  }, [products]);
+  }, [trackedProducts]);
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return trackedProducts.filter((p) => {
       // Search Filter
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
@@ -483,19 +528,57 @@ export default function InventoryPage() {
         return false;
       }
 
-      // Metric Card Filter
+      // Metric Card & Stock Status Filter
       const status = getProductStockStatus(p);
       if (filterType === "available" && status !== "available") return false;
       if (filterType === "low" && status !== "low") return false;
       if (filterType === "out" && status !== "out") return false;
+      if (filterType === "tracked" && !p.trackStock) return false;
 
       return true;
     });
-  }, [products, filterType, searchQuery, selectedCategory, selectedSupplier]);
+  }, [trackedProducts, filterType, searchQuery, selectedCategory, selectedSupplier]);
+
+  // Movements enriched with calculated Previous Qty and Balance Qty audit ledger
+  const movementsWithAudit = useMemo(() => {
+    const productCurrentQtyMap: Record<number, number> = {};
+    products.forEach((p) => {
+      productCurrentQtyMap[p.id] = Number(p.inventory?.quantity ?? 0);
+    });
+
+    const productMovementsMap: Record<number, number[]> = {};
+    movements.forEach((m, idx) => {
+      const pid = m.productId;
+      if (!productMovementsMap[pid]) productMovementsMap[pid] = [];
+      productMovementsMap[pid].push(idx);
+    });
+
+    const enriched = movements.map((m) => ({ ...m, previousQty: 0, balanceQty: 0 }));
+
+    Object.keys(productMovementsMap).forEach((pidStr) => {
+      const pid = Number(pidStr);
+      let runningQty = productCurrentQtyMap[pid] ?? 0;
+      const indices = productMovementsMap[pid];
+
+      for (let i = 0; i < indices.length; i++) {
+        const idx = indices[i];
+        const changeQty = Number(movements[idx].quantity || 0);
+        const balanceQty = runningQty;
+        const previousQty = balanceQty - changeQty;
+
+        enriched[idx].balanceQty = balanceQty;
+        enriched[idx].previousQty = previousQty;
+
+        runningQty = previousQty;
+      }
+    });
+
+    return enriched;
+  }, [movements, products]);
 
   // Filtered Movements
   const filteredMovements = useMemo(() => {
-    return movements.filter((m) => {
+    return movementsWithAudit.filter((m) => {
       if (movementTypeFilter !== "all" && m.type !== movementTypeFilter) {
         return false;
       }
@@ -511,7 +594,7 @@ export default function InventoryPage() {
       }
       return true;
     });
-  }, [movements, movementTypeFilter, searchQuery]);
+  }, [movementsWithAudit, movementTypeFilter, searchQuery]);
 
   // Movement Stats Summary
   const movementStats = useMemo(() => {
@@ -537,7 +620,7 @@ export default function InventoryPage() {
     };
   }, [movements]);
 
-  // Export CSV Function
+  // Export CSV Function (with UTF-8 BOM for Excel)
   const exportToCsv = () => {
     if (activeTab === "dashboard") {
       const headers = ["Item ID", "Item Name", "Category", "Current Stock", "Unit", "Min Stock", "Stock Status", "Last Updated"];
@@ -551,33 +634,188 @@ export default function InventoryPage() {
         getProductStockStatus(p).toUpperCase(),
         `"${p.inventory?.updatedAt ? formatDate(p.inventory.updatedAt) : formatDate(p.updatedAt)}"`,
       ]);
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
+      const csvString = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      link.setAttribute("href", url);
       link.setAttribute("download", `inventory_stock_${new Date().toISOString().substring(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } else if (activeTab === "movements") {
-      const headers = ["ID", "Item Name", "Quantity", "Movement Type", "Date & Time", "Remarks", "Updated By"];
-      const rows = filteredMovements.map((m) => [
-        m.id,
-        `"${(m.product?.name || "Deleted Product").replace(/"/g, '""')}"`,
-        Math.abs(Number(m.quantity)),
-        Number(m.quantity) > 0 ? "IN" : "OUT",
-        `"${formatDate(m.createdAt)}"`,
-        `"${(m.notes || m.referenceId || "").replace(/"/g, '""')}"`,
-        `"${(m.user?.email || m.user?.name || "System").replace(/"/g, '""')}"`,
-      ]);
-      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
+      const headers = ["#", "Item Name", "Type", "Previous Qty", "Change Qty", "Balance Qty", "Unit", "Date & Time", "Remarks", "Updated By"];
+      const rows = filteredMovements.map((m, idx) => {
+        const remarksText = m.referenceId && m.notes ? `${m.referenceId} (${m.notes})` : m.referenceId || m.notes || "-";
+        const typeLabel = m.type === "restock" ? "RESTOCK" : m.type === "sale" ? "POS SALE" : m.type === "return" ? "RETURN / VOID" : "ADJUSTMENT";
+        const changeStr = Number(m.quantity) > 0 ? `+${Math.abs(Number(m.quantity))}` : `-${Math.abs(Number(m.quantity))}`;
+        return [
+          idx + 1,
+          `"${(m.product?.name || "Deleted Product").replace(/"/g, '""')}"`,
+          typeLabel,
+          m.previousQty ?? 0,
+          `"${changeStr}"`,
+          m.balanceQty ?? 0,
+          m.product?.unit || "pc",
+          `"${formatDate(m.createdAt)}"`,
+          `"${remarksText.replace(/"/g, '""')}"`,
+          `"${(m.user?.email || m.user?.name || "System").replace(/"/g, '""')}"`,
+        ];
+      });
+      const csvString = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      link.setAttribute("href", url);
       link.setAttribute("download", `stock_movements_${new Date().toISOString().substring(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // Export PDF Report Function
+  const exportToPdf = () => {
+    const doc = new jsPDF();
+    const nowStr = new Date().toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    if (activeTab === "dashboard") {
+      // Document Title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("INVENTORY STOCK REPORT", 14, 18);
+
+      // Report Meta
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Generated: ${nowStr}   |   Total Items: ${metrics.total}   |   In Stock: ${metrics.available}   |   Low Stock: ${metrics.low}   |   Out of Stock: ${metrics.out}`,
+        14,
+        25
+      );
+
+      const tableRows = filteredProducts.map((p, idx) => [
+        String(idx + 1),
+        p.name || "Unnamed Item",
+        p.category?.name || "Uncategorized",
+        p.trackStock ? String(p.inventory?.quantity ?? 0) : "Unlimited",
+        p.unit || "pc",
+        p.trackStock ? String(p.inventory?.minStock ?? 0) : "-",
+        getProductStockStatus(p).toUpperCase(),
+        p.inventory?.updatedAt ? formatDate(p.inventory.updatedAt) : formatDate(p.updatedAt),
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["#", "Item Name", "Category", "Current Stock", "Unit", "Min Stock", "Stock Status", "Last Updated"]],
+        body: tableRows.length
+          ? tableRows
+          : [["-", "No inventory items found", "-", "-", "-", "-", "-", "-"]],
+        theme: "grid",
+        headStyles: {
+          fillColor: [85, 160, 96],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: "bold",
+        },
+        bodyStyles: {
+          fontSize: 8.5,
+          textColor: [51, 65, 85],
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 10 },
+          1: { fontStyle: "bold" },
+          3: { halign: "right", fontStyle: "bold" },
+          4: { halign: "center" },
+          5: { halign: "right" },
+          6: { halign: "center" },
+          7: { halign: "center" },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 6) {
+            const val = String(data.cell.raw);
+            if (val.includes("OUT OF STOCK")) {
+              data.cell.styles.textColor = [239, 68, 68];
+              data.cell.styles.fontStyle = "bold";
+            } else if (val.includes("LOW STOCK")) {
+              data.cell.styles.textColor = [245, 158, 11];
+              data.cell.styles.fontStyle = "bold";
+            } else if (val.includes("IN STOCK")) {
+              data.cell.styles.textColor = [34, 197, 94];
+            }
+          }
+        },
+      });
+
+      doc.save(`inventory_stock_report_${new Date().toISOString().substring(0, 10)}.pdf`);
+    } else if (activeTab === "movements") {
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("STOCK MOVEMENTS AUDIT REPORT", 14, 18);
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated: ${nowStr}   |   Total Movement Logs: ${filteredMovements.length}`, 14, 25);
+
+      const tableRows = filteredMovements.map((m, idx) => {
+        const remarksText = m.referenceId && m.notes ? `${m.referenceId} (${m.notes})` : m.referenceId || m.notes || "-";
+        const typeLabel = m.type === "restock" ? "RESTOCK" : m.type === "sale" ? "POS SALE" : m.type === "return" ? "RETURN / VOID" : "ADJUSTMENT";
+        const changeStr = Number(m.quantity) > 0 ? `+${Math.abs(Number(m.quantity))}` : `-${Math.abs(Number(m.quantity))}`;
+        return [
+          String(idx + 1),
+          m.product?.name || "Deleted Product",
+          typeLabel,
+          `${m.previousQty ?? 0} ${m.product?.unit || "pc"}`,
+          `${changeStr} ${m.product?.unit || "pc"}`,
+          `${m.balanceQty ?? 0} ${m.product?.unit || "pc"}`,
+          formatDate(m.createdAt),
+          remarksText,
+          m.user?.email || m.user?.name || "System",
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["#", "Item Name", "Type", "Previous Qty", "Change Qty", "Balance Qty", "Date & Time", "Remarks", "Updated By"]],
+        body: tableRows.length
+          ? tableRows
+          : [["-", "No stock movement logs found", "-", "-", "-", "-", "-", "-", "-"]],
+        theme: "grid",
+        headStyles: {
+          fillColor: [85, 160, 96],
+          textColor: [255, 255, 255],
+          fontSize: 8.5,
+          fontStyle: "bold",
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [51, 65, 85],
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 8 },
+          1: { fontStyle: "bold" },
+          2: { halign: "center" },
+          3: { halign: "right" },
+          4: { halign: "right", fontStyle: "bold" },
+          5: { halign: "right", fontStyle: "bold" },
+          6: { halign: "center" },
+        },
+      });
+
+      doc.save(`stock_movements_log_${new Date().toISOString().substring(0, 10)}.pdf`);
     }
   };
 
@@ -591,7 +829,7 @@ export default function InventoryPage() {
 
     const originalQty = Math.abs(Number(adjQty));
     const finalQty = adjType === "IN" ? originalQty : -originalQty;
-    const dbType = adjType === "IN" ? "restock" : "damage";
+    const dbType = adjType === "IN" ? "restock" : "adjustment";
 
     try {
       await request("/inventory/adjust", {
@@ -627,16 +865,24 @@ export default function InventoryPage() {
     setError("");
 
     try {
-      await createSupplier({
+      const payload = {
         name: supplierName.trim(),
         companyName: supplierCompany.trim() || undefined,
         phone: supplierPhone.trim() || undefined,
         email: supplierEmail.trim() || undefined,
         address: supplierAddress.trim() || undefined,
-      });
+      };
 
-      setSuccessMessage("Supplier created successfully");
+      if (editingSupplier) {
+        await updateSupplier(editingSupplier.id, payload);
+        setSuccessMessage(language === "km" ? "បានធ្វើបច្ចុប្បន្នភាពអ្នកផ្គត់ផ្គង់ដោយជោគជ័យ" : "Supplier updated successfully");
+      } else {
+        await createSupplier(payload);
+        setSuccessMessage(language === "km" ? "បានបង្កើតអ្នកផ្គត់ផ្គង់ដោយជោគជ័យ" : "Supplier created successfully");
+      }
+
       setIsSupplierModalOpen(false);
+      setEditingSupplier(null);
       setSupplierName("");
       setSupplierCompany("");
       setSupplierPhone("");
@@ -644,7 +890,7 @@ export default function InventoryPage() {
       setSupplierAddress("");
       fetchData();
     } catch (err: any) {
-      setError(err?.message || "Failed to create supplier");
+      setError(err?.message || "Failed to save supplier");
     } finally {
       setSubmitting(false);
     }
@@ -724,6 +970,7 @@ export default function InventoryPage() {
           quantity: Number(addQuantity || 0),
           minStock: Number(addMinStock || 0),
           supplierId: addSupplierId ? Number(addSupplierId) : null,
+          categoryId: addCategoryId ? Number(addCategoryId) : null,
         },
       });
 
@@ -737,6 +984,7 @@ export default function InventoryPage() {
       setAddQuantity("");
       setAddMinStock("");
       setAddSupplierId("");
+      setAddCategoryId("");
     } catch (err: any) {
       setError(err?.message || "Failed to create stock item");
     } finally {
@@ -762,6 +1010,7 @@ export default function InventoryPage() {
           name: settingsName,
           quantity: Number(settingsQuantity),
           supplierId: settingsSupplierId ? Number(settingsSupplierId) : null,
+          categoryId: settingsCategoryId ? Number(settingsCategoryId) : null,
         },
       });
 
@@ -821,7 +1070,23 @@ export default function InventoryPage() {
     setSettingsUnit(product.unit || "pc");
     setSettingsName(product.name || "");
     setSettingsQuantity(String(product.inventory?.quantity ?? 0));
-    setSettingsSupplierId(product.supplierId ? String(product.supplierId) : "");
+
+    const rawSupplierId = product.supplierId ?? product.supplier?.id;
+    setSettingsSupplierId(rawSupplierId ? String(rawSupplierId) : "");
+
+    let resolvedCatId = product.categoryId ?? product.category?.id;
+    if (!resolvedCatId || product.category?.name?.toLowerCase() === "inventory") {
+      const drinkCat = categories.find(
+        (c: any) =>
+          c.name?.toLowerCase() === "drink" ||
+          c.name?.toLowerCase() === "beverages" ||
+          c.name?.toLowerCase() === "beverage"
+      );
+      if (drinkCat) {
+        resolvedCatId = drinkCat.id;
+      }
+    }
+    setSettingsCategoryId(resolvedCatId ? String(resolvedCatId) : "");
     setIsSettingsModalOpen(true);
   };
 
@@ -868,7 +1133,7 @@ export default function InventoryPage() {
           <div className="flex items-center gap-2.5">
             <h1 className={`text-2xl font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>
               {activeTab === "suppliers"
-                ? "Suppliers & Vendors"
+                ? (language === "km" ? "អ្នកផ្គត់ផ្គង់" : "Suppliers")
                 : activeTab === "movements"
                 ? "Stock Movement History"
                 : activeTab === "po"
@@ -890,68 +1155,109 @@ export default function InventoryPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {(activeTab === "dashboard" || activeTab === "movements") && (
+              <div className="relative min-w-[200px]">
+                <Search className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder={
+                    activeTab === "movements"
+                      ? language === "km"
+                        ? "ស្វែងរកឈ្មោះ ឬលេខ Order..."
+                        : "Search item, order #..."
+                      : t.searchPlaceholder
+                  }
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={`w-full rounded-xl border pl-10 pr-4 py-2 text-xs outline-none transition-all ${
+                    dark
+                      ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 placeholder:text-slate-400 focus:border-[#696cff]"
+                      : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff]"
+                  }`}
+                />
+              </div>
+            )}
+
             {activeTab === "dashboard" && (
-              <>
-                <div className="relative min-w-[200px]">
-                  <Search className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder={t.searchPlaceholder}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full rounded-xl border pl-10 pr-4 py-2 text-xs outline-none transition-all ${
-                      dark
-                        ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100 placeholder:text-slate-400 focus:border-[#696cff]"
-                        : "border-slate-200 bg-white text-slate-800 focus:border-[#696cff]"
-                    }`}
-                  />
-                </div>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as any)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold outline-none transition-all cursor-pointer ${
+                  dark
+                    ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                <option value="all">{language === "km" ? "ទំនិញទាំងអស់ (All Items)" : "All Items"}</option>
+                <option value="available">{language === "km" ? "មានក្នុងស្តុក (In Stock)" : "Available / In Stock"}</option>
+                <option value="low">{language === "km" ? "ស្តុកជិតអស់ (Low Stock)" : "Low Stock"}</option>
+                <option value="out">{language === "km" ? "អស់ពីស្តុក (Out of Stock)" : "Out of Stock"}</option>
+              </select>
+            )}
 
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className={`rounded-xl border px-3 py-2 text-xs font-semibold outline-none transition-all cursor-pointer ${
-                    dark
-                      ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100"
-                      : "border-slate-200 bg-white text-slate-700"
-                  }`}
-                >
-                  <option value="all">{t.allCategories}</option>
-                  {categories.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={selectedSupplier}
-                  onChange={(e) => setSelectedSupplier(e.target.value)}
-                  className={`rounded-xl border px-3 py-2 text-xs font-semibold outline-none transition-all cursor-pointer ${
-                    dark
-                      ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100"
-                      : "border-slate-200 bg-white text-slate-700"
-                  }`}
-                >
-                  <option value="all">{language === "km" ? "អ្នកផ្គត់ផ្គង់ទាំងអស់" : "All Suppliers"}</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </>
+            {activeTab === "movements" && (
+              <select
+                value={movementTypeFilter}
+                onChange={(e) => setMovementTypeFilter(e.target.value)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold outline-none transition-all cursor-pointer ${
+                  dark
+                    ? "border-[#3b3c54] bg-[#2b2c40] text-slate-100"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                <option value="all">{language === "km" ? "ប្រភេទទាំងអស់ (All Movement Types)" : "All Movement Types"}</option>
+                <option value="restock">{language === "km" ? "អែតស្តុក (RESTOCK)" : "Restock (RESTOCK)"}</option>
+                <option value="sale">{language === "km" ? "លក់តាម POS (POS SALE)" : "POS Sale (POS SALE)"}</option>
+                <option value="return">{language === "km" ? "សងស្តុក/រំលាយ (RETURN / VOID)" : "Return / Void (RETURN / VOID)"}</option>
+                <option value="adjustment">{language === "km" ? "កែសម្រួល (ADJUSTMENT)" : "Adjustment (ADJUSTMENT)"}</option>
+              </select>
             )}
 
             {(activeTab === "dashboard" || activeTab === "movements") && (
-              <button
-                type="button"
-                onClick={exportToCsv}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-3.5 py-2 text-xs font-semibold transition-all hover:bg-emerald-100 cursor-pointer"
-              >
-                <Download size={14} />
-                <span>{t.exportCsv}</span>
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-3.5 py-2 text-xs font-semibold transition-all hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>{language === "km" ? "ទាញយកទិន្នន័យ (Export)" : "Export"}</span>
+                  <ChevronDown size={13} className={`transition-transform duration-200 ${isExportMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {isExportMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-20"
+                      onClick={() => setIsExportMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 z-30 w-52 rounded-xl border border-slate-200 dark:border-[#4e4f6e] bg-white dark:bg-[#2b2c40] p-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportToCsv();
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#383a56] transition-all cursor-pointer"
+                      >
+                        <FileSpreadsheet size={15} className="text-emerald-500" />
+                        <span>Excel / CSV (.xlsx)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportToPdf();
+                          setIsExportMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#383a56] transition-all cursor-pointer"
+                      >
+                        <FileText size={15} className="text-rose-500" />
+                        <span>PDF Report (.pdf)</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Action Trigger Buttons */}
@@ -962,6 +1268,13 @@ export default function InventoryPage() {
                   setAddUnit("pc");
                   setAddQuantity("");
                   setAddMinStock("");
+                  setAddSupplierId("");
+                  const drinkCat = categories.find((c) =>
+                    (c.name && c.name.toLowerCase().includes("drink")) ||
+                    (c.nameKm && c.nameKm.includes("ភេសជ្ជៈ")) ||
+                    c.slug === "drink"
+                  );
+                  setAddCategoryId(drinkCat ? String(drinkCat.id) : "");
                   setIsAddModalOpen(true);
                 }}
                 className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer"
@@ -973,14 +1286,7 @@ export default function InventoryPage() {
 
             {activeTab === "suppliers" && (
               <button
-                onClick={() => {
-                  setSupplierName("");
-                  setSupplierCompany("");
-                  setSupplierPhone("");
-                  setSupplierEmail("");
-                  setSupplierAddress("");
-                  setIsSupplierModalOpen(true);
-                }}
+                onClick={openAddSupplierModal}
                 className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer"
               >
                 <Plus size={14} />
@@ -1093,7 +1399,7 @@ export default function InventoryPage() {
             {activeTab === "dashboard" ? (
               /* Products Stock Level List Table */
               <div className={`mt-6 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54]" : "border-slate-200/80"} ${surface}`}>
-                <div className="overflow-auto max-h-[720px] min-h-[480px] pb-16 no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                <div className="overflow-auto max-h-[720px] min-h-[480px] pb-32 no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className={`${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"} border-b text-[11px] font-bold uppercase tracking-wider whitespace-nowrap`}>
@@ -1118,7 +1424,7 @@ export default function InventoryPage() {
                           const status = getProductStockStatus(p);
                           const qty = p.inventory?.quantity !== undefined ? Number(p.inventory.quantity) : 0;
                           const min = p.inventory?.minStock !== undefined ? Number(p.inventory.minStock) : 0;
-                          const isBottomRow = idx > 0 && idx >= filteredProducts.length - 2;
+                          const isBottomRow = idx > 1 && idx >= filteredProducts.length - 2;
 
                           return (
                             <tr key={p.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
@@ -1139,7 +1445,7 @@ export default function InventoryPage() {
                               <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>
                                 {p.trackStock ? (
                                   <span>
-                                    {qty.toFixed(4)} {p.unit}
+                                    {formatStockQuantity(qty)} {p.unit}
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 text-xs italic">Unlimited</span>
@@ -1148,7 +1454,7 @@ export default function InventoryPage() {
                               <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>
                                 {p.trackStock ? (
                                   <span>
-                                    {min.toFixed(4)} {p.unit}
+                                    {formatStockQuantity(min)} {p.unit}
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 text-xs">—</span>
@@ -1259,20 +1565,22 @@ export default function InventoryPage() {
                 <div className="overflow-auto max-h-[720px] min-h-[480px] pb-10 no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
-                        <th className="px-6 py-3">#</th>
-                        <th className="px-6 py-3">ITEM</th>
-                        <th className="px-6 py-3">TYPE</th>
-                        <th className="px-6 py-3">QUANTITY</th>
-                        <th className="px-6 py-3">DATE &amp; TIME</th>
-                        <th className="px-6 py-3">REMARKS / PO</th>
-                        <th className="px-6 py-3">UPDATED BY</th>
+                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-300" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">#</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">ITEM</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">TYPE</th>
+                        <th className="px-4 py-3.5 text-right whitespace-nowrap">PREVIOUS QTY</th>
+                        <th className="px-4 py-3.5 text-right whitespace-nowrap">CHANGE QTY</th>
+                        <th className="px-4 py-3.5 text-right whitespace-nowrap">BALANCE QTY</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">DATE &amp; TIME</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">REMARKS / REASON</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">UPDATED BY</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
                       {filteredMovements.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-10 text-center text-xs font-medium text-slate-400">
+                          <td colSpan={9} className="px-4 py-10 text-center text-xs font-medium text-slate-400">
                             {searchQuery || movementTypeFilter !== "all"
                               ? "No stock movement logs match your filter."
                               : t.noMovements}
@@ -1283,61 +1591,97 @@ export default function InventoryPage() {
                           const quantityVal = Number(move.quantity);
                           const isPositive = quantityVal > 0;
                           const moveType = move.type || (isPositive ? "restock" : "adjustment");
+                          const isDeleted = move.notes?.toLowerCase().includes("delete");
+                          const isCancelled = move.notes?.toLowerCase().includes("cancel");
 
                           return (
                             <tr key={move.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
-                              <td className={`px-6 py-3 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
+                              <td className={`px-4 py-3.5 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
                                 {filteredMovements.length - idx}
                               </td>
-                              <td className="px-6 py-3">
+                              <td className="px-4 py-3.5 whitespace-nowrap">
                                 <div className={`font-semibold text-xs ${dark ? "text-slate-100" : "text-slate-800"}`}>
                                   {move.product?.name || "Deleted Product"}
                                 </div>
-                                <span className="text-[10px] text-slate-400 font-medium">Unit: {move.product?.unit || "pc"}</span>
+                                <span className={`text-[10px] font-medium ${dark ? "text-slate-300" : "text-slate-400"}`}>Unit: {move.product?.unit || "pc"}</span>
                               </td>
-                              <td className="px-6 py-3">
+                              <td className="px-4 py-3.5 whitespace-nowrap">
                                 {moveType === "restock" ? (
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
                                     <Plus size={11} className="stroke-[2.5]" /> RESTOCK
                                   </span>
                                 ) : moveType === "sale" ? (
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
                                     <ShoppingBag size={11} className="stroke-[2.2]" /> POS SALE
                                   </span>
+                                ) : moveType === "return" ? (
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-300 border border-teal-200/50 dark:border-teal-800/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                    <RotateCw size={11} className="stroke-[2.2]" /> RETURN / VOID
+                                  </span>
                                 ) : moveType === "damage" ? (
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300 border border-rose-200/50 dark:border-rose-800/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
                                     <AlertTriangle size={11} className="stroke-[2.2]" /> SPOILAGE
                                   </span>
                                 ) : moveType === "expired" ? (
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-300 border border-amber-200/50 dark:border-amber-800/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
                                     <Clock size={11} className="stroke-[2.2]" /> EXPIRED
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
+                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider">
                                     <RotateCw size={11} className="stroke-[2.2]" /> ADJUSTMENT
                                   </span>
                                 )}
                               </td>
-                              <td className="px-6 py-3">
-                                <span className={`font-black text-xs ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
-                                  {isPositive ? `+${Math.abs(quantityVal).toFixed(2)}` : `-${Math.abs(quantityVal).toFixed(2)}`}
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <span className={`text-xs font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
+                                  {formatStockQuantity(move.previousQty ?? 0)}
                                 </span>{" "}
-                                <span className="text-[11px] text-slate-400 font-medium ml-0.5">{move.product?.unit}</span>
+                                <span className={`text-[10px] font-medium ${dark ? "text-slate-300" : "text-slate-400"}`}>{move.product?.unit}</span>
                               </td>
-                              <td className="px-6 py-3 text-[11px] font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <span className={`font-black text-xs ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
+                                  {isPositive ? `+${formatStockQuantity(Math.abs(quantityVal))}` : `-${formatStockQuantity(Math.abs(quantityVal))}`}
+                                </span>{" "}
+                                <span className={`text-[10px] font-medium ${dark ? "text-slate-300" : "text-slate-400"}`}>{move.product?.unit}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                <span className={`text-xs font-bold ${dark ? "text-slate-200" : "text-slate-800"}`}>
+                                  {formatStockQuantity(move.balanceQty ?? 0)}
+                                </span>{" "}
+                                <span className={`text-[10px] font-medium ${dark ? "text-slate-400" : "text-slate-400"}`}>{move.product?.unit || "pc"}</span>
+                              </td>
+                              <td className={`px-4 py-3.5 text-[11px] font-semibold whitespace-nowrap ${dark ? "text-slate-200" : "text-slate-600"}`}>
                                 {formatDate(move.createdAt)}
                               </td>
-                              <td className="px-6 py-3 text-[11px] text-slate-600 dark:text-slate-300 font-medium max-w-xs truncate">
-                                {move.referenceId ? (
-                                  <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold">
-                                    {move.referenceId}
-                                  </span>
-                                ) : (
-                                  move.notes || "-"
-                                )}
+                              <td className={`px-4 py-3.5 text-xs font-medium whitespace-nowrap ${dark ? "text-slate-200" : "text-slate-600"}`}>
+                                <div className="flex items-center gap-1.5">
+                                  {move.referenceId && (
+                                    <span className={`font-mono text-[11px] px-2 py-0.5 rounded-md font-medium shrink-0 ${
+                                      dark
+                                        ? "bg-[#34354c] text-slate-300 border border-[#434460]"
+                                        : "bg-slate-100/90 text-slate-600 border border-slate-200/80"
+                                    }`}>
+                                      {move.referenceId}
+                                    </span>
+                                  )}
+                                  {move.notes && (
+                                    <span className={`text-xs max-w-[240px] truncate ${
+                                      isDeleted
+                                        ? "text-rose-600 dark:text-rose-400 font-semibold"
+                                        : isCancelled
+                                        ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                        : dark ? "text-slate-300 font-normal" : "text-slate-500 font-normal"
+                                    }`}>
+                                      {isDeleted ? "• Order deleted" : isCancelled ? "• Order cancelled" : move.notes}
+                                    </span>
+                                  )}
+                                  {!move.referenceId && !move.notes && <span className="text-slate-400">-</span>}
+                                </div>
                               </td>
-                              <td className="px-6 py-3 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-                                {move.user?.name || move.user?.email || "System"}
+                              <td className={`px-4 py-3.5 text-xs font-semibold whitespace-nowrap ${dark ? "text-slate-100" : "text-slate-700"}`}>
+                                {move.user?.name || move.user?.email || (
+                                  <span className={`font-normal ${dark ? "text-slate-400" : "text-slate-400"}`}>System</span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1350,17 +1694,17 @@ export default function InventoryPage() {
             ) : activeTab === "suppliers" ? (
               /* Suppliers Table */
               <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54]" : "border-slate-200/80"} ${surface}`}>
-                <div className="overflow-auto max-h-[540px] no-scrollbar">
+                <div className="overflow-auto max-h-[540px] min-h-[300px] pb-36 no-scrollbar" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-400" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
+                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#2b2c40] border-[#3b3c54] text-slate-300" : "bg-[#f8f9fa] border-slate-100 text-slate-500"}`}>
                         <th className="px-6 py-3">#</th>
                         <th className="px-6 py-3">Supplier Name</th>
                         <th className="px-6 py-3">Company</th>
                         <th className="px-6 py-3">Phone</th>
                         <th className="px-6 py-3">Email</th>
                         <th className="px-6 py-3">Address</th>
-                        <th className="px-6 py-3 text-right">Actions</th>
+                        <th className="px-6 py-3 text-center min-w-[120px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
@@ -1371,26 +1715,90 @@ export default function InventoryPage() {
                           </td>
                         </tr>
                       ) : (
-                        suppliers.map((s, idx) => (
-                          <tr key={s.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
-                            <td className="px-6 py-3 text-xs font-bold text-slate-400">{idx + 1}</td>
-                            <td className="px-6 py-3 font-semibold text-xs text-slate-800 dark:text-slate-100">{s.name}</td>
-                            <td className="px-6 py-3 text-xs text-slate-600 dark:text-slate-300">{s.companyName || "-"}</td>
-                            <td className="px-6 py-3 text-xs font-mono text-slate-600 dark:text-slate-300">{s.phone || "-"}</td>
-                            <td className="px-6 py-3 text-xs text-slate-500 dark:text-slate-400">{s.email || "-"}</td>
-                            <td className="px-6 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">{s.address || "-"}</td>
-                            <td className="px-6 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteSupplier(s.id)}
-                                className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                                title="Delete Supplier"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
+                        suppliers.map((s, idx) => {
+                          const isBottomRow = idx > 1 && idx >= suppliers.length - 2;
+
+                          return (
+                            <tr key={s.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
+                              <td className={`px-6 py-3 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>{idx + 1}</td>
+                              <td className={`px-6 py-3 text-xs font-bold ${dark ? "text-slate-100" : "text-slate-800"}`}>{s.name}</td>
+                              <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-200" : "text-slate-600"}`}>{s.companyName || "-"}</td>
+                              <td className={`px-6 py-3 text-xs font-mono font-semibold ${dark ? "text-slate-200" : "text-slate-600"}`}>{s.phone || "-"}</td>
+                              <td className={`px-6 py-3 text-xs font-medium ${dark ? "text-slate-300" : "text-slate-500"}`}>{s.email || "-"}</td>
+                              <td className={`px-6 py-3 text-xs font-medium max-w-xs truncate ${dark ? "text-slate-300" : "text-slate-500"}`}>{s.address || "-"}</td>
+                              <td className="px-6 py-3 text-center min-w-[120px] whitespace-nowrap relative">
+                                <div className="relative inline-block text-left">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSupplierActionMenuOpen(supplierActionMenuOpen === s.id ? null : s.id);
+                                    }}
+                                    className={`rounded-lg p-1.5 transition-colors cursor-pointer ${
+                                      dark ? "text-slate-400 hover:bg-[#34354c] hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                                    }`}
+                                  >
+                                    <MoreVertical size={16} />
+                                  </button>
+
+                                  {supplierActionMenuOpen === s.id && (
+                                    <div
+                                      className={`absolute right-0 ${
+                                        isBottomRow ? "bottom-full mb-1" : "top-full mt-1"
+                                      } z-[99999] w-[190px] rounded-2xl border p-1.5 text-left shadow-xl ${
+                                        dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/80 bg-white"
+                                      }`}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSupplierActionMenuOpen(null);
+                                          setPoSupplierId(String(s.id));
+                                          setPoNotes("");
+                                          setPoItems([]);
+                                          setIsPoModalOpen(true);
+                                        }}
+                                        className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
+                                          dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <Plus size={14} className="text-slate-400 stroke-[2.5]" />
+                                        {language === "km" ? "បង្កើតប័ណ្ណ PO" : "Create PO"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSupplierActionMenuOpen(null);
+                                          openEditSupplierModal(s);
+                                        }}
+                                        className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
+                                          dark ? "text-slate-200 hover:bg-[#34354e]" : "text-slate-600 hover:bg-slate-50"
+                                        }`}
+                                      >
+                                        <Pencil size={12} className="text-slate-400" />
+                                        {language === "km" ? "កែប្រែអ្នកផ្គត់ផ្គង់" : "Update Supplier"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSupplierActionMenuOpen(null);
+                                          handleDeleteSupplier(s.id);
+                                        }}
+                                        className="flex w-full items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors whitespace-nowrap cursor-pointer"
+                                      >
+                                        <Trash2 size={13} className="text-red-400" />
+                                        {language === "km" ? "លុបអ្នកផ្គត់ផ្គង់" : "Delete Supplier"}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -1598,10 +2006,52 @@ export default function InventoryPage() {
             </h2>
 
             <form onSubmit={handleAddSubmit} className="space-y-4">
+              {/* Item Name (ឈ្មោះទំនិញ) */}
+              <div>
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះទំនិញ (Item Name) *" : "Item Name *"}
+                </label>
+                <input
+                  type="text"
+                  placeholder={language === "km" ? "ឧ. Coca-Cola, Sprite, Angkor Beer, Vital Water..." : "e.g. Coca-Cola, Sprite, Angkor Beer..."}
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
+                    dark
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
+                  }`}
+                  required
+                />
+              </div>
+
+              {/* Category Dropdown (ប្រភេទទំនិញ - Default: Drink) */}
+              <div>
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ប្រភេទទំនិញ (Category)" : "Category"}
+                </label>
+                <select
+                  value={addCategoryId}
+                  onChange={(e) => setAddCategoryId(e.target.value)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
+                    dark
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
+                  }`}
+                >
+                  <option value="">{language === "km" ? "-- ស្វ័យប្រវត្តិតាមឈ្មោះ (Auto-detect Drink/Food) --" : "-- Auto-detect --"}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {resolveCategoryName(c, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Supplier Dropdown */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Supplier (អ្នកផ្គត់ផ្គង់)
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "អ្នកផ្គត់ផ្គង់ (Supplier)" : "Supplier"}
                 </label>
                 <select
                   value={addSupplierId}
@@ -1620,28 +2070,11 @@ export default function InventoryPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Item Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Item Name"
-                  value={addName}
-                  onChange={(e) => setAddName(e.target.value)}
-                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
-                    dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
-                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
-                  }`}
-                  required
-                />
-              </div>
 
               {/* Unit Dropdown */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Unit
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ខ្នាត (Unit)" : "Unit"}
                 </label>
                 <select
                   value={addUnit}
@@ -1653,11 +2086,10 @@ export default function InventoryPage() {
                   }`}
                   required
                 >
-                  <option value="pc">Piece (pc)</option>
-                  <option value="kg">Kilogram (kg)</option>
-                  <option value="g">Gram (g)</option>
-                  <option value="ml">Milliliter (ml)</option>
-                  <option value="l">Liter (l)</option>
+                  <option value="pc">Piece / Can / Bottle (កំប៉ុង/ដប)</option>
+                  <option value="can">Can (កំប៉ុង)</option>
+                  <option value="bottle">Bottle (ដប)</option>
+                  <option value="pack">Pack / Case (កាតុង/យួរ)</option>
                 </select>
               </div>
 
@@ -1733,10 +2165,52 @@ export default function InventoryPage() {
             </h2>
 
             <form onSubmit={handleSettingsSubmit} className="space-y-4">
+              {/* Item Name (ឈ្មោះទំនិញ) */}
+              <div>
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះទំនិញ (Item Name) *" : "Item Name *"}
+                </label>
+                <input
+                  type="text"
+                  placeholder={language === "km" ? "ឧ. Coca-Cola, Sprite, Angkor Beer..." : "Item Name"}
+                  value={settingsName}
+                  onChange={(e) => setSettingsName(e.target.value)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
+                    dark
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
+                  }`}
+                  required
+                />
+              </div>
+
+              {/* Category Dropdown (ប្រភេទទំនិញ) */}
+              <div>
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ប្រភេទទំនិញ (Category)" : "Category"}
+                </label>
+                <select
+                  value={settingsCategoryId}
+                  onChange={(e) => setSettingsCategoryId(e.target.value)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
+                    dark
+                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
+                  }`}
+                >
+                  <option value="">{language === "km" ? "-- គ្មាន Category --" : "-- Select Category --"}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {resolveCategoryName(c, language)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Supplier Dropdown */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Supplier (អ្នកផ្គត់ផ្គង់)
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "អ្នកផ្គត់ផ្គង់ (Supplier)" : "Supplier"}
                 </label>
                 <select
                   value={settingsSupplierId}
@@ -1755,28 +2229,11 @@ export default function InventoryPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Item Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Item Name"
-                  value={settingsName}
-                  onChange={(e) => setSettingsName(e.target.value)}
-                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-semibold outline-none transition-all duration-200 ${
-                    dark
-                      ? "border-[#4e4f6e] bg-[#232333] text-white focus:border-[#55a060]"
-                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
-                  }`}
-                  required
-                />
-              </div>
 
               {/* Unit Dropdown */}
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                  Unit
+                <label className={`block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ខ្នាត (Unit)" : "Unit"}
                 </label>
                 <select
                   value={settingsUnit}
@@ -1788,11 +2245,10 @@ export default function InventoryPage() {
                   }`}
                   required
                 >
-                  <option value="pc">Piece (pc)</option>
-                  <option value="kg">Kilogram (kg)</option>
-                  <option value="g">Gram (g)</option>
-                  <option value="ml">Milliliter (mL)</option>
-                  <option value="l">Liter (l)</option>
+                  <option value="pc">Piece / Can / Bottle (កំប៉ុង/ដប)</option>
+                  <option value="can">Can (កំប៉ុង)</option>
+                  <option value="bottle">Bottle (ដប)</option>
+                  <option value="pack">Pack / Case (កាតុង/យួរ)</option>
                 </select>
               </div>
 
@@ -1908,7 +2364,9 @@ export default function InventoryPage() {
                   <Truck size={18} />
                 </div>
                 <h2 className={`text-lg font-bold ${textPrimary} ${language === "km" ? "font-khmer" : ""}`}>
-                  {language === "km" ? "បន្ថែមអ្នកផ្គត់ផ្គង់ថ្មី" : "Add Supplier"}
+                  {editingSupplier
+                    ? (language === "km" ? "កែប្រែអ្នកផ្គត់ផ្គង់" : "Edit Supplier")
+                    : (language === "km" ? "បន្ថែមអ្នកផ្គត់ផ្គង់ថ្មី" : "Add Supplier")}
                 </h2>
               </div>
               <button
@@ -2011,7 +2469,11 @@ export default function InventoryPage() {
                   disabled={submitting}
                   className="h-10 rounded-xl bg-[#55a060] hover:bg-[#488c52] px-5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer border border-transparent outline-none active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  {submitting ? (language === "km" ? "កំពុងរក្សាទុក..." : "Saving...") : (language === "km" ? "រក្សាទុក" : "Save")}
+                  {submitting
+                    ? (language === "km" ? "កំពុងរក្សាទុក..." : "Saving...")
+                    : editingSupplier
+                    ? (language === "km" ? "រក្សាទុកការកែប្រែ" : "Update Supplier")
+                    : (language === "km" ? "រក្សាទុក" : "Save Supplier")}
                 </button>
               </div>
             </form>
@@ -2166,6 +2628,11 @@ export default function InventoryPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ANIMATED TOAST NOTIFICATION (MATCHING OTHER PAGES) */}
+      {successMessage && (
+        <AnimatedToast message={successMessage} onClose={() => setSuccessMessage("")} type="success" />
       )}
     </main>
   );

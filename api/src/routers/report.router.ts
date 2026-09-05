@@ -6,6 +6,8 @@ import {
   dailySales,
   monthlySales,
   topProducts,
+  purchaseSummary,
+  paymentBreakdown,
   exportCsvHandler,
 } from "../controllers/report.controller.js";
 
@@ -18,6 +20,8 @@ const reportRoles = [
 router.get("/daily-sales", ...reportRoles, asyncHandler(dailySales));
 router.get("/monthly-sales", ...reportRoles, asyncHandler(monthlySales));
 router.get("/top-products", ...reportRoles, asyncHandler(topProducts));
+router.get("/purchase-summary", ...reportRoles, asyncHandler(purchaseSummary));
+router.get("/payment-breakdown", ...reportRoles, asyncHandler(paymentBreakdown));
 router.get("/export-csv", ...reportRoles, asyncHandler(exportCsvHandler));
 
 export default router;

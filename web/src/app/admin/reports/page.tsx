@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   Bell,
@@ -29,10 +30,12 @@ import {
   ArrowDownLeft,
   Layers,
   ListFilter,
+  Truck,
+  ReceiptText,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { setAppLanguage, useAppLanguage } from "../../../lib/language";
+import { setAppLanguage, useAppLanguage, resolveCategoryName, resolveProductName } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
 import {
@@ -42,6 +45,8 @@ import {
   getOrders,
   getSettings,
   getTopProducts,
+  getPurchaseReportSummary,
+  getPaymentReportBreakdown,
   request,
 } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
@@ -469,9 +474,30 @@ export default function ReportsPage() {
   const [showExport, setShowExport] = useState(false);
   const [showTrendDropdown, setShowTrendDropdown] = useState(false);
 
-  const [reportTab, setReportTab] = useState<"analytics" | "stock">("analytics");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [reportTab, setReportTab] = useState<"orders" | "purchases" | "payments" | "stock">(() => {
+    if (tabParam === "purchases") return "purchases";
+    if (tabParam === "payments") return "payments";
+    if (tabParam === "stock") return "stock";
+    return "orders";
+  });
+
+  useEffect(() => {
+    if (tabParam === "purchases") {
+      setReportTab("purchases");
+    } else if (tabParam === "payments") {
+      setReportTab("payments");
+    } else if (tabParam === "stock") {
+      setReportTab("stock");
+    } else if (tabParam === "orders" || tabParam === "analytics") {
+      setReportTab("orders");
+    }
+  }, [tabParam]);
   const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [stockMovements, setStockMovements] = useState<any[]>([]);
+  const [purchaseReport, setPurchaseReport] = useState<any>({ totalPurchaseCost: 0, orderCount: 0, activeSuppliersCount: 0, purchaseOrders: [] });
+  const [paymentBreakdownData, setPaymentBreakdownData] = useState<any>({ grossRevenue: 0, totalTransactions: 0, breakdown: [] });
   const [stockSearch, setStockSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
 
@@ -531,14 +557,18 @@ export default function ReportsPage() {
       request<any[]>("/inventory").catch(() => []),
       request<any[]>("/inventory/transactions").catch(() => []),
       getOrders().catch(() => []),
+      getPurchaseReportSummary(selectedDate, selectedPeriod).catch(() => ({ totalPurchaseCost: 0, orderCount: 0, activeSuppliersCount: 0, purchaseOrders: [] })),
+      getPaymentReportBreakdown(selectedDate, selectedPeriod).catch(() => ({ grossRevenue: 0, totalTransactions: 0, breakdown: [] })),
     ])
-      .then(([dailyRows, monthlyRows, topRows, invRows, movRows, allOrders]) => {
+      .then(([dailyRows, monthlyRows, topRows, invRows, movRows, allOrders, purData, payData]) => {
         setDaily(dailyRows);
         setMonthly(monthlyRows);
         setTopProducts(topRows);
         setInventoryItems(Array.isArray(invRows) ? invRows : []);
         setStockMovements(Array.isArray(movRows) ? movRows : []);
         setOrders(Array.isArray(allOrders) ? allOrders : []);
+        setPurchaseReport(purData || { totalPurchaseCost: 0, orderCount: 0, activeSuppliersCount: 0, purchaseOrders: [] });
+        setPaymentBreakdownData(payData || { grossRevenue: 0, totalTransactions: 0, breakdown: [] });
         setLastUpdated(new Date());
         setError("");
       })
@@ -771,9 +801,31 @@ export default function ReportsPage() {
   const exportCsvName = `orders-report-${selectedPeriod}-${selectedDate}.csv`;
 
   const trendRows = useMemo(() => {
-    const sourceRows = monthly?.dailyTotals?.length ? monthly.dailyTotals : [];
+    let sourceRows = monthly?.dailyTotals?.length ? monthly.dailyTotals : [];
+
+    if (!sourceRows.length && filteredRealtimeOrders.length > 0) {
+      const dateMap: Record<string, number> = {};
+      filteredRealtimeOrders.forEach((o: any) => {
+        if (!o.createdAt) return;
+        const dStr = new Date(o.createdAt).toISOString().slice(0, 10);
+        dateMap[dStr] = (dateMap[dStr] || 0) + Number(o.totalAmount || 0);
+      });
+
+      sourceRows = Object.entries(dateMap).map(([date, total]) => ({ date, total }));
+    }
+
+    if (!sourceRows.length) return [];
+
     const step = Math.max(1, Math.ceil(sourceRows.length / 14));
-    const rows = sourceRows.filter((_, index) => index % step === 0).slice(0, 14);
+    const rows: { date: string; total: number }[] = [];
+
+    for (let i = 0; i < sourceRows.length; i += step) {
+      const chunk = sourceRows.slice(i, i + step);
+      const total = chunk.reduce((sum, item) => sum + Number(item.total || 0), 0);
+      const activeItem = chunk.find((c) => Number(c.total || 0) > 0) || chunk[0];
+      rows.push({ date: activeItem.date, total });
+    }
+
     const max = Math.max(...rows.map((row) => Number(row.total || 0)), 1);
 
     return rows.map((row, index) => ({
@@ -786,14 +838,53 @@ export default function ReportsPage() {
               })
               .toUpperCase()
           : "",
-      height: Math.max(18, (Number(row.total || 0) / max) * 100),
-      peak: Number(row.total || 0) === max,
+      height: Math.max(12, (Number(row.total || 0) / max) * 100),
+      peak: Number(row.total || 0) === max && max > 0,
       total: Number(row.total || 0),
     }));
-  }, [dateLocale, monthly]);
+  }, [dateLocale, monthly, filteredRealtimeOrders]);
+
+  const dynamicTopProducts = useMemo<TopProductReport[]>(() => {
+    if (topProducts.length > 0) return topProducts;
+
+    const productMap: Record<string, TopProductReport> = {};
+
+    filteredRealtimeOrders.forEach((order: any) => {
+      const itemsList = order.items || order.orderItems || [];
+      if (!Array.isArray(itemsList)) return;
+
+      itemsList.forEach((item: any) => {
+        const pId = item.productId || item.product?.id || item.id;
+        if (!pId) return;
+
+        const prodName = resolveProductName(item.product || { name: item.productName || item.name }, language) || item.productName || item.name || "Unknown";
+        let catName = resolveCategoryName(item.product?.category || item.category, language) || item.categoryName || t.uncategorized;
+        if (catName.toLowerCase() === "inventory") {
+          catName = "Drink";
+        }
+        const qty = Number(item.quantity || 1);
+        const sales = Number(item.totalPrice || (item.price ? item.price * qty : 0));
+
+        if (!productMap[pId]) {
+          productMap[pId] = {
+            productId: Number(pId),
+            productName: prodName,
+            categoryName: catName,
+            quantity: 0,
+            totalSales: 0,
+          };
+        }
+
+        productMap[pId].quantity += qty;
+        productMap[pId].totalSales += sales;
+      });
+    });
+
+    return Object.values(productMap).sort((a, b) => b.quantity - a.quantity);
+  }, [topProducts, filteredRealtimeOrders, language, t.uncategorized]);
 
   const categories = useMemo(() => {
-    const grouped = topProducts.reduce<Record<string, number>>((acc, item) => {
+    const grouped = dynamicTopProducts.reduce<Record<string, number>>((acc, item) => {
       const name = item.categoryName || t.uncategorized;
       acc[name] = (acc[name] || 0) + Number(item.totalSales || 0);
       return acc;
@@ -809,7 +900,7 @@ export default function ReportsPage() {
         value,
         color: colors[index],
       }));
-  }, [t.uncategorized, topProducts]);
+  }, [t.uncategorized, dynamicTopProducts]);
 
   const categoryTotal = Math.max(
     categories.reduce((sum, category) => sum + category.value, 0),
@@ -838,7 +929,7 @@ export default function ReportsPage() {
       .join(",");
   }, [categories, categoryTotal, t.noSales]);
 
-  const itemRows = topProducts.slice(0, 5).map((item, index) => {
+  const itemRows = dynamicTopProducts.slice(0, 5).map((item, index) => {
     const sales = Number(item.totalSales || 0);
     const qty = Number(item.quantity || 0);
     
@@ -861,80 +952,69 @@ export default function ReportsPage() {
     };
   });
 
-  const visibleItemRows = itemRows.length
-    ? itemRows
-    : [
-        {
-          name: "Truffle Tagliatelle",
-          category: t.mainCourse,
-          orders: 412,
-          revenue: "$9,888",
-          rating: "4.9/5",
-          status: "Trending",
-        },
-        {
-          name: "Wagyu Beef Burger",
-          category: t.mainCourse,
-          orders: 385,
-          revenue: "$8,470",
-          rating: "4.7/5",
-          status: "Stable",
-        },
-        {
-          name: "Classic Margarita",
-          category: t.beverages,
-          orders: 294,
-          revenue: "$3,528",
-          rating: "4.5/5",
-          status: "High Margin",
-        },
-      ];
+  const visibleItemRows = itemRows;
+
+  const dynamicPaymentBreakdown = useMemo(() => {
+    if (paymentBreakdownData?.breakdown?.length > 0) {
+      return paymentBreakdownData.breakdown;
+    }
+
+    const map: Record<string, { method: string; txns: number; total: number }> = {};
+    let gross = 0;
+
+    filteredRealtimeOrders.forEach((o: any) => {
+      const rawMethod = (o.paymentMethod || "aba_khqr").toLowerCase();
+      let label = "ABA KHQR (Scan to Pay)";
+      let key = "khqr";
+
+      if (rawMethod.includes("cash") || rawMethod.includes("សាច់ប្រាក់")) {
+        label = "Cash (សាច់ប្រាក់)";
+        key = "cash";
+      } else if (rawMethod.includes("card") || rawMethod.includes("credit") || rawMethod.includes("visa")) {
+        label = "Credit Card / Other";
+        key = "card";
+      } else if (rawMethod.includes("wing") || rawMethod.includes("pipay") || rawMethod.includes("bakong")) {
+        label = "Other E-Wallet";
+        key = "e_wallet";
+      }
+
+      if (!map[key]) {
+        map[key] = { method: label, txns: 0, total: 0 };
+      }
+
+      const amt = Number(o.totalAmount || 0);
+      map[key].txns += 1;
+      map[key].total += amt;
+      gross += amt;
+    });
+
+    return Object.values(map).map((b) => ({
+      ...b,
+      percentage: gross > 0 ? Math.round((b.total / gross) * 100) : 0,
+    }));
+  }, [paymentBreakdownData, filteredRealtimeOrders]);
+
+  const khqrPayment = dynamicPaymentBreakdown.find((b: any) => b.method.includes("ABA") || b.method.includes("KHQR")) || { total: 0, txns: 0 };
+  const cashPayment = dynamicPaymentBreakdown.find((b: any) => b.method.includes("Cash") || b.method.includes("សាច់ប្រាក់")) || { total: 0, txns: 0 };
+  const cardPayment = dynamicPaymentBreakdown.find((b: any) => b.method.includes("Card") || b.method.includes("Credit")) || { total: 0, txns: 0 };
 
   return (
-    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"} ${language === "km" ? "font-khmer" : ""}`}>
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
         <div className="pt-1 flex shrink-0 print:hidden mb-4">
           <div className="w-full flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex items-center gap-2">
-              {/* Report Tab Switcher */}
-              <div className={`flex items-center gap-1 p-1 rounded-xl border ${borderCol} ${softSurface}`}>
-                <button
-                  type="button"
-                  onClick={() => setReportTab("analytics")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    reportTab === "analytics"
-                      ? "bg-[#55a060] text-white shadow-xs"
-                      : dark ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <TrendingUp size={14} />
-                  <span>{language === "km" ? "របាយការណ៍ការលក់" : "Sales & Analytics"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportTab("stock")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    reportTab === "stock"
-                      ? "bg-[#55a060] text-white shadow-xs"
-                      : dark ? "text-slate-300 hover:text-white" : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <Boxes size={14} />
-                  <span>{language === "km" ? "របាយការណ៍ស្តុក (Stock Details)" : "Stock Details Report"}</span>
-                  {stockMetrics.lowStockCount > 0 && (
-                    <span className="ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-white px-1">
-                      {stockMetrics.lowStockCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* Pulsing Live Realtime Status Badge */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-bold shrink-0">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{language === "km" ? "ផ្ទាល់ទាន់ហេតុការណ៍ (Live Realtime)" : "Live Realtime"}</span>
-              </div>
+            <div className="relative flex items-center gap-3">
+              {/* Normal Page Title */}
+              <h1 className={`text-xl font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>
+                {reportTab === "stock"
+                  ? (language === "km" ? "របាយការណ៍ស្តុកទំនិញ (Stock Inventory Report)" : "Stock Inventory Report")
+                  : reportTab === "purchases"
+                  ? (language === "km" ? "របាយការណ៍ការទិញទំនិញ (Purchase Report)" : "Purchase Report")
+                  : reportTab === "payments"
+                  ? (language === "km" ? "របាយការណ៍ការទូទាត់ (Payment Methods Report)" : "Payment Methods Report")
+                  : (language === "km" ? "របាយការណ៍កុម្ម៉ង់ & ការលក់ (Orders & Sales Report)" : "Orders & Sales Report")}
+              </h1>
 
               {/* Funnel Filter Icon Button with Text */}
               <button
@@ -1125,11 +1205,11 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setShowExport((value) => !value)}
-                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] active:scale-95 transition-all shadow-sm shadow-[#55a060]/20 cursor-pointer"
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 px-3.5 py-2 text-xs font-semibold transition-all hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer"
               >
                 <Download size={14} />
                 <span>{t.export}</span>
-                <ChevronDown size={13} />
+                <ChevronDown size={13} className={`transition-transform duration-200 ${showExport ? "rotate-180" : ""}`} />
               </button>
 
               {showExport && (
@@ -1464,6 +1544,158 @@ export default function ReportsPage() {
                 </div>
               </div>
             </div>
+          ) : reportTab === "purchases" ? (
+            <div className="space-y-6">
+              {/* Purchase Report Metric Cards */}
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  icon={<Truck size={22} />}
+                  tone="green"
+                  label={language === "km" ? "ចំណាយទិញទំនិញសរុប" : "Total Purchase Cost"}
+                  value={money(purchaseReport.totalPurchaseCost)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<Boxes size={22} />}
+                  tone="blue"
+                  label={language === "km" ? "ចំនួនការបញ្ជាទិញចូល" : "Purchase Orders"}
+                  value={loading ? "..." : String(purchaseReport.orderCount)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<Users size={22} />}
+                  tone="orange"
+                  label={language === "km" ? "អ្នកផ្គត់ផ្គង់សរុប (Suppliers)" : "Active Suppliers"}
+                  value={loading ? "..." : `${purchaseReport.activeSuppliersCount} Suppliers`}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<PackageCheck size={22} />}
+                  tone="purple"
+                  label={language === "km" ? "ទំនិញបានទទួល (Received)" : "Stock Received"}
+                  value={loading ? "..." : `${purchaseReport.purchaseOrders.filter((p: any) => (p.status || "").toLowerCase() === "received").length} Completed`}
+                  dark={dark}
+                />
+              </section>
+
+              {/* Purchase Summary Table */}
+              <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
+                <div className="p-4 border-b border-slate-200/80 dark:border-[#3b3c54]">
+                  <h2 className={`text-base font-bold ${textPrimary}`}>
+                    {language === "km" ? "សេចក្តីសង្ខេបការទិញទំនិញចូល (Purchase Orders Summary)" : "Purchase Orders Summary"}
+                  </h2>
+                </div>
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300" : "bg-slate-50 border-slate-200/80 text-slate-600"}`}>
+                        <th className="px-4 py-3.5">PO #</th>
+                        <th className="px-4 py-3.5">{language === "km" ? "អ្នកផ្គត់ផ្គង់" : "Supplier Name"}</th>
+                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ចំនួនមុខទំនិញ" : "Item Count"}</th>
+                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ចំណាយសរុប" : "Total Amount"}</th>
+                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ស្ថានភាព" : "Status"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
+                      {purchaseReport.purchaseOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400 font-medium">
+                            {language === "km" ? "មិនទាន់មានទិន្នន័យទិញទំនិញចូលទេ" : "No purchase orders recorded for this period"}
+                          </td>
+                        </tr>
+                      ) : (
+                        purchaseReport.purchaseOrders.map((po: any) => (
+                          <tr key={po.id || po.poNumber} className={`transition-colors ${dark ? "hover:bg-slate-800/40 text-slate-200" : "hover:bg-slate-50/70 text-slate-700"}`}>
+                            <td className="px-4 py-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">{po.poNumber}</td>
+                            <td className="px-4 py-3.5 font-semibold">{po.supplierName}</td>
+                            <td className="px-4 py-3.5 text-center font-bold">{po.itemCount} items</td>
+                            <td className="px-4 py-3.5 text-right font-black">{money(po.totalAmount)}</td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="rounded px-2.5 py-1 text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
+                                {po.status || "RECEIVED"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : reportTab === "payments" ? (
+            <div className="space-y-6">
+              {/* Payment Method Cards */}
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                  icon={<ReceiptText size={22} />}
+                  tone="green"
+                  label={language === "km" ? "ABA KHQR (ធនាគារ)" : "ABA KHQR Sales"}
+                  value={money(khqrPayment.total)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<ShoppingCart size={22} />}
+                  tone="blue"
+                  label={language === "km" ? "សាច់ប្រាក់ (Cash)" : "Cash Sales"}
+                  value={money(cashPayment.total)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<Users size={22} />}
+                  tone="orange"
+                  label={language === "km" ? "កាត/ផ្សេងៗ (Card/Other)" : "Credit Card / Other"}
+                  value={money(cardPayment.total)}
+                  dark={dark}
+                />
+                <MetricCard
+                  icon={<TrendingUp size={22} />}
+                  tone="purple"
+                  label={language === "km" ? "ប្រតិបត្តិការសរុប" : "Total Transactions"}
+                  value={loading ? "..." : `${totalOrders} Txns`}
+                  dark={dark}
+                />
+              </section>
+
+              {/* Payment Breakdown Table */}
+              <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
+                <div className="p-4 border-b border-slate-200/80 dark:border-[#3b3c54]">
+                  <h2 className={`text-base font-bold ${textPrimary}`}>
+                    {language === "km" ? "សេចក្តីសង្ខេបការទូទាត់ប្រាក់ (Payment Method Breakdown)" : "Payment Method Breakdown"}
+                  </h2>
+                </div>
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300" : "bg-slate-50 border-slate-200/80 text-slate-600"}`}>
+                        <th className="px-4 py-3.5">{language === "km" ? "ប្រភេទទូទាត់" : "Payment Method"}</th>
+                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ចំនួនប្រតិបត្តិការ" : "Transaction Count"}</th>
+                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ចំណូលសរុប" : "Total Revenue"}</th>
+                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ភាគរយ (%)" : "Share (%)"}</th>
+                      </tr>
+                    </thead>
+                    <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
+                      {dynamicPaymentBreakdown.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-medium">
+                            {language === "km" ? "មិនទាន់មានទិន្នន័យទូទាត់ប្រាក់ទេ" : "No payment transactions recorded for this period"}
+                          </td>
+                        </tr>
+                      ) : (
+                        dynamicPaymentBreakdown.map((b: any, idx: number) => (
+                          <tr key={b.method || idx} className={`transition-colors ${dark ? "hover:bg-slate-800/40 text-slate-200" : "hover:bg-slate-50/70 text-slate-700"}`}>
+                            <td className="px-4 py-3.5 font-bold text-emerald-600 dark:text-emerald-400">{b.method}</td>
+                            <td className="px-4 py-3.5 text-center font-semibold">{b.txns} txns</td>
+                            <td className="px-4 py-3.5 text-right font-black">{money(b.total)}</td>
+                            <td className="px-4 py-3.5 text-right font-bold text-emerald-600">{b.percentage}%</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           ) : (
             <>
               <section className="mb-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-3">
@@ -1652,35 +1884,43 @@ export default function ReportsPage() {
                 </thead>
 
                 <tbody>
-                  {visibleItemRows.map((item) => (
-                    <tr
-                      key={item.name}
-                      className={`border-b last:border-b-0 ${
-                        dark
-                          ? "border-[#4e4f6e]/50 hover:bg-[#232333]/40"
-                          : "border-slate-100 hover:bg-[#f5f5f9]/50"
-                      } transition-all duration-150`}
-                    >
-                      <td className={`px-4 py-3 font-medium ${textPrimary}`}>
-                        {item.name}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-[#8592a3]">
-                        {item.category}
-                      </td>
-                      <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
-                        {item.orders}
-                      </td>
-                      <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
-                        {item.revenue}
-                      </td>
-                      <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
-                        {item.rating}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <StatusPill status={item.status} />
+                  {visibleItemRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-medium">
+                        {language === "km" ? "មិនទាន់មានទិន្នន័យលក់មុខម្ហូបទេ" : "No item sales recorded for this period"}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    visibleItemRows.map((item) => (
+                      <tr
+                        key={item.name}
+                        className={`border-b last:border-b-0 ${
+                          dark
+                            ? "border-[#4e4f6e]/50 hover:bg-[#232333]/40"
+                            : "border-slate-100 hover:bg-[#f5f5f9]/50"
+                        } transition-all duration-150`}
+                      >
+                        <td className={`px-4 py-3 font-medium ${textPrimary}`}>
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-[#8592a3]">
+                          {item.category}
+                        </td>
+                        <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
+                          {item.orders}
+                        </td>
+                        <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
+                          {item.revenue}
+                        </td>
+                        <td className={`px-4 py-3 text-center font-medium ${textPrimary}`}>
+                          {item.rating}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <StatusPill status={item.status} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

@@ -54,6 +54,7 @@ import {
   getProfileImage,
   initials,
   profileAvatarClass,
+  compressImageBase64,
 } from "../../../lib/profile";
 
 type UserForm = {
@@ -111,8 +112,10 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [tableFilter, setTableFilter] = useState<"all" | "admin" | "cashier" | "active">("all");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // User Modal State
@@ -124,11 +127,18 @@ export default function AdminUsersPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
 
-  // Click outside listener for action dropdown
+  // Click outside and scroll listener for action dropdown
   useEffect(() => {
-    const handleClose = () => setActionMenuOpen(null);
+    const handleClose = () => {
+      setActionMenuOpen(null);
+      setActionMenuPos(null);
+    };
     window.addEventListener("click", handleClose);
-    return () => window.removeEventListener("click", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    return () => {
+      window.removeEventListener("click", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+    };
   }, []);
 
   // Fetch Users, Roles & Admin Groups from PostgreSQL DB API
@@ -219,16 +229,30 @@ export default function AdminUsersPage() {
 
   // Filtered Users List
   const filteredUsers = useMemo(() => {
-    if (!searchQuery.trim()) return users;
+    let result = users;
+
+    if (tableFilter === "admin") {
+      result = result.filter(
+        (u) => roleName(u).toLowerCase().includes("admin") || roleName(u).toLowerCase().includes("super")
+      );
+    } else if (tableFilter === "cashier") {
+      result = result.filter(
+        (u) => !roleName(u).toLowerCase().includes("admin") && !roleName(u).toLowerCase().includes("super")
+      );
+    } else if (tableFilter === "active") {
+      result = result.filter((u) => u.isActive);
+    }
+
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return users.filter(
+    return result.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
         String(u.id).includes(q) ||
         roleName(u).toLowerCase().includes(q)
     );
-  }, [users, searchQuery]);
+  }, [users, searchQuery, tableFilter]);
 
   // Select / Deselect All Checkboxes
   const handleSelectAll = (checked: boolean) => {
@@ -356,6 +380,7 @@ export default function AdminUsersPage() {
     if (!form.name.trim() || !form.email.trim()) return;
 
     try {
+      let resultUser: any = null;
       if (editingUserId) {
         // Edit User
         const updated = await updateUser(editingUserId, {
@@ -368,6 +393,7 @@ export default function AdminUsersPage() {
           imageUrl: form.imageUrl || undefined,
         });
 
+        resultUser = updated;
         setUsers((prev) => prev.map((u) => (u.id === editingUserId ? { ...u, ...updated } : u)));
         setMessage(`User "${form.name}" updated successfully.`);
         const socket = getSocket();
@@ -384,10 +410,29 @@ export default function AdminUsersPage() {
           imageUrl: form.imageUrl || undefined,
         });
 
+        resultUser = created;
         setUsers((prev) => [created, ...prev]);
         setMessage(`User "${form.name}" created successfully.`);
         const socket = getSocket();
         if (socket) socket.emit("user:created", created);
+      }
+
+      if (resultUser) {
+        const normName = form.name.trim().toLowerCase();
+        const normEmail = form.email.trim().toLowerCase();
+        if (form.imageUrl) {
+          localStorage.setItem(`pos_profile_image_${normName}`, form.imageUrl);
+          localStorage.setItem(`pos_profile_image_${normEmail}`, form.imageUrl);
+          if (resultUser.id) localStorage.setItem(`pos_profile_image_${resultUser.id}`, form.imageUrl);
+        } else {
+          localStorage.removeItem(`pos_profile_image_${normName}`);
+          localStorage.removeItem(`pos_profile_image_${normEmail}`);
+          if (resultUser.id) localStorage.removeItem(`pos_profile_image_${resultUser.id}`);
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("pos-profile-change"));
+          window.dispatchEvent(new Event("pos-user-change"));
+        }
       }
 
       setIsUserModalOpen(false);
@@ -465,8 +510,6 @@ export default function AdminUsersPage() {
             </button>
           </div>
         </div>
-
-        {/* TOP KPI CARDS (Matching Admin Log Style) */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
           {/* Card 1: Total Staff Accounts */}
           <div className={`p-4 rounded-2xl border ${surface} ${borderCol} shadow-xs flex items-center gap-3.5`}>
@@ -529,101 +572,107 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* MAIN TABLE PANEL MATCHING TARGET SCREENSHOT media_1787653557137.png */}
+        {/* MAIN TABLE PANEL */}
           <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
             
-            {/* TOP ACTION TOOLBAR MATCHING TARGET SCREENSHOT */}
+            {/* TOP ACTION TOOLBAR */}
             <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
               dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
             }`}>
               
-              {/* Left Action Buttons: 🔄 Refresh, 🟢 + Add, 🔴 Delete */}
-              <div className="flex flex-wrap items-center gap-2">
-                
-                {/* 🔄 Refresh Icon Button */}
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  title="Refresh Users List"
-                  className={`h-8 w-8 flex items-center justify-center rounded-lg transition cursor-pointer ${
-                    dark ? "bg-[#1e293b] hover:bg-[#334155] text-slate-200" : "bg-[#2d3748] hover:bg-[#1a202c] text-white"
-                  }`}
-                >
-                  <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-                </button>
-
-                {/* 🔴 🗑️ Delete Button */}
-                <button
-                  type="button"
-                  onClick={handleBulkDelete}
-                  disabled={selectedIds.length === 0}
-                  className="h-8 px-3.5 rounded-lg bg-[#f43f5e] hover:bg-[#e11d48] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-40"
-                >
-                  <Trash2 size={13} />
-                  Delete {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
-                </button>
+              {/* Left Section: Table Title */}
+              <div className="flex items-center gap-2">
+                <UsersRound size={16} className="text-[#55a060]" />
+                <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  {language === "km" ? "បញ្ជីបុគ្គលិក" : "Staff Directory"}
+                </h2>
+                <span className="ml-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  {filteredUsers.length}
+                </span>
               </div>
 
-              {/* Right Tools: Search & Utility Icons */}
+              {/* Right Tools: Filter Dropdown, Search Users, Refresh Button */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
+                
+                {/* Filter Dropdown */}
+                <div className="relative">
+                  <select
+                    value={tableFilter}
+                    onChange={(e) => setTableFilter(e.target.value as any)}
+                    className={`h-8 rounded-lg border px-3 pr-7 text-xs outline-none transition cursor-pointer font-medium focus:border-[#55a060] ${
+                      dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-300 bg-white text-slate-700"
+                    }`}
+                  >
+                    <option value="all">{language === "km" ? "ក្រុមទាំងអស់ (All Groups)" : "All Roles & Groups"}</option>
+                    <option value="admin">{language === "km" ? "អ្នកគ្រប់គ្រង (Admins & Managers)" : "Admins & Managers"}</option>
+                    <option value="cashier">{language === "km" ? "អ្នកគិតលុយ (Cashiers & Staff)" : "Cashiers & Staff"}</option>
+                    <option value="active">{language === "km" ? "គណនីសកម្ម (Active Only)" : "Active Accounts Only"}</option>
+                  </select>
+                </div>
+
+                {/* Search Input */}
                 <div className="relative flex-1 sm:w-60">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search users..."
+                    placeholder={language === "km" ? "ស្វែងរកបុគ្គលិក..." : "Search users..."}
                     className={`h-8 w-full rounded-lg border pl-8 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
                       dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-slate-800"
                     }`}
                   />
                 </div>
 
+                {/* 🔄 Refresh Icon Button (Far Right) */}
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  title="Refresh Staff List"
+                  className={`h-8 w-8 flex items-center justify-center rounded-lg border transition cursor-pointer shrink-0 ${
+                    dark
+                      ? "border-slate-700 bg-[#232333] text-slate-200 hover:bg-[#34354e]"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <RefreshCw size={14} className={isRefreshing ? "animate-spin text-[#55a060]" : "text-slate-600 dark:text-slate-300"} />
+                </button>
               </div>
             </div>
 
             {/* TABLE MATRIX MATCHING TARGET SCREENSHOT media_1787653557137.png */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-w-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${
                     dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50 border-slate-200/80"
                   }`}>
-                    <th className="py-3 px-4 w-10">
-                      <input
-                        type="checkbox"
-                        checked={users.length > 0 && selectedIds.length === users.length}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                        className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                      />
-                    </th>
                     <th className="py-3 px-4 w-16 font-bold">ID</th>
                     <th className="py-3 px-4 font-bold">Username</th>
                     <th className="py-3 px-4 font-bold">Nickname</th>
                     <th className="py-3 px-4 font-bold">Group</th>
                     <th className="py-3 px-4 font-bold">Email</th>
-                    <th className="py-3 px-4 font-bold">POS PIN</th>
                     <th className="py-3 px-4 w-28 font-bold">Status</th>
                     <th className="py-3 px-4 w-44 font-bold">Login time</th>
-                    <th className="py-3 px-4 w-28 text-right font-bold">Operate</th>
+                    <th className="py-3 px-4 w-28 text-right font-bold pr-5">Operate</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         <Loader2 className="animate-spin inline mr-2" size={18} />
                         Loading staff users...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 font-normal">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 font-normal">
                         No user accounts found matching search query.
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user) => {
+                    filteredUsers.map((user, idx) => {
                       const isSelected = selectedIds.includes(user.id);
                       const uRole = roleName(user) || "Cashier";
                       const usernameStr = user.email.split("@")[0] || `user_${user.id}`;
@@ -646,16 +695,6 @@ export default function AdminUsersPage() {
                               : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
                           }`}
                         >
-                          {/* Checkbox */}
-                          <td className="py-3.5 px-4">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelect(user.id)}
-                              className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                            />
-                          </td>
-
                           {/* ID */}
                           <td className="py-3.5 px-4 font-normal text-slate-500 dark:text-slate-400">
                             {user.id}
@@ -685,35 +724,31 @@ export default function AdminUsersPage() {
                             {user.name}
                           </td>
 
-                          {/* Group (Theme Matched Badge) */}
+                          {/* Group (Theme Matched Badge with Role Icons) */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
                               groupBadgeName.toLowerCase().includes("admin") || groupBadgeName.toLowerCase().includes("super")
                                 ? "bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] border border-emerald-200 dark:border-emerald-800"
                                 : groupBadgeName.toLowerCase().includes("cashier")
                                 ? "bg-cyan-50 dark:bg-cyan-950/40 text-[#03c3ec] border border-cyan-200 dark:border-cyan-800"
                                 : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                             }`}>
-                              {groupBadgeName}
+                              {groupBadgeName.toLowerCase().includes("admin") || groupBadgeName.toLowerCase().includes("super") ? (
+                                <Crown size={12} className="text-[#55a060] shrink-0" />
+                              ) : groupBadgeName.toLowerCase().includes("cashier") ? (
+                                <CreditCard size={12} className="text-[#03c3ec] shrink-0" />
+                              ) : groupBadgeName.toLowerCase().includes("kitchen") ? (
+                                <ChefHat size={12} className="text-amber-500 shrink-0" />
+                              ) : (
+                                <ShieldCheck size={12} className="text-slate-400 shrink-0" />
+                              )}
+                              <span>{groupBadgeName}</span>
                             </span>
                           </td>
 
                           {/* Email */}
                           <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
                             {user.email}
-                          </td>
-
-                          {/* POS PIN Status Badge */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {hasPinConfigured ? (
-                              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-[#55a060] border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 text-[10px] font-bold">
-                                🔒 PIN Set
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 px-2.5 py-0.5 text-[10px] font-bold">
-                                ⚠️ No PIN
-                              </span>
-                            )}
                           </td>
 
                           {/* Status (● Normal) */}
@@ -737,14 +772,30 @@ export default function AdminUsersPage() {
                           </td>
 
                           {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}
-                          <td className="py-3.5 px-4 text-right relative">
+                          <td className="py-3.5 px-4 text-right relative pr-5">
                             {user.id === 1 ? null : (
-                              <div className="relative inline-block text-left">
+                              <div className="inline-block text-left">
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setActionMenuOpen(actionMenuOpen === user.id ? null : user.id);
+                                    if (actionMenuOpen === user.id) {
+                                      setActionMenuOpen(null);
+                                      setActionMenuPos(null);
+                                    } else {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      const openUpwards = rect.bottom + 160 > window.innerHeight;
+                                      const menuWidth = 176;
+                                      const maxLeft = typeof window !== "undefined" ? window.innerWidth - menuWidth - 20 : rect.right - menuWidth;
+                                      const targetLeft = rect.right - menuWidth + 10;
+                                      const calculatedLeft = Math.max(12, Math.min(maxLeft, targetLeft));
+                                      setActionMenuPos({
+                                        top: openUpwards ? undefined : rect.bottom + 4,
+                                        bottom: openUpwards ? window.innerHeight - rect.top + 4 : undefined,
+                                        left: calculatedLeft,
+                                      });
+                                      setActionMenuOpen(user.id);
+                                    }
                                   }}
                                   className={`h-7 w-7 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                                     dark
@@ -755,9 +806,15 @@ export default function AdminUsersPage() {
                                   <MoreVertical size={16} />
                                 </button>
 
-                                {actionMenuOpen === user.id && (
+                                {actionMenuOpen === user.id && actionMenuPos && (
                                   <div
-                                    className={`absolute right-0 top-full mt-1 z-50 w-44 rounded-xl border p-1.5 text-left shadow-xl ${
+                                    style={{
+                                      position: "fixed",
+                                      top: actionMenuPos.top !== undefined ? `${actionMenuPos.top}px` : undefined,
+                                      bottom: actionMenuPos.bottom !== undefined ? `${actionMenuPos.bottom}px` : undefined,
+                                      left: `${actionMenuPos.left}px`,
+                                    }}
+                                    className={`z-[99999] w-44 rounded-xl border p-1.5 text-left shadow-2xl ${
                                       dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/90 bg-white"
                                     } animate-[userModalIn_150ms_cubic-bezier(0.16,1,0.3,1)]`}
                                   >
@@ -766,6 +823,7 @@ export default function AdminUsersPage() {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setActionMenuOpen(null);
+                                        setActionMenuPos(null);
                                         openEditModal(user);
                                       }}
                                       className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
@@ -778,6 +836,7 @@ export default function AdminUsersPage() {
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setActionMenuOpen(null);
+                                        setActionMenuPos(null);
                                         handleDeleteUser(user);
                                       }}
                                       className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
@@ -828,6 +887,62 @@ export default function AdminUsersPage() {
             </div>
 
             <form onSubmit={handleModalSubmit} className="p-6 space-y-4 text-xs">
+              {/* Profile Image / Avatar Upload */}
+              <div>
+                <label className="block font-bold mb-1.5 text-slate-600 dark:text-slate-300">
+                  {language === "km" ? "រូបថតប្រូហ្វាល (Profile Picture)" : "Profile Picture (Avatar)"}
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative h-12 w-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500">
+                    {form.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={form.imageUrl.startsWith("data:") || form.imageUrl.startsWith("http") ? form.imageUrl : `${apiOrigin}${form.imageUrl}`}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span>{(form.name || "U")[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = async () => {
+                            const compressed = await compressImageBase64(reader.result as string, 256, 0.75);
+                            setForm({ ...form, imageUrl: compressed });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                      id="staff-avatar-upload"
+                    />
+                    <label
+                      htmlFor="staff-avatar-upload"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#232333] px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#34354e] transition cursor-pointer shadow-2xs"
+                    >
+                      <Camera size={14} className="text-[#55a060]" />
+                      {form.imageUrl ? (language === "km" ? "ប្តូររូបថត" : "Change Photo") : (language === "km" ? "ជ្រើសរើសរូបថត" : "Upload Photo")}
+                    </label>
+                    {form.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, imageUrl: "" })}
+                        className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer ml-1"
+                      >
+                        {language === "km" ? "លុបរូប" : "Remove"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Name (Nickname) *</label>
                 <input
@@ -881,30 +996,47 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div>
-                  <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Group / Role</label>
-                  <select
-                    value={form.roleName}
-                    onChange={(e) => setForm({ ...form, roleName: e.target.value })}
-                    className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
-                      dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
-                    }`}
-                  >
-                    {assignableGroups.length > 0 ? (
-                      assignableGroups.map((g) => (
-                        <option key={g.id || g.name} value={g.name}>
-                          {g.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="Admin Group (Standard)">Admin Group (Standard)</option>
-                        <option value="Admin Update Group">Admin Update Group</option>
-                        <option value="Cashier & POS Team">Cashier & POS Team</option>
-                        <option value="Kitchen & KDS Team">Kitchen & KDS Team</option>
-                      </>
-                    )}
-                  </select>
+                  <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">POS PIN (4 Digits)</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={form.pin}
+                      onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })}
+                      placeholder="e.g. 1234"
+                      className={`w-full h-9 rounded-xl border pl-8 pr-3 text-xs outline-none focus:border-[#55a060] font-mono tracking-wider ${
+                        dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                      }`}
+                    />
+                    <KeyRound size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Group / Role</label>
+                <select
+                  value={form.roleName}
+                  onChange={(e) => setForm({ ...form, roleName: e.target.value })}
+                  className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                  }`}
+                >
+                  {assignableGroups.length > 0 ? (
+                    assignableGroups.map((g) => (
+                      <option key={g.id || g.name} value={g.name}>
+                        {g.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Admin Group (Standard)">Admin Group (Standard)</option>
+                      <option value="Admin Update Group">Admin Update Group</option>
+                      <option value="Cashier & POS Team">Cashier & POS Team</option>
+                      <option value="Kitchen & KDS Team">Kitchen & KDS Team</option>
+                    </>
+                  )}
+                </select>
               </div>
 
               <div className="flex items-center justify-between pt-2">

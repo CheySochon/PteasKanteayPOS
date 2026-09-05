@@ -18,18 +18,20 @@ import {
   addItem,
   splitBillHandler,
   getActiveOrdersByQr,
+  update,
 } from "../controllers/order.controller.js";
 
 const router = Router();
 const staffRoles = [
   authMiddleware,
-  roleMiddleware(["Admin", "Manager", "Cashier"]),
+  roleMiddleware(["Admin", "Manager", "Cashier", "Staff"]),
 ];
 
-router.get("/", asyncHandler(list));
+router.get("/", ...staffRoles, asyncHandler(list));
 router.get("/qr/:qrToken", asyncHandler(getActiveOrdersByQr));
-router.get("/:id", asyncHandler(get));
+router.get("/:id", ...staffRoles, asyncHandler(get));
 router.post("/", validate(createOrderSchema), asyncHandler(create));
+router.put("/:id", ...staffRoles, asyncHandler(update));
 router.put(
   "/:id/status",
   ...staffRoles,

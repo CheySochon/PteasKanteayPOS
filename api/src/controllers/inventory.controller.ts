@@ -43,7 +43,7 @@ export const adjustInventoryStock = asyncHandler(
 
 export const updateInventoryConfig = asyncHandler(
   async (req: Request<object, object, UpdateInventorySettingsBody>, res: Response) => {
-    const { productId, trackStock, minStock, unit, name, quantity } = req.body;
+    const { productId, trackStock, minStock, unit, name, quantity, supplierId, categoryId } = req.body;
     const userId = req.user?.userId || null;
 
     const data = await updateInventorySettings(productId, {
@@ -52,6 +52,8 @@ export const updateInventoryConfig = asyncHandler(
       unit,
       name,
       quantity,
+      supplierId,
+      categoryId,
     }, userId);
 
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;

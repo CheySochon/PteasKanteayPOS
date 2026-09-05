@@ -12,6 +12,7 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronDown,
   Shield,
   Layers,
   CheckCircle2,
@@ -108,10 +109,20 @@ const SYSTEM_POS_MODULES: SystemPermissionModule[] = [
     key: "menu",
     label: "Menu & Dish Catalog",
     subPermissions: [
-      { key: "menu.view", label: "View Menu Items & Categories" },
-      { key: "menu.add", label: "Add Dish / Category" },
+      { key: "menu.view", label: "View Menu Items & Catalog" },
+      { key: "menu.add", label: "Add Dish / Menu Item" },
       { key: "menu.edit", label: "Edit Price & Dish Details" },
-      { key: "menu.delete", label: "Delete Dish / Category" },
+      { key: "menu.delete", label: "Delete Dish / Menu Item" },
+    ],
+  },
+  {
+    key: "categories",
+    label: "Categories Management",
+    subPermissions: [
+      { key: "categories.view", label: "View Categories List & Tab" },
+      { key: "categories.add", label: "Add Dish Category" },
+      { key: "categories.edit", label: "Edit Category Name & Details" },
+      { key: "categories.delete", label: "Delete Dish Category" },
     ],
   },
   {
@@ -176,6 +187,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState<AdminGroup[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [groupFilter, setGroupFilter] = useState<"all" | "system" | "sub" | "active">("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -192,6 +204,9 @@ export default function GroupsPage() {
   const [formDesc, setFormDesc] = useState("");
   const [selectedPermList, setSelectedPermList] = useState<string[]>(ALL_PERM_KEYS);
   const [isExpandedAll, setIsExpandedAll] = useState<boolean>(true);
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>(() =>
+    SYSTEM_POS_MODULES.reduce((acc, mod) => ({ ...acc, [mod.key]: true }), {})
+  );
 
   // Delete Confirm Modal State
   const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<AdminGroup | null>(null);
@@ -308,6 +323,14 @@ export default function GroupsPage() {
         });
         setMessage(`Group "${formName}" created successfully.`);
       }
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("group:updated", { id: editingGroup?.id, permission_codes: selectedPermList });
+        socket.emit("groups:updated");
+        socket.emit("permissions:updated");
+      }
+
       await loadGroups(true);
       setIsModalOpen(false);
     } catch (err: any) {
@@ -408,6 +431,14 @@ export default function GroupsPage() {
       }
     });
 
+    if (groupFilter === "system") {
+      result = result.filter((g) => g.parentId === 0 || g.id === 1);
+    } else if (groupFilter === "sub") {
+      result = result.filter((g) => g.parentId !== 0 && g.id !== 1);
+    } else if (groupFilter === "active") {
+      result = result.filter((g) => g.status === "Normal" || !g.status);
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -419,7 +450,31 @@ export default function GroupsPage() {
     }
 
     return result;
-  }, [groups, searchQuery]);
+  }, [groups, searchQuery, groupFilter]);
+
+  const handleExportCSV = () => {
+    if (groups.length === 0) return;
+    const headers = ["ID", "Parent Group", "Group Name", "Description", "Status"];
+    const rows = groups.map((g) => {
+      const parent = groups.find((p) => p.id === g.parentId);
+      const parentLabel = g.parentId === 0 ? "Root / System" : parent ? parent.name : `Group #${g.parentId}`;
+      return [
+        g.id,
+        `"${parentLabel.replace(/"/g, '""')}"`,
+        `"${g.name.replace(/"/g, '""')}"`,
+        `"${(g.description || "").replace(/"/g, '""')}"`,
+        g.status || "Normal",
+      ];
+    });
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `admin_groups_directory_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
 
   return (
@@ -455,14 +510,26 @@ export default function GroupsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => openCreateModal()}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
-          >
-            <Plus size={15} />
-            {language === "km" ? "បន្ថែមក្រុមថ្មី" : "New Group"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+              }`}
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => openCreateModal()}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
+            >
+              <Plus size={15} />
+              {language === "km" ? "បន្ថែមក្រុមថ្មី" : "New Group"}
+            </button>
+          </div>
         </div>
 
         {/* TOP KPI CARDS (Matching Admin Log Style) */}
@@ -532,67 +599,67 @@ export default function GroupsPage() {
         <div className={`rounded-2xl border ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"} shadow-xs overflow-hidden`}>
           
           {/* Top Action Toolbar */}
-          <div className={`p-4 border-b ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
+          <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
+            dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
+          }`}>
             
-            {/* Left Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleRefresh}
-                title="Refresh group list"
-                className={`h-8 w-8 flex items-center justify-center rounded-lg transition cursor-pointer ${
-                  dark ? "bg-[#1e293b] hover:bg-[#334155] text-slate-200" : "bg-[#2d3748] hover:bg-[#1a202c] text-white"
-                }`}
-              >
-                <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => openCreateModal()}
-                className="h-8 px-3.5 rounded-lg bg-[#55a060] hover:bg-[#488c52] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              >
-                <Plus size={13} strokeWidth={2.5} />
-                Add
-              </button>
-
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                disabled={selectedIds.length === 0}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#ef4444] px-4 text-xs font-semibold text-white shadow-xs hover:bg-[#dc2626] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95"
-              >
-                <Trash2 size={15} />
-                Delete {selectedIds.length > 0 ? `(${selectedIds.length})` : ""}
-              </button>
+            {/* Left Section: Table Title */}
+            <div className="flex items-center gap-2">
+              <FolderTree size={16} className="text-[#55a060]" />
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {language === "km" ? "បញ្ជីក្រុមអ្នកគ្រប់គ្រង" : "Admin Groups Directory"}
+              </h2>
+              <span className="ml-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                {treeNodes.length}
+              </span>
             </div>
 
-            {/* Right Tools: Search Bar & Views */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 sm:w-64">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            {/* Right Tools: Filter Dropdown, Search Input, Refresh Button */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              
+              {/* Filter Dropdown */}
+              <div className="relative">
+                <select
+                  value={groupFilter}
+                  onChange={(e) => setGroupFilter(e.target.value as any)}
+                  className={`h-8 rounded-lg border px-3 pr-7 text-xs outline-none transition cursor-pointer font-medium focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-300 bg-white text-slate-700"
+                  }`}
+                >
+                  <option value="all">{language === "km" ? "ក្រុមទាំងអស់ (All Groups)" : "All Admin Groups"}</option>
+                  <option value="system">{language === "km" ? "ក្រុមប្រព័ន្ធ (System Groups)" : "System Groups"}</option>
+                  <option value="sub">{language === "km" ? "ក្រុមរង (Sub / Role Groups)" : "Sub / Role Groups"}</option>
+                  <option value="active">{language === "km" ? "ក្រុមដំណើរការ (Active Only)" : "Active Groups Only"}</option>
+                </select>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative flex-1 sm:w-60">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by ID or Group Name..."
-                  className={`h-9 w-full rounded-xl border pl-9 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
-                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                  placeholder={language === "km" ? "ស្វែងរកក្រុម..." : "Search by ID or Group Name..."}
+                  className={`h-8 w-full rounded-lg border pl-8 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-slate-800"
                   }`}
                 />
               </div>
 
-              <div className="flex items-center border rounded-xl overflow-hidden border-slate-200 dark:border-slate-700 shrink-0">
-                <button type="button" title="Columns view" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                  <Columns size={15} />
-                </button>
-                <button type="button" title="Grid view" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700">
-                  <Grid size={15} />
-                </button>
-                <button type="button" title="Export Data" className="h-9 w-9 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-l border-slate-200 dark:border-slate-700">
-                  <Download size={15} />
-                </button>
-              </div>
+              {/* 🔄 Refresh Icon Button (Far Right) */}
+              <button
+                type="button"
+                onClick={handleRefresh}
+                title="Refresh Group List"
+                className={`h-8 w-8 flex items-center justify-center rounded-lg border transition cursor-pointer shrink-0 ${
+                  dark
+                    ? "border-slate-700 bg-[#232333] text-slate-200 hover:bg-[#34354e]"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <RefreshCw size={14} className={isRefreshing ? "animate-spin text-[#55a060]" : "text-slate-600 dark:text-slate-300"} />
+              </button>
             </div>
           </div>
 
@@ -874,22 +941,41 @@ export default function GroupsPage() {
                       <input
                         type="checkbox"
                         checked={isExpandedAll}
-                        onChange={(e) => setIsExpandedAll(e.target.checked)}
+                        onChange={(e) => {
+                          const nextVal = e.target.checked;
+                          setIsExpandedAll(nextVal);
+                          setExpandedModules(
+                            SYSTEM_POS_MODULES.reduce((acc, mod) => ({ ...acc, [mod.key]: nextVal }), {})
+                          );
+                        }}
                         className="rounded border-slate-300 text-[#10b981] focus:ring-[#10b981]"
                       />
                       <span>Expand all</span>
                     </label>
                   </div>
 
-                  <div className="space-y-2 pt-1 pl-1 border-l border-slate-200 dark:border-slate-800 max-h-60 overflow-y-auto pr-1">
+                  <div className="space-y-2 pt-1 pl-1 max-h-60 overflow-y-auto pr-1">
                     {SYSTEM_POS_MODULES.map((mod) => {
                       const modKeys = [mod.key, ...(mod.subPermissions ? mod.subPermissions.map((s) => s.key) : [])];
                       const isModChecked = modKeys.every((k) => selectedPermList.includes(k));
+                      const isExpanded = expandedModules[mod.key] ?? isExpandedAll;
 
                       return (
                         <div key={mod.key} className="space-y-1">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                            <span className="font-mono text-slate-400 select-none">├─</span>
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+                            <span
+                              className="font-mono text-slate-400 dark:text-slate-500 select-none cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
+                              onClick={() =>
+                                setExpandedModules((prev) => ({
+                                  ...prev,
+                                  [mod.key]: !isExpanded,
+                                }))
+                              }
+                              title={isExpanded ? "Collapse" : "Expand"}
+                            >
+                              ├─
+                            </span>
+
                             <input
                               type="checkbox"
                               checked={isModChecked}
@@ -900,29 +986,29 @@ export default function GroupsPage() {
                                   setSelectedPermList((curr) => curr.filter((k) => !modKeys.includes(k)));
                                 }
                               }}
-                              className="rounded border-slate-300 text-[#10b981] focus:ring-[#10b981] cursor-pointer"
+                              className="rounded border-slate-300 text-[#10b981] focus:ring-[#10b981] cursor-pointer shrink-0"
                             />
                             <span
-                              className="cursor-pointer hover:text-[#10b981] transition-colors"
-                              onClick={() => {
-                                if (isModChecked) {
-                                  setSelectedPermList((curr) => curr.filter((k) => !modKeys.includes(k)));
-                                } else {
-                                  setSelectedPermList((curr) => Array.from(new Set([...curr, ...modKeys])));
-                                }
-                              }}
+                              className="cursor-pointer hover:text-[#10b981] transition-colors select-none font-bold"
+                              onClick={() =>
+                                setExpandedModules((prev) => ({
+                                  ...prev,
+                                  [mod.key]: !isExpanded,
+                                }))
+                              }
                             >
                               {mod.label}
                             </span>
                           </div>
 
-                          {isExpandedAll && mod.subPermissions && (
-                            <div className="pl-6 space-y-1 border-l border-slate-200/60 dark:border-slate-800/60 ml-2">
-                              {mod.subPermissions.map((sub) => {
+                          {isExpanded && mod.subPermissions && (
+                            <div className="pl-4 space-y-1 border-l border-slate-200/80 dark:border-slate-800 ml-2">
+                              {mod.subPermissions.map((sub, idx) => {
                                 const isSubChecked = selectedPermList.includes(sub.key);
+                                const isLast = idx === mod.subPermissions!.length - 1;
                                 return (
                                   <div key={sub.key} className="flex items-center gap-2 text-[11.5px] font-normal text-slate-600 dark:text-slate-400">
-                                    <span className="font-mono text-slate-400 select-none">├──</span>
+                                    <span className="font-mono text-slate-300 dark:text-slate-600 select-none shrink-0">{isLast ? "└─" : "├─"}</span>
                                     <input
                                       type="checkbox"
                                       checked={isSubChecked}
@@ -933,10 +1019,10 @@ export default function GroupsPage() {
                                             : [...curr, sub.key]
                                         );
                                       }}
-                                      className="rounded border-slate-300 text-[#10b981] focus:ring-[#10b981] cursor-pointer"
+                                      className="rounded border-slate-300 text-[#10b981] focus:ring-[#10b981] cursor-pointer shrink-0"
                                     />
                                     <span
-                                      className="cursor-pointer hover:text-slate-900 dark:hover:text-slate-100"
+                                      className="cursor-pointer hover:text-slate-900 dark:hover:text-slate-100 select-none"
                                       onClick={() => {
                                         setSelectedPermList((curr) =>
                                           curr.includes(sub.key)

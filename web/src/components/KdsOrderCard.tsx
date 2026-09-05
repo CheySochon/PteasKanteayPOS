@@ -4,6 +4,7 @@ import { useState, memo } from "react";
 import { Package, Armchair, MoreVertical, Clock } from "lucide-react";
 import type { Order, OrderStatus } from "../lib/types";
 import AnimatedToast from "./AnimatedToast";
+import { useAppTheme } from "../lib/theme";
 
 function formatTokenNo(order: Order) {
   if (order.id) {
@@ -19,17 +20,15 @@ function formatTokenNo(order: Order) {
 
 export function formatKdsTableLabel(order: Order): string {
   const rawTable = order.tableNo || order.table?.name || (order as any).tableName || (order as any).table_name || "";
-  const isTakeaway = order.orderType?.toLowerCase().includes("takeaway") || (!rawTable && !order.notes?.toLowerCase().includes("merged"));
+  const isTakeaway = orderTypeLabelIsWalkin(order);
   if (isTakeaway && !rawTable) return "WALKIN";
 
   const notes = order.notes || "";
 
-  // 1. If rawTable already has merged format like "T2 & T3" or "T2 + T3"
   if (rawTable && (rawTable.includes("&") || rawTable.includes("+"))) {
     return rawTable;
   }
 
-  // Helper to format table name strings nicely (e.g. "Table 3" -> "T3", "3" -> "T3")
   const cleanName = (str: string) => {
     const s = str.trim();
     if (/^\d+$/.test(s)) return `T${s}`;
@@ -37,14 +36,12 @@ export function formatKdsTableLabel(order: Order): string {
     return s;
   };
 
-  // 2. Parse notes for merged patterns: "Merged with T2", "Merged into T3", "Merged from T2", "Joined with T3", etc.
   const mergeMatch = notes.match(/Merged (?:with|into|from) ([^)\n,]+)/i) || notes.match(/Joined (?:with|into|from) ([^)\n,]+)/i);
   if (mergeMatch && mergeMatch[1]) {
     const otherTable = cleanName(mergeMatch[1]);
     const baseTable = cleanName(rawTable || "Table");
 
     if (otherTable.toLowerCase() !== baseTable.toLowerCase()) {
-      // Extract numbers to format "T2 & T3" in natural sorted order
       const numBase = parseInt(baseTable.replace(/\D/g, ""), 10);
       const numOther = parseInt(otherTable.replace(/\D/g, ""), 10);
 
@@ -56,12 +53,16 @@ export function formatKdsTableLabel(order: Order): string {
     }
   }
 
-  // 3. Fallback formatting for table name
   if (rawTable) {
     return cleanName(rawTable);
   }
 
   return "WALKIN";
+}
+
+function orderTypeLabelIsWalkin(order: Order): boolean {
+  const rawTable = order.tableNo || order.table?.name || (order as any).tableName || (order as any).table_name || "";
+  return order.orderType?.toLowerCase().includes("takeaway") || (!rawTable && !order.notes?.toLowerCase().includes("merged"));
 }
 
 const KdsOrderCard = memo(function KdsOrderCard({
@@ -71,6 +72,8 @@ const KdsOrderCard = memo(function KdsOrderCard({
   order: Order;
   onUpdate: (id: number, status: OrderStatus) => void;
 }) {
+  const [theme] = useAppTheme();
+  const dark = theme === "dark";
   const [itemStatuses, setItemStatuses] = useState<Record<number, "pending" | "preparing" | "completed">>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -125,7 +128,9 @@ const KdsOrderCard = memo(function KdsOrderCard({
   }
 
   return (
-    <article className="flex w-full flex-col justify-between rounded-2xl bg-white dark:bg-[#2b2c40] p-4.5 pb-5 min-h-[175px] shadow-none border border-slate-200/80 dark:border-[#3b3c54] transition-all">
+    <article className={`flex w-full flex-col justify-between rounded-2xl p-4.5 pb-5 min-h-[175px] shadow-none border transition-all ${
+      dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
+    }`}>
       <div>
         {/* Card Header matching screenshot */}
         <div className="flex items-center justify-between gap-2 pb-3 mb-3.5 border-b border-slate-100 dark:border-slate-700/60">

@@ -348,18 +348,55 @@ export default function DashboardPage() {
       );
     }
 
+    function handleOrderDeleted(data: any) {
+      const deletedId = typeof data === "object" ? data?.id : Number(data);
+      if (deletedId) {
+        setOrders((current) => current.filter((entry) => entry.id !== deletedId));
+      }
+      void Promise.all([
+        getDailySales().catch(() => null),
+        getOrders().catch(() => null),
+        getTopProducts().catch(() => null),
+      ]).then(([sales, orderRows, topRows]) => {
+        if (sales) setDailySales(sales as any);
+        if (orderRows) setOrders(orderRows as any);
+        if (topRows) setTopProducts(topRows as any);
+      });
+    }
+
+    function handleRefetchAll() {
+      void Promise.all([
+        getDailySales().catch(() => null),
+        getOrders().catch(() => null),
+        getTopProducts().catch(() => null),
+      ]).then(([sales, orderRows, topRows]) => {
+        if (sales) setDailySales(sales as any);
+        if (orderRows) setOrders(orderRows as any);
+        if (topRows) setTopProducts(topRows as any);
+      });
+    }
+
     function handleNotificationsCleared() {
       setOrderAlerts([]);
       setToastNotification(null);
     }
 
+    window.addEventListener("pos-orders-updated", handleRefetchAll);
+    window.addEventListener("storage", handleRefetchAll);
+
     socket.on("order:created", handleOrderCreated);
     socket.on("order:updated", handleOrderUpdated);
+    socket.on("order:deleted", handleOrderDeleted);
+    socket.on("orders:updated", handleRefetchAll);
     socket.on("notifications:cleared", handleNotificationsCleared);
 
     return () => {
+      window.removeEventListener("pos-orders-updated", handleRefetchAll);
+      window.removeEventListener("storage", handleRefetchAll);
       socket.off("order:created", handleOrderCreated);
       socket.off("order:updated", handleOrderUpdated);
+      socket.off("order:deleted", handleOrderDeleted);
+      socket.off("orders:updated", handleRefetchAll);
       socket.off("notifications:cleared", handleNotificationsCleared);
     };
   }, [t.newOrderAlert, t.newOrderDetail]);
@@ -385,24 +422,30 @@ export default function DashboardPage() {
     return () => window.removeEventListener("click", handleClose);
   }, []);
 
+function isSameCalendarDay(d1: Date, d2: Date) {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
   const selectedRangeOrders = useMemo(() => {
     const now = new Date();
-    const todayStr = now.toDateString();
 
     if (trendRange === "today") {
       return orders.filter((o) => {
         const d = new Date(o.createdAt);
-        return !Number.isNaN(d.getTime()) && d.toDateString() === todayStr;
+        return !Number.isNaN(d.getTime()) && isSameCalendarDay(d, now);
       });
     }
 
     if (trendRange === "yesterday") {
       const yest = new Date();
       yest.setDate(yest.getDate() - 1);
-      const yestStr = yest.toDateString();
       return orders.filter((o) => {
         const d = new Date(o.createdAt);
-        return !Number.isNaN(d.getTime()) && d.toDateString() === yestStr;
+        return !Number.isNaN(d.getTime()) && isSameCalendarDay(d, yest);
       });
     }
 
@@ -429,9 +472,8 @@ export default function DashboardPage() {
   }, [orders, trendRange]);
 
   const recentOrders = useMemo(() => {
-    const targetList = selectedRangeOrders.length > 0 ? selectedRangeOrders : orders;
-    return targetList.slice(0, 4);
-  }, [selectedRangeOrders, orders]);
+    return selectedRangeOrders.slice(0, 4);
+  }, [selectedRangeOrders]);
 
   const centerTextPlugin = useMemo(() => ({
     id: "centerText",
@@ -594,10 +636,8 @@ export default function DashboardPage() {
 
     if (sumFromOrders > 0) return sumFromOrders;
     if (trendRange === "today") return Number(dailySales?.totalSales || 0);
-    return orders
-      .filter((o) => (o.status || "").toLowerCase() !== "cancelled")
-      .reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
-  }, [selectedRangeOrders, trendRange, dailySales, orders]);
+    return 0;
+  }, [selectedRangeOrders, trendRange, dailySales]);
 
   const computedPaidTotal = useMemo(() => {
     const paidFromOrders = selectedRangeOrders
@@ -609,22 +649,21 @@ export default function DashboardPage() {
 
     if (paidFromOrders > 0) return paidFromOrders;
     if (trendRange === "today") return Number(dailySales?.paidTotal || 0);
-    return computedRangeSales;
-  }, [selectedRangeOrders, trendRange, dailySales, computedRangeSales]);
+    return 0;
+  }, [selectedRangeOrders, trendRange, dailySales]);
 
   const computedRangeOrdersCount = useMemo(() => {
     if (selectedRangeOrders.length > 0) return selectedRangeOrders.length;
     if (trendRange === "today") return Number(dailySales?.orderCount || 0);
-    return orders.length;
-  }, [selectedRangeOrders, trendRange, dailySales, orders]);
+    return 0;
+  }, [selectedRangeOrders, trendRange, dailySales]);
 
   const computedTopProducts = useMemo(() => {
     const stripExt = (name: string) => (name || "").replace(/\.(jpg|jpeg|png|webp|gif)$/i, "").trim();
 
-    const targetList = selectedRangeOrders.length > 0 ? selectedRangeOrders : orders;
     const map = new Map<string, { productId: number; productName: string; totalSales: number }>();
 
-    targetList.forEach((o) => {
+    selectedRangeOrders.forEach((o) => {
       if ((o.status || "").toLowerCase() === "cancelled") return;
       (o.items || []).forEach((item: any) => {
         const rawName = item.product?.name || item.name || "Item";
@@ -640,18 +679,8 @@ export default function DashboardPage() {
       });
     });
 
-    const result = Array.from(map.values()).sort((a, b) => b.totalSales - a.totalSales);
-    if (result.length > 0) return result;
-
-    if (topProducts && topProducts.length > 0) {
-      return topProducts.map((p) => ({
-        ...p,
-        productName: stripExt(p.productName || (p as any).name || "Item"),
-      }));
-    }
-
-    return [];
-  }, [selectedRangeOrders, orders, topProducts]);
+    return Array.from(map.values()).sort((a, b) => b.totalSales - a.totalSales);
+  }, [selectedRangeOrders]);
 
   const salesCardLabel = useMemo(() => {
     if (trendRange === "today") return t.todaySales;
@@ -692,14 +721,10 @@ export default function DashboardPage() {
     {
       label: t.completedOrders,
       value: String(
-        (() => {
-          const completed = selectedRangeOrders.filter((o) => {
-            const st = (o.status || "").toLowerCase();
-            return st === "completed" || st === "paid" || st === "served";
-          }).length;
-          if (completed > 0) return completed;
-          return orders.filter((o) => ["completed", "paid", "served"].includes((o.status || "").toLowerCase())).length;
-        })()
+        selectedRangeOrders.filter((o) => {
+          const st = (o.status || "").toLowerCase();
+          return st === "completed" || st === "paid" || st === "served";
+        }).length
       ),
       note: t.ordersCompleted,
       tone: "green" as const,
@@ -788,34 +813,14 @@ export default function DashboardPage() {
     const now = new Date();
     const todayStr = now.toDateString();
 
-    if (trendRange === "today") {
+    if (trendRange === "today" || trendRange === "yesterday") {
       const hoursArray = Array.from({ length: 24 }, (_, h) => ({
         label: hourLabel(h),
         total: 0,
       }));
-      orders.forEach((o) => {
+      selectedRangeOrders.forEach((o) => {
         const d = new Date(o.createdAt);
-        if (!Number.isNaN(d.getTime()) && d.toDateString() === todayStr && (o.status || "").toLowerCase() !== "cancelled") {
-          const hour = d.getHours();
-          if (hour >= 0 && hour < 24) {
-            hoursArray[hour].total += Number(o.totalAmount || 0);
-          }
-        }
-      });
-      return hoursArray.slice(7, 23);
-    }
-
-    if (trendRange === "yesterday") {
-      const yest = new Date();
-      yest.setDate(yest.getDate() - 1);
-      const yestStr = yest.toDateString();
-      const hoursArray = Array.from({ length: 24 }, (_, h) => ({
-        label: hourLabel(h),
-        total: 0,
-      }));
-      orders.forEach((o) => {
-        const d = new Date(o.createdAt);
-        if (!Number.isNaN(d.getTime()) && d.toDateString() === yestStr && (o.status || "").toLowerCase() !== "cancelled") {
+        if (!Number.isNaN(d.getTime()) && (o.status || "").toLowerCase() !== "cancelled") {
           const hour = d.getHours();
           if (hour >= 0 && hour < 24) {
             hoursArray[hour].total += Number(o.totalAmount || 0);

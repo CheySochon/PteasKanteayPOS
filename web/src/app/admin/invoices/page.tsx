@@ -15,7 +15,7 @@ import {
   Banknote,
   CreditCard,
 } from "lucide-react";
-import { getOrders } from "../../../lib/api";
+import { getOrders, getSettings } from "../../../lib/api";
 import { useAppLanguage } from "../../../lib/language";
 import { getSocket } from "../../../lib/socket";
 import { useAppTheme } from "../../../lib/theme";
@@ -28,15 +28,13 @@ import {
   subscribeToProfileChanges,
 } from "../../../lib/profile";
 
-const RIEL_RATE = 4100;
-
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function moneyRiel(value: number | string) {
+function moneyRiel(value: number | string, rate: number = 4000) {
   const num = Number(value || 0);
-  const riel = Math.round(num * RIEL_RATE);
+  const riel = Math.round(num * rate);
   return `${riel.toLocaleString("en-US")}៛`;
 }
 
@@ -175,6 +173,7 @@ export default function InvoicesPage() {
   );
 
   const [orders, setOrders] = useState<Order[]>(cachedOrders || []);
+  const [exchangeRate, setExchangeRate] = useState<number>(4000);
   const [loading, setLoading] = useState(!cachedOrders);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
@@ -194,6 +193,9 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     let mounted = true;
+    getSettings().then((s) => {
+      if (mounted && s.exchangeRate) setExchangeRate(Number(s.exchangeRate) || 4000);
+    }).catch(() => {});
     getOrders()
       .then((data) => {
         if (mounted && Array.isArray(data)) {
@@ -528,7 +530,7 @@ export default function InvoicesPage() {
                               {money(total)}
                             </div>
                             <div className="text-[10px] font-bold text-slate-400">
-                              {moneyRiel(total)}
+                              {moneyRiel(total, exchangeRate)}
                             </div>
                           </td>
 

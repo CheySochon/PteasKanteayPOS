@@ -249,6 +249,23 @@ const DEFAULT_PRODUCT_IMAGES: Record<string, string> = {
   latte: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80",
   americano: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
   cafe: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80",
+  coca: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80",
+  drink: "https://images.unsplash.com/photo-1581006852262-e4307cf6283a?auto=format&fit=crop&w=600&q=80",
+};
+
+export const parsePriceNumber = (val: any): number => {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  if (typeof val === "string") {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof val === "object" && val !== null) {
+    if (val.amount !== undefined) return parsePriceNumber(val.amount);
+    if (val.value !== undefined) return parsePriceNumber(val.value);
+    if (val.price !== undefined) return parsePriceNumber(val.price);
+  }
+  return 0;
 };
 
 export const getProducts = async () => {
@@ -272,7 +289,16 @@ export const getProducts = async () => {
         customProds.forEach((cp) => {
           const idx = list.findIndex((p) => p.id === cp.id || p.name.toLowerCase() === cp.name.toLowerCase());
           if (idx >= 0) {
-            list[idx] = { ...list[idx], ...cp };
+            const validDbId = (list[idx].id && Number(list[idx].id) <= 2147483647) ? list[idx].id : cp.id;
+            const realImg = (cp.imageUrl && String(cp.imageUrl).trim()) ? cp.imageUrl : (list[idx].imageUrl || "");
+            const realPrice = parsePriceNumber(cp.basePrice ?? (cp as any).price) || parsePriceNumber(list[idx].basePrice ?? (list[idx] as any).price);
+            list[idx] = {
+              ...list[idx],
+              ...cp,
+              id: validDbId,
+              imageUrl: realImg,
+              basePrice: realPrice,
+            };
           } else {
             list.push(cp);
           }
@@ -287,7 +313,11 @@ export const getProducts = async () => {
       const lowerName = `${p.name} ${p.nameKm || ""} ${p.category?.name || ""} ${p.category?.nameKm || ""}`.toLowerCase().trim();
       let fallbackUrl = "";
 
-      if (lowerName.includes("beer") || lowerName.includes("corona") || lowerName.includes("heineken") || lowerName.includes("ស្រា") || lowerName.includes("បៀរ")) {
+      if (lowerName.includes("coca") || lowerName.includes("coke") || lowerName.includes("cola") || lowerName.includes("pepsi") || lowerName.includes("soda") || lowerName.includes("sprite") || lowerName.includes("fanta") || lowerName.includes("កូកា")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["coca"];
+      } else if (lowerName.includes("drink") || lowerName.includes("water") || lowerName.includes("juice") || lowerName.includes("ទឹក") || lowerName.includes("ភេសជ្ជៈ")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["drink"];
+      } else if (lowerName.includes("beer") || lowerName.includes("corona") || lowerName.includes("heineken") || lowerName.includes("ស្រា") || lowerName.includes("បៀរ")) {
         fallbackUrl = lowerName.includes("heineken") ? DEFAULT_PRODUCT_IMAGES["heineken"] : DEFAULT_PRODUCT_IMAGES["beer"];
       } else if (lowerName.includes("គោ") || lowerName.includes("beef")) {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["beef"];
@@ -331,7 +361,7 @@ export const createProduct = async (body: Partial<Product>): Promise<Product> =>
     created = await request<Product>("/products", { method: "POST", body });
   } catch (err) {
     created = {
-      id: Date.now(),
+      id: Math.floor(Date.now() % 2000000000),
       name: body.name || "Menu Item",
       categoryId: body.categoryId || 1,
       basePrice: body.basePrice || 0,
@@ -346,6 +376,7 @@ export const createProduct = async (body: Partial<Product>): Promise<Product> =>
       const stored = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
       stored.unshift(created);
       localStorage.setItem("pos_custom_created_products", JSON.stringify(stored));
+      window.dispatchEvent(new Event("pos-menu-change"));
     } catch {}
   }
 
@@ -370,6 +401,7 @@ export const updateProduct = async (id: number, body: Partial<Product>): Promise
         stored.push(updated);
       }
       localStorage.setItem("pos_custom_created_products", JSON.stringify(stored));
+      window.dispatchEvent(new Event("pos-menu-change"));
     } catch {}
   }
 
@@ -386,6 +418,7 @@ export const deleteProduct = async (id: number): Promise<void> => {
       const stored: Product[] = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
       const filtered = stored.filter((p) => p.id !== id);
       localStorage.setItem("pos_custom_created_products", JSON.stringify(filtered));
+      window.dispatchEvent(new Event("pos-menu-change"));
     } catch {}
   }
 };
@@ -488,7 +521,7 @@ export const createTable = async (body: { name: string; capacity: number; zone: 
   } catch (err) {
     if (typeof window !== "undefined") {
       const newTable: DiningTable = {
-        id: Date.now(),
+        id: Math.floor(Date.now() % 2000000000),
         name: body.name,
         capacity: body.capacity,
         zone: body.zone,
@@ -580,7 +613,7 @@ export const mergeTable = async (sourceTableId: number, targetTableId: number) =
 
       if (!targetOrder) {
         targetOrder = {
-          id: Date.now(),
+          id: Math.floor(Date.now() % 2000000000),
           orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
           tableId: targetTableId,
           tableNo: targetTable?.name,
@@ -596,7 +629,7 @@ export const mergeTable = async (sourceTableId: number, targetTableId: number) =
 
       if (!sourceOrder) {
         sourceOrder = {
-          id: Date.now() + 1,
+          id: Math.floor(Date.now() % 2000000000) + 1,
           orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
           tableId: sourceTableId,
           tableNo: sourceTable?.name,
@@ -724,11 +757,24 @@ export const createOrder = async (body: CreateOrderInput) => {
     if (typeof window !== "undefined" && !navigator.onLine) {
       const order = await addOfflineOrder(body);
       return {
-        id: Date.now(),
+        id: Math.floor(Date.now() % 2000000000),
         orderNumber: `OFF-${order.id.slice(-4).toUpperCase()}`,
         status: "pending",
         totalAmount: 0, 
       } as any;
+    }
+    throw err;
+  }
+};
+export const updateOrderApi = async (id: number, body: any) => {
+  try {
+    return await request<Order>(`/orders/${id}`, { method: "PUT", body });
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const cached = ((await getFromCache("orders")) as Order[]) || [];
+      const updated = cached.map((o) => (o.id === id ? { ...o, ...body, updatedAt: new Date().toISOString() } : o));
+      await saveToCache("orders", updated);
+      return { id, ...body, updatedAt: new Date().toISOString() } as any;
     }
     throw err;
   }
@@ -819,6 +865,20 @@ export const getTopProducts = async (date?: string, period = "month"): Promise<T
     return await request<TopProductReport[]>(date ? `/reports/top-products?date=${date}&period=${period}` : "/reports/top-products");
   } catch {
     return [];
+  }
+};
+export const getPurchaseReportSummary = async (date?: string, period = "month"): Promise<any> => {
+  try {
+    return await request<any>(date ? `/reports/purchase-summary?date=${date}&period=${period}` : "/reports/purchase-summary");
+  } catch {
+    return { totalPurchaseCost: 0, orderCount: 0, activeSuppliersCount: 0, purchaseOrders: [] };
+  }
+};
+export const getPaymentReportBreakdown = async (date?: string, period = "month"): Promise<any> => {
+  try {
+    return await request<any>(date ? `/reports/payment-breakdown?date=${date}&period=${period}` : "/reports/payment-breakdown");
+  } catch {
+    return { grossRevenue: 0, totalTransactions: 0, breakdown: [] };
   }
 };
 export const exportReportsCsv = (date?: string, period = "month") => date ? `${getApiBaseUrl()}/reports/export-csv?date=${date}&period=${period}` : `${getApiBaseUrl()}/reports/export-csv`;
@@ -950,7 +1010,7 @@ export const getSettings = async (): Promise<AppSettings> => {
       address: "Bangkok, Thailand",
       vatTin: "",
       currency: "USD",
-      exchangeRate: 4100,
+      exchangeRate: 4000,
       taxRate: 7,
       serviceChargeRate: 10,
       receiptFooter: "Thank you for dining with us.",

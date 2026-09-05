@@ -43,7 +43,8 @@ export default function LoginPage() {
   const [date, setDate] = useState("");
   
   // Cashier PIN Pad Mode State
-  const [loginMethod, setLoginMethod] = useState<"pin" | "email">("pin");
+  const [loginMethod, setLoginMethod] = useState<"pin" | "email">("email");
+  const [authMode, setAuthMode] = useState<"staff_2step" | "admin_2fa">("staff_2step");
   const [pin, setPin] = useState("");
   const [staffPresets, setStaffPresets] = useState<any[]>([]);
   const [staffLoading, setStaffLoading] = useState(true);
@@ -223,6 +224,32 @@ export default function LoginPage() {
       } catch {}
     }
   }, [staffPresets]);
+
+  // Physical Keyboard PIN Entry Listener for PIN Pad Mode
+  useEffect(() => {
+    if (step === "login" && loginMethod === "pin" && selectedStaff) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag === "input" || activeTag === "textarea") return;
+
+        if (e.key >= "0" && e.key <= "9") {
+          if (pin.length < 4) {
+            const nextPin = pin + e.key;
+            setPin(nextPin);
+            if (nextPin.length === 4) {
+              verifyAndSubmitPin(nextPin);
+            }
+          }
+        } else if (e.key === "Backspace") {
+          setPin((prev) => prev.slice(0, -1));
+        } else if (e.key === "Escape" || e.key.toLowerCase() === "c") {
+          setPin("");
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [step, loginMethod, selectedStaff, pin]);
 
   useEffect(() => {
     const savedName = localStorage.getItem("pos_restaurant_name");
@@ -467,7 +494,7 @@ export default function LoginPage() {
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
-      setError(language === "km" ? "🛑 សូមបញ្ចូលអុីមែលដែលត្រឹមត្រូវ" : "🛑 Please enter a valid email address.");
+      setError(language === "km" ? "🛑 សូមបញ្ចូលឈ្មោះអ្នកប្រើប្រាស់ ឬ អុីមែល" : "🛑 Please enter a valid username or email address.");
       return;
     }
 
@@ -480,10 +507,41 @@ export default function LoginPage() {
 
     try {
       const result = await login(cleanEmail, password);
-
       setPendingLoginResult(result);
 
-      // Generate Random 6-Digit OTP Code
+      if (authMode === "staff_2step") {
+        // Staff Login 2-Step: Logic Success -> Go to PIN Code Screen
+        const userObj = result.user;
+        const targetRole = typeof userObj.role === "string" 
+          ? userObj.role 
+          : (userObj.role as any)?.name || userObj.roleName || "Staff";
+        
+        const resolvedImg = (userObj as any).imageUrl || (userObj as any).image || getProfileImage({ id: userObj.id, name: userObj.name, email: userObj.email, role: targetRole });
+        const isCashier = targetRole.toLowerCase().includes("cashier");
+
+        const staffPayload = {
+          id: userObj.id,
+          name: userObj.name || "Staff",
+          role: targetRole,
+          email: userObj.email,
+          pin: (userObj as any).pin || "",
+          imageUrl: resolvedImg || "",
+          avatarBg: isCashier ? "bg-emerald-600" : "bg-amber-600",
+          initial: (userObj.name || "S")[0].toUpperCase(),
+          tempToken: result.token,
+        };
+
+        setSelectedStaff(staffPayload);
+        setLoginMethod("pin");
+        setPin("");
+        const verifiedMsg = language === "km"
+          ? `ផ្ទៀងផ្ទាត់ពាក្យសម្ងាត់ជោគជ័យ! សូមបញ្ចូលលេខកូដ PIN ៤ខ្ទង់`
+          : `Credentials verified! Please enter your 4-digit PIN code.`;
+        setMessage(verifiedMsg);
+        return;
+      }
+
+      // Admin 2FA Mode: Logic Success -> Send OTP Code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       setGeneratedOtp(code);
       setTimerSeconds(180);
@@ -623,10 +681,18 @@ export default function LoginPage() {
 
       if (newOtp.join("").length === 6) {
         if (newOtp.join("") !== generatedOtp) {
-          setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+          setError(
+            step === "forgot_reset"
+              ? (language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.")
+              : (language === "km" ? "🛑 លេខកូដ OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit OTP code.")
+          );
         } else {
           setError("");
-          setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+          setMessage(
+            step === "forgot_reset"
+              ? (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.")
+              : (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! កំពុងចូលប្រព័ន្ធ..." : "OTP verified successfully! Logging you in...")
+          );
         }
       }
 
@@ -650,10 +716,18 @@ export default function LoginPage() {
 
       if (newOtp.join("").length === 6) {
         if (newOtp.join("") !== generatedOtp) {
-          setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+          setError(
+            step === "forgot_reset"
+              ? (language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.")
+              : (language === "km" ? "🛑 លេខកូដ OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit OTP code.")
+          );
         } else {
           setError("");
-          setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+          setMessage(
+            step === "forgot_reset"
+              ? (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.")
+              : (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! កំពុងចូលប្រព័ន្ធ..." : "OTP verified successfully! Logging you in...")
+          );
         }
       }
       return;
@@ -665,10 +739,18 @@ export default function LoginPage() {
 
     if (newOtp.join("").length === 6) {
       if (newOtp.join("") !== generatedOtp) {
-        setError(language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.");
+        setError(
+          step === "forgot_reset"
+            ? (language === "km" ? "🛑 លេខកូដ Recovery OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit recovery OTP code.")
+            : (language === "km" ? "🛑 លេខកូដ OTP មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid 6-digit OTP code.")
+        );
       } else {
         setError("");
-        setMessage(language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.");
+        setMessage(
+          step === "forgot_reset"
+            ? (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! សូមបញ្ចូលពាក្យសម្ងាត់ថ្មី" : "OTP verified successfully! Please enter your new password.")
+            : (language === "km" ? "លេខកូដ OTP ត្រឹមត្រូវហើយ! កំពុងចូលប្រព័ន្ធ..." : "OTP verified successfully! Logging you in...")
+        );
       }
     }
 
@@ -1090,18 +1172,50 @@ export default function LoginPage() {
         {/* STEP 1: PRIMARY EMAIL CREDENTIALS FORM */}
         {step === "login" && loginMethod === "email" && (
           <form onSubmit={handlePrimarySubmit} className="space-y-4 w-full">
-            {/* Header Row (Login on left, Restaurant Logo on right) */}
-            {/* Centered screen title for Admin login */}
-            <div className="text-center mb-4">
-              <h1 className="font-sans text-base sm:text-lg font-normal tracking-tight text-slate-800 dark:text-slate-100">
-                Admin Login
+            {/* Header Title with Mode Switcher */}
+            <div className="text-center mb-6">
+              <h1 className="font-sans text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white mb-1.5">
+                {authMode === "staff_2step" 
+                  ? (language === "km" ? "ចូលប្រើប្រាស់សម្រាប់បុគ្គលិក" : "Staff Credentials Login") 
+                  : (language === "km" ? "ចូលប្រើប្រាស់សម្រាប់ Admin" : "Admin Login")}
               </h1>
+              <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed max-w-[320px] mx-auto">
+                {authMode === "staff_2step" 
+                  ? (language === "km" ? "បញ្ចូល Email & ពាក្យសម្ងាត់ បន្ទាប់មកបញ្ចូល PIN ៤ខ្ទង់" : "Sign in with Email & Password, then enter your 4-digit PIN") 
+                  : (language === "km" ? "ចូលប្រើប្រាស់ជា Admin ជាមួយ Email & OTP" : "Sign in with Admin credentials & 2FA OTP")}
+              </p>
+
+              {/* Mode Switcher Tabs */}
+              <div className="grid grid-cols-2 gap-1.5 p-1.5 mt-5 sm:mt-6 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("staff_2step"); setError(""); }}
+                  className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                    authMode === "staff_2step"
+                      ? "bg-white dark:bg-slate-700 text-[#55a060] dark:text-emerald-400 font-bold shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Staff 2-Step
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode("admin_2fa"); setError(""); }}
+                  className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                    authMode === "admin_2fa"
+                      ? "bg-white dark:bg-slate-700 text-[#55a060] dark:text-emerald-400 font-bold shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Admin 2FA
+                </button>
+              </div>
             </div>
 
-            {/* Username Input */}
-            <div className="space-y-2">
-              <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
-                Email
+            {/* Username/Email Input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Email / Username
               </label>
               <input
                 value={email}
@@ -1110,17 +1224,19 @@ export default function LoginPage() {
                   setEmail(event.target.value);
                 }}
                 onFocus={() => setError("")}
-                type="email"
-                placeholder="Enter your email here..."
-                className="w-full h-11 sm:h-12 rounded-lg border-none bg-slate-100 dark:bg-slate-800 px-4 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                placeholder={authMode === "staff_2step" ? (language === "km" ? "បញ្ចូលឈ្មោះអ្នកប្រើប្រាស់ ឬ Email..." : "Enter username or email address...") : "Enter admin email address..."}
+                className="w-full h-11 sm:h-12 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/80 px-4 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400/70 dark:placeholder-slate-500 outline-none focus:ring-2 focus:ring-[#55a060]/30 focus:border-[#55a060] focus:bg-white dark:focus:bg-slate-800 transition-all font-medium"
                 required
               />
             </div>
 
             {/* Password Input */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Password
                 </label>
                 <button
@@ -1131,7 +1247,7 @@ export default function LoginPage() {
                     setResetEmail(email || "");
                     setStep("forgot_email");
                   }}
-                  className="text-xs text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-normal outline-none transition-colors"
+                  className="text-xs text-slate-400 hover:text-[#55a060] dark:hover:text-emerald-400 font-medium outline-none transition-colors"
                 >
                   Forgot Password?
                 </button>
@@ -1146,7 +1262,7 @@ export default function LoginPage() {
                   onFocus={() => setError("")}
                   type={showPassword ? "text" : "password"}
                   placeholder={language === "km" ? "បញ្ចូលពាក្យសម្ងាត់ (យ៉ាងហោច ៨ តួអក្សរ)..." : "Enter your password (min 8 characters)..."}
-                  className="w-full h-11 sm:h-12 rounded-lg border-none bg-slate-100 dark:bg-slate-800 pl-4 pr-12 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400/50 dark:placeholder-slate-600 outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-slate-700 transition-all font-normal"
+                  className="w-full h-11 sm:h-12 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/80 pl-4 pr-12 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400/70 dark:placeholder-slate-500 outline-none focus:ring-2 focus:ring-[#55a060]/30 focus:border-[#55a060] focus:bg-white dark:focus:bg-slate-800 transition-all font-medium"
                   required
                 />
                 <button
@@ -1159,30 +1275,18 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Green Login Button */}
-            <div className="pt-2.5">
+            {/* Green Submit Button */}
+            <div className="pt-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 sm:h-12 rounded-lg bg-[#6ab070] hover:bg-[#5da063] active:scale-[0.99] transition-all text-sm font-semibold text-white shadow-xs flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
+                className="w-full h-11 sm:h-12 rounded-xl bg-[#55a060] hover:bg-[#498c53] active:scale-[0.99] transition-all text-sm font-bold text-white shadow-md shadow-[#55a060]/20 flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-wait cursor-pointer border-none"
               >
                 {loading ? <Loader2 className="animate-spin" size={16} /> : null}
-                {loading ? "Verifying Credentials..." : "Login"}
+                {loading ? "Verifying Credentials..." : (authMode === "staff_2step" ? "Continue to PIN Code →" : "Login with Admin 2FA")}
               </button>
             </div>
 
-
-            {/* Back to Quick PIN trigger */}
-            <div className="pt-3 text-center w-full">
-              <button
-                type="button"
-                onClick={() => { setLoginMethod("pin"); setError(""); setPin(""); }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-[#55a060]/10 hover:text-[#55a060] dark:hover:text-emerald-400 text-xs font-normal transition-all cursor-pointer border border-slate-200/60 dark:border-slate-700/60 shadow-xs hover:border-[#55a060]/30 active:scale-95"
-              >
-                <ArrowLeft size={15} className="shrink-0 text-slate-400" />
-                Back to Quick PIN Sign In
-              </button>
-            </div>
           </form>
         )}
 

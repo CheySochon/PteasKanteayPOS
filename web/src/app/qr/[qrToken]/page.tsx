@@ -24,8 +24,6 @@ import {
 import { apiBaseUrl, apiOrigin, getApiBaseUrl, getApiOrigin, getCategories, getProducts, getSettings } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 
-const RIEL_RATE = 4100;
-
 const DEMO_FOOD_PHOTOS = [
   "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
   "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
@@ -142,17 +140,17 @@ const parsePriceNumber = (val: any): number => {
   return 0;
 };
 
-const formatPrice = (usd: any, locale: "EN" | "KH") => {
+const formatPrice = (usd: any, locale: "EN" | "KH", rate: number = 4000) => {
   const num = parsePriceNumber(usd);
   if (locale === "KH") {
-    return `${Math.round(num * RIEL_RATE).toLocaleString()}៛`;
+    return `${Math.round(num * rate).toLocaleString()}៛`;
   }
   return `$${num.toFixed(2)}`;
 };
 
-const formatDualTotal = (usd: any) => {
+const formatDualTotal = (usd: any, rate: number = 4000) => {
   const num = parsePriceNumber(usd);
-  const khr = Math.round(num * RIEL_RATE);
+  const khr = Math.round(num * rate);
   return `$${num.toFixed(2)} / ${khr.toLocaleString()}៛`;
 };
 
@@ -184,6 +182,8 @@ const PRODUCT_IMAGE_FALLBACKS: Record<string, string> = {
   latte: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80",
   cappuccino: "https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80",
   americano: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
+  coca: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80",
+  drink: "https://images.unsplash.com/photo-1581006852262-e4307cf6283a?auto=format&fit=crop&w=600&q=80",
 };
 
 const DEFAULT_FOOD_PHOTOS = [
@@ -201,6 +201,12 @@ function getProductPhoto(product: any, index: number = 0): string {
   const name = String(product?.name || "").toLowerCase().trim();
   for (const [key, url] of Object.entries(PRODUCT_IMAGE_FALLBACKS)) {
     if (name.includes(key)) return url;
+  }
+  if (name.includes("coca") || name.includes("coke") || name.includes("cola") || name.includes("pepsi") || name.includes("soda") || name.includes("sprite") || name.includes("fanta") || name.includes("កូកា")) {
+    return PRODUCT_IMAGE_FALLBACKS["coca"];
+  }
+  if (name.includes("drink") || name.includes("water") || name.includes("juice") || name.includes("ទឹក") || name.includes("ភេសជ្ជៈ")) {
+    return PRODUCT_IMAGE_FALLBACKS["drink"];
   }
   if (name.includes("ជើងជ្រូក") || name.includes("ជ្រូក") || name.includes("pork")) return "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80";
   if (name.includes("គោ") || name.includes(" beef") || name.includes("អាំង")) return "https://images.unsplash.com/photo-1558030006-450675393462?auto=format&fit=crop&w=600&q=80";
@@ -306,6 +312,18 @@ export default function TableQrPage({
     }
     return "hello@thetofu.local";
   });
+  const [exchangeRateState, setExchangeRateState] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("pos_app_settings");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.exchangeRate) return Number(parsed.exchangeRate) || 4000;
+        }
+      } catch {}
+    }
+    return 4000;
+  });
 
   // Navigation & Language States matching my-app
   const [locale, setLocale] = useState<"EN" | "KH">("KH");
@@ -366,6 +384,7 @@ export default function TableQrPage({
           if (settings.address) setStoreAddressState(settings.address);
           if (settings.restaurantPhone) setStorePhoneState(settings.restaurantPhone);
           if (settings.restaurantEmail) setStoreEmailState(settings.restaurantEmail);
+          if (settings.exchangeRate) setExchangeRateState(Number(settings.exchangeRate) || 4000);
         }
       } catch {}
 
@@ -391,10 +410,17 @@ export default function TableQrPage({
     syncStoreSettings();
     window.addEventListener("storage", syncStoreSettings);
     window.addEventListener("pos-settings-change", syncStoreSettings);
+    const socket = getSocket();
+    if (socket) {
+      socket.on("settings:updated", syncStoreSettings);
+    }
     return () => {
       mounted = false;
       window.removeEventListener("storage", syncStoreSettings);
       window.removeEventListener("pos-settings-change", syncStoreSettings);
+      if (socket) {
+        socket.off("settings:updated", syncStoreSettings);
+      }
     };
   }, []);
 
@@ -410,13 +436,39 @@ export default function TableQrPage({
         let fetchedProducts = (res.ok && json?.success && json?.data?.products) ? json.data.products : [];
         let fetchedCategories = (res.ok && json?.success && json?.data?.categories) ? json.data.categories : [];
 
-        if (fetchedProducts.length === 0) {
-          try {
-            const [posProds, posCats] = await Promise.all([getProducts(), getCategories()]);
-            if (posProds && posProds.length > 0) fetchedProducts = posProds as any;
-            if (posCats && posCats.length > 0 && fetchedCategories.length === 0) fetchedCategories = posCats as any;
-          } catch {}
-        }
+        try {
+          const [posProds, posCats] = await Promise.all([getProducts(), getCategories()]);
+          if (posProds && posProds.length > 0) {
+            const prodMap = new Map<any, any>();
+            posProds.forEach((p: any) => prodMap.set(p.id, p));
+            fetchedProducts.forEach((p: any) => {
+              const existing = prodMap.get(p.id);
+              if (existing) {
+                const realImg = (p.imageUrl && String(p.imageUrl).trim()) ? p.imageUrl : (existing.imageUrl || "");
+                const realPrice = parsePriceNumber(p.basePrice ?? p.price) || parsePriceNumber(existing.basePrice ?? existing.price);
+                prodMap.set(p.id, {
+                  ...existing,
+                  ...p,
+                  imageUrl: realImg,
+                  basePrice: realPrice,
+                });
+              } else {
+                prodMap.set(p.id, p);
+              }
+            });
+            fetchedProducts = Array.from(prodMap.values());
+          }
+
+          if (posCats && posCats.length > 0) {
+            const catMap = new Map<any, any>();
+            posCats.forEach((c: any) => catMap.set(c.id, c));
+            fetchedCategories.forEach((c: any) => {
+              const existing = catMap.get(c.id);
+              catMap.set(c.id, existing ? { ...existing, ...c } : c);
+            });
+            fetchedCategories = Array.from(catMap.values());
+          }
+        } catch {}
 
         if (mounted) {
           setMenuData({
@@ -468,13 +520,19 @@ export default function TableQrPage({
     fetchMenu();
     fetchActiveOrders();
 
-    // 15-second live auto-sync polling net
+    // 3-second live auto-sync polling net
     const autoSyncInterval = setInterval(() => {
       if (mounted) {
         fetchMenu();
         fetchActiveOrders();
       }
-    }, 15000);
+    }, 3000);
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("pos-menu-change", fetchMenu);
+      window.addEventListener("storage", fetchMenu);
+      window.addEventListener("focus", fetchMenu);
+    }
 
     const socket = getSocket();
     if (socket) {
@@ -495,6 +553,11 @@ export default function TableQrPage({
     return () => {
       mounted = false;
       clearInterval(autoSyncInterval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pos-menu-change", fetchMenu);
+        window.removeEventListener("storage", fetchMenu);
+        window.removeEventListener("focus", fetchMenu);
+      }
       if (socket) {
         socket.off("order:created", fetchActiveOrders);
         socket.off("order:updated", fetchActiveOrders);
@@ -809,7 +872,7 @@ export default function TableQrPage({
                 className="hidden lg:flex items-center gap-2 rounded-xl bg-[#4EA668] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#3D8F55] transition-all active:scale-95 cursor-pointer"
               >
                 <ShoppingBag size={15} />
-                <span>{totalItems} {t("Items", "មុខ")} • {formatPrice(totalPrice, locale)}</span>
+                <span>{totalItems} {t("Items", "មុខ")} • {formatPrice(totalPrice, locale, exchangeRateState)}</span>
               </button>
             )}
           </div>
@@ -938,7 +1001,43 @@ export default function TableQrPage({
                 {filteredProducts.map((product, idx) => {
                   const qty = getQuantity(product.id);
                   const hasQty = qty > 0;
-                  const categoryName = menuData?.categories.find((c) => c.id === product.categoryId)?.name || t("Food", "ប្រភេទម្ហូប");
+                  const matchedCatName =
+                    (product as any).category?.name ||
+                    (product as any).categoryName ||
+                    menuData?.categories.find((c) => String(c.id) === String(product.categoryId) || c.name.toLowerCase() === (product as any).category?.name?.toLowerCase())?.name;
+
+                  let categoryName = matchedCatName;
+                  const lowerName = String(product.name || "").toLowerCase();
+                  if (
+                    !categoryName ||
+                    categoryName === "Food" ||
+                    categoryName === "ប្រភេទម្ហូប"
+                  ) {
+                    if (
+                      lowerName.includes("coca") ||
+                      lowerName.includes("cola") ||
+                      lowerName.includes("coke") ||
+                      lowerName.includes("pepsi") ||
+                      lowerName.includes("sprite") ||
+                      lowerName.includes("fanta") ||
+                      lowerName.includes("soda") ||
+                      lowerName.includes("drink") ||
+                      lowerName.includes("water") ||
+                      lowerName.includes("juice") ||
+                      lowerName.includes("tea") ||
+                      lowerName.includes("coffee") ||
+                      lowerName.includes("beer") ||
+                      lowerName.includes("ទឹក") ||
+                      lowerName.includes("ភេសជ្ជៈ") ||
+                      lowerName.includes("កាហ្វេ")
+                    ) {
+                      categoryName = "Drink";
+                    } else if (lowerName.includes("bread") || lowerName.includes("នំ")) {
+                      categoryName = "Bread";
+                    } else {
+                      categoryName = matchedCatName || t("Food", "ប្រភេទម្ហូប");
+                    }
+                  }
 
                   return (
                     <div
@@ -1024,7 +1123,7 @@ export default function TableQrPage({
                       {/* Price Tag & Cooking Duration Badge */}
                       <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-sm sm:text-base font-semibold text-[#4EA668]">
-                          {formatPrice(Number(product.basePrice), locale)}
+                          {formatPrice(parsePriceNumber(product.basePrice ?? (product as any).price), locale, exchangeRateState)}
                         </span>
                         <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
                           <Clock size={11} className="stroke-[2.2]" />
@@ -1081,7 +1180,7 @@ export default function TableQrPage({
                           <div className="flex-1 min-w-0">
                             <h5 className="truncate text-xs font-medium text-slate-800">{item.name}</h5>
                             <div className="text-[11px] font-medium text-[#4EA668]">
-                              {formatPrice(item.price, locale)} × {item.quantity}
+                              {formatPrice(item.price, locale, exchangeRateState)} × {item.quantity}
                             </div>
                           </div>
                           <div className="flex items-center rounded-full bg-white border border-slate-200 overflow-hidden h-7">
@@ -1207,7 +1306,7 @@ export default function TableQrPage({
                       <div className="flex-1 min-w-0">
                         <h4 className="truncate text-sm font-bold text-slate-900">{item.name}</h4>
                         <div className="mt-0.5 text-xs font-extrabold text-[#4EA668]">
-                          {formatPrice(item.price, locale)}
+                          {formatPrice(item.price, locale, exchangeRateState)}
                         </div>
                       </div>
 
@@ -1258,7 +1357,7 @@ export default function TableQrPage({
                   <div className="flex items-center justify-between pb-3 border-b border-dashed border-slate-200">
                     <span className="text-sm font-black text-slate-900">{t("Total", "សរុប")}</span>
                     <span className="text-base font-black text-[#4EA668]">
-                      {formatDualTotal(totalPrice)}
+                      {formatDualTotal(totalPrice, exchangeRateState)}
                     </span>
                   </div>
 
@@ -1270,7 +1369,7 @@ export default function TableQrPage({
                   >
                     <span>{isReadOnly ? t("Order Locked", "ការកម្មង់ត្រូវបានចាក់សោ") : t("Place Order", "ដាក់ការបញ្ជាទិញ")}</span>
                     <span className="rounded-lg bg-white/20 px-3 py-1 text-xs font-black">
-                      {formatDualTotal(totalPrice)}
+                      {formatDualTotal(totalPrice, exchangeRateState)}
                     </span>
                   </button>
                 </div>
@@ -1327,11 +1426,11 @@ export default function TableQrPage({
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-xs font-bold text-slate-900">{item.name}</div>
                       <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                        {formatPrice(item.price, locale)} × {item.quantity}
+                        {formatPrice(item.price, locale, exchangeRateState)} × {item.quantity}
                       </div>
                     </div>
                     <span className="text-xs font-black text-slate-800">
-                      {formatPrice(item.price * item.quantity, locale)}
+                      {formatPrice(item.price * item.quantity, locale, exchangeRateState)}
                     </span>
                   </div>
                 ))}
@@ -1352,7 +1451,7 @@ export default function TableQrPage({
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-black text-slate-900">{t("Total", "សរុប")}</span>
                   <span className="text-base font-black text-[#4EA668]">
-                    {formatDualTotal(totalPrice)}
+                    {formatDualTotal(totalPrice, exchangeRateState)}
                   </span>
                 </div>
               </div>
@@ -1476,7 +1575,7 @@ export default function TableQrPage({
                                 </span>
                               </div>
                               <span className={`font-bold shrink-0 ml-2 ${isDone ? "text-slate-400 line-through font-normal" : "text-[#4EA668]"}`}>
-                                {formatPrice(Number(item.price), locale)}
+                                {formatPrice(Number(item.price), locale, exchangeRateState)}
                               </span>
                             </div>
                           );
@@ -1558,7 +1657,7 @@ export default function TableQrPage({
               <span>{t("Items Selected", "មុខទំនិញជ្រើសរើស")}</span>
             </div>
             <div className="text-[11px] opacity-90 mt-0.5">
-              {t("Total", "សរុប")}: {formatDualTotal(totalPrice)}
+              {t("Total", "សរុប")}: {formatDualTotal(totalPrice, exchangeRateState)}
             </div>
           </div>
           <button

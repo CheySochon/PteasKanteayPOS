@@ -332,50 +332,77 @@ export function hasFeaturePermission(
     return true;
   }
 
-  // Helper matching function for specific action and feature key
-  const matchActionKey = (perms: string[]): boolean => {
-    if (perms.includes(featureKey)) return true;
+  // 1. Extract permissions array from all possible properties on user, group, or role object
+  let userPerms: any =
+    user.permissions ||
+    user.permission_codes ||
+    user.permissionCodes ||
+    user.groupPermissions ||
+    user.group_permissions ||
+    (typeof user.role === "object" ? user.role?.permissions || user.role?.permission_codes : null) ||
+    (typeof user.group === "object" ? user.group?.permission_codes || user.group?.permissions : null);
 
-    // Standard POS RBAC Permission Code Mapping with View, Add, Edit, Delete
-    const codeMap: Record<string, string[]> = {
-      dashboard: ["dashboard.view", "dashboard.add", "dashboard.edit", "dashboard.delete", "dashboard.manage", "dashboard"],
-      pos: ["pos.view", "pos.add", "pos.edit", "pos.delete", "pos.order.create", "pos.payment.process", "pos.discount.apply", "pos"],
-      orders: ["orders.view", "orders.add", "orders.edit", "orders.delete", "orders.update", "orders"],
-      kitchen: ["kitchen.view", "kitchen.add", "kitchen.edit", "kitchen.delete", "kitchen.manage", "kitchen"],
-      tables: ["tables.view", "tables.add", "tables.edit", "tables.delete", "tables.manage", "tables"],
-      menu: ["menu.view", "menu.add", "menu.edit", "menu.delete", "pos.menu.manage", "categories.manage", "menu"],
-      inventory: ["inventory.view", "inventory.add", "inventory.edit", "inventory.delete", "inventory.manage", "inventory"],
-      reports: ["reports.view", "reports.add", "reports.edit", "reports.delete", "pos.reports.view", "reports.export", "reports"],
-      auth: ["users.view", "users.add", "users.edit", "users.delete", "pos.users.manage", "audit.view", "users", "groups", "auth"],
-      users: ["users.view", "users.add", "users.edit", "users.delete", "pos.users.manage", "users"],
-      settings: ["settings.view", "settings.add", "settings.edit", "settings.delete", "pos.settings.manage", "backups.manage", "settings"],
-      invoices: ["invoices.view", "invoices.add", "invoices.edit", "invoices.delete", "pos.invoice.void", "invoices"],
-    };
-
-    const targetCodes = codeMap[featureKey] || [featureKey];
-    if (targetCodes.some((code) => perms.includes(code))) return true;
-
-    if (action === "view") {
-      if (perms.includes(`${featureKey}.view`) || perms.includes(`${featureKey}_view`) || perms.includes(`${featureKey}_read`)) return true;
-      if (perms.some((k) => k.startsWith(`${featureKey}.`) || k.startsWith(`${featureKey}_`) || k.startsWith(`pos.${featureKey}`))) return true;
-    } else if (action === "add") {
-      if (perms.includes(`${featureKey}.add`) || perms.includes(`${featureKey}_add`) || perms.includes(`${featureKey}_create`)) return true;
-    } else if (action === "edit") {
-      if (perms.includes(`${featureKey}.edit`) || perms.includes(`${featureKey}_edit`) || perms.includes(`${featureKey}_update`)) return true;
-    } else if (action === "delete") {
-      if (perms.includes(`${featureKey}.delete`) || perms.includes(`${featureKey}_delete`) || perms.includes(`${featureKey}_remove`)) return true;
-    }
-    return false;
-  };
-
-  // 1. Check user direct permissions array from database
-  if (user.permissions && Array.isArray(user.permissions)) {
-    return matchActionKey(user.permissions);
+  // Fallback to local staff permissions cache if user object has no explicit array
+  if (!userPerms && typeof window !== "undefined") {
+    try {
+      const storedLocal = localStorage.getItem("pos_staff_permissions");
+      if (storedLocal) userPerms = JSON.parse(storedLocal);
+    } catch {}
   }
 
-  // 2. Admin accounts default to FULL ACCESS if no explicit group restriction list exists
+  if (userPerms && (Array.isArray(userPerms) || typeof userPerms === "object")) {
+    const perms: string[] = Array.isArray(userPerms)
+      ? userPerms.map((p: any) => (typeof p === "string" ? p.trim().toLowerCase() : String(p.key || p.code || p).trim().toLowerCase()))
+      : Object.keys(userPerms).filter((k) => Boolean(userPerms[k])).map((k) => k.toLowerCase());
+
+    const fKey = featureKey.trim().toLowerCase();
+
+    if (action === "view") {
+      return (
+        perms.includes(fKey) ||
+        perms.includes(`${fKey}.view`) ||
+        perms.includes(`${fKey}_view`) ||
+        perms.includes(`${fKey}_read`) ||
+        perms.some((k: string) => k.startsWith(`${fKey}.`) || k.startsWith(`${fKey}_`) || k.startsWith(`pos.${fKey}`))
+      );
+    }
+
+    if (action === "add") {
+      return (
+        perms.includes(`${fKey}.add`) ||
+        perms.includes(`${fKey}_add`) ||
+        perms.includes(`${fKey}_create`) ||
+        perms.includes(`${fKey}.create`) ||
+        (fKey === "pos" && (perms.includes("pos.order.create") || perms.includes("pos.add")))
+      );
+    }
+
+    if (action === "edit") {
+      return (
+        perms.includes(`${fKey}.edit`) ||
+        perms.includes(`${fKey}_edit`) ||
+        perms.includes(`${fKey}_update`) ||
+        perms.includes(`${fKey}.update`) ||
+        (fKey === "pos" && (perms.includes("pos.payment.process") || perms.includes("pos.edit")))
+      );
+    }
+
+    if (action === "delete") {
+      return (
+        perms.includes(`${fKey}.delete`) ||
+        perms.includes(`${fKey}_delete`) ||
+        perms.includes(`${fKey}_remove`) ||
+        perms.includes(`${fKey}.remove`) ||
+        (fKey === "pos" && (perms.includes("pos.invoice.void") || perms.includes("pos.delete")))
+      );
+    }
+
+    return false;
+  }
+
+  // 2. Default fallback for standard Admin role only if no permission matrix exists
   const role = roleName(user);
-  if (isAdminRole(role) || isAdminRole(rawRoleStr)) {
+  if (lowerRole === "admin" || role === "Admin") {
     return true;
   }
 

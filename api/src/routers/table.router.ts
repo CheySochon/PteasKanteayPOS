@@ -23,9 +23,9 @@ import {
 
 const router = Router();
 const adminOnly = [authMiddleware, roleMiddleware(["Admin"])];
-const staffOrAdmin = [authMiddleware, roleMiddleware(["Admin", "Cashier", "Staff"])];
+const staffOrAdmin = [authMiddleware, roleMiddleware(["Admin", "Manager", "Cashier", "Staff"])];
 
-router.get("/", asyncHandler(list));
+router.get("/", ...staffOrAdmin, asyncHandler(list));
 router.post("/", ...adminOnly, validate(createTableSchema), asyncHandler(create));
 router.post("/move", ...staffOrAdmin, validate(moveTableSchema), asyncHandler(move));
 router.post("/merge", ...staffOrAdmin, validate(mergeTableSchema), asyncHandler(merge));

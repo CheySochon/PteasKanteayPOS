@@ -90,16 +90,25 @@ export default function RolesPage() {
   const [rules, setRules] = useState<SystemRule[]>([]);
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [ruleFilter, setRuleFilter] = useState<"all" | "menu" | "sub" | "active">("all");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
 
   useEffect(() => {
-    const handleClose = () => setActionMenuOpen(null);
+    const handleClose = () => {
+      setActionMenuOpen(null);
+      setActionMenuPos(null);
+    };
     window.addEventListener("click", handleClose);
-    return () => window.removeEventListener("click", handleClose);
+    window.addEventListener("scroll", handleClose, true);
+    return () => {
+      window.removeEventListener("click", handleClose);
+      window.removeEventListener("scroll", handleClose, true);
+    };
   }, []);
 
   // Modal State
@@ -133,6 +142,10 @@ export default function RolesPage() {
 
   const saveRulesToStorage = async (nextRules: SystemRule[]) => {
     setRules(nextRules);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("pos-rules-updated"));
+      window.dispatchEvent(new Event("pos-groups-updated"));
+    }
     try {
       await saveSystemRules(nextRules);
       const socket = getSocket();
@@ -307,15 +320,46 @@ export default function RolesPage() {
 
   // Filtered Rules List
   const filteredRules = useMemo(() => {
-    if (!searchQuery.trim()) return rules;
+    let result = rules;
+
+    if (ruleFilter === "menu") {
+      result = result.filter((r) => r.ismenu);
+    } else if (ruleFilter === "sub") {
+      result = result.filter((r) => !r.ismenu);
+    } else if (ruleFilter === "active") {
+      result = result.filter((r) => r.status === "Normal" || !r.status);
+    }
+
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return rules.filter(
+    return result.filter(
       (r) =>
         r.title.toLowerCase().includes(q) ||
         r.name.toLowerCase().includes(q) ||
         String(r.id).includes(q)
     );
-  }, [rules, searchQuery]);
+  }, [rules, searchQuery, ruleFilter]);
+
+  const handleExportCSV = () => {
+    if (rules.length === 0) return;
+    const headers = ["ID", "Title", "Name", "Weigh", "Status", "Is Menu"];
+    const rows = rules.map((r) => [
+      r.id,
+      `"${r.title.replace(/"/g, '""')}"`,
+      `"${r.name.replace(/"/g, '""')}"`,
+      r.weigh,
+      r.status || "Normal",
+      r.ismenu ? "Yes" : "No",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `system_rules_matrix_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
   const textSecondary = dark ? "text-slate-400" : "text-[#64748b]";
@@ -355,14 +399,26 @@ export default function RolesPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
-          >
-            <Plus size={15} />
-            {language === "km" ? "បន្ថែមសិទ្ធិថ្មី" : "New Rule"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+              }`}
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#478851] text-white px-4 text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-95"
+            >
+              <Plus size={15} />
+              {language === "km" ? "បន្ថែមសិទ្ធិថ្មី" : "New Rule"}
+            </button>
+          </div>
         </div>
 
         {/* TOP KPI CARDS (Matching Admin Log Style) */}
@@ -432,122 +488,67 @@ export default function RolesPage() {
         <div className={`rounded-2xl border ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"} shadow-xs overflow-hidden`}>
           
           {/* TOP ACTION TOOLBAR */}
-          <div className={`p-4 border-b ${dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"} flex flex-wrap items-center justify-between gap-3`}>
+          <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
+            dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
+          }`}>
             
-            {/* Left Action Buttons Toolbar matching screenshot buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              
-              {/* 🔄 Refresh Icon Button (Dark Navy Square/Pill) */}
-              <button
-                type="button"
-                onClick={handleRefresh}
-                title="Refresh Rules List"
-                className={`h-8 w-8 flex items-center justify-center rounded-lg transition cursor-pointer ${
-                  dark ? "bg-[#1e293b] hover:bg-[#334155] text-slate-200" : "bg-[#2d3748] hover:bg-[#1a202c] text-white"
-                }`}
-              >
-                <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              </button>
-
-              {/* 🟢 + Add Button */}
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="h-8 px-3.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              >
-                <Plus size={14} />
-                + Add
-              </button>
-
-              {/* 🔵 ✏️ Edit Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedRuleIds.length === 1) {
-                    const rule = rules.find((r) => r.id === selectedRuleIds[0]);
-                    if (rule) openEditModal(rule);
-                  } else {
-                    setError("Please select exactly 1 rule to edit.");
-                  }
-                }}
-                className="h-8 px-3.5 rounded-lg bg-[#06b6d4] hover:bg-[#0891b2] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              >
-                <Edit3 size={13} />
-                Edit
-              </button>
-
-              {/* 🔴 🗑️ Delete Button */}
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                disabled={selectedRuleIds.length === 0}
-                className="h-8 px-3.5 rounded-lg bg-[#f43f5e] hover:bg-[#e11d48] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-40"
-              >
-                <Trash2 size={13} />
-                Delete {selectedRuleIds.length > 0 ? `(${selectedRuleIds.length})` : ""}
-              </button>
-
-              {/* ⚙️ More Dropdown Button */}
-              <button
-                type="button"
-                className={`h-8 px-3 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer ${
-                  dark ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-750" : "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                <MoreHorizontal size={14} />
-                More
-              </button>
-
-              {/* 🔴 + Toggle all Button */}
-              <button
-                type="button"
-                onClick={toggleAllIsmenu}
-                className="h-8 px-3.5 rounded-lg bg-[#ef4444] hover:bg-[#dc2626] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              >
-                <Plus size={14} />
-                Toggle all
-              </button>
+            {/* Left Section: Table Title */}
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={16} className="text-[#55a060]" />
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {language === "km" ? "បញ្ជីសិទ្ធិប្រព័ន្ធ" : "System Rules & Matrix Directory"}
+              </h2>
+              <span className="ml-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                {filteredRules.length}
+              </span>
             </div>
 
-            {/* Right Tools: Search & Utility Icons */}
+            {/* Right Tools: Filter Dropdown, Search Input, Refresh Button */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              
+              {/* Filter Dropdown */}
+              <div className="relative">
+                <select
+                  value={ruleFilter}
+                  onChange={(e) => setRuleFilter(e.target.value as any)}
+                  className={`h-8 rounded-lg border px-3 pr-7 text-xs outline-none transition cursor-pointer font-medium focus:border-[#55a060] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-300 bg-white text-slate-700"
+                  }`}
+                >
+                  <option value="all">{language === "km" ? "សិទ្ធិទាំងអស់ (All Rules)" : "All System Rules"}</option>
+                  <option value="menu">{language === "km" ? "ម៉ូឌុលមេនូ (Menu Modules)" : "Menu Modules Only"}</option>
+                  <option value="sub">{language === "km" ? "សិទ្ធិរង (Sub Permissions)" : "Sub Permissions Only"}</option>
+                  <option value="active">{language === "km" ? "សិទ្ធិសកម្ម (Active Only)" : "Active Rules Only"}</option>
+                </select>
+              </div>
+
+              {/* Search Input */}
               <div className="relative flex-1 sm:w-60">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search rules..."
+                  placeholder={language === "km" ? "ស្វែងរកសិទ្ធិ..." : "Search rules..."}
                   className={`h-8 w-full rounded-lg border pl-8 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-[#55a060] ${
                     dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-300 bg-white text-slate-800"
                   }`}
                 />
               </div>
 
-              {/* Utility Icons Toolbar (Columns / Grid / Users) */}
-              <div className="flex items-center border rounded-lg overflow-hidden border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-800">
-                <button
-                  type="button"
-                  title="Columns view"
-                  className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                >
-                  <Columns size={14} />
-                </button>
-                <button
-                  type="button"
-                  title="Grid view"
-                  className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
-                >
-                  <Grid size={14} />
-                </button>
-                <button
-                  type="button"
-                  title="User filter"
-                  className="h-8 w-8 flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l border-slate-200 dark:border-slate-700"
-                >
-                  <UsersRound size={14} />
-                </button>
-              </div>
+              {/* 🔄 Refresh Icon Button (Far Right) */}
+              <button
+                type="button"
+                onClick={handleRefresh}
+                title="Refresh Rules List"
+                className={`h-8 w-8 flex items-center justify-center rounded-lg border transition cursor-pointer shrink-0 ${
+                  dark
+                    ? "border-slate-700 bg-[#232333] text-slate-200 hover:bg-[#34354e]"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <RefreshCw size={14} className={isRefreshing ? "animate-spin text-[#55a060]" : "text-slate-600 dark:text-slate-300"} />
+              </button>
             </div>
           </div>
 
@@ -584,7 +585,8 @@ export default function RolesPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRules.map((rule) => {
+                  filteredRules.map((rule, idx) => {
+                    const isBottomRow = idx >= filteredRules.length - 2;
                     const isSelected = selectedRuleIds.includes(rule.id);
                     const RuleIcon = getRuleIcon(rule.iconName);
 
@@ -669,12 +671,28 @@ export default function RolesPage() {
 
                         {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}
                         <td className="py-3.5 px-4 text-center relative">
-                          <div className="relative inline-block text-left">
+                          <div className="inline-block text-left">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setActionMenuOpen(actionMenuOpen === rule.id ? null : rule.id);
+                                if (actionMenuOpen === rule.id) {
+                                  setActionMenuOpen(null);
+                                  setActionMenuPos(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const openUpwards = rect.bottom + 160 > window.innerHeight;
+                                  const menuWidth = 176;
+                                  const maxLeft = typeof window !== "undefined" ? window.innerWidth - menuWidth - 20 : rect.right - menuWidth;
+                                  const targetLeft = rect.right - menuWidth + 10;
+                                  const calculatedLeft = Math.max(12, Math.min(maxLeft, targetLeft));
+                                  setActionMenuPos({
+                                    top: openUpwards ? undefined : rect.bottom + 4,
+                                    bottom: openUpwards ? window.innerHeight - rect.top + 4 : undefined,
+                                    left: calculatedLeft,
+                                  });
+                                  setActionMenuOpen(rule.id);
+                                }
                               }}
                               className={`h-7 w-7 inline-flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                                 dark
@@ -685,9 +703,15 @@ export default function RolesPage() {
                               <MoreVertical size={16} />
                             </button>
 
-                            {actionMenuOpen === rule.id && (
+                            {actionMenuOpen === rule.id && actionMenuPos && (
                               <div
-                                className={`absolute right-0 top-full mt-1 z-50 w-44 rounded-xl border p-1.5 text-left shadow-xl ${
+                                style={{
+                                  position: "fixed",
+                                  top: actionMenuPos.top !== undefined ? `${actionMenuPos.top}px` : undefined,
+                                  bottom: actionMenuPos.bottom !== undefined ? `${actionMenuPos.bottom}px` : undefined,
+                                  left: `${actionMenuPos.left}px`,
+                                }}
+                                className={`z-[99999] w-44 rounded-xl border p-1.5 text-left shadow-2xl ${
                                   dark ? "border-[#4e4f6e] bg-[#2b2c40]" : "border-slate-200/90 bg-white"
                                 } animate-[userModalIn_150ms_cubic-bezier(0.16,1,0.3,1)]`}
                               >
@@ -696,6 +720,7 @@ export default function RolesPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setActionMenuOpen(null);
+                                    setActionMenuPos(null);
                                     openCreateModal();
                                   }}
                                   className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
@@ -708,6 +733,7 @@ export default function RolesPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setActionMenuOpen(null);
+                                    setActionMenuPos(null);
                                     openEditModal(rule);
                                   }}
                                   className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
@@ -720,6 +746,7 @@ export default function RolesPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setActionMenuOpen(null);
+                                    setActionMenuPos(null);
                                     handleDeleteRule(rule.id);
                                   }}
                                   className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"

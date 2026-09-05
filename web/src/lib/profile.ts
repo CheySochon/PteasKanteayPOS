@@ -88,15 +88,6 @@ export function resolveStaffProfileImage(userName: string, userRole?: string): s
   const byName = getProfileImage({ name: userName, role: userRole || "Staff" });
   if (byName) return byName;
 
-  // 3. Scan all localStorage keys starting with pos_profile_image_
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith("pos_profile_image_")) {
-      const val = localStorage.getItem(key);
-      if (val && val.trim()) return val.trim();
-    }
-  }
-
   return "";
 }
 

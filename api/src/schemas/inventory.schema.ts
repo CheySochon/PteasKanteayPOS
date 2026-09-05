@@ -16,6 +16,8 @@ export const updateInventorySettingsSchema = z.object({
   unit: z.string().trim().min(1).max(50).optional(),
   name: z.string().trim().min(1).max(200).optional(),
   quantity: z.number().optional(),
+  supplierId: z.number().int().positive().nullable().optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
 });
 
 export const addInventoryItemSchema = z.object({
@@ -23,6 +25,8 @@ export const addInventoryItemSchema = z.object({
   unit: z.string({ error: "unit is required" }).trim().min(1).max(50),
   quantity: z.number({ error: "quantity is required" }),
   minStock: z.number({ error: "minStock is required" }).nonnegative(),
+  supplierId: z.number().int().positive().nullable().optional(),
+  categoryId: z.number().int().positive().nullable().optional(),
 });
 
 export type AdjustStockBody = z.infer<typeof adjustStockSchema>;
