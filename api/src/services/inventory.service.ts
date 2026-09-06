@@ -33,21 +33,29 @@ export const listInventory = async () => {
     orderBy: { name: "asc" },
   });
 
-  // Ensure all products have an inventory record
-  const result = [];
-  for (const product of products) {
-    if (!product.inventory) {
-      const inv = await getOrCreateInventory(product.id);
-      result.push({
-        ...product,
-        inventory: inv,
-      });
-    } else {
-      result.push(product);
-    }
+  const missingProducts = products.filter((p) => !p.inventory);
+  if (missingProducts.length > 0) {
+    await prisma.inventory.createMany({
+      data: missingProducts.map((p) => ({
+        productId: p.id,
+        quantity: 0,
+        minStock: 0,
+      })),
+      skipDuplicates: true,
+    });
+
+    return prisma.product.findMany({
+      where: { deletedAt: null },
+      include: {
+        category: true,
+        supplier: true,
+        inventory: true,
+      },
+      orderBy: { name: "asc" },
+    });
   }
 
-  return result;
+  return products;
 };
 
 export const adjustStock = async (

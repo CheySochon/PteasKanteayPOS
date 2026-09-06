@@ -624,9 +624,11 @@ export default function TablesPage() {
             <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 {[
-                  { id: "all", label: language === "km" ? "តុ & បន្ទប់ទាំងអស់" : "All Tables & Rooms", count: zoneCounts.all, icon: Layers },
+                  { id: "all", label: language === "km" ? "តុទាំងអស់" : "All Tables", count: zoneCounts.all, icon: Layers },
                   { id: "indoor", label: language === "km" ? "តុ (Table)" : "Table", count: zoneCounts.indoor, icon: Armchair },
-                  { id: "vip", label: language === "km" ? "បន្ទប់ VIP (VIP Rooms)" : "VIP Rooms", count: zoneCounts.vip, icon: Crown },
+                  ...(zoneCounts.outdoor > 0
+                    ? [{ id: "outdoor", label: language === "km" ? "តុខាងក្រៅ (Outdoor)" : "Outdoor", count: zoneCounts.outdoor, icon: Armchair }]
+                    : []),
                 ].map((tab) => {
                   const Icon = tab.icon;
                   const isActive = selectedZone === tab.id;
@@ -964,7 +966,6 @@ export default function TablesPage() {
                   >
                     <option value="indoor">{language === "km" ? "សាលខាងក្នុង (Indoor)" : "Indoor"}</option>
                     <option value="outdoor">{language === "km" ? "យ៉រខាងក្រៅ (Outdoor)" : "Outdoor"}</option>
-                    <option value="vip">{language === "km" ? "បន្ទប់ VIP (VIP)" : "VIP Area"}</option>
                   </select>
                 </label>
 

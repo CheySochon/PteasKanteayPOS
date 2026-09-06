@@ -21,6 +21,42 @@ const DEFAULT_STAFF_FALLBACK: any[] = [
 
 const STAFF_PRESETS: any[] = [];
 
+function saveStaffToHistory(userPayload: any, token?: string) {
+  if (typeof window === "undefined" || !userPayload) return;
+  try {
+    const raw = localStorage.getItem("pos_logged_users_history");
+    let list: any[] = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) list = [];
+
+    const normEmail = (userPayload.email || "").trim().toLowerCase();
+    const normName = (userPayload.name || "").trim().toLowerCase();
+
+    list = list.filter((u) => {
+      if (u.id && userPayload.id) return u.id !== userPayload.id;
+      const uEmail = (u.email || "").trim().toLowerCase();
+      const uName = (u.name || "").trim().toLowerCase();
+      if (normEmail && uEmail) return uEmail !== normEmail;
+      return uName !== normName;
+    });
+
+    const roleStr = typeof userPayload.role === "string" ? userPayload.role : userPayload.role?.name || userPayload.roleName || "Staff";
+
+    list.unshift({
+      id: userPayload.id,
+      name: userPayload.name,
+      email: userPayload.email,
+      role: roleStr,
+      roleName: String(userPayload.roleName || roleStr).toUpperCase(),
+      imageUrl: userPayload.imageUrl || userPayload.image || "",
+      pin: userPayload.pin || "",
+      token: token || userPayload.token || localStorage.getItem("pos_token") || "",
+      lastLogin: Date.now(),
+    });
+
+    localStorage.setItem("pos_logged_users_history", JSON.stringify(list));
+  } catch {}
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const language = useAppLanguage();
@@ -128,43 +164,66 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [step, timerSeconds]);
 
-  // Fetch Dynamic Real Users List from API & Real-Time WebSockets
+  // Fetch Dynamic Logged-in Staff User Accounts from Saved History / Local Storage Tokens
   useEffect(() => {
     setMounted(true);
     async function loadDynamicUsers() {
       setStaffLoading(true);
       try {
-        const users = await getPublicStaff();
-        if (users && Array.isArray(users)) {
-          const uniqueUsers: any[] = [];
-          users.forEach((u: any) => {
-            const normName = (u.name || "").trim().toLowerCase();
-            const normEmail = (u.email || "").trim().toLowerCase();
-            if (!uniqueUsers.some((exist) => 
-              (exist.name || "").trim().toLowerCase() === normName ||
-              (exist.email && normEmail && (exist.email || "").trim().toLowerCase() === normEmail)
-            )) {
-              uniqueUsers.push(u);
+        // 1. Read logged-in user tokens & history saved on this device
+        const rawHistory = localStorage.getItem("pos_logged_users_history");
+        let historyUsers: any[] = rawHistory ? JSON.parse(rawHistory) : [];
+        if (!Array.isArray(historyUsers)) historyUsers = [];
+
+        // Also check current pos_user
+        const currentPosUserRaw = localStorage.getItem("pos_user");
+        if (currentPosUserRaw) {
+          try {
+            const cur = JSON.parse(currentPosUserRaw);
+            if (cur && cur.name) {
+              const normCurEmail = (cur.email || "").trim().toLowerCase();
+              const normCurName = (cur.name || "").trim().toLowerCase();
+              const exists = historyUsers.some(
+                (u) =>
+                  (u.id && cur.id && u.id === cur.id) ||
+                  (normCurEmail && (u.email || "").trim().toLowerCase() === normCurEmail) ||
+                  ((u.name || "").trim().toLowerCase() === normCurName)
+              );
+              if (!exists) {
+                historyUsers.unshift({
+                  id: cur.id,
+                  name: cur.name,
+                  email: cur.email,
+                  role: cur.role || cur.roleName || "Staff",
+                  roleName: cur.roleName || cur.role || "Staff",
+                  imageUrl: cur.imageUrl || cur.image || "",
+                  token: localStorage.getItem("pos_token") || "",
+                  lastLogin: Date.now(),
+                });
+              }
             }
-          });
+          } catch {}
+        }
 
-          const nonAdminUsers = uniqueUsers.filter((u: any) => {
-            const role = typeof u.role === "string" ? u.role : u.role?.name || u.roleName || "";
-            return !String(role).toLowerCase().includes("admin");
-          });
+        // Filter for non-admin staff sessions logged in on this device
+        const staffSessions = historyUsers.filter((u: any) => {
+          const role = String(u.role || u.roleName || "").toLowerCase();
+          return !role.includes("admin");
+        });
 
-          const mapped = nonAdminUsers.map((u: any, i: number) => {
-            const role = typeof u.role === "string" ? u.role : u.role?.name || u.roleName || "Staff";
-            const roleStr = String(role);
-            const isCashier = roleStr.toLowerCase().includes("cashier") || (u.email && u.email.includes("cashier"));
-            const isStaff = roleStr.toLowerCase().includes("staff") || (u.email && u.email.includes("staff"));
-            const resolvedImg = u.imageUrl || u.image || getProfileImage({ id: u.id, name: u.name, email: u.email, role: roleStr });
+        if (staffSessions.length > 0) {
+          const mapped = staffSessions.map((u: any, i: number) => {
+            const roleStr = String(u.role || u.roleName || "Staff");
+            const isCashier = roleStr.toLowerCase().includes("cashier");
+            const isStaff = roleStr.toLowerCase().includes("staff");
+            const resolvedImg = u.imageUrl || getProfileImage({ id: u.id, name: u.name, email: u.email, role: roleStr });
             return {
               id: u.id || i + 1,
               name: u.name || "User",
               role: roleStr,
               email: u.email,
-              pin: u.pin || (isCashier ? "1234" : isStaff ? "5678" : "0000"),
+              pin: u.pin || "",
+              token: u.token || "",
               imageUrl: resolvedImg || "",
               avatarBg: isCashier ? "bg-emerald-600" : isStaff ? "bg-amber-600" : "bg-[#6ab070]",
               initial: (u.name || "U")[0].toUpperCase(),
@@ -173,6 +232,7 @@ export default function LoginPage() {
 
           setStaffPresets(mapped);
         } else {
+          // Strictly load ONLY users who have logged in on this device
           setStaffPresets([]);
         }
       } catch {
@@ -444,6 +504,7 @@ export default function LoginPage() {
       localStorage.setItem("pos_login_timestamp", Date.now().toString());
       localStorage.setItem("pos_token", res.token);
       localStorage.setItem("pos_user", JSON.stringify(userPayload));
+      saveStaffToHistory(userPayload, res.token);
 
       setCookie("pos_token", res.token, 7);
       setCookie("pos_logged_in", "true", 7);
@@ -805,6 +866,7 @@ export default function LoginPage() {
 
       if (result?.token) localStorage.setItem("pos_token", result.token || "dev-admin-token");
       localStorage.setItem("pos_user", JSON.stringify(userPayload));
+      saveStaffToHistory(userPayload, result?.token);
 
       // Store temporary login success info to trigger toast in layout
       const roleString = targetRole;
@@ -1179,10 +1241,20 @@ export default function LoginPage() {
                   ? (language === "km" ? "ចូលប្រើប្រាស់សម្រាប់បុគ្គលិក" : "Staff Credentials Login") 
                   : (language === "km" ? "ចូលប្រើប្រាស់សម្រាប់ Admin" : "Admin Login")}
               </h1>
-              <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed max-w-[320px] mx-auto">
-                {authMode === "staff_2step" 
-                  ? (language === "km" ? "បញ្ចូល Email & ពាក្យសម្ងាត់ បន្ទាប់មកបញ្ចូល PIN ៤ខ្ទង់" : "Sign in with Email & Password, then enter your 4-digit PIN") 
-                  : (language === "km" ? "ចូលប្រើប្រាស់ជា Admin ជាមួយ Email & OTP" : "Sign in with Admin credentials & 2FA OTP")}
+              <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed max-w-[340px] mx-auto">
+                {authMode === "staff_2step" ? (
+                  language === "km" ? (
+                    <>
+                      បញ្ចូល Email & ពាក្យសម្ងាត់<br />បន្ទាប់មកបញ្ចូល PIN ៤ខ្ទង់
+                    </>
+                  ) : (
+                    <>
+                      Sign in with Email & Password,<br />then enter your 4-digit PIN.
+                    </>
+                  )
+                ) : (
+                  language === "km" ? "ចូលប្រើប្រាស់ជា Admin ជាមួយ Email & OTP" : "Sign in with Admin credentials & 2FA OTP"
+                )}
               </p>
 
               {/* Mode Switcher Tabs */}

@@ -31,6 +31,7 @@ export function formatOrder(order: Record<string, unknown> | null) {
     const t = toNum(item.totalPrice) > 0 ? toNum(item.totalPrice) : u * qty;
     return {
       ...item,
+      name: item.product?.name || item.name || (item.productId ? `Item #${item.productId}` : "Item"),
       unitPrice: u,
       totalPrice: t,
     };
@@ -70,7 +71,8 @@ function buildOrderInclude() {
   };
 }
 
-async function generateOrderNumber(): Promise<string> {
+async function generateOrderNumber(tx?: any): Promise<string> {
+  const client = tx || prisma;
   const date = new Date();
   const stamp = [
     date.getFullYear(),
@@ -78,9 +80,10 @@ async function generateOrderNumber(): Promise<string> {
     String(date.getDate()).padStart(2, "0"),
   ].join("");
 
-  const count = await prisma.order.count();
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  const count = await client.order.count();
 
-  return `ORD-${stamp}-${String(count + 1).padStart(4, "0")}`;
+  return `ORD-${stamp}-${String(count + 1).padStart(4, "0")}-${rand}`;
 }
 
 export const listOrders = async (query: Record<string, string> = {}) => {
@@ -93,10 +96,14 @@ export const listOrders = async (query: Record<string, string> = {}) => {
     }
   }
 
+  const limitParam = Number(query.limit);
+  const take = !isNaN(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100;
+
   const orders = await prisma.order.findMany({
     where,
     include: buildOrderInclude(),
     orderBy: { createdAt: "desc" },
+    take,
   });
 
   return orders.map((o) => formatOrder(o));
@@ -115,7 +122,7 @@ export const getOrder = async (id: number) => {
 
 const MAX_INT = 2147483647;
 
-async function findProductSafely(productId: any, name?: string) {
+async function findProductSafely(productId: any, name?: string, price?: number) {
   const pid = Number(productId);
   let product = null;
 
@@ -125,118 +132,199 @@ async function findProductSafely(productId: any, name?: string) {
     });
   }
 
-  if (!product && name && typeof name === "string" && name.trim()) {
+  const cleanName = name && typeof name === "string" ? name.trim() : "";
+
+  // Safety Verification: If product was found by ID, but cleanName is provided and DOES NOT MATCH the product's name,
+  // then pid was a wrong/mismatched ID (e.g. 1 or custom timestamp ID).
+  // We invalidate product to null so it looks up or creates by cleanName!
+  if (product && cleanName) {
+    const pName = product.name.trim().toLowerCase();
+    const cName = cleanName.toLowerCase();
+    const matches = pName === cName || pName.includes(cName) || cName.includes(pName);
+    if (!matches) {
+      product = null;
+    }
+  }
+
+  // 1. Exact string match first (vital for non-ASCII/Khmer names)
+  if (!product && cleanName) {
     product = await prisma.product.findFirst({
-      where: { name: { equals: name.trim(), mode: "insensitive" } },
+      where: { name: cleanName, deletedAt: null },
     });
   }
 
-  if (!product) {
+  if (!product && cleanName) {
+    product = await prisma.product.findFirst({
+      where: { name: { equals: cleanName, mode: "insensitive" }, deletedAt: null },
+    });
+  }
+
+  if (!product && cleanName) {
+    product = await prisma.product.findFirst({
+      where: { name: { contains: cleanName, mode: "insensitive" }, deletedAt: null },
+    });
+  }
+
+  // Dynamic Auto-Creation: If a real product name was sent but no match exists yet, create it in DB
+  if (!product && cleanName) {
+    try {
+      let defaultCategory = await prisma.category.findFirst({ where: { deletedAt: null }, orderBy: { id: "asc" } });
+      if (!defaultCategory) {
+        defaultCategory = await prisma.category.create({
+          data: { name: "General", slug: `general-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}` },
+        });
+      }
+      const safeNameSlug = cleanName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const baseSlug = safeNameSlug || "item";
+      const uniqueSlug = `${baseSlug}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      product = await prisma.product.create({
+        data: {
+          name: cleanName,
+          slug: uniqueSlug,
+          basePrice: price && !isNaN(price) ? price : 0,
+          categoryId: defaultCategory.id,
+          isAvailable: true,
+          trackStock: false,
+        },
+      });
+    } catch (err) {
+      console.error("Auto-creating product failed:", err);
+    }
+  }
+
+  // Fallback only if no product AND no cleanName was supplied
+  if (!product && !cleanName) {
     product = await prisma.product.findFirst({
       where: { deletedAt: null },
+      orderBy: { id: "asc" },
     });
   }
 
   return product;
 }
 
-export const createOrder = async (
-  payload: {
-    tableId?: number;
-    status?: string;
+export const createOrder = async (payload: {
+  tableId?: number | null;
+  tableNo?: string;
+  status?: string;
+  subtotal?: number;
+  discountAmount?: number;
+  taxAmount?: number;
+  totalAmount?: number;
+  notes?: string;
+  items?: {
+    productId: number;
+    name?: string;
+    quantity: number;
+    unitPrice?: number;
+    price?: number;
+    totalPrice?: number;
     notes?: string;
-    subtotal?: number;
-    discountAmount?: number;
-    taxAmount?: number;
-    totalAmount?: number;
-    items?: {
-      productId: number;
-      name?: string;
-      quantity?: number;
-      unitPrice?: number;
-      price?: number;
-      totalPrice?: number;
-      notes?: string;
-    }[];
-  },
-  userId?: number,
-) => {
-  const rawItems = payload.items || [];
-  
-  // Check stock availability first
-  for (const item of rawItems) {
-    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
-    if (product?.trackStock) {
-      const inventory = await prisma.inventory.findUnique({
-        where: { productId: product.id },
-      });
-      const qty = Math.max(1, Number(item.quantity || 1));
-      const available = Number(inventory?.quantity ?? 0);
-      if (available < qty) {
-        throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+  }[];
+}, userId?: number) => {
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  if (rawItems.length === 0) {
+    throw new Error("Order items required");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    // Check stock availability first inside transaction
+    for (const item of rawItems) {
+      const itemName = (item as any).name || (item as any).productName || (item as any).title;
+      const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
+      const product = await findProductSafely(item.productId, itemName, itemPrice);
+      if (product?.trackStock) {
+        const inventory = await tx.inventory.findUnique({
+          where: { productId: product.id },
+        });
+        const qty = Math.max(1, Number(item.quantity || 1));
+        const available = Number(inventory?.quantity ?? 0);
+        if (available < qty) {
+          throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
+        }
       }
     }
-  }
-  
-  let calculatedSubtotal = 0;
-  const itemsToCreate = [];
+    
+    let calculatedSubtotal = 0;
+    const itemsToCreate = [];
 
-  for (const item of rawItems) {
-    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
+    for (const item of rawItems) {
+      const itemName = (item as any).name || (item as any).productName || (item as any).title;
+      const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
+      const product = await findProductSafely(item.productId, itemName, itemPrice);
+      if (!product) {
+        throw new Error(`Unable to resolve or create product for item: "${itemName || item.productId}"`);
+      }
+      const targetProductId = product.id;
 
-    const qty = Math.max(1, Number(item.quantity || 1));
-    const unitPrice = toNum(item.unitPrice ?? item.price ?? product?.basePrice ?? 0);
-    const totalPrice = toNum(item.totalPrice ?? (unitPrice * qty));
+      const qty = Math.max(1, Number(item.quantity || 1));
+      const finalPrice = itemPrice > 0 ? itemPrice : toNum(product?.basePrice ?? 0);
+      const totalPrice = toNum(item.totalPrice ?? (finalPrice * qty));
 
-    calculatedSubtotal += totalPrice;
+      calculatedSubtotal += totalPrice;
 
-    itemsToCreate.push({
-      productId: product ? product.id : 1,
-      quantity: qty,
-      unitPrice: unitPrice,
-      totalPrice: totalPrice,
-      notes: item.notes || null,
-    });
-  }
-
-  const subtotal = payload.subtotal ? toNum(payload.subtotal) : calculatedSubtotal;
-  const discountAmount = toNum(payload.discountAmount);
-  const taxAmount = toNum(payload.taxAmount);
-  const totalAmount = payload.totalAmount ? toNum(payload.totalAmount) : Math.max(subtotal - discountAmount + taxAmount, 0);
-
-  const created = await prisma.order.create({
-    data: {
-      orderNumber: await generateOrderNumber(),
-      tableId: payload.tableId ? Number(payload.tableId) : null,
-      createdById: userId ? Number(userId) : null,
-      status: normalizeStatus(payload.status) as OrderStatus,
-      subtotal,
-      discountAmount,
-      taxAmount,
-      totalAmount,
-      notes: payload.notes,
-      items: {
-        create: itemsToCreate,
-      },
-    },
-    include: buildOrderInclude(),
-  });
-
-  // Deduct stock for items where trackStock is enabled
-  for (const item of created.items) {
-    if (item.product?.trackStock) {
-      await adjustStock(
-        item.productId,
-        -item.quantity,
-        "sale",
-        created.orderNumber,
-        null,
-        userId
-      );
+      itemsToCreate.push({
+        productId: targetProductId,
+        quantity: qty,
+        unitPrice: finalPrice,
+        totalPrice: totalPrice,
+        notes: item.notes || null,
+      });
     }
-  }
 
-  return formatOrder(created);
+    const subtotal = payload.subtotal ? toNum(payload.subtotal) : calculatedSubtotal;
+    const discountAmount = toNum(payload.discountAmount);
+    const taxAmount = toNum(payload.taxAmount);
+    const totalAmount = payload.totalAmount ? toNum(payload.totalAmount) : Math.max(subtotal - discountAmount + taxAmount, 0);
+
+    const orderNum = await generateOrderNumber(tx);
+
+    const created = await tx.order.create({
+      data: {
+        orderNumber: orderNum,
+        tableId: payload.tableId ? Number(payload.tableId) : null,
+        createdById: userId ? Number(userId) : null,
+        status: normalizeStatus(payload.status) as OrderStatus,
+        subtotal,
+        discountAmount,
+        taxAmount,
+        totalAmount,
+        notes: payload.notes,
+        items: {
+          create: itemsToCreate,
+        },
+      },
+      include: buildOrderInclude(),
+    });
+
+    // Deduct stock for items where trackStock is enabled inside transaction
+    for (const item of created.items) {
+      if (item.product?.trackStock) {
+        const inv = await tx.inventory.findUnique({ where: { productId: item.productId } });
+        if (inv) {
+          await tx.inventory.update({
+            where: { productId: item.productId },
+            data: { quantity: Number(inv.quantity) - item.quantity },
+          });
+          await tx.stockTransaction.create({
+            data: {
+              productId: item.productId,
+              type: "sale",
+              quantity: -item.quantity,
+              referenceId: created.orderNumber,
+              userId: userId || null,
+            },
+          });
+        }
+      }
+    }
+
+    return formatOrder(created);
+  });
 };
 
 export const updateOrderStatus = async (id: number, status: string, userId?: number) => {
@@ -434,19 +522,25 @@ export const updateOrder = async (
   const itemsToCreate = [];
 
   for (const item of rawItems) {
-    const product = await findProductSafely(item.productId, (item as any).name || (item as any).productName);
+    const itemName = (item as any).name || (item as any).productName || (item as any).title;
+    const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
+    const product = await findProductSafely(item.productId, itemName, itemPrice);
 
     const qty = Math.max(1, Number(item.quantity || 1));
-    const unitPrice = toNum(item.unitPrice ?? item.price ?? product?.basePrice ?? 0);
-    const totalPrice = toNum(item.totalPrice ?? (unitPrice * qty));
+    const finalPrice = itemPrice > 0 ? itemPrice : toNum(product?.basePrice ?? 0);
+    const totalPrice = toNum(item.totalPrice ?? (finalPrice * qty));
 
     calculatedSubtotal += totalPrice;
 
+    if (!product) {
+      throw new Error(`Unable to resolve or create product for item: "${itemName || item.productId}"`);
+    }
+
     itemsToCreate.push({
-      productId: product ? product.id : 1,
+      productId: product.id,
       quantity: qty,
-      unitPrice,
-      totalPrice,
+      unitPrice: finalPrice,
+      totalPrice: totalPrice,
       notes: item.notes || null,
     });
   }

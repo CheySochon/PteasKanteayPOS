@@ -27,32 +27,31 @@ export async function createAuditLog(input: CreateAuditLogInput) {
       },
     });
 
-    // Send Telegram Alert
-    const telegramConfig = await getTelegramConfig();
-    const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Phnom_Penh" });
-    const actionUpper = String(input.action || "").toUpperCase();
-    const isLoginSuccess = (actionUpper === "LOGIN" || actionUpper.includes("LOGIN")) && input.status === "SUCCESS";
+    // Send Telegram Alert asynchronously (non-blocking)
+    void getTelegramConfig().then((telegramConfig) => {
+      const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Phnom_Penh" });
+      const actionUpper = String(input.action || "").toUpperCase();
+      const isLoginSuccess = (actionUpper === "LOGIN" || actionUpper.includes("LOGIN")) && input.status === "SUCCESS";
 
-    if (isLoginSuccess && telegramConfig.alertLogin) {
-      const message =
-        `🔐 <b>STAFF LOGIN ALERT</b>\n\n` +
-        `👤 <b>Staff:</b> ${input.userName} (${input.userRole})\n` +
-        `⏰ <b>Time:</b> ${nowStr}\n` +
-        `🌐 <b>IP/Device:</b> ${input.ipAddress || "Localhost"}\n` +
-        `✅ <b>Status:</b> Successful Login`;
-      const result = await sendTelegramMessage(message);
-      console.log("[Telegram Login Alert Result]:", result);
-    } else if (input.status === "FAILED" && telegramConfig.alertFailedLogin) {
-      const message =
-        `⚠️ <b>SECURITY WARNING: FAILED LOGIN ATTEMPT!</b>\n\n` +
-        `👤 <b>Target User:</b> ${input.userName}\n` +
-        `⏰ <b>Time:</b> ${nowStr}\n` +
-        `🌐 <b>IP/Device:</b> ${input.ipAddress || "Localhost"}\n` +
-        `❌ <b>Reason:</b> ${input.details || "Invalid Credentials"}\n` +
-        `⚠️ <b>Status:</b> Login Failed`;
-      const result = await sendTelegramMessage(message);
-      console.log("[Telegram Security Warning Result]:", result);
-    }
+      if (isLoginSuccess && telegramConfig.alertLogin) {
+        const message =
+          `🔐 <b>STAFF LOGIN ALERT</b>\n\n` +
+          `👤 <b>Staff:</b> ${input.userName} (${input.userRole})\n` +
+          `⏰ <b>Time:</b> ${nowStr}\n` +
+          `🌐 <b>IP/Device:</b> ${input.ipAddress || "Localhost"}\n` +
+          `✅ <b>Status:</b> Successful Login`;
+        sendTelegramMessage(message).catch(console.error);
+      } else if (input.status === "FAILED" && telegramConfig.alertFailedLogin) {
+        const message =
+          `⚠️ <b>SECURITY WARNING: FAILED LOGIN ATTEMPT!</b>\n\n` +
+          `👤 <b>Target User:</b> ${input.userName}\n` +
+          `⏰ <b>Time:</b> ${nowStr}\n` +
+          `🌐 <b>IP/Device:</b> ${input.ipAddress || "Localhost"}\n` +
+          `❌ <b>Reason:</b> ${input.details || "Invalid Credentials"}\n` +
+          `⚠️ <b>Status:</b> Login Failed`;
+        sendTelegramMessage(message).catch(console.error);
+      }
+    }).catch(console.error);
 
     return log;
   } catch (err: any) {

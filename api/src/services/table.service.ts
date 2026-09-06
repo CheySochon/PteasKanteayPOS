@@ -218,79 +218,76 @@ export const mergeTable = async (sourceTableId: number, targetTableId: number) =
     throw new Error("Source and target tables must be different");
   }
 
-  const [sourceTable, targetTable] = await Promise.all([
-    prisma.diningTable.findFirst({ where: { id: sourceTableId, deletedAt: null } }),
-    prisma.diningTable.findFirst({ where: { id: targetTableId, deletedAt: null } }),
-  ]);
+  return prisma.$transaction(async (tx) => {
+    const [sourceTable, targetTable] = await Promise.all([
+      tx.diningTable.findFirst({ where: { id: sourceTableId, deletedAt: null } }),
+      tx.diningTable.findFirst({ where: { id: targetTableId, deletedAt: null } }),
+    ]);
 
-  if (!sourceTable) throw new Error("Source table not found");
-  if (!targetTable) throw new Error("Target table not found");
+    if (!sourceTable) throw new Error("Source table not found");
+    if (!targetTable) throw new Error("Target table not found");
 
-  // Get or create active order for both target and source tables
-  const [sourceOrder, targetOrder] = await Promise.all([
-    getOrCreateActiveOrder(sourceTableId, sourceTable.name),
-    getOrCreateActiveOrder(targetTableId, targetTable.name),
-  ]);
+    const [sourceOrder, targetOrder] = await Promise.all([
+      getOrCreateActiveOrder(sourceTableId, sourceTable.name),
+      getOrCreateActiveOrder(targetTableId, targetTable.name),
+    ]);
 
-  // Move all OrderItems from sourceOrder to targetOrder if source has items
-  if (sourceOrder.items && sourceOrder.items.length > 0) {
-    await prisma.orderItem.updateMany({
-      where: { orderId: sourceOrder.id },
-      data: { orderId: targetOrder.id },
+    if (sourceOrder.items && sourceOrder.items.length > 0) {
+      await tx.orderItem.updateMany({
+        where: { orderId: sourceOrder.id },
+        data: { orderId: targetOrder.id },
+      });
+    }
+
+    const allTargetItems = await tx.orderItem.findMany({
+      where: { orderId: targetOrder.id },
     });
-  }
 
-  // Calculate new totals for targetOrder
-  const allTargetItems = await prisma.orderItem.findMany({
-    where: { orderId: targetOrder.id },
+    let newSubtotal = 0;
+    for (const item of allTargetItems) {
+      newSubtotal += Number(item.totalPrice);
+    }
+
+    const newTotalAmount = Math.max(
+      newSubtotal - Number(targetOrder.discountAmount || 0) + Number(targetOrder.taxAmount || 0),
+      0
+    );
+
+    const mergeNote = targetOrder.notes && !targetOrder.notes.includes(`Merged with ${sourceTable.name}`)
+      ? `${targetOrder.notes} (Merged with ${sourceTable.name})`
+      : `Merged with ${sourceTable.name}`;
+
+    const updatedTargetOrder = await tx.order.update({
+      where: { id: targetOrder.id },
+      data: {
+        subtotal: newSubtotal,
+        totalAmount: newTotalAmount,
+        notes: mergeNote,
+      },
+      include: {
+        table: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    await tx.order.update({
+      where: { id: sourceOrder.id },
+      data: {
+        status: targetOrder.status,
+        subtotal: 0,
+        totalAmount: 0,
+        notes: `Merged into ${targetTable.name}`,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Merged ${sourceTable.name} into ${targetTable.name}`,
+      mergedOrder: updatedTargetOrder,
+      sourceTable,
+      targetTable,
+    };
   });
-
-  let newSubtotal = 0;
-  for (const item of allTargetItems) {
-    newSubtotal += Number(item.totalPrice);
-  }
-
-  const newTotalAmount = Math.max(
-    newSubtotal - Number(targetOrder.discountAmount || 0) + Number(targetOrder.taxAmount || 0),
-    0
-  );
-
-  const mergeNote = targetOrder.notes && !targetOrder.notes.includes(`Merged with ${sourceTable.name}`)
-    ? `${targetOrder.notes} (Merged with ${sourceTable.name})`
-    : `Merged with ${sourceTable.name}`;
-
-  // Update target order
-  const updatedTargetOrder = await prisma.order.update({
-    where: { id: targetOrder.id },
-    data: {
-      subtotal: newSubtotal,
-      totalAmount: newTotalAmount,
-      notes: mergeNote,
-    },
-    include: {
-      table: true,
-      items: { include: { product: true } },
-    },
-  });
-
-  // Keep source order active with "Merged into [TargetTable]" note so source table stays joined
-  await prisma.order.update({
-    where: { id: sourceOrder.id },
-    data: {
-      status: targetOrder.status,
-      subtotal: 0,
-      totalAmount: 0,
-      notes: `Merged into ${targetTable.name}`,
-    },
-  });
-
-  return {
-    success: true,
-    message: `Merged ${sourceTable.name} into ${targetTable.name}`,
-    mergedOrder: updatedTargetOrder,
-    sourceTable,
-    targetTable,
-  };
 };
 
 export const unmergeTable = async (tableId: number) => {

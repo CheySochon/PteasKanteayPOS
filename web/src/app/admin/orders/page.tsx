@@ -1055,65 +1055,58 @@ export default function OrdersPage() {
 
                             {openActionId === order.id && (
                               <div
-                                className={`absolute right-4 z-30 w-44 rounded-2xl border p-1.5 text-left shadow-xl animate-[printerScaleIn_150ms_ease-out] ${
+                                className={`absolute right-4 z-30 w-48 rounded-2xl border p-1.5 text-left shadow-xl animate-[printerScaleIn_150ms_ease-out] ${
                                   dark
                                     ? "border-[#4e4f6e] bg-[#1f2130] text-slate-100"
                                     : "border-slate-200/90 bg-white text-slate-800"
                                 } ${index >= 3 && index >= visibleOrders.length - 2 ? "bottom-10" : "top-10"}`}
                               >
-                                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800/80 mb-1">
-                                  {t.changeStatus}
-                                </div>
-                                {statusOptions.map((status) => {
-                                  const isActive = order.status === status;
-                                  const dotColor =
-                                    status === "pending"
-                                      ? "bg-amber-500"
-                                      : status === "preparing"
-                                      ? "bg-blue-500"
-                                      : status === "completed"
-                                      ? "bg-emerald-500"
-                                      : "bg-rose-500";
+                                {/* 1. View Details */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    setSelectedOrder(order);
+                                  }}
+                                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                                    dark ? "text-slate-200 hover:bg-[#2b2c40]" : "text-slate-700 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  <Eye size={15} className="text-slate-500 shrink-0" />
+                                  <span>{language === "km" ? "មើលលម្អិត" : "View Details"}</span>
+                                </button>
 
-                                  return (
-                                    <button
-                                      key={status}
-                                      onClick={() => {
-                                        changeStatus(order, status);
-                                        setOpenActionId(null);
-                                      }}
-                                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold capitalize rounded-xl transition-all cursor-pointer ${
-                                        isActive
-                                          ? "bg-[#696cff]/10 text-[#696cff] font-bold"
-                                          : dark
-                                          ? "text-slate-200 hover:bg-[#2b2c40]"
-                                          : "text-slate-700 hover:bg-slate-50"
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} />
-                                        <span>{status}</span>
-                                      </div>
-                                      {isActive && <CheckCircle2 size={13} className="text-[#696cff] shrink-0" />}
-                                    </button>
-                                  );
-                                })}
+                                {/* 2. Edit Order (If active) */}
+                                {order.status !== "completed" && order.status !== "cancelled" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenActionId(null);
+                                      handleEditOrder(order);
+                                    }}
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold rounded-xl transition-all cursor-pointer text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                  >
+                                    <Pencil size={15} className="shrink-0" />
+                                    <span>{language === "km" ? "កែប្រែការបញ្ជាទិញ" : "Edit Order"}</span>
+                                  </button>
+                                )}
 
+                                {/* 3. Pay & Print / Print Receipt */}
                                 <div className="border-t border-slate-100 dark:border-slate-800/80 my-1 pt-1">
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      setOpenActionId(null);
                                       if (order.status !== "completed") {
                                         handlePayAndPrint(order);
                                       } else {
-                                        setOpenActionId(null);
                                         setPrintSlipOrder(order);
                                       }
                                     }}
-                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all cursor-pointer"
+                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-all cursor-pointer"
                                   >
-                                    <Printer size={14} />
-                                    <span>{order.status === "completed" ? (language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt") : (language === "km" ? "គិតលុយ & ព្រីន" : "Pay & Print")}</span>
+                                    {order.status === "completed" ? <Printer size={15} /> : <Banknote size={15} />}
+                                    <span>{order.status === "completed" ? (language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt") : (language === "km" ? "ទូទាត់ប្រាក់ & ព្រីន" : "Pay & Print Receipt")}</span>
                                   </button>
                                 </div>
                               </div>
@@ -1216,8 +1209,29 @@ export default function OrdersPage() {
                 {/* Order Status & Time */}
                 <div className={`flex items-center justify-between rounded-xl p-3.5 border ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50"}`}>
                   <div>
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Status</span>
-                    <OrderStatusBadge status={selectedOrder.status} />
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Status</span>
+                    <select
+                      value={selectedOrder.status}
+                      onChange={(e) => {
+                        const nextStatus = e.target.value as OrderStatus;
+                        changeStatus(selectedOrder, nextStatus);
+                        setSelectedOrder((prev: any) => prev ? { ...prev, status: nextStatus } : null);
+                      }}
+                      className={`text-xs font-bold px-2.5 py-1 rounded-xl border outline-none cursor-pointer transition-all ${
+                        selectedOrder.status === "pending"
+                          ? "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400"
+                          : selectedOrder.status === "preparing"
+                          ? "bg-blue-500/10 text-blue-600 border-blue-500/30 dark:text-blue-400"
+                          : selectedOrder.status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
+                          : "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400"
+                      }`}
+                    >
+                      <option value="pending" className="font-sans text-slate-800 dark:text-slate-200 bg-white dark:bg-[#1f2130]">🟡 Pending</option>
+                      <option value="preparing" className="font-sans text-slate-800 dark:text-slate-200 bg-white dark:bg-[#1f2130]">🔵 Preparing</option>
+                      <option value="completed" className="font-sans text-slate-800 dark:text-slate-200 bg-white dark:bg-[#1f2130]">🟢 Completed</option>
+                      <option value="cancelled" className="font-sans text-slate-800 dark:text-slate-200 bg-white dark:bg-[#1f2130]">🔴 Cancelled</option>
+                    </select>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Created</span>
@@ -1295,32 +1309,10 @@ export default function OrdersPage() {
                     <button
                       type="button"
                       onClick={() => handleEditOrder(selectedOrder)}
-                      className="flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3.5 text-xs font-bold text-white transition-all shadow-md shadow-amber-500/20 cursor-pointer active:scale-95"
+                      className="flex h-9 items-center gap-1.5 rounded-xl bg-red-500 hover:bg-red-600 px-3.5 text-xs font-bold text-white transition-all shadow-md shadow-red-500/20 cursor-pointer active:scale-95"
                     >
                       <Pencil size={15} />
                       {language === "km" ? "កែប្រែ" : "Edit"}
-                    </button>
-                  )}
-                  {selectedOrder.status !== "completed" ? (
-                    <button
-                      type="button"
-                      onClick={() => handlePayAndPrint(selectedOrder)}
-                      className="flex h-9 items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#439150] px-4 text-xs font-bold text-white transition-all shadow-md shadow-[#55a060]/20 cursor-pointer active:scale-95"
-                    >
-                      <Banknote size={15} />
-                      {language === "km" ? "ទូទាត់ប្រាក់ & ព្រីនវិក្កយបត្រ" : "Pay & Print Receipt"}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPrintSlipOrder(selectedOrder);
-                        setSelectedOrder(null);
-                      }}
-                      className="flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/20 cursor-pointer active:scale-95"
-                    >
-                      <Printer size={15} />
-                      {language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt"}
                     </button>
                   )}
                   <button

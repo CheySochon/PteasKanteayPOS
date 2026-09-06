@@ -171,7 +171,10 @@ function sanitizeValue(key: string, value: unknown): SettingValue {
 }
 
 export const listSettings = async () => {
-  await ensureDefaults();
+  const count = await prisma.appSetting.count();
+  if (count < getAllowedKeys().length) {
+    await ensureDefaults();
+  }
   const rows = await prisma.appSetting.findMany({
     orderBy: [{ category: "asc" }, { key: "asc" }],
   });

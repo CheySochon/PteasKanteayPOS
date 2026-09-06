@@ -154,11 +154,11 @@ function KdsContent() {
               playKitchenBellSound();
             }
 
-            // As requested, only append new orders. Don't overwrite existing ones
-            if (newOrders.length === 0) {
-              return current;
-            }
-            return [...current, ...newOrders];
+            const fetchedMap = new Map(fetchedOrders.map((o) => [o.id, o]));
+            return fetchedOrders.map((o) => {
+              const existing = current.find((item) => item.id === o.id);
+              return existing ? { ...existing, ...o } : o;
+            });
           });
         })
         .catch((err) => {

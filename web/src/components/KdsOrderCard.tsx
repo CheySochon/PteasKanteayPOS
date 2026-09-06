@@ -99,7 +99,10 @@ const KdsOrderCard = memo(function KdsOrderCard({
       const nextMap = { ...prev, [itemId]: nextStatus };
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem("pos_kds_item_statuses", JSON.stringify(nextMap));
+          const raw = localStorage.getItem("pos_kds_item_statuses");
+          const globalObj = raw ? JSON.parse(raw) : {};
+          globalObj[itemId] = nextStatus;
+          localStorage.setItem("pos_kds_item_statuses", JSON.stringify(globalObj));
           window.dispatchEvent(new Event("pos-item-status-change"));
         } catch (e) {}
       }

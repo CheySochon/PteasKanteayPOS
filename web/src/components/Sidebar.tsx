@@ -334,12 +334,23 @@ export default function Sidebar({
     getServerStaffPermissionsSnapshot
   );
 
+  const activeUser = useMemo(() => {
+    if (currentUser?.name && currentUser.name !== "Guest") return currentUser;
+    if (typeof window !== "undefined") {
+      const stored = parseStoredUser(localStorage.getItem("pos_user"));
+      if (stored.name && stored.name !== "Guest") return stored;
+    }
+    return { id: 1, name: "CheySochon", role: "SUPER ADMIN", roleName: "SUPER_ADMIN" };
+  }, [currentUser]);
+
+  const profileImg = getProfileImage(activeUser);
+
   const [groupsVersion, setGroupsVersion] = useState(0);
 
   useEffect(() => {
     // Fetch live group permissions from PostgreSQL DB API on mount
     const handleUpdate = () => {
-      void getAdminGroups(true).then(() => setGroupsVersion((v) => v + 1)).catch(() => null);
+      void getAdminGroups().then(() => setGroupsVersion((v) => v + 1)).catch(() => null);
     };
 
     handleUpdate();
@@ -698,60 +709,71 @@ export default function Sidebar({
             </div>
           </div>
 
-          {!sidebarCollapsed && (
-            <div className="min-w-0 flex-1 overflow-hidden transition-opacity duration-150">
-              <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[19.5px] font-medium" : "text-[18.5px] font-medium"}`}>
-                {restaurantName}
-              </div>
+          <div className={`min-w-0 flex-1 overflow-hidden transition-all duration-200 ease-in-out ${
+            sidebarCollapsed ? "opacity-0 w-0 max-w-0 invisible" : "opacity-100 w-auto max-w-[200px] visible"
+          }`}>
+            <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[19.5px] font-medium" : "text-[18.5px] font-medium"}`}>
+              {restaurantName}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* User Profile Card under POS Header - Clickable to Profile Page */}
+      {/* User Profile Card */}
       {!sidebarCollapsed && (
-        <Link
-          href="/admin/profile"
-          prefetch={true}
-          onClick={() => setLocalActiveNav("")}
-          title={language === "km" ? "មើលគណនីផ្ទាល់ខ្លួន" : "View Profile Account"}
-          className={`mx-3 px-3 py-2 my-1 flex items-center gap-3 overflow-hidden rounded-xl transition-all duration-150 cursor-pointer group active:scale-98 ${
-            pathname === "/admin/profile"
-              ? dark ? "bg-[#55a060]/20 ring-1 ring-[#55a060]/40" : "bg-[#55a060]/10 ring-1 ring-[#55a060]/30"
-              : dark ? "hover:bg-[#232333]/80" : "hover:bg-slate-100/80"
-          }`}
-        >
-          {getProfileImage(currentUser) ? (
-            <img
-              src={getProfileImage(currentUser)!}
-              alt={currentUser.name}
-              className="h-10 w-10 rounded-full object-cover ring-1 ring-[#55a060]/30 shadow-xs shrink-0 transition-transform duration-200 group-hover:scale-105"
-            />
-          ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#55a060]/15 text-[#55a060] text-xs font-black shadow-xs transition-transform duration-200 group-hover:scale-105">
-              {initials(currentUser.name)}
+        <div className="mx-3 py-1 mb-1">
+          <Link
+            href="/admin/profile"
+            className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 ease-in-out hover:bg-slate-100 dark:hover:bg-[#232333]/90 active:scale-[0.98] cursor-pointer group"
+          >
+            <div className="relative shrink-0">
+              {profileImg ? (
+                <img
+                  src={profileImg}
+                  alt={activeUser.name}
+                  className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-200/80 group-hover:ring-[#55a060]/40 shadow-xs transition-all"
+                />
+              ) : (
+                <span className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white shadow-xs group-hover:scale-105 transition-transform ${profileAvatarClass(activeUser.role)}`}>
+                  {activeUser.name ? initials(activeUser.name) : <UserRound size={18} />}
+                </span>
+              )}
             </div>
-          )}
-          <div className="min-w-0 flex-1 whitespace-nowrap">
-            <div className={`truncate text-[13px] font-semibold transition-colors ${
-              pathname === "/admin/profile"
-                ? "text-[#55a060]"
-                : dark ? "text-white group-hover:text-[#55a060]" : "text-slate-800 group-hover:text-[#55a060]"
-            } ${language === "km" ? "font-khmer text-xs" : ""}`}>
-              {currentUser.name}
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className={`text-[13.5px] font-semibold truncate tracking-tight group-hover:text-[#55a060] transition-colors ${dark ? "text-slate-100" : "text-slate-800"}`}>
+                {activeUser.name}
+              </div>
+              <div className="mt-0.5 inline-flex items-center rounded-md px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider bg-[#e6f7ef] text-[#1D9E75] dark:bg-[#1D9E75]/20 dark:text-[#34d399]">
+                {activeUser.role}
+              </div>
             </div>
-            <div className="mt-0.5 flex items-center">
-              <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                dark 
-                  ? "bg-[#55a060]/20 text-[#55a060]" 
-                  : "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20"
-              }`}>
-                {currentUser.role}
-              </span>
-            </div>
-          </div>
-        </Link>
+          </Link>
+        </div>
       )}
+
+      {sidebarCollapsed && (
+        <div className="py-2 flex justify-center">
+          <Link
+            href="/admin/profile"
+            title={activeUser.name}
+            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#232333] transition-all active:scale-95 flex items-center justify-center"
+          >
+            {profileImg ? (
+              <img
+                src={profileImg}
+                alt={activeUser.name}
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-[#55a060]/30 shadow-xs hover:scale-105 transition-transform"
+              />
+            ) : (
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs hover:scale-105 transition-transform ${profileAvatarClass(activeUser.role)}`}>
+                {activeUser.name ? initials(activeUser.name) : <UserRound size={15} />}
+              </span>
+            )}
+          </Link>
+        </div>
+      )}
+
+
 
       <button
         type="button"
@@ -1158,11 +1180,11 @@ function SideNavItem({
       }}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`group flex items-center border-none cursor-pointer my-1 transition-all duration-150 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] 
+      className={`group flex items-center border-none cursor-pointer my-1 transition-all duration-200 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] overflow-hidden 
         ${
           collapsed
-            ? "h-11 w-11 mx-auto justify-center rounded-full px-0"
-            : "w-full h-[46px] gap-3.5 rounded-full px-4.5 justify-start"
+            ? "h-11 w-11 mx-auto justify-center rounded-2xl px-0"
+            : "w-full h-[44px] gap-3.5 rounded-2xl px-3.5 justify-start"
         }
         ${
           active
@@ -1176,21 +1198,23 @@ function SideNavItem({
         ${isKhmer ? "font-medium text-[15.5px] leading-normal" : active ? "font-semibold text-[15.5px]" : "font-medium text-[15.5px]"}
       `}
     >
-      <span className={`${collapsed ? "w-11 h-11" : "w-6 h-6"} shrink-0 flex items-center justify-center transition-all duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
+      <span className={`w-6 h-6 shrink-0 flex items-center justify-center transition-transform duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
         {icon}
       </span>
 
-      {!collapsed && (
-        <span
-          className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 ${contentClass} ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}
-        >
-          {label}
-        </span>
-      )}
+      <span
+        className={`flex-1 whitespace-nowrap overflow-hidden transition-all duration-200 ease-in-out ${contentClass} ${
+          collapsed ? "opacity-0 w-0 max-w-0 invisible" : "opacity-100 w-auto max-w-[200px] visible"
+        } ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}
+      >
+        {label}
+      </span>
 
-      {!collapsed && trailing && (
+      {trailing && (
         <span
-          className={`shrink-0 pr-1.5 flex items-center justify-center transition-opacity duration-150 ${contentClass} ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-400 group-hover:text-slate-900"}`}
+          className={`shrink-0 pr-1.5 flex items-center justify-center transition-all duration-200 ease-in-out ${contentClass} ${
+            collapsed ? "opacity-0 w-0 max-w-0 invisible" : "opacity-100 w-auto visible"
+          } ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-400 group-hover:text-slate-900"}`}
         >
           {trailing}
         </span>

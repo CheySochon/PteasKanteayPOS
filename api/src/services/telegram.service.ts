@@ -45,8 +45,8 @@ export async function getTelegramConfig() {
   const rawToken = extractVal(configMap["telegramBotToken"] || configMap["telegram_bot_token"]);
   const rawChatId = extractVal(configMap["telegramChatId"] || configMap["telegram_chat_id"]);
 
-  const botToken = rawToken || process.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN;
-  const chatId = rawChatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_CHAT_ID;
+  const botToken = rawToken || process.env.TELEGRAM_BOT_TOKEN || "";
+  const chatId = rawChatId || process.env.TELEGRAM_CHAT_ID || "";
 
   return {
     botToken,
@@ -60,8 +60,8 @@ export async function getTelegramConfig() {
 export async function sendTelegramMessage(message: string, customToken?: string, customChatId?: string) {
   try {
     const config = await getTelegramConfig();
-    const token = (customToken || config.botToken || DEFAULT_BOT_TOKEN).trim();
-    const chatId = (customChatId || config.chatId || DEFAULT_CHAT_ID).trim();
+    const token = (customToken || config.botToken).trim();
+    const chatId = (customChatId || config.chatId).trim();
 
     if (!token || !chatId) {
       console.log("[Telegram Alert] Skipped: Bot Token or Chat ID empty.");

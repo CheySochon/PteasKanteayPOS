@@ -111,9 +111,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
       window.dispatchEvent(new Event("pos-permissions-change"));
 
-      if (!canAccessPath(pathname, roleName(currentUser), staffPermissions)) {
+      if (!canAccessPath(pathname, currentUser, staffPermissions)) {
         setDenied(true);
-        router.replace(firstAllowedPathForRole(roleName(currentUser), staffPermissions));
+        router.replace(firstAllowedPathForRole(currentUser, staffPermissions));
       } else {
         setDenied(false);
         setAuthorizedPath(pathname);
@@ -136,9 +136,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new Event("pos-auth-change"));
         window.dispatchEvent(new Event("pos-permissions-change"));
 
-        if (!canAccessPath(pathname, roleName(updatedUser), staffPermissions)) {
+        if (!canAccessPath(pathname, updatedUser, staffPermissions)) {
           setDenied(true);
-          router.replace(firstAllowedPathForRole(roleName(updatedUser), staffPermissions));
+          router.replace(firstAllowedPathForRole(updatedUser, staffPermissions));
         } else {
           setDenied(false);
           setAuthorizedPath(pathname);
@@ -168,9 +168,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new Event("pos-auth-change"));
         window.dispatchEvent(new Event("pos-permissions-change"));
 
-        if (!canAccessPath(pathname, roleName(updatedUser), staffPermissions)) {
+        if (!canAccessPath(pathname, updatedUser, staffPermissions)) {
           setDenied(true);
-          router.replace(firstAllowedPathForRole(roleName(updatedUser), staffPermissions));
+          router.replace(firstAllowedPathForRole(updatedUser, staffPermissions));
         } else {
           setDenied(false);
           setAuthorizedPath(pathname);

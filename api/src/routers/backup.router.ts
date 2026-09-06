@@ -4,6 +4,8 @@ import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { roleMiddleware } from "../middlewares/role.middleware.js";
 import {
   download,
+  downloadSql,
+  exportExcel,
   list,
   latest,
   preview,
@@ -15,6 +17,8 @@ const adminOnly = [authMiddleware, roleMiddleware(["Admin"])];
 
 router.get("/", ...adminOnly, asyncHandler(list));
 router.get("/download", ...adminOnly, asyncHandler(download));
+router.get("/download-sql", ...adminOnly, asyncHandler(downloadSql));
+router.get("/export-excel", ...adminOnly, asyncHandler(exportExcel));
 router.get("/latest", ...adminOnly, asyncHandler(latest));
 router.post("/preview", ...adminOnly, asyncHandler(preview));
 router.post("/restore", ...adminOnly, asyncHandler(restore));

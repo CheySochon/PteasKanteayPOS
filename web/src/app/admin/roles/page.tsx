@@ -367,7 +367,7 @@ export default function RolesPage() {
   const borderCol = dark ? "border-[#4e4f6e]" : "border-slate-200/90";
 
   return (
-    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+    <main className={`flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       
       {/* Toast Notifications */}
       {message && (

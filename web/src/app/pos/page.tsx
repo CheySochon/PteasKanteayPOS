@@ -972,6 +972,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
+          name: item.name,
+          unitPrice: item.unitPrice,
+          notes: item.notes || "",
         })),
         table: selectedTable ? { name: displayTableName || selectedTable.name } : null,
         _paymentMethod: paymentMethod,
@@ -1379,7 +1382,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
             {/* Editing Order Banner */}
             {editingOrder && (
-              <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-amber-500 text-white text-xs font-bold shrink-0 border-b border-amber-600 shadow-xs">
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-red-500 text-white text-xs font-bold shrink-0 border-b border-red-600 shadow-xs">
                 <div className="flex items-center gap-1.5 truncate">
                   <Pencil size={14} className="shrink-0" />
                   <span className="truncate">
@@ -1389,7 +1392,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 <button
                   type="button"
                   onClick={cancelEditOrder}
-                  className="p-1 rounded-md hover:bg-amber-600 text-white transition-colors cursor-pointer shrink-0"
+                  className="p-1 rounded-md hover:bg-red-600 text-white transition-colors cursor-pointer shrink-0"
                   title="Cancel Edit"
                 >
                   <X size={14} />
@@ -2555,14 +2558,14 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               {/* Table Zones & Tables Grid */}
               <div className="space-y-6">
                 {/* Dynamically group tables by zone */}
-                {["indoor", "outdoor", "vip"].map((zone) => {
+                {["indoor", "outdoor"].map((zone) => {
                   const zoneTables = tables.filter((t) => t.zone.toLowerCase() === zone);
                   if (zoneTables.length === 0) return null;
 
                   return (
                     <div key={zone} className="space-y-3">
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5 capitalize">
-                        📍 Zone: {zone === "indoor" ? "ខាងក្នុង (Indoor)" : zone === "outdoor" ? "ខាងក្រៅ (Outdoor)" : "វីអាយភី (VIP)"}
+                        📍 Zone: {zone === "indoor" ? "ខាងក្នុង (Indoor)" : "ខាងក្រៅ (Outdoor)"}
                       </h4>
                       
                       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

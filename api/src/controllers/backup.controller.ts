@@ -8,6 +8,8 @@ import {
   validateBackup,
   backupSummary,
   restoreBackupData,
+  generateSqlDump,
+  generateBusinessExcel,
   type Backup,
 } from "../services/backup.service.js";
 import { createAuditLog } from "../services/audit.service.js";
@@ -22,6 +24,27 @@ export const download = asyncHandler(async (req: Request, res: Response) => {
     `attachment; filename="pos-backup-${new Date().toISOString().slice(0, 10)}.json"`,
   );
   res.send(JSON.stringify(backup, null, 2));
+});
+
+export const downloadSql = asyncHandler(async (_req: Request, res: Response) => {
+  const sqlString = await generateSqlDump();
+  const filename = `pos-database-backup-${new Date().toISOString().slice(0, 10)}.sql`;
+
+  res.setHeader("Content-Type", "application/sql");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(sqlString);
+});
+
+export const exportExcel = asyncHandler(async (_req: Request, res: Response) => {
+  const excelBuffer = await generateBusinessExcel();
+  const filename = `pos-business-reports-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.send(excelBuffer);
 });
 
 export const list = asyncHandler(async (_req: Request, res: Response) => {

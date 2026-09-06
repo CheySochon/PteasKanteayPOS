@@ -50,6 +50,8 @@ import {
 import {
   apiOrigin,
   downloadBackup,
+  downloadSqlBackup,
+  downloadBusinessExcel,
   getBackupFiles,
   getSettings,
   previewBackup,
@@ -210,7 +212,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
-  const [backupBusy, setBackupBusy] = useState<"download" | "latest" | "preview" | "restore" | "refresh" | "">("");
+  const [backupBusy, setBackupBusy] = useState<"download" | "download-sql" | "excel" | "latest" | "preview" | "restore" | "refresh" | "">("");
   const [restoreFileName, setRestoreFileName] = useState("");
   const [restorePayload, setRestorePayload] = useState<unknown>(null);
   const [restorePreview, setRestorePreview] = useState<BackupSummary | null>(null);
@@ -555,6 +557,34 @@ export default function SettingsPage() {
       setMessage("Latest backup downloaded.");
     } catch (err) {
       setError(err instanceof Error ? `${err.message}. No backup may exist yet.` : "Unable to download latest backup");
+    } finally {
+      setBackupBusy("");
+    }
+  }
+
+  async function handleDownloadSql() {
+    setBackupBusy("download-sql");
+    setMessage("");
+    setError("");
+    try {
+      await downloadSqlBackup();
+      setMessage("SQL Database backup downloaded successfully.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download SQL backup");
+    } finally {
+      setBackupBusy("");
+    }
+  }
+
+  async function handleDownloadExcel() {
+    setBackupBusy("excel");
+    setMessage("");
+    setError("");
+    try {
+      await downloadBusinessExcel();
+      setMessage("Business reports exported to Excel (.xlsx) successfully.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export Excel report");
     } finally {
       setBackupBusy("");
     }
@@ -1306,59 +1336,84 @@ export default function SettingsPage() {
               {/* TAB 5: SYSTEM & BACKUPS */}
               {activeTab === "security" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out] space-y-6">
-
                   {/* Page heading */}
-                  <h2 className={`text-2xl font-normal ${textPrimary}`}>
-                    {language === "km" ? "ប្រព័ន្ធ និងការចម្លងទុក" : "System & Backups"}
-                  </h2>
-
-                  {/* ── Backup & Restore Card ── */}
-                  <div className={`rounded-2xl border ${borderCol} ${surface} p-6`}>
-                    <div className="mb-5">
-                      <div className={`text-sm font-black ${textPrimary}`}>
-                        {language === "km" ? "ការចម្លងទុក និងស្ដារ" : "Backup & Restore"}
-                      </div>
-                      <div className={`text-xs ${textSecondary} mt-0.5`}>
-                        {language === "km" ? "គ្រប់គ្រងការចម្លង Export និង Recovery" : "Manage system backups, automatic exports, and disaster recovery."}
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className={`text-2xl font-bold ${textPrimary}`}>
+                        {language === "km" ? "ប្រព័ន្ធ និងការចម្លងទុកទិន្នន័យ (System & Backup)" : "System & Backup Settings"}
+                      </h2>
+                      <p className={`text-xs ${textSecondary} mt-1`}>
+                        {language === "km" ? "គ្រប់គ្រងការ Backup តាម Database (SQL/JSON) និង Export របាយការណ៍ជា Excel" : "Manage database backups, automated disaster recovery, and Excel business reports."}
+                      </p>
                     </div>
+                  </div>
 
-                    {!isSuperAdmin ? (
-                      <div className={`rounded-xl border p-4 text-xs font-medium ${borderCol} ${softSurface} ${textSecondary}`}>
-                        {language === "km" ? "សូម Login ជា Admin ដើម្បីគ្រប់គ្រង Backup" : "Login as Admin or Super Admin to manage backups."}
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-3">
+                  {!isSuperAdmin ? (
+                    <div className={`rounded-xl border p-4 text-xs font-medium ${borderCol} ${softSurface} ${textSecondary}`}>
+                      {language === "km" ? "សូម Login ជា Admin ដើម្បីគ្រប់គ្រង Backup" : "Login as Admin or Super Admin to manage backups."}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* SECTION 1: DATABASE BACKUP & SYSTEM RECOVERY (.SQL / .JSON) */}
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5 shadow-xs`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                              <Database size={20} />
+                            </div>
+                            <div>
+                              <h3 className={`text-base font-bold ${textPrimary}`}>
+                                {language === "km" ? "១. ការចម្លងទុក និងស្ដារប្រព័ន្ធ Database (.SQL / .JSON)" : "1. Database Snapshot & Disaster Recovery (.SQL / .JSON)"}
+                              </h3>
+                              <p className={`text-xs ${textSecondary}`}>
+                                {language === "km" ? "ទាញយក Full Relational Database Snapshot សម្រាប់ការពារទិន្នន័យ និងស្ដារប្រព័ន្ធឡើងវិញ" : "Full relational database snapshot for system migration and disaster recovery."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <button
+                            type="button"
+                            onClick={handleDownloadSql}
+                            disabled={Boolean(backupBusy)}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-3 text-xs font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-sm shadow-[#55a060]/20"
+                          >
+                            {backupBusy === "download-sql" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
+                            <span>{language === "km" ? "ទាញយក SQL Backup (.sql)" : "Download SQL Backup (.sql)"}</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={createAndDownloadBackup}
                             disabled={Boolean(backupBusy)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-4 text-sm font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-sm shadow-[#55a060]/20"
+                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            {language === "km" ? "បង្កើត Backup" : "Create Backup"}
+                            <span>{language === "km" ? "ទាញយក JSON Snapshot (.json)" : "Download JSON Snapshot (.json)"}</span>
                           </button>
 
                           <button
                             type="button"
                             onClick={downloadLatestBackup}
                             disabled={Boolean(backupBusy) || backupFiles.length === 0}
-                            className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
+                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
                           >
                             {backupBusy === "latest" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            {language === "km" ? "ទាញយកចុងក្រោយ" : "Download Latest"}
+                            <span>{language === "km" ? "ទាញយក Backup ចុងក្រោយ" : "Download Latest Backup"}</span>
                           </button>
 
-                          <label className={`inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800`}>
+                          <label className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800`}>
                             {backupBusy === "preview" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                            {language === "km" ? "ជ្រើសរើស Restore File" : "Choose Restore File"}
-                            <input type="file" accept="application/json,.json" disabled={Boolean(backupBusy)} onChange={selectRestoreFile} className="hidden" />
+                            <span>{language === "km" ? "ស្ដារ Database (Restore)" : "Restore Database (.sql/.json)"}</span>
+                            <input type="file" accept="application/json,.json,.sql" disabled={Boolean(backupBusy)} onChange={selectRestoreFile} className="hidden" />
                           </label>
                         </div>
 
+                        {/* File preview for Restore */}
                         {restorePreview && (
-                          <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
+                          <div className={`rounded-xl border p-4 border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20`}>
                             <div className={`truncate text-xs font-extrabold ${textPrimary}`}>{restoreFileName}</div>
                             <div className={`mt-1 text-[11px] font-medium ${textSecondary}`}>
                               {backupTotal(restorePreview)} records · {formatDate(restorePreview.createdAt)}
@@ -1370,32 +1425,45 @@ export default function SettingsPage() {
                               className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-xs font-bold text-white hover:bg-red-700 active:scale-95 transition-all shadow-sm shadow-red-600/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {backupBusy === "restore" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
-                              {language === "km" ? "ស្ដារ Backup" : "Restore Backup"}
+                              {language === "km" ? "យល់ព្រម ស្ដារ Database ឡើងវិញ" : "Confirm Restore Database"}
                             </button>
                           </div>
                         )}
+                      </div>
 
-                        <div className={`rounded-xl border p-4 ${borderCol} ${softSurface}`}>
-                          <div className={`text-[10px] font-extrabold uppercase tracking-wider ${textSecondary}`}>
-                            {language === "km" ? "Backup ចុងក្រោយ" : "Latest Saved Backup"}
-                          </div>
-                          {backupFiles[0] ? (
-                            <>
-                              <div className={`mt-1.5 truncate text-xs font-bold ${textPrimary}`}>{backupFiles[0].filename}</div>
-                              <div className={`mt-0.5 text-[11px] font-medium ${textSecondary}`}>
-                                {formatFileSize(backupFiles[0].size)} · {formatDate(backupFiles[0].updatedAt || backupFiles[0].createdAt, backupFiles[0].filename)}
-                              </div>
-                            </>
-                          ) : (
-                            <div className={`mt-1.5 text-xs ${textSecondary}`}>
-                              {language === "km" ? "មិនទាន់មាន Backup ទេ" : "No saved backups yet."}
+                      {/* SECTION 2: BUSINESS & FINANCIAL REPORTS (.XLSX EXCEL) */}
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5 shadow-xs`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
+                              <ReceiptText size={20} />
                             </div>
-                          )}
+                            <div>
+                              <h3 className={`text-base font-bold ${textPrimary}`}>
+                                {language === "km" ? "២. របាយការណ៍អាជីវកម្ម និងហិរញ្ញវត្ថុ (.xlsx Excel Reports)" : "2. Business & Financial Reports (.xlsx Excel Export)"}
+                              </h3>
+                              <p className={`text-xs ${textSecondary}`}>
+                                {language === "km" ? "ទាញយករបាយការណ៍សរុបប្រចាំថ្ងៃ ការលក់ ស្តុក និងគណនេយ្យទៅជា File Excel (Multi-Sheet Excel Workbook)" : "Export comprehensive sales, inventory, staff, and purchasing reports into a multi-sheet Excel workbook."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Export Button */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleDownloadExcel}
+                            disabled={Boolean(backupBusy)}
+                            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-5 text-xs font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-sm shadow-[#55a060]/20"
+                          >
+                            {backupBusy === "excel" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
+                            <span>{language === "km" ? "ទាញយករបាយការណ៍អាជីវកម្មសរុប (.xlsx Excel)" : "Export Complete Business Reports (.xlsx Excel)"}</span>
+                          </button>
                         </div>
                       </div>
-                    )}
-                  </div>
-
+                    </div>
+                  )}
                 </div>
               )}
 

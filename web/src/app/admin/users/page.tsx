@@ -457,7 +457,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
+    <main className={`flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
       
       {/* Toast Notifications */}
       {message && (
@@ -573,7 +573,7 @@ export default function AdminUsersPage() {
         </div>
 
         {/* MAIN TABLE PANEL */}
-          <div className={`rounded-2xl border shadow-sm overflow-hidden ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
+          <div className={`rounded-2xl border shadow-sm overflow-visible relative ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
             
             {/* TOP ACTION TOOLBAR */}
             <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
@@ -784,14 +784,14 @@ export default function AdminUsersPage() {
                                       setActionMenuPos(null);
                                     } else {
                                       const rect = e.currentTarget.getBoundingClientRect();
-                                      const openUpwards = rect.bottom + 160 > window.innerHeight;
+                                      const openUpwards = rect.bottom > (window.innerHeight - 220);
                                       const menuWidth = 176;
-                                      const maxLeft = typeof window !== "undefined" ? window.innerWidth - menuWidth - 20 : rect.right - menuWidth;
-                                      const targetLeft = rect.right - menuWidth + 10;
-                                      const calculatedLeft = Math.max(12, Math.min(maxLeft, targetLeft));
+                                      const targetLeft = rect.right - menuWidth - 4;
+                                      const maxLeft = typeof window !== "undefined" ? window.innerWidth - menuWidth - 28 : targetLeft;
+                                      const calculatedLeft = Math.max(16, Math.min(maxLeft, targetLeft));
                                       setActionMenuPos({
-                                        top: openUpwards ? undefined : rect.bottom + 4,
-                                        bottom: openUpwards ? window.innerHeight - rect.top + 4 : undefined,
+                                        top: openUpwards ? undefined : Math.min(rect.bottom + 4, window.innerHeight - 130),
+                                        bottom: openUpwards ? Math.max(16, window.innerHeight - rect.top + 4) : undefined,
                                         left: calculatedLeft,
                                       });
                                       setActionMenuOpen(user.id);

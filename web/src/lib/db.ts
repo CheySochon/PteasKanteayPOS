@@ -18,20 +18,25 @@ interface PosDB extends DBSchema {
   };
 }
 
+let dbPromise: ReturnType<typeof openDB<PosDB>> | null = null;
+
 export async function initDB() {
-  return openDB<PosDB>("pos-db", 1, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains("cache")) {
-        db.createObjectStore("cache");
-      }
-      if (!db.objectStoreNames.contains("offlineOrders")) {
-        const orderStore = db.createObjectStore("offlineOrders", {
-          keyPath: "id",
-        });
-        orderStore.createIndex("by-date", "createdAt");
-      }
-    },
-  });
+  if (!dbPromise) {
+    dbPromise = openDB<PosDB>("pos-db", 1, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains("cache")) {
+          db.createObjectStore("cache");
+        }
+        if (!db.objectStoreNames.contains("offlineOrders")) {
+          const orderStore = db.createObjectStore("offlineOrders", {
+            keyPath: "id",
+          });
+          orderStore.createIndex("by-date", "createdAt");
+        }
+      },
+    });
+  }
+  return dbPromise;
 }
 
 // Cache Management

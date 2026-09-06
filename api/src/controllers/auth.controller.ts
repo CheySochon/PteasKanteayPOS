@@ -337,7 +337,6 @@ export const getPublicStaff = async (
         id: true,
         name: true,
         email: true,
-        pin: true,
         imageUrl: true,
         userGroups: {
           select: {
@@ -360,7 +359,6 @@ export const getPublicStaff = async (
         id: u.id,
         name: u.name,
         email: u.email,
-        pin: u.pin,
         imageUrl: u.imageUrl,
         role: { name: groupName },
         roleName: groupName,

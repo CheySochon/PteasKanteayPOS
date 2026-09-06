@@ -626,6 +626,19 @@ export default function ReportsPage() {
     };
   }, [refreshReports]);
 
+  useEffect(() => {
+    const handleViewChange = (e: any) => {
+      const tab = e.detail;
+      if (tab === "orders" || tab === "purchases" || tab === "payments" || tab === "stock") {
+        setReportTab(tab);
+      }
+    };
+    window.addEventListener("pos-reports-view-change", handleViewChange);
+    return () => {
+      window.removeEventListener("pos-reports-view-change", handleViewChange);
+    };
+  }, []);
+
   // Compute Realtime Filtered Orders from real-time database
   const filteredRealtimeOrders = useMemo(() => {
     return orders.filter((o: any) => {
@@ -1002,8 +1015,8 @@ export default function ReportsPage() {
     <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"} ${language === "km" ? "font-khmer" : ""}`}>
       <div className="mx-auto w-full max-w-[1400px] px-4 py-4 lg:px-6">
         {/* Sub-Header Control Bar matching Staff & Roles / Permissions */}
-        <div className="pt-1 flex shrink-0 print:hidden mb-4">
-          <div className="w-full flex flex-col gap-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="pt-1 flex shrink-0 print:hidden mb-5">
+          <div className="w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex items-center gap-3">
               {/* Normal Page Title */}
               <h1 className={`text-xl font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>
@@ -1272,9 +1285,9 @@ export default function ReportsPage() {
                 </div>
               )}
             </div>
+          </div>
         </div>
-      </div>
-      
+
         <div className="w-full" id="report-printable-area">
           {error && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 print:hidden">

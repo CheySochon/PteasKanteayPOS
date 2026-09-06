@@ -121,7 +121,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const currentApiUrl = getApiBaseUrl();
   let response: Response;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   try {
     response = await fetch(`${currentApiUrl}${path}`, {
       method: options.method || "GET",
@@ -1211,6 +1211,66 @@ export const restoreBackup = async (body: unknown): Promise<RestoreBackupResult>
     };
   }
 };
+
+export async function downloadSqlBackup() {
+  const token = getStoredToken();
+  const headers: HeadersInit = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const currentApiUrl = getApiBaseUrl();
+  const response = await fetch(`${currentApiUrl}/backups/download-sql`, {
+    headers,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download SQL backup (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || `pos-database-${new Date().toISOString().slice(0, 10)}.sql`;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadBusinessExcel() {
+  const token = getStoredToken();
+  const headers: HeadersInit = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const currentApiUrl = getApiBaseUrl();
+  const response = await fetch(`${currentApiUrl}/backups/export-excel`, {
+    headers,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download Excel report (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const filename = match?.[1] || `pos-business-reports-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 export async function downloadBackup(latest = false) {
   try {
