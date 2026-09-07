@@ -102,10 +102,10 @@ const NAV_SYSTEM = [
 ];
 
 const AUTH_CHILDREN = [
-  { key: "admin", label: "Admin", href: "/admin/users", icon: UserRound },
-  { key: "logs", label: "Admin log", href: "/admin/logs", icon: FileText },
-  { key: "group", label: "Group", href: "/admin/groups", icon: UsersRound },
-  { key: "rule", label: "Rule", href: "/admin/roles", icon: ShieldCheck },
+  { key: "admin", label: "Staff Management", href: "/admin/users", icon: UserRound },
+  { key: "logs", label: "Audit Logs", href: "/admin/logs", icon: FileText },
+  { key: "group", label: "Role Groups", href: "/admin/groups", icon: UsersRound },
+  { key: "rule", label: "Permissions", href: "/admin/roles", icon: ShieldCheck },
 ];
 
 let cachedStaffPermissionsRaw = "";
@@ -137,12 +137,15 @@ const TEXT = {
       Invoices: "Invoices",
       Users: "Users",
       Auth: "Auth",
-      Admin: "Admin",
-      "Admin log": "Admin log",
-      Group: "Group",
-      Rule: "Rule",
-      "Staff & Roles": "Auth",
+      Admin: "Staff Management",
+      "Staff Management": "Staff Management",
+      "Admin log": "Audit Logs",
+      "Audit Logs": "Audit Logs",
+      Group: "Role Groups",
+      "Role Groups": "Role Groups",
+      Rule: "Permissions",
       Permissions: "Permissions",
+      "Staff & Roles": "Auth",
       Settings: "Settings",
       Categories: "Categories",
       Supplier: "Supplier",
@@ -184,10 +187,14 @@ const TEXT = {
       Invoices: "វិក្កយបត្រ",
       Users: "អ្នកប្រើប្រាស់",
       Auth: "សិទ្ធិ និង គណនី",
-      Admin: "អ្នកគ្រប់គ្រង",
-      "Admin log": "កំណត់ហេតុ Admin",
-      Group: "ក្រុម Admin",
-      Rule: "ច្បាប់សិទ្ធិ",
+      Admin: "គ្រប់គ្រងបុគ្គលិក",
+      "Staff Management": "គ្រប់គ្រងបុគ្គលិក",
+      "Admin log": "កំណត់ហេតុសកម្មភាព",
+      "Audit Logs": "កំណត់ហេតុសកម្មភាព",
+      Group: "ក្រុមតួនាទី",
+      "Role Groups": "ក្រុមតួនាទី",
+      Rule: "សិទ្ធិប្រើប្រាស់",
+      Permissions: "សិទ្ធិប្រើប្រាស់",
       "Staff & Roles": "សិទ្ធិ និង គណនី",
       Settings: "ការកំណត់",
       Categories: "ប្រភេទទំនិញ",
@@ -724,29 +731,38 @@ export default function Sidebar({
         <div className="mx-3 py-1 mb-1">
           <Link
             href="/admin/profile"
-            className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 ease-in-out hover:bg-slate-100 dark:hover:bg-[#232333]/90 active:scale-[0.98] cursor-pointer group"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 ease-in-out cursor-pointer group active:scale-[0.98] ${
+              pathname === "/admin/profile"
+                ? dark
+                  ? "bg-[#55a060]/20 border-[#55a060]/50 shadow-xs text-white"
+                  : "bg-[#e6f7ef] border-[#55a060]/40 shadow-xs ring-1 ring-[#55a060]/20"
+                : dark
+                ? "border-transparent bg-[#232333]/40 hover:bg-[#55a060]/15 hover:border-[#55a060]/40 hover:shadow-xs"
+                : "border-slate-200/70 bg-slate-50/70 hover:bg-[#e6f7ef]/70 hover:border-[#55a060]/40 hover:shadow-sm hover:scale-[1.01]"
+            }`}
           >
             <div className="relative shrink-0">
               {profileImg ? (
                 <img
                   src={profileImg}
                   alt={activeUser.name}
-                  className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-200/80 group-hover:ring-[#55a060]/40 shadow-xs transition-all"
+                  className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-200/80 group-hover:ring-[#55a060] shadow-xs group-hover:scale-105 transition-all duration-200"
                 />
               ) : (
-                <span className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white shadow-xs group-hover:scale-105 transition-transform ${profileAvatarClass(activeUser.role)}`}>
+                <span className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white shadow-xs group-hover:scale-105 group-hover:ring-2 group-hover:ring-[#55a060]/60 transition-all duration-200 ${profileAvatarClass(activeUser.role)}`}>
                   {activeUser.name ? initials(activeUser.name) : <UserRound size={18} />}
                 </span>
               )}
             </div>
             <div className="min-w-0 flex-1 overflow-hidden">
-              <div className={`text-[13.5px] font-semibold truncate tracking-tight group-hover:text-[#55a060] transition-colors ${dark ? "text-slate-100" : "text-slate-800"}`}>
+              <div className={`text-[13.5px] font-semibold truncate tracking-tight group-hover:text-[#55a060] transition-colors duration-200 ${dark ? "text-slate-100" : "text-slate-800"}`}>
                 {activeUser.name}
               </div>
-              <div className="mt-0.5 inline-flex items-center rounded-md px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider bg-[#e6f7ef] text-[#1D9E75] dark:bg-[#1D9E75]/20 dark:text-[#34d399]">
+              <div className="mt-0.5 inline-flex items-center rounded-md px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider bg-[#e6f7ef] text-[#1D9E75] dark:bg-[#1D9E75]/20 dark:text-[#34d399] group-hover:bg-[#1D9E75] group-hover:text-white dark:group-hover:bg-[#34d399] dark:group-hover:text-slate-950 transition-all duration-200">
                 {activeUser.role}
               </div>
             </div>
+            <ChevronRight size={14} className="text-slate-400 group-hover:text-[#55a060] group-hover:translate-x-0.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shrink-0 ml-auto" />
           </Link>
         </div>
       )}
@@ -756,16 +772,20 @@ export default function Sidebar({
           <Link
             href="/admin/profile"
             title={activeUser.name}
-            className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#232333] transition-all active:scale-95 flex items-center justify-center"
+            className={`p-1.5 rounded-xl transition-all duration-200 active:scale-95 flex items-center justify-center group ${
+              pathname === "/admin/profile"
+                ? "bg-[#55a060]/15 ring-2 ring-[#55a060] scale-105"
+                : "hover:bg-slate-100 dark:hover:bg-[#232333] hover:ring-2 hover:ring-[#55a060]/60 hover:scale-110"
+            }`}
           >
             {profileImg ? (
               <img
                 src={profileImg}
                 alt={activeUser.name}
-                className="h-9 w-9 rounded-full object-cover ring-2 ring-[#55a060]/30 shadow-xs hover:scale-105 transition-transform"
+                className="h-9 w-9 rounded-full object-cover ring-2 ring-[#55a060]/30 group-hover:ring-[#55a060] shadow-xs group-hover:scale-105 transition-all duration-200"
               />
             ) : (
-              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs hover:scale-105 transition-transform ${profileAvatarClass(activeUser.role)}`}>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs group-hover:scale-105 transition-all duration-200 ${profileAvatarClass(activeUser.role)}`}>
                 {activeUser.name ? initials(activeUser.name) : <UserRound size={15} />}
               </span>
             )}

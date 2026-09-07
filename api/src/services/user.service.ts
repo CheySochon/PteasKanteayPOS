@@ -7,32 +7,54 @@ import {
   deleteGroup,
 } from "./group.service.js";
 
-async function findOrCreateGroup(targetGroupName?: string) {
-  const selectedName = (targetGroupName || "Cashier").trim();
+async function findOrCreateGroup(targetGroupName?: string, allowRootGroup1 = false) {
+  let selectedName = (targetGroupName || "Cashier Group").trim();
+  const norm = selectedName.toLowerCase();
 
-  let groupRecord = await prisma.group.findUnique({
-    where: { name: selectedName },
-  });
-
-  if (!groupRecord) {
-    groupRecord = await prisma.group.findFirst({
-      where: { name: { equals: selectedName, mode: "insensitive" } },
+  // 🛡️ Super Admin Protection Guard: Group ID 1 / "Admin Group" / "Admin" is EXCLUSIVELY for User ID 1 (Super Admin).
+  // If allowRootGroup1 is false (non-User 1), match existing non-root admin group in DB (e.g. "Admin Update")
+  if (!allowRootGroup1 && (norm === "admin" || norm === "admin group" || norm === "super admin" || norm === "super_admin")) {
+    const dbAdminGroup = await prisma.group.findFirst({
+      where: {
+        id: { not: 1 },
+        name: { contains: "Admin", mode: "insensitive" },
+      },
     });
+    if (dbAdminGroup) {
+      return dbAdminGroup;
+    }
+    selectedName = "Admin Update";
   }
+
+  let groupRecord = await prisma.group.findFirst({
+    where: {
+      name: { equals: selectedName, mode: "insensitive" },
+      ...(allowRootGroup1 ? {} : { id: { not: 1 } }),
+    },
+  });
 
   if (!groupRecord) {
     try {
       groupRecord = await prisma.group.create({
         data: {
           name: selectedName,
-          description: `${selectedName} Group`,
+          description: `${selectedName}`,
         },
       });
     } catch {
       groupRecord = await prisma.group.findFirst({
-        where: { name: { equals: selectedName, mode: "insensitive" } },
+        where: {
+          name: { equals: selectedName, mode: "insensitive" },
+          ...(allowRootGroup1 ? {} : { id: { not: 1 } }),
+        },
       });
     }
+  }
+
+  if (!groupRecord && !allowRootGroup1) {
+    groupRecord = await prisma.group.findFirst({
+      where: { id: { not: 1 } },
+    });
   }
 
   if (!groupRecord) {
@@ -48,14 +70,28 @@ async function findOrCreateGroup(targetGroupName?: string) {
 
 function formatUserRoleCompatibility(user: any) {
   if (!user) return user;
-  const groups = user.userGroups?.map((ug: any) => ug.group) || [];
-  const primaryGroupName = groups[0]?.name || "Staff";
-  const primaryGroupId = groups[0]?.id || 1;
+  let groups = user.userGroups?.map((ug: any) => ug.group) || [];
+
+  // 🛡️ Super Admin Protection: User ID 1 ALWAYS belongs to Admin Group (ID 1)
+  if (user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com")) {
+    const hasAdminGroup = groups.some((g: any) => g.id === 1 || g.name === "Admin Group");
+    if (!hasAdminGroup) {
+      groups = [{ id: 1, name: "Admin Group", description: "Full system administration & configuration access (Super Admin)" }, ...groups];
+    }
+  }
+
+  const primaryGroup = groups[0];
+  const primaryGroupName = (user.id === 1 || user.email?.toLowerCase() === "cheychon258@gmail.com")
+    ? "Admin Group"
+    : (primaryGroup?.name || "Cashier Group");
+  const primaryGroupId = (user.id === 1 || user.email?.toLowerCase() === "cheychon258@gmail.com")
+    ? 1
+    : (primaryGroup?.id || 2);
 
   const roleObj = {
     id: primaryGroupId,
     name: primaryGroupName,
-    description: groups[0]?.description || `${primaryGroupName} Group`,
+    description: primaryGroup?.description || `${primaryGroupName}`,
     permissions: groups.flatMap((g: any) =>
       g.groupPermissions?.map((gp: any) => gp.permission?.code).filter(Boolean) || []
     ),
@@ -71,35 +107,93 @@ function formatUserRoleCompatibility(user: any) {
 }
 
 export const listUsers = async () => {
-  const users = await prisma.user.findMany({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      userGroups: {
-        include: {
-          group: {
-            include: {
-              groupPermissions: {
-                include: {
-                  permission: true,
+  // 🛡️ Ensure User ID 1 is explicitly linked to Group ID 1 in database
+  const user1Link = await prisma.userGroup.findFirst({
+    where: { userId: 1, groupId: 1 },
+  }).catch(() => null);
+
+  if (!user1Link) {
+    await prisma.userGroup.create({
+      data: { userId: 1, groupId: 1 },
+    }).catch(() => null);
+  }
+
+  // Clean up database: Remove non-ID 1 users from Group ID 1 and reassign to real Admin Update group in DB
+  const invalidRootAssignments = await prisma.userGroup.findMany({
+    where: {
+      userId: { not: 1 },
+      groupId: 1,
+    },
+  }).catch(() => []);
+
+  if (invalidRootAssignments.length > 0) {
+    const adminUpdateGroup = await findOrCreateGroup("Admin Update", false);
+    for (const ug of invalidRootAssignments) {
+      await prisma.userGroup.deleteMany({
+        where: { userId: ug.userId, groupId: 1 },
+      }).catch(() => null);
+      await prisma.userGroup.create({
+        data: { userId: ug.userId, groupId: adminUpdateGroup.id },
+      }).catch(() => null);
+    }
+  }
+
+  const [users, latestLogs] = await Promise.all([
+    prisma.user.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        userGroups: {
+          include: {
+            group: {
+              include: {
+                groupPermissions: {
+                  include: {
+                    permission: true,
+                  },
                 },
               },
             },
           },
         },
+        isActive: true,
+        pin: true,
+        imageUrl: true,
+        createdAt: true,
+        updatedAt: true,
       },
-      isActive: true,
-      pin: true,
-      imageUrl: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+    }),
+    prisma.auditLog.findMany({
+      where: {
+        action: { in: ["LOGIN", "LOGIN_PIN"] },
+        status: "SUCCESS",
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        userId: true,
+        createdAt: true,
+      },
+    }),
+  ]);
 
-  return users.map(formatUserRoleCompatibility);
+  const lastLoginMap = new Map<number, Date>();
+  for (const log of latestLogs) {
+    if (log.userId && !lastLoginMap.has(log.userId)) {
+      lastLoginMap.set(log.userId, log.createdAt);
+    }
+  }
+
+  return users.map((u) => {
+    const formatted = formatUserRoleCompatibility(u);
+    const lastLoginAt = lastLoginMap.get(u.id) || u.updatedAt || u.createdAt;
+    return {
+      ...formatted,
+      lastLoginAt: lastLoginAt.toISOString(),
+    };
+  });
 };
 
 export const createUser = async (data: {
@@ -129,9 +223,7 @@ export const createUser = async (data: {
     targetGroupIds.push(...data.groupIds.filter((gId) => gId !== 1));
   } else {
     const rawSelected = data.roleName ?? data.role ?? (data.groupNames ? data.groupNames[0] : "Cashier Group");
-    const norm = rawSelected.trim().toLowerCase();
-    const safeSelectedGroup = (norm === "admin" || norm === "super admin" || norm === "super_admin") ? "Cashier Group" : rawSelected;
-    const groupRecord = await findOrCreateGroup(safeSelectedGroup);
+    const groupRecord = await findOrCreateGroup(rawSelected, false);
     targetGroupIds.push(groupRecord.id);
   }
 
@@ -212,17 +304,19 @@ export const updateUser = async (
 
   // 🛡️ Super Admin Protection Guard: User ID 1 or owner email ALWAYS stays Admin & Active
   if (id === 1 || existing.email?.toLowerCase() === "cheychon258@gmail.com") {
-    const superGroup = await findOrCreateGroup("Admin");
+    const superGroup = await findOrCreateGroup("Admin Group", true);
     targetGroupIds = [superGroup.id];
     updateData.isActive = true;
   } else if (data.groupIds !== undefined && data.groupIds.length > 0) {
     targetGroupIds = data.groupIds.filter((gId) => gId !== 1);
+    if (targetGroupIds.length === 0) {
+      const fallbackGroup = await findOrCreateGroup("Admin Update Group", false);
+      targetGroupIds = [fallbackGroup.id];
+    }
   } else {
     const selectedGroup = data.roleName !== undefined ? data.roleName : data.role;
     if (selectedGroup !== undefined) {
-      const norm = selectedGroup.trim().toLowerCase();
-      const safeSelectedGroup = (norm === "admin" || norm === "super admin" || norm === "super_admin") ? "Cashier Group" : selectedGroup;
-      const groupRecord = await findOrCreateGroup(safeSelectedGroup);
+      const groupRecord = await findOrCreateGroup(selectedGroup, false);
       targetGroupIds = [groupRecord.id];
     }
   }

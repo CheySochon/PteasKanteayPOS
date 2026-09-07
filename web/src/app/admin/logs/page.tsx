@@ -19,6 +19,7 @@ import { useAppLanguage } from "../../../lib/language";
 import AnimatedToast from "../../../components/AnimatedToast";
 import { getAuditLogs, clearAuditLogs, getPublicStaff, apiOrigin } from "../../../lib/api";
 import { getProfileImage, resolveStaffProfileImage } from "../../../lib/profile";
+import { getSocket } from "../../../lib/socket";
 
 type AuditLog = {
   id: number;
@@ -54,6 +55,27 @@ export default function AdminLogsPage() {
   const textSecondary = dark ? "text-slate-400" : "text-slate-500";
 
   const [dbUserAvatarMap, setDbUserAvatarMap] = useState<Record<string, string>>({});
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("pos_user");
+        if (stored) {
+          const user = JSON.parse(stored);
+          const isRoot = user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
+          const roleStr = String(
+            typeof user.role === "object" ? user.role?.name || user.role?.code : user.role || user.roleName || ""
+          ).toUpperCase();
+          setIsSuperAdmin(isRoot || roleStr.includes("SUPER") || roleStr.includes("OWNER"));
+        } else {
+          setIsSuperAdmin(true);
+        }
+      } catch {
+        setIsSuperAdmin(true);
+      }
+    }
+  }, []);
 
   // Load audit logs
   const loadAuditLogs = async (search = auditSearch, status = auditStatusFilter, action = auditActionFilter, page = auditPage) => {
@@ -107,7 +129,35 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     loadAuditLogs();
-  }, []);
+
+    const socket = getSocket();
+    const handleReload = () => {
+      loadAuditLogs(auditSearch, auditStatusFilter, auditActionFilter, auditPage);
+    };
+
+    if (socket) {
+      socket.on("auth:login", handleReload);
+      socket.on("user:login", handleReload);
+      socket.on("user:created", handleReload);
+      socket.on("user:updated", handleReload);
+      socket.on("audit:created", handleReload);
+      socket.on("audit:new", handleReload);
+      socket.on("audit:cleared", handleReload);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off("auth:login", handleReload);
+        socket.off("user:login", handleReload);
+        socket.off("user:created", handleReload);
+        socket.off("user:updated", handleReload);
+        socket.off("audit:created", handleReload);
+        socket.off("audit:new", handleReload);
+        socket.off("audit:cleared", handleReload);
+      }
+      window.removeEventListener("pos-audit-logs-updated", handleReload);
+    };
+  }, [auditSearch, auditStatusFilter, auditActionFilter, auditPage]);
 
   // Compute KPI metrics dynamically
   const loginCount = auditLogs.filter((l) => l.action && l.action.includes("LOGIN")).length;
@@ -132,26 +182,36 @@ export default function AdminLogsPage() {
             <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
               <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
               <ChevronRight size={12} />
-              <span className="text-[#55a060]">Admin Log</span>
+              <span className="text-[#55a060]">{language === "km" ? "កំណត់ហេតុសកម្មភាព" : "Audit Logs"}</span>
+              <span className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                {language === "km" ? "ផ្សាយផ្ទាល់ Real-Time" : "Real-Time Sync"}
+              </span>
             </div>
             <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
-              {language === "km" ? "កំណត់ត្រាសកម្មភាពបុគ្គលិក & ប្រព័ន្ធ" : "Staff & System Audit Logs"}
+              {language === "km" ? "កំណត់ហេតុសកម្មភាព (Audit Logs)" : "Audit Logs"}
             </h1>
             <p className="text-xs text-slate-400 font-normal">
-              {language === "km" ? "ពិនិត្យប្រវត្តិការចូលប្រើប្រាស់ សុវត្ថិភាព និងការកែប្រែទិន្នន័យប្រព័ន្ធ" : "Track authentication history, security alerts, and admin updates."}
+              {language === "km" ? "ពិនិត្យប្រវត្តិការចូលប្រើប្រាស់ សុវត្ថិភាព និងការកែប្រែទិន្នន័យប្រព័ន្ធ" : "Track staff authentication history, security alerts, and system activity."}
             </p>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleResetAuditLogs}
-              disabled={isClearing}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-            >
-              <Trash2 size={14} className={isClearing ? "animate-spin" : ""} />
-              {language === "km" ? "លុបទិន្នន័យ (Reset Data)" : "Reset Data"}
-            </button>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={handleResetAuditLogs}
+                disabled={isClearing}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 shadow-xs hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                title={language === "km" ? "សម្រាប់តែ Super Admin ប៉ុណ្ណោះ" : "Super Admin Authorization Required"}
+              >
+                <Trash2 size={14} className={isClearing ? "animate-spin" : ""} />
+                {language === "km" ? "លុបទិន្នន័យ (Reset Data)" : "Reset Data"}
+              </button>
+            )}
 
             <button
               type="button"
@@ -341,7 +401,7 @@ export default function AdminLogsPage() {
                               ? "bg-emerald-50 dark:bg-emerald-950/40 text-[#55a060] dark:text-emerald-400"
                               : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                           }`}>
-                            {isSuperAdminOrAdmin ? "Admin Group" : log.userRole}
+                            {log.userRole || "Staff"}
                           </span>
                         </td>
                         <td className={`px-5 py-3.5 text-xs font-bold truncate ${textPrimary}`}>
@@ -456,16 +516,23 @@ export default function AdminLogsPage() {
               <AlertTriangle size={28} />
             </div>
 
+            {/* Super Admin Security Authorization Badge */}
+            <div className="mx-auto mb-3 flex items-center justify-center">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 px-3 py-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">
+                🛡️ {language === "km" ? "សិទ្ធិពិសេស Super Admin" : "Super Admin Restricted Action"}
+              </span>
+            </div>
+
             {/* Header Title */}
             <h3 className={`text-center text-lg font-bold ${textPrimary} mb-2`}>
-              {language === "km" ? "តើអ្នកប្រាកដជាចង់លុបទិន្នន័យ?" : "Clear All Audit Logs?"}
+              {language === "km" ? "តើអ្នកប្រាកដជាចង់លុបទិន្នន័យកំណត់ត្រា?" : "Clear All Audit History Logs?"}
             </h3>
 
             {/* Description Text */}
             <p className="text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400 mb-6">
               {language === "km"
-                ? "ការអនុវត្តនេះនឹងធ្វើការលុបទិន្នន័យកំណត់ត្រាសកម្មភាពទាំងអស់ចេញពី Database។"
-                : "This will permanently delete all audit activity logs from the database."}
+                ? "ការអនុវត្តនេះនឹងធ្វើការលុបទិន្នន័យកំណត់ត្រាសកម្មភាពទាំងអស់ចេញពី Database រៀងរហូត។ សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។"
+                : "This action will permanently purge all audit log entries from the database. This operation cannot be undone."}
             </p>
 
             {/* Action Buttons */}

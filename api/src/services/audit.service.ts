@@ -27,6 +27,17 @@ export async function createAuditLog(input: CreateAuditLogInput) {
       },
     });
 
+    // Real-Time Sync: Broadcast audit log event via Socket.io
+    try {
+      const io = (global as any).io;
+      if (io) {
+        io.emit("audit:created", log);
+        io.emit("audit:new", log);
+      }
+    } catch {
+      // ignore
+    }
+
     // Send Telegram Alert asynchronously (non-blocking)
     void getTelegramConfig().then((telegramConfig) => {
       const nowStr = new Date().toLocaleString("en-US", { timeZone: "Asia/Phnom_Penh" });
@@ -107,5 +118,14 @@ export async function getAuditLogs(query?: {
 
 export async function clearAuditLogs() {
   await prisma.auditLog.deleteMany({});
+  try {
+    const io = (global as any).io;
+    if (io) {
+      io.emit("audit:cleared");
+      io.emit("audit:created");
+    }
+  } catch {
+    // ignore
+  }
   return { success: true, message: "All audit logs cleared successfully" };
 }

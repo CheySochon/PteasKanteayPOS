@@ -16,6 +16,7 @@ const io = new Server(httpServer, {
 });
 
 app.set("io", io);
+(global as any).io = io;
 
 io.on("connection", (socket: Socket) => {
   socket.on("order:new", (order: unknown) => {

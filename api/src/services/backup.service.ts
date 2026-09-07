@@ -8,14 +8,20 @@ const BACKUP_VERSION = 1;
 const BACKUP_DIR = path.join(__dirname, "..", "..", "backups");
 
 const TABLES = [
-  { key: "roles", model: "role" },
+  { key: "permissions", model: "permission" },
+  { key: "groups", model: "group" },
+  { key: "groupPermissions", model: "groupPermission" },
   { key: "users", model: "user" },
+  { key: "userGroups", model: "userGroup" },
   { key: "appSettings", model: "appSetting" },
   { key: "categories", model: "category" },
+  { key: "suppliers", model: "supplier" },
   { key: "diningTables", model: "diningTable" },
   { key: "products", model: "product" },
   { key: "inventories", model: "inventory" },
   { key: "stockTransactions", model: "stockTransaction" },
+  { key: "purchaseOrders", model: "purchaseOrder" },
+  { key: "purchaseOrderItems", model: "purchaseOrderItem" },
   { key: "orders", model: "order" },
   { key: "orderItems", model: "orderItem" },
   { key: "notifications", model: "notification" },
@@ -27,25 +33,37 @@ const DELETE_ORDER = [
   "notification",
   "orderItem",
   "order",
+  "purchaseOrderItem",
+  "purchaseOrder",
   "stockTransaction",
   "inventory",
   "product",
   "diningTable",
+  "supplier",
   "category",
+  "userGroup",
+  "groupPermission",
   "user",
-  "role",
+  "group",
+  "permission",
   "appSetting",
 ] as const;
 
 const RESTORE_ORDER = [
-  { key: "roles", model: "role" },
+  { key: "permissions", model: "permission" },
+  { key: "groups", model: "group" },
+  { key: "groupPermissions", model: "groupPermission" },
   { key: "users", model: "user" },
+  { key: "userGroups", model: "userGroup" },
   { key: "appSettings", model: "appSetting" },
   { key: "categories", model: "category" },
+  { key: "suppliers", model: "supplier" },
   { key: "diningTables", model: "diningTable" },
   { key: "products", model: "product" },
   { key: "inventories", model: "inventory" },
   { key: "stockTransactions", model: "stockTransaction" },
+  { key: "purchaseOrders", model: "purchaseOrder" },
+  { key: "purchaseOrderItems", model: "purchaseOrderItem" },
   { key: "orders", model: "order" },
   { key: "orderItems", model: "orderItem" },
   { key: "notifications", model: "notification" },
@@ -61,21 +79,29 @@ const DATE_FIELDS = new Set([
   "startTime",
   "endTime",
   "sentAt",
+  "orderDate",
+  "expectedDeliveryDate",
 ]);
 
 const DB_TABLE_NAMES: Record<string, string> = {
-  role: "Role",
+  permission: "permissions",
+  group: "groups",
+  groupPermission: "group_permissions",
   user: "User",
+  userGroup: "user_groups",
   appSetting: "AppSetting",
   category: "Category",
+  supplier: "suppliers",
   diningTable: "DiningTable",
   product: "Product",
+  inventory: "Inventory",
+  stockTransaction: "StockTransaction",
+  purchaseOrder: "purchase_orders",
+  purchaseOrderItem: "purchase_order_items",
   order: "Order",
   orderItem: "OrderItem",
   notification: "Notification",
   auditLog: "audit_logs",
-  inventory: "Inventory",
-  stockTransaction: "StockTransaction",
 };
 
 function parseDates(row: Record<string, unknown>): Record<string, unknown> {
@@ -108,10 +134,19 @@ export const createBackup = async (createdBy?: {
   const data: BackupData = {};
 
   for (const table of TABLES) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-    data[table.key] = await (prisma as any)[table.model].findMany({
-      orderBy: { id: "asc" },
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const delegate = (prisma as any)[table.model];
+    if (!delegate) continue;
+
+    if (["groupPermission", "userGroup"].includes(table.model)) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+      data[table.key] = await delegate.findMany();
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+      data[table.key] = await delegate.findMany({
+        orderBy: { id: "asc" },
+      });
+    }
   }
 
   return {

@@ -1959,9 +1959,6 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <footer className="py-6 text-center text-xs font-medium text-slate-400 print:mt-6">
-            © {now.getFullYear()} {t.footer}
-          </footer>
         </div>
       </div>
 

@@ -34,6 +34,9 @@ import {
   Grid,
   UsersRound,
   ChevronRight,
+  ChevronDown,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage } from "../../../lib/language";
@@ -89,7 +92,7 @@ const EMPTY_FORM: UserForm = {
   email: "",
   password: "",
   pin: "",
-  roleName: "Admin Group (Standard)",
+  roleName: "Admin Update",
   isActive: true,
   imageUrl: "",
   phone: "",
@@ -117,21 +120,28 @@ export default function AdminUsersPage() {
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
   const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // User Modal State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserForm>(EMPTY_FORM);
   const [showModalPassword, setShowModalPassword] = useState(false);
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
 
+  const openViewModal = (user: User) => {
+    setViewingUser(user);
+  };
+
   // Click outside and scroll listener for action dropdown
   useEffect(() => {
     const handleClose = () => {
       setActionMenuOpen(null);
       setActionMenuPos(null);
+      setIsExportMenuOpen(false);
     };
     window.addEventListener("click", handleClose);
     window.addEventListener("scroll", handleClose, true);
@@ -270,28 +280,94 @@ export default function AdminUsersPage() {
     );
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
+  // Export Excel / CSV
+  const handleExportExcel = () => {
     if (users.length === 0) return;
-    const headers = ["ID", "Username", "Nickname", "Group/Role", "Email", "POS PIN Status", "Status", "Created At"];
-    const rows = users.map((u) => [
-      u.id,
-      u.email.split("@")[0],
-      `"${u.name.replace(/"/g, '""')}"`,
-      `"${roleName(u)}"`,
-      u.email,
-      (u as any).pin || (u as any).hasPin ? "Configured (****)" : "No PIN Set",
-      u.isActive ? "Active (Normal)" : "Inactive",
-      u.createdAt || "-",
-    ]);
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const headers = ["No.", "Staff Name", "Group / Role", "Email", "Status", "Last Login Time"];
+    const rows = filteredUsers.map((u, idx) => {
+      const uRole = roleName(u) || "Cashier";
+      const statusText = u.isActive ? "Normal" : "Disabled";
+      const loginTimeText = formatDate((u as any).lastLoginAt || u.updatedAt || u.createdAt);
+      return [
+        idx + 1,
+        `"${u.name.replace(/"/g, '""')}"`,
+        `"${uRole.replace(/"/g, '""')}"`,
+        `"${u.email.replace(/"/g, '""')}"`,
+        statusText,
+        `"${loginTimeText}"`,
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `staff_users_directory_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `staff_directory_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    setMessage(language === "km" ? "ទាញយក File CSV បុគ្គលិកជោគជ័យ!" : "Staff directory CSV downloaded successfully.");
+  };
+
+  // Export PDF Document
+  const handleExportPDF = async () => {
+    if (users.length === 0) return;
+    try {
+      const jsPDFModule = await import("jspdf");
+      const autoTableModule = await import("jspdf-autotable");
+      const jsPDF = jsPDFModule.default || jsPDFModule;
+      const autoTable = autoTableModule.default || autoTableModule;
+
+      const doc = new jsPDF();
+      const nowStr = new Date().toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      // Document Title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("STAFF DIRECTORY REPORT", 14, 18);
+
+      // Report Meta
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Generated: ${nowStr}   |   Total Staff Accounts: ${users.length}   |   Active: ${users.filter((u) => u.isActive).length}`,
+        14,
+        25
+      );
+
+      const tableRows = filteredUsers.map((u, idx) => [
+        String(idx + 1),
+        u.name || "-",
+        roleName(u) || "Cashier",
+        u.email || "-",
+        u.isActive ? "Normal" : "Disabled",
+        formatDate((u as any).lastLoginAt || u.updatedAt || u.createdAt),
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["No.", "Staff Name", "Group / Role", "Email", "Status", "Last Login Time"]],
+        body: tableRows,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [85, 160, 96], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      doc.save(`staff_directory_${new Date().toISOString().slice(0, 10)}.pdf`);
+      setMessage(language === "km" ? "ទាញយក File PDF បុគ្គលិកជោគជ័យ!" : "Staff directory PDF report downloaded successfully.");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      setError(language === "km" ? "បរាជ័យក្នុងការទាញយក PDF" : "Failed to generate PDF document.");
+    }
   };
 
   // Bulk Delete
@@ -379,6 +455,19 @@ export default function AdminUsersPage() {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim()) return;
 
+    // Security Check: Enforce minimum 8 characters for password
+    if (!editingUserId) {
+      if (!form.password || form.password.length < 8) {
+        setError(language === "km" ? "ពាក្យសម្ងាត់ត្រូវតែមានយ៉ាងហោចណាស់ 8 តួអក្សរ!" : "Password must be at least 8 characters long!");
+        return;
+      }
+    } else {
+      if (form.password && form.password.length < 8) {
+        setError(language === "km" ? "ពាក្យសម្ងាត់ត្រូវតែមានយ៉ាងហោចណាស់ 8 តួអក្សរ!" : "Password must be at least 8 characters long!");
+        return;
+      }
+    }
+
     try {
       let resultUser: any = null;
       if (editingUserId) {
@@ -403,7 +492,7 @@ export default function AdminUsersPage() {
         const created = await createUser({
           name: form.name.trim(),
           email: form.email.trim(),
-          password: form.password || "123456",
+          password: form.password,
           pin: form.pin ? form.pin.trim() : "1234",
           roleName: form.roleName,
           isActive: form.isActive,
@@ -479,10 +568,10 @@ export default function AdminUsersPage() {
             <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
               <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
               <ChevronRight size={12} />
-              <span className="text-[#55a060]">Admin</span>
+              <span className="text-[#55a060]">{language === "km" ? "គ្រប់គ្រងបុគ្គលិក" : "Staff Management"}</span>
             </div>
             <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
-              {language === "km" ? "បុគ្គលិក (Admin & Staff Users)" : "Admin & Staff Users"}
+              {language === "km" ? "គ្រប់គ្រងបុគ្គលិក (Staff Management)" : "Staff Management"}
             </h1>
             <p className="text-xs text-slate-400 font-normal">
               {language === "km" ? "គ្រប់គ្រងគណនីបុគ្គលិក កំណត់ត្រាសិទ្ធិ និង PIN លក់ POS" : "Manage staff accounts, access permissions, and POS PIN entry."}
@@ -490,16 +579,59 @@ export default function AdminUsersPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
-              }`}
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
+            {/* Export Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExportMenuOpen((prev) => !prev);
+                }}
+                className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+                }`}
+              >
+                <Download size={14} />
+                <span>{language === "km" ? "ទាញយកទិន្នន័យ (Export)" : "Export"}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isExportMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isExportMenuOpen && (
+                <div
+                  className={`absolute right-0 top-full mt-1.5 z-30 w-52 rounded-xl border p-2 shadow-lg transition-all animate-[dropdownScale_150ms_ease-out] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-200/90 bg-white text-slate-800"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportExcel();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <Download size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក CSV" : "Download CSV"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportPDF();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <FileText size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក PDF (.pdf)" : "Download PDF (.pdf)"}</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={openCreateModal}
@@ -576,7 +708,7 @@ export default function AdminUsersPage() {
           <div className={`rounded-2xl border shadow-sm overflow-visible relative ${dark ? "bg-[#2b2c40] border-[#4e4f6e]" : "bg-white border-slate-200/90"}`}>
             
             {/* TOP ACTION TOOLBAR */}
-            <div className={`p-4 border-b flex flex-wrap items-center justify-between gap-3 ${
+            <div className={`px-6 py-4 border-b flex flex-wrap items-center justify-between gap-3 ${
               dark ? "border-[#4e4f6e] bg-[#232333]/50" : "border-slate-200/80 bg-slate-50/50"
             }`}>
               
@@ -647,27 +779,26 @@ export default function AdminUsersPage() {
                   <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${
                     dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50 border-slate-200/80"
                   }`}>
-                    <th className="py-3 px-4 w-16 font-bold">ID</th>
-                    <th className="py-3 px-4 font-bold">Username</th>
-                    <th className="py-3 px-4 font-bold">Nickname</th>
-                    <th className="py-3 px-4 font-bold">Group</th>
-                    <th className="py-3 px-4 font-bold">Email</th>
-                    <th className="py-3 px-4 w-28 font-bold">Status</th>
-                    <th className="py-3 px-4 w-44 font-bold">Login time</th>
-                    <th className="py-3 px-4 w-28 text-right font-bold pr-5">Operate</th>
+                    <th className="py-3.5 pl-6 pr-3 w-16 font-bold">No.</th>
+                    <th className="py-3.5 px-4 font-bold">Nickname</th>
+                    <th className="py-3.5 px-4 font-bold">Group</th>
+                    <th className="py-3.5 px-4 font-bold">Email</th>
+                    <th className="py-3.5 px-4 w-28 font-bold">Status</th>
+                    <th className="py-3.5 px-4 w-44 font-bold">Login time</th>
+                    <th className="py-3.5 pr-6 pl-4 w-28 text-right font-bold">Operate</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
                         <Loader2 className="animate-spin inline mr-2" size={18} />
                         Loading staff users...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 font-normal">
+                      <td colSpan={7} className="py-12 text-center text-slate-400 font-normal">
                         No user accounts found matching search query.
                       </td>
                     </tr>
@@ -675,14 +806,11 @@ export default function AdminUsersPage() {
                     filteredUsers.map((user, idx) => {
                       const isSelected = selectedIds.includes(user.id);
                       const uRole = roleName(user) || "Cashier";
-                      const usernameStr = user.email.split("@")[0] || `user_${user.id}`;
                       const matchedGroup = groups.find((g) => g.name === uRole || g.name.toLowerCase().includes(uRole.toLowerCase()) || String(g.id) === String((user as any).groupId));
-                      const isSuperOrAdmin = user.id === 1 || uRole === "Super Admin" || uRole === "Admin" || uRole.toLowerCase().includes("admin") || uRole.toLowerCase().includes("super");
-                      const groupBadgeName = isSuperOrAdmin
+                      const isRootSuperAdmin = user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
+                      const groupBadgeName = isRootSuperAdmin
                         ? "Admin Group"
-                        : matchedGroup
-                          ? (matchedGroup.name.toLowerCase().endsWith("group") ? matchedGroup.name : `${matchedGroup.name} Group`)
-                          : `${uRole} Group`;
+                        : (matchedGroup?.name || uRole || "Cashier Group");
                       const hasPinConfigured = Boolean((user as any).pin || (user as any).hasPin);
                       const avatarUrl = user.imageUrl || getProfileImage({ id: user.id, name: user.name, email: user.email, role: uRole });
 
@@ -695,12 +823,12 @@ export default function AdminUsersPage() {
                               : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
                           }`}
                         >
-                          {/* ID */}
-                          <td className="py-3.5 px-4 font-normal text-slate-500 dark:text-slate-400">
-                            {user.id}
+                          {/* No. (Sequential Index 1, 2, 3...) */}
+                          <td className="py-3.5 pl-6 pr-3 font-semibold text-slate-500 dark:text-slate-400">
+                            {idx + 1}
                           </td>
 
-                          {/* Username with Avatar */}
+                          {/* Nickname with Avatar */}
                           <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-200">
                             <div className="flex items-center gap-2.5">
                               {avatarUrl ? (
@@ -715,13 +843,8 @@ export default function AdminUsersPage() {
                                   {initials(user.name)}
                                 </div>
                               )}
-                              <span>{usernameStr}</span>
+                              <span>{user.name}</span>
                             </div>
-                          </td>
-
-                          {/* Nickname */}
-                          <td className="py-3.5 px-4 font-normal text-slate-600 dark:text-slate-300">
-                            {user.name}
                           </td>
 
                           {/* Group (Theme Matched Badge with Role Icons) */}
@@ -772,7 +895,7 @@ export default function AdminUsersPage() {
                           </td>
 
                           {/* Operate / Actions (Inventory Stock Style Action Menu Dropdown) */}
-                          <td className="py-3.5 px-4 text-right relative pr-5">
+                          <td className="py-3.5 pr-6 pl-4 text-right relative">
                             {user.id === 1 ? null : (
                               <div className="inline-block text-left">
                                 <button
@@ -824,6 +947,19 @@ export default function AdminUsersPage() {
                                         e.stopPropagation();
                                         setActionMenuOpen(null);
                                         setActionMenuPos(null);
+                                        openViewModal(user);
+                                      }}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
+                                    >
+                                      <Eye size={13} className="text-blue-500 stroke-[2]" />
+                                      <span>{language === "km" ? "មើលព័ត៌មាន" : "View User"}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuOpen(null);
+                                        setActionMenuPos(null);
                                         openEditModal(user);
                                       }}
                                       className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#34354e] transition-colors cursor-pointer"
@@ -858,7 +994,7 @@ export default function AdminUsersPage() {
             </div>
 
             {/* Table Footer */}
-            <div className={`p-4 border-t text-xs font-normal text-slate-500 dark:text-slate-400 ${
+            <div className={`px-6 py-3.5 border-t text-xs font-normal text-slate-500 dark:text-slate-400 ${
               dark ? "border-[#4e4f6e] bg-[#232333]/30" : "border-slate-100 bg-slate-50/30"
             }`}>
               Showing 1 to {filteredUsers.length} of {users.length} rows
@@ -875,7 +1011,7 @@ export default function AdminUsersPage() {
             <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-bold flex items-center gap-2">
                 <UsersRound className="text-[#55a060]" size={18} />
-                {editingUserId ? "Edit Staff User" : "Create New Staff User"}
+                <span>{editingUserId ? "Edit Staff User" : "Create New Staff User"}</span>
               </h3>
               <button
                 type="button"
@@ -887,72 +1023,103 @@ export default function AdminUsersPage() {
             </div>
 
             <form onSubmit={handleModalSubmit} className="p-6 space-y-4 text-xs">
-              {/* Profile Image / Avatar Upload */}
-              <div>
-                <label className="block font-bold mb-1.5 text-slate-600 dark:text-slate-300">
-                  {language === "km" ? "រូបថតប្រូហ្វាល (Profile Picture)" : "Profile Picture (Avatar)"}
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="relative h-12 w-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500">
-                    {form.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={form.imageUrl.startsWith("data:") || form.imageUrl.startsWith("http") ? form.imageUrl : `${apiOrigin}${form.imageUrl}`}
-                        alt="Avatar"
-                        className="h-full w-full object-cover"
+              {/* Profile Image / Avatar Upload & Staff ID */}
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <label className="block font-bold mb-1.5 text-slate-600 dark:text-slate-300">
+                    {language === "km" ? "រូបថតប្រូហ្វាល (Profile Picture)" : "Profile Picture (Avatar)"}
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-12 w-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500">
+                      {form.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={form.imageUrl.startsWith("data:") || form.imageUrl.startsWith("http") ? form.imageUrl : `${apiOrigin}${form.imageUrl}`}
+                          alt="Avatar"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span>{(form.name || "U")[0].toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = async () => {
+                              const compressed = await compressImageBase64(reader.result as string, 256, 0.75);
+                              setForm({ ...form, imageUrl: compressed });
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                        id="staff-avatar-upload"
                       />
-                    ) : (
-                      <span>{(form.name || "U")[0].toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = async () => {
-                            const compressed = await compressImageBase64(reader.result as string, 256, 0.75);
-                            setForm({ ...form, imageUrl: compressed });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="hidden"
-                      id="staff-avatar-upload"
-                    />
-                    <label
-                      htmlFor="staff-avatar-upload"
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#232333] px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#34354e] transition cursor-pointer shadow-2xs"
-                    >
-                      <Camera size={14} className="text-[#55a060]" />
-                      {form.imageUrl ? (language === "km" ? "ប្តូររូបថត" : "Change Photo") : (language === "km" ? "ជ្រើសរើសរូបថត" : "Upload Photo")}
-                    </label>
-                    {form.imageUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, imageUrl: "" })}
-                        className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer ml-1"
+                      <label
+                        htmlFor="staff-avatar-upload"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#232333] px-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#34354e] transition cursor-pointer shadow-2xs"
                       >
-                        {language === "km" ? "លុបរូប" : "Remove"}
-                      </button>
-                    )}
+                        <Camera size={14} className="text-[#55a060]" />
+                        {form.imageUrl ? (language === "km" ? "ប្តូររូបថត" : "Change Photo") : (language === "km" ? "ជ្រើសរើសរូបថត" : "Upload Photo")}
+                      </label>
+                      {form.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, imageUrl: "" })}
+                          className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer ml-1"
+                        >
+                          {language === "km" ? "លុបរូប" : "Remove"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Staff ID Badge (Right side of Upload Image) */}
+                {editingUserId && (
+                  <div className="flex flex-col items-end shrink-0">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">
+                      Staff ID
+                    </span>
+                    <div className={`inline-flex h-9 items-center px-3.5 rounded-xl border font-mono text-xs font-bold shadow-2xs ${
+                      dark
+                        ? "border-emerald-800/80 bg-emerald-950/40 text-emerald-400"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    }`}>
+                      #{editingUserId}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Name (Nickname) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-600 dark:text-slate-300">Name (Nickname) *</label>
+                  {editingUserId && (
+                    <span className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                      {language === "km" ? "មិនអាចកែប្រែបានទេ" : "Locked / Read-Only"}
+                    </span>
+                  )}
+                </div>
                 <input
                   required
                   type="text"
+                  disabled={Boolean(editingUserId)}
+                  readOnly={Boolean(editingUserId)}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="e.g. Chon (Cashier)"
-                  className={`w-full h-9 rounded-xl border px-3 text-xs outline-none focus:border-[#55a060] ${
-                    dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
+                  className={`w-full h-9 rounded-xl border px-3 text-xs outline-none ${
+                    editingUserId
+                      ? "cursor-not-allowed opacity-70 bg-slate-100 dark:bg-[#1a1b26] border-slate-200 dark:border-slate-700/80 text-slate-500 dark:text-slate-400 font-medium"
+                      : dark
+                      ? "border-slate-700 bg-[#232333] text-slate-100 focus:border-[#55a060]"
+                      : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060]"
                   }`}
                 />
               </div>
@@ -973,13 +1140,21 @@ export default function AdminUsersPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold mb-1 text-slate-600 dark:text-slate-300">Password</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-600 dark:text-slate-300">
+                      {language === "km" ? "ពាក្យសម្ងាត់ (Password)" : "Password"} {!editingUserId && "*"}
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {language === "km" ? "យ៉ាងហោច 8 តួ" : "Min 8 chars"}
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       type={showModalPassword ? "text" : "password"}
                       value={form.password}
+                      minLength={8}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
-                      placeholder={editingUserId ? "Leave empty to keep" : "Default 123456"}
+                      placeholder={editingUserId ? "Leave empty to keep (Min. 8 chars)" : "At least 8 characters"}
                       className={`w-full h-9 rounded-xl border pl-3 pr-9 text-xs outline-none focus:border-[#55a060] ${
                         dark ? "border-slate-700 bg-[#232333] text-slate-100" : "border-slate-200 bg-slate-50 text-slate-800"
                       }`}
@@ -1030,9 +1205,9 @@ export default function AdminUsersPage() {
                     ))
                   ) : (
                     <>
-                      <option value="Admin Group (Standard)">Admin Group (Standard)</option>
-                      <option value="Admin Update Group">Admin Update Group</option>
-                      <option value="Cashier & POS Team">Cashier & POS Team</option>
+                      <option value="Admin Update">Admin Update</option>
+                      <option value="Cashier Group">Cashier Group</option>
+                      <option value="Store Manager">Store Manager</option>
                       <option value="Kitchen & KDS Team">Kitchen & KDS Team</option>
                     </>
                   )}
@@ -1081,6 +1256,135 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW USER DETAILS MODAL */}
+      {viewingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px] animate-[userModalBackdrop_180ms_ease-out]">
+          <div className={`relative w-full max-w-md overflow-hidden rounded-2xl border shadow-xl ${
+            dark ? "bg-[#1a1b26] border-slate-800 text-slate-100" : "bg-white border-slate-100 text-slate-800"
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300">
+                  {viewingUser.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={viewingUser.imageUrl.startsWith("data:") || viewingUser.imageUrl.startsWith("http") ? viewingUser.imageUrl : `${apiOrigin}${viewingUser.imageUrl}`}
+                      alt={viewingUser.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{initials(viewingUser.name)}</span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {viewingUser.name}
+                  </h3>
+                  <div className="text-[11px] font-medium text-slate-400">
+                    {roleName(viewingUser)}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingUser(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {language === "km" ? "ឈ្មោះបុគ្គលិក" : "Full Name"}
+                  </div>
+                  <div className="font-bold text-slate-700 dark:text-slate-200">
+                    {viewingUser.name}
+                  </div>
+                </div>
+
+                <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {language === "km" ? "តួនាទី / Group" : "Group / Role"}
+                  </div>
+                  <div className="font-bold text-[#55a060]">
+                    {roleName(viewingUser)}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                  {language === "km" ? "អាសយដ្ឋានអ៊ីមែល" : "Email Address"}
+                </div>
+                <div className="font-mono font-medium text-slate-700 dark:text-slate-200 truncate">
+                  {viewingUser.email}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {language === "km" ? "ស្ថានភាពគណនី" : "Account Status"}
+                  </div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${viewingUser.isActive ? "bg-emerald-500" : "bg-slate-400"}`} />
+                    {viewingUser.isActive ? "Active (Normal)" : "Disabled"}
+                  </div>
+                </div>
+
+                <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                    {language === "km" ? "POS PIN Code" : "POS PIN Code"}
+                  </div>
+                  <div className="font-bold text-slate-700 dark:text-slate-200">
+                    {(viewingUser as any).pin || (viewingUser as any).hasPin ? "Configured (****)" : "Not Set"}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-3 rounded-xl border ${dark ? "border-slate-800 bg-[#232333]" : "border-slate-100 bg-slate-50"}`}>
+                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                  {language === "km" ? "ចូលប្រព័ន្ធចុងក្រោយ (Last Login)" : "Last Login Time"}
+                </div>
+                <div className="font-mono text-slate-600 dark:text-slate-300">
+                  {formatDate((viewingUser as any).lastLoginAt || viewingUser.updatedAt || viewingUser.createdAt)}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-[#1a1b26]">
+              <button
+                type="button"
+                onClick={() => setViewingUser(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
+              >
+                {language === "km" ? "បិទ" : "Close"}
+              </button>
+              {viewingUser.id !== 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const u = viewingUser;
+                    setViewingUser(null);
+                    openEditModal(u);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#55a060] hover:bg-[#478851] rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit3 size={13} />
+                  {language === "km" ? "កែប្រែទិន្នន័យ" : "Edit Profile"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

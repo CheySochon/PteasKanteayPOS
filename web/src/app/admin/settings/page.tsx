@@ -441,8 +441,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!isSuperAdmin) return;
-    void refreshBackupFiles();
-  }, [isSuperAdmin]);
+    if (activeTab === "security") {
+      void refreshBackupFiles();
+    }
+  }, [isSuperAdmin, activeTab]);
 
   const saveDisabled = loading || saving;
 
@@ -554,6 +556,7 @@ export default function SettingsPage() {
 
     try {
       await downloadBackup(true);
+      await refreshBackupFiles();
       setMessage("Latest backup downloaded.");
     } catch (err) {
       setError(err instanceof Error ? `${err.message}. No backup may exist yet.` : "Unable to download latest backup");
@@ -568,6 +571,7 @@ export default function SettingsPage() {
     setError("");
     try {
       await downloadSqlBackup();
+      await refreshBackupFiles();
       setMessage("SQL Database backup downloaded successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to download SQL backup");
@@ -668,7 +672,7 @@ export default function SettingsPage() {
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-200/80"
         }`}>
           <div className="mx-auto w-full max-w-[1400px] px-4 lg:px-6 py-3 flex flex-wrap items-center gap-2.5 text-sm font-semibold overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* 1. Store Details */}
+          {/* 1. Restaurant Details */}
           <button
             type="button"
             onClick={() => setActiveTab("general")}
@@ -681,7 +685,7 @@ export default function SettingsPage() {
             }`}
           >
             <Info size={17} />
-            <span>{language === "km" ? "ព័ត៌មានហាង" : "Store Details"}</span>
+            <span>{language === "km" ? "ព័ត៌មានហាង" : "Restaurant Details"}</span>
           </button>
 
           {/* 2. Print Settings */}
@@ -764,12 +768,12 @@ export default function SettingsPage() {
               {activeTab === "general" && (
                 <div className="animate-[printerFadeIn_200ms_ease-out]">
                   {/* Page heading */}
-                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>Store Details</h2>
+                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>Restaurant Details</h2>
 
                   <div className="flex flex-col lg:flex-row gap-6">
-                    {/* LEFT: Store Image Card */}
+                    {/* LEFT: Restaurant Image Card */}
                     <div className={`shrink-0 w-full lg:w-56 rounded-2xl border ${borderCol} ${surface} p-5 flex flex-col items-center gap-3`}>
-                      <span className={`text-xs font-semibold ${textSecondary}`}>Store Image</span>
+                      <span className={`text-xs font-semibold ${textSecondary}`}>Restaurant Logo</span>
 
                       {/* Upload zone */}
                       <label className="cursor-pointer w-full">
@@ -814,9 +818,9 @@ export default function SettingsPage() {
 
                     {/* RIGHT: Form fields */}
                     <div className={`flex-1 max-w-5xl rounded-2xl border ${borderCol} ${surface} p-6 space-y-5`}>
-                      {/* Store Name */}
+                      {/* Restaurant Name */}
                       <div className="space-y-1.5">
-                        <label className={`block text-xs font-semibold ${textSecondary}`}>Store Name</label>
+                        <label className={`block text-xs font-semibold ${textSecondary}`}>Restaurant Name</label>
                         <input
                           value={settings.restaurantName}
                           onChange={(event) => update("restaurantName", event.target.value)}
@@ -876,7 +880,6 @@ export default function SettingsPage() {
                         >
                           <option value="USD">United States dollar - ($)</option>
                           <option value="KHR">Cambodian Riel - (៛)</option>
-                          <option value="THB">Thai Baht - (฿)</option>
                         </select>
                       </div>
 
@@ -922,7 +925,6 @@ export default function SettingsPage() {
                           >
                             <option value="USD">United States dollar – ($)</option>
                             <option value="KHR">Cambodian Riel – (៛)</option>
-                            <option value="THB">Thai Baht – (฿)</option>
                           </select>
                         </div>
 
@@ -1363,17 +1365,49 @@ export default function SettingsPage() {
                             </div>
                             <div>
                               <h3 className={`text-base font-bold ${textPrimary}`}>
-                                {language === "km" ? "១. ការចម្លងទុក និងស្ដារប្រព័ន្ធ Database (.SQL / .JSON)" : "1. Database Snapshot & Disaster Recovery (.SQL / .JSON)"}
+                                {language === "km" ? "១. សុវត្ថិភាព និងរក្សាទុកទិន្នន័យប្រព័ន្ធ POS (.SQL / .JSON)" : "1. POS Database Snapshot & Security Backup (.SQL / .JSON)"}
                               </h3>
                               <p className={`text-xs ${textSecondary}`}>
-                                {language === "km" ? "ទាញយក Full Relational Database Snapshot សម្រាប់ការពារទិន្នន័យ និងស្ដារប្រព័ន្ធឡើងវិញ" : "Full relational database snapshot for system migration and disaster recovery."}
+                                {language === "km" ? "ចម្លងទុកទិន្នន័យភោជនីយដ្ឋាន (Database Snapshot) សម្រាប់ការពារសុវត្ថិភាព និងស្ដារប្រព័ន្ធឡើងវិញ។" : "Complete database snapshot for POS system security, data protection, and instant disaster recovery."}
                               </p>
                             </div>
                           </div>
                         </div>
 
+                        {/* Latest Backup Status Banner */}
+                        <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-xs ${borderCol} ${softSurface}`}>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative flex h-2.5 w-2.5 shrink-0">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                            </div>
+                            <span className={`font-semibold shrink-0 ${textSecondary}`}>
+                              {language === "km" ? "Backup ចុងក្រោយ (Latest Backup):" : "Latest Backup:"}
+                            </span>
+                            {backupFiles.length > 0 ? (
+                              <span className={`font-bold ${textPrimary}`}>
+                                {new Date(backupFiles[0].createdAt).toLocaleString(language === "km" ? "km-KH" : "en-US", {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })}
+                              </span>
+                            ) : (
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                {language === "km" ? "ប្រព័ន្ធត្រៀម Backup រួចរាល់" : "Ready"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {backupFiles.length > 0 && (
+                              <span className="rounded-md bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                {(backupFiles[0].size / 1024).toFixed(1)} KB
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Action buttons */}
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
                           <button
                             type="button"
                             onClick={handleDownloadSql}
@@ -1392,16 +1426,6 @@ export default function SettingsPage() {
                           >
                             {backupBusy === "download" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
                             <span>{language === "km" ? "ទាញយក JSON Snapshot (.json)" : "Download JSON Snapshot (.json)"}</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={downloadLatestBackup}
-                            disabled={Boolean(backupBusy) || backupFiles.length === 0}
-                            className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60`}
-                          >
-                            {backupBusy === "latest" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            <span>{language === "km" ? "ទាញយក Backup ចុងក្រោយ" : "Download Latest Backup"}</span>
                           </button>
 
                           <label className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800`}>
@@ -1431,7 +1455,7 @@ export default function SettingsPage() {
                         )}
                       </div>
 
-                      {/* SECTION 2: BUSINESS & FINANCIAL REPORTS (.XLSX EXCEL) */}
+                      {/* SECTION 2: POS SALES & RESTAURANT EXCEL REPORTS (.XLSX EXCEL) */}
                       <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5 shadow-xs`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
@@ -1440,10 +1464,14 @@ export default function SettingsPage() {
                             </div>
                             <div>
                               <h3 className={`text-base font-bold ${textPrimary}`}>
-                                {language === "km" ? "២. របាយការណ៍អាជីវកម្ម និងហិរញ្ញវត្ថុ (.xlsx Excel Reports)" : "2. Business & Financial Reports (.xlsx Excel Export)"}
+                                {language === "km"
+                                  ? "២. ទាញយករបាយការណ៍លក់ និងហិរញ្ញវត្ថុ POS (.xlsx Excel Reports)"
+                                  : "2. Restaurant Sales & Financial Reports (.xlsx Excel Export)"}
                               </h3>
                               <p className={`text-xs ${textSecondary}`}>
-                                {language === "km" ? "ទាញយករបាយការណ៍សរុបប្រចាំថ្ងៃ ការលក់ ស្តុក និងគណនេយ្យទៅជា File Excel (Multi-Sheet Excel Workbook)" : "Export comprehensive sales, inventory, staff, and purchasing reports into a multi-sheet Excel workbook."}
+                                {language === "km"
+                                  ? "ទាញយកឯកសារ Excel សរុបការលក់ប្រចាំថ្ងៃ វិក្កយបត្រ មុខម្ហូបលក់ដាច់ និងស្តុកគ្រឿងផ្សំភោជនីយដ្ឋាន។"
+                                  : "Export daily POS sales, order receipts, menu item performance, and kitchen stock into an Excel spreadsheet."}
                               </p>
                             </div>
                           </div>
@@ -1458,7 +1486,11 @@ export default function SettingsPage() {
                             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-5 text-xs font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer shadow-sm shadow-[#55a060]/20"
                           >
                             {backupBusy === "excel" ? <Loader2 className="animate-spin" size={15} /> : <Download size={15} />}
-                            <span>{language === "km" ? "ទាញយករបាយការណ៍អាជីវកម្មសរុប (.xlsx Excel)" : "Export Complete Business Reports (.xlsx Excel)"}</span>
+                            <span>
+                              {language === "km"
+                                ? "ទាញយករបាយការណ៍លក់ POS (.xlsx Excel)"
+                                : "Export Restaurant Sales Reports (.xlsx Excel)"}
+                            </span>
                           </button>
                         </div>
                       </div>

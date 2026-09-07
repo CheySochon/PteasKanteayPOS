@@ -1,32 +1,11 @@
 import { prisma } from "../src/config/prisma.js";
 
 async function main() {
-  const rongdeth = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { name: { contains: "RongDeth", mode: "insensitive" } },
-        { email: { contains: "rongdeth", mode: "insensitive" } },
-      ],
-    },
-    include: {
-      userGroups: {
-        include: {
-          group: {
-            include: {
-              groupPermissions: {
-                include: {
-                  permission: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+  const updated = await prisma.product.update({
+    where: { id: 77 },
+    data: { prepTime: 1 },
   });
-
-  console.log("=== RONGDETH USER RECORD IN POSTGRESQL DB ===");
-  console.log(JSON.stringify(rongdeth, null, 2));
+  console.log("Updated Coca-Cola in DB:", updated);
 }
 
 main()

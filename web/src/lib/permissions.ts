@@ -332,6 +332,33 @@ export function hasFeaturePermission(
     return true;
   }
 
+  // 0. Check Global System Rules Matrix (ismenu & status set from Rules & Matrix page)
+  if (typeof window !== "undefined") {
+    try {
+      const storedRulesRaw = localStorage.getItem("pos_system_rules_list");
+      if (storedRulesRaw) {
+        const rulesList = JSON.parse(storedRulesRaw);
+        if (Array.isArray(rulesList)) {
+          const fKey = featureKey.trim().toLowerCase();
+          const matchedRule = rulesList.find((r: any) => {
+            if (!r) return false;
+            const rName = String(r.name || "").trim().toLowerCase();
+            const rTitle = String(r.title || "").trim().toLowerCase();
+            return rName === fKey || rTitle === fKey || (rName && fKey.includes(rName));
+          });
+
+          if (matchedRule) {
+            // If rule status is Disabled, deny feature access
+            if (matchedRule.status === "Disabled") return false;
+
+            // If action is view (menu item rendering) and ismenu is explicitly turned off, hide it
+            if (action === "view" && matchedRule.ismenu === false) return false;
+          }
+        }
+      }
+    } catch {}
+  }
+
   // 1. Extract permissions array from all possible properties on user, group, or role object
   let userPerms: any =
     user.permissions ||

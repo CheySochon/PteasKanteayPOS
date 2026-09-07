@@ -14,7 +14,12 @@ const router = Router();
 const adminOnly = [authMiddleware, roleMiddleware(["Admin"])];
 
 router.get("/audit-logs", ...adminOnly, asyncHandler(getAuditLogsHandler));
+router.get("/logs", ...adminOnly, asyncHandler(getAuditLogsHandler));
+router.get("/", ...adminOnly, asyncHandler(getAuditLogsHandler));
+
 router.delete("/audit-logs", ...adminOnly, asyncHandler(clearAuditLogsHandler));
+router.delete("/logs", ...adminOnly, asyncHandler(clearAuditLogsHandler));
+router.delete("/", ...adminOnly, asyncHandler(clearAuditLogsHandler));
 router.get("/telegram", ...adminOnly, asyncHandler(getTelegramConfigHandler));
 router.post("/telegram", ...adminOnly, asyncHandler(updateTelegramConfigHandler));
 router.post("/telegram/test", ...adminOnly, asyncHandler(testTelegramBotHandler));

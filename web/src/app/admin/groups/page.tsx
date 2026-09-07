@@ -22,6 +22,8 @@ import {
   Download,
   FolderTree,
   MoreVertical,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage } from "../../../lib/language";
@@ -194,6 +196,7 @@ export default function GroupsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
   const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -219,6 +222,7 @@ export default function GroupsPage() {
     const handleClose = () => {
       setActionMenuOpen(null);
       setActionMenuPos(null);
+      setIsExportMenuOpen(false);
     };
     window.addEventListener("click", handleClose);
     window.addEventListener("scroll", handleClose, true);
@@ -452,13 +456,19 @@ export default function GroupsPage() {
     return result;
   }, [groups, searchQuery, groupFilter]);
 
-  const handleExportCSV = () => {
-    if (groups.length === 0) return;
-    const headers = ["ID", "Parent Group", "Group Name", "Description", "Status"];
-    const rows = groups.map((g) => {
+  // Export Excel (.csv)
+  const handleExportExcel = () => {
+    if (groups.length === 0) {
+      setError(language === "km" ? "គ្មានទិន្នន័យក្រុមបុគ្គលិកសម្រាប់ Export ទេ" : "No admin groups data to export.");
+      return;
+    }
+
+    const headers = ["No.", "ID", "Parent Group", "Group Name", "Description", "Status"];
+    const rows = treeNodes.map((g, idx) => {
       const parent = groups.find((p) => p.id === g.parentId);
       const parentLabel = g.parentId === 0 ? "Root / System" : parent ? parent.name : `Group #${g.parentId}`;
       return [
+        String(idx + 1),
         g.id,
         `"${parentLabel.replace(/"/g, '""')}"`,
         `"${g.name.replace(/"/g, '""')}"`,
@@ -466,6 +476,7 @@ export default function GroupsPage() {
         g.status || "Normal",
       ];
     });
+
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -474,8 +485,75 @@ export default function GroupsPage() {
     a.download = `admin_groups_directory_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    setMessage(language === "km" ? "ទាញយក File Excel ក្រុមបុគ្គលិកជោគជ័យ!" : "Admin groups directory Excel report downloaded successfully.");
   };
 
+  // Export PDF (.pdf)
+  const handleExportPDF = async () => {
+    if (groups.length === 0) {
+      setError(language === "km" ? "គ្មានទិន្នន័យក្រុមបុគ្គលិកសម្រាប់ Export ទេ" : "No admin groups data to export.");
+      return;
+    }
+
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const doc = new jsPDF();
+      const nowStr = new Date().toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("ADMIN GROUPS DIRECTORY REPORT", 14, 18);
+
+      // Report Meta
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Generated: ${nowStr}   |   Total Groups: ${groups.length}   |   Active: ${groups.filter((g) => g.status === "Normal" || !g.status).length}`,
+        14,
+        25
+      );
+
+      const tableRows = treeNodes.map((g, idx) => {
+        const parent = groups.find((p) => p.id === g.parentId);
+        const parentLabel = g.parentId === 0 ? "Root / System" : parent ? parent.name : `Group #${g.parentId}`;
+        return [
+          String(idx + 1),
+          String(g.id),
+          parentLabel,
+          g.name,
+          g.description || "-",
+          g.status || "Normal",
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["No.", "ID", "Parent Group", "Group Name & Hierarchy", "Description", "Status"]],
+        body: tableRows,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [85, 160, 96], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      doc.save(`admin_groups_directory_${new Date().toISOString().slice(0, 10)}.pdf`);
+      setMessage(language === "km" ? "ទាញយក File PDF ក្រុមបុគ្គលិកជោគជ័យ!" : "Admin groups directory PDF report downloaded successfully.");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      setError(language === "km" ? "បរាជ័យក្នុងការទាញយក PDF" : "Failed to generate PDF document.");
+    }
+  };
 
   return (
     <main className={`flex-1 overflow-y-auto ${dark ? "bg-[#232333]" : "bg-[#f8faf9]"}`}>
@@ -500,27 +578,70 @@ export default function GroupsPage() {
             <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
               <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
               <ChevronRight size={12} />
-              <span className="text-[#55a060]">Group</span>
+              <span className="text-[#55a060]">{language === "km" ? "ក្រុមតួនាទី" : "Role Groups"}</span>
             </div>
             <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
-              {language === "km" ? "ក្រុមបុគ្គលិក (Admin Groups)" : "Admin Groups"}
+              {language === "km" ? "ក្រុមតួនាទី (Role Groups)" : "Role Groups"}
             </h1>
             <p className="text-xs text-slate-400 font-normal">
-              {language === "km" ? "គ្រប់គ្រងក្រុមសិទ្ធិបុគ្គលិក ឋានានុក្រមប្រព័ន្ធ និងការបែងចែកសិទ្ធិ" : "Manage staff role groups, system hierarchy, and module access matrix."}
+              {language === "km" ? "គ្រប់គ្រងក្រុមតួនាទីបុគ្គលិក ឋានានុក្រមប្រព័ន្ធ និងការបែងចែកសិទ្ធិ" : "Manage staff role groups, system hierarchy, and module access matrix."}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
-              }`}
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
+            {/* Export Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExportMenuOpen((prev) => !prev);
+                }}
+                className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+                }`}
+              >
+                <Download size={14} />
+                <span>{language === "km" ? "ទាញយកទិន្នន័យ (Export)" : "Export"}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isExportMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isExportMenuOpen && (
+                <div
+                  className={`absolute right-0 top-full mt-1.5 z-30 w-52 rounded-xl border p-2 shadow-lg transition-all animate-[dropdownScale_150ms_ease-out] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-200/90 bg-white text-slate-800"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportExcel();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <Download size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក CSV" : "Download CSV"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportPDF();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <FileText size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក PDF (.pdf)" : "Download PDF (.pdf)"}</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => openCreateModal()}
@@ -668,15 +789,7 @@ export default function GroupsPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50/80 border-slate-200/80"}`}>
-                  <th className="py-3 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={groups.length > 0 && selectedIds.length === groups.length}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                    />
-                  </th>
-                  <th className="py-3 px-4 w-16 font-bold">ID</th>
+                  <th className="py-3 px-4 w-16 font-bold">No.</th>
                   <th className="py-3 px-4 w-44 font-bold">Parent Group</th>
                   <th className="py-3 px-4 font-bold">Group Name & Hierarchy</th>
                   <th className="py-3 px-4 font-bold">Description</th>
@@ -687,12 +800,12 @@ export default function GroupsPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {treeNodes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-normal">
+                    <td colSpan={6} className="py-12 text-center text-slate-400 font-normal">
                       No admin groups found.
                     </td>
                   </tr>
                 ) : (
-                  treeNodes.map((node) => {
+                  treeNodes.map((node, idx) => {
                     const isSelected = selectedIds.includes(node.id);
                     const parentGroup = groups.find((g) => g.id === node.parentId);
                     const parentLabel = node.parentId === 0 ? "Root / System" : (parentGroup ? parentGroup.name : `Group #${node.parentId}`);
@@ -706,17 +819,8 @@ export default function GroupsPage() {
                             : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
                         }`}
                       >
-                        <td className="py-3.5 px-4">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSelect(node.id)}
-                            className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                          />
-                        </td>
-
-                        <td className="py-3.5 px-4 font-semibold text-slate-600 dark:text-slate-400">
-                          {node.id}
+                        <td className="py-3.5 px-4 font-semibold text-slate-500 dark:text-slate-400">
+                          {idx + 1}
                         </td>
 
                         <td className="py-3.5 px-4 font-medium text-slate-500 dark:text-slate-400 truncate max-w-[160px]">

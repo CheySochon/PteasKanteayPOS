@@ -10,7 +10,7 @@ export const createUserSchema = z.object({
     .max(254),
   password: z
     .string({ error: "Password is required" })
-    .min(4, { error: "Password must be at least 4 characters" })
+    .min(8, { error: "Password must be at least 8 characters" })
     .max(64),
   name: z.string().trim().min(1).max(100),
   role: z.string().optional(),
@@ -23,7 +23,7 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   email: z.email().trim().toLowerCase().max(254).optional(),
-  password: z.union([z.string().min(4).max(64), z.literal("")]).optional(),
+  password: z.union([z.string().min(8, { error: "Password must be at least 8 characters" }).max(64), z.literal("")]).optional(),
   name: z.string().trim().min(1).max(100).optional(),
   role: z.string().optional(),
   roleName: z.string().optional(),

@@ -13,6 +13,7 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronDown,
   Columns,
   Grid,
   Download,
@@ -95,11 +96,13 @@ export default function RolesPage() {
   const [error, setError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState<number | null>(null);
   const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
 
   useEffect(() => {
     const handleClose = () => {
+      setIsExportMenuOpen(false);
       setActionMenuOpen(null);
       setActionMenuPos(null);
     };
@@ -342,9 +345,9 @@ export default function RolesPage() {
 
   const handleExportCSV = () => {
     if (rules.length === 0) return;
-    const headers = ["ID", "Title", "Name", "Weigh", "Status", "Is Menu"];
-    const rows = rules.map((r) => [
-      r.id,
+    const headers = ["No.", "Title", "Name", "Weigh", "Status", "Is Menu"];
+    const rows = rules.map((r, idx) => [
+      idx + 1,
       `"${r.title.replace(/"/g, '""')}"`,
       `"${r.name.replace(/"/g, '""')}"`,
       r.weigh,
@@ -359,6 +362,69 @@ export default function RolesPage() {
     a.download = `system_rules_matrix_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Export PDF (.pdf)
+  const handleExportPDF = async () => {
+    if (rules.length === 0) {
+      setError(language === "km" ? "គ្មានទិន្នន័យសិទ្ធិប្រព័ន្ធសម្រាប់ Export ទេ" : "No system rules data to export.");
+      return;
+    }
+
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const doc = new jsPDF();
+      const nowStr = new Date().toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("SYSTEM RULES & MATRIX DIRECTORY REPORT", 14, 18);
+
+      // Report Meta
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Generated: ${nowStr}   |   Total Rules: ${rules.length}   |   Active: ${rules.filter((r) => r.status === "Normal" || !r.status).length}`,
+        14,
+        25
+      );
+
+      const tableRows = filteredRules.map((r, idx) => [
+        String(idx + 1),
+        r.title,
+        r.name,
+        String(r.weigh),
+        r.status || "Normal",
+        r.ismenu ? "Yes" : "No",
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        head: [["No.", "Title", "Name", "Weigh", "Status", "Is Menu"]],
+        body: tableRows,
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [85, 160, 96], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      doc.save(`system_rules_matrix_${new Date().toISOString().slice(0, 10)}.pdf`);
+      setMessage(language === "km" ? "ទាញយក File PDF សិទ្ធិប្រព័ន្ធជោគជ័យ!" : "System rules PDF report downloaded successfully.");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      setError(language === "km" ? "បរាជ័យក្នុងការទាញយក PDF" : "Failed to generate PDF document.");
+    }
   };
 
   const textPrimary = dark ? "text-slate-100" : "text-[#2c3e50]";
@@ -389,27 +455,70 @@ export default function RolesPage() {
             <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
               <Link href="/admin/users" className="hover:text-[#55a060] transition-colors">Auth & Users</Link>
               <ChevronRight size={12} />
-              <span className="text-[#55a060]">Rule</span>
+              <span className="text-[#55a060]">{language === "km" ? "សិទ្ធិប្រើប្រាស់" : "Permissions"}</span>
             </div>
             <h1 className={`text-2xl font-medium tracking-normal text-[#2c3e50] dark:text-slate-100 mb-1`}>
-              {language === "km" ? "សិទ្ធិប្រព័ន្ធ (Rules & Matrix)" : "Rules & Matrix"}
+              {language === "km" ? "កំណត់សិទ្ធិប្រើប្រាស់ (Permissions & Access Control)" : "Permissions & Access Control"}
             </h1>
             <p className="text-xs text-slate-400 font-normal">
-              {language === "km" ? "កំណត់ច្បាប់សិទ្ធិប្រើប្រាស់តាមម៉ូឌុល និងមុខងារប្រព័ន្ធ POS" : "Configure module access rules and granular feature permissions."}
+              {language === "km" ? "កំណត់សិទ្ធិចូលប្រើប្រាស់ផ្នែក និងមុខងារផ្សេងៗក្នុងប្រព័ន្ធ POS" : "Configure module access rights and granular feature permissions."}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
-              }`}
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
+            {/* Export Dropdown Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExportMenuOpen((prev) => !prev);
+                }}
+                className={`inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-[#55a060] hover:bg-[#34354e]" : "border-emerald-200 bg-emerald-50/60 text-[#55a060] hover:bg-emerald-100/60"
+                }`}
+              >
+                <Download size={14} />
+                <span>{language === "km" ? "ទាញយកទិន្នន័យ (Export)" : "Export"}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isExportMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isExportMenuOpen && (
+                <div
+                  className={`absolute right-0 top-full mt-1.5 z-30 w-52 rounded-xl border p-2 shadow-lg transition-all animate-[dropdownScale_150ms_ease-out] ${
+                    dark ? "border-slate-700 bg-[#232333] text-slate-200" : "border-slate-200/90 bg-white text-slate-800"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportCSV();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <Download size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក CSV" : "Download CSV"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportPDF();
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors text-left cursor-pointer ${
+                      dark ? "hover:bg-slate-800/70 text-slate-100" : "hover:bg-slate-50 text-[#2c3e50]"
+                    }`}
+                  >
+                    <FileText size={15} className="text-[#55a060] shrink-0" />
+                    <span>{language === "km" ? "ទាញយក PDF (.pdf)" : "Download PDF (.pdf)"}</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={openCreateModal}
@@ -559,59 +668,38 @@ export default function RolesPage() {
                 <tr className={`border-b text-slate-700 dark:text-slate-300 font-semibold ${
                   dark ? "bg-[#232333]/80 border-[#4e4f6e]" : "bg-slate-50 border-slate-200/80"
                 }`}>
-                  <th className="py-3 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={rules.length > 0 && selectedRuleIds.length === rules.length}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                    />
-                  </th>
-                  <th className="py-3 px-4 w-16 font-bold">ID</th>
-                  <th className="py-3 px-4 w-40 font-bold">Title</th>
-                  <th className="py-3 px-4 w-16 text-center font-bold">Icon</th>
-                  <th className="py-3 px-4 font-bold">Name</th>
-                  <th className="py-3 px-4 w-24 text-center font-bold">Weigh</th>
-                  <th className="py-3 px-4 w-28 font-bold">Status</th>
-                  <th className="py-3 px-4 w-24 text-center font-bold">Ismenu</th>
-                  <th className="py-3 px-4 w-32 text-center font-bold">Operate</th>
+                  <th className="py-3.5 px-4 w-16 font-bold">No.</th>
+                  <th className="py-3.5 px-4 w-40 font-bold">Title</th>
+                  <th className="py-3.5 px-4 w-16 text-center font-bold">Icon</th>
+                  <th className="py-3.5 px-4 font-bold">Name</th>
+                  <th className="py-3.5 px-4 w-24 text-center font-bold">Weigh</th>
+                  <th className="py-3.5 px-4 w-28 font-bold">Status</th>
+                  <th className="py-3.5 px-4 w-24 text-center font-bold">Ismenu</th>
+                  <th className="py-3.5 px-4 w-32 text-center font-bold">Operate</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredRules.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-400 font-normal">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-normal">
                       No system rules found matching search query.
                     </td>
                   </tr>
                 ) : (
                   filteredRules.map((rule, idx) => {
                     const isBottomRow = idx >= filteredRules.length - 2;
-                    const isSelected = selectedRuleIds.includes(rule.id);
                     const RuleIcon = getRuleIcon(rule.iconName);
 
                     return (
                       <tr
                         key={rule.id}
                         className={`transition-colors ${
-                          isSelected
-                            ? dark ? "bg-[#55a060]/10" : "bg-emerald-50/50"
-                            : dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
+                          dark ? "hover:bg-[#232333]/50" : "hover:bg-slate-50/70"
                         }`}
                       >
-                        {/* Checkbox */}
-                        <td className="py-3.5 px-4">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSelect(rule.id)}
-                            className="rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer h-4 w-4"
-                          />
-                        </td>
-
-                        {/* ID */}
+                        {/* No. */}
                         <td className="py-3.5 px-4 font-normal text-slate-500 dark:text-slate-400">
-                          {rule.id}
+                          {idx + 1}
                         </td>
 
                         {/* Title (▸ Title) */}

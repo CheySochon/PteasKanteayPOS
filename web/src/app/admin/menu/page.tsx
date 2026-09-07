@@ -1306,18 +1306,18 @@ export default function MenuPage() {
                   className="w-full max-w-sm cursor-default overflow-hidden rounded-2xl bg-white dark:bg-[#181920] border border-slate-200/80 dark:border-slate-800 shadow-2xl animate-[confirmScaleIn_180ms_ease_both]"
                 >
                   {/* Header */}
-                  <div className="px-6 pt-6 pb-5 border-b border-slate-100 dark:border-slate-800/80">
-                    <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/20">
-                      <Trash2 size={20} className="text-white" />
+                  <div className="px-6 pt-6 pb-5 text-center border-b border-slate-100 dark:border-slate-800/80">
+                    <div className="mx-auto mb-3.5 flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-500 ring-8 ring-rose-500/5">
+                      <Trash2 size={20} className="text-rose-500" />
                     </div>
-                    <h3 className="text-[15px] font-bold text-slate-900 dark:text-white leading-snug">{confirmModal.title}</h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug">{confirmModal.title}</h3>
+                    <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                       {confirmModal.message}
                     </p>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2.5 px-6 py-5 bg-slate-50/60 dark:bg-slate-900/30">
+                  <div className="flex gap-2.5 px-6 py-4 bg-slate-50/60 dark:bg-slate-900/30">
                     <button
                       type="button"
                       onClick={() => setConfirmModal((c) => ({ ...c, isOpen: false }))}
@@ -1328,7 +1328,7 @@ export default function MenuPage() {
                     <button
                       type="button"
                       onClick={() => { void confirmModal.onConfirm(); }}
-                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 transition-opacity duration-150 shadow-md shadow-rose-600/20 cursor-pointer"
+                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white bg-[#ff3e1d] hover:bg-[#e03417] transition-all duration-150 shadow-md shadow-[#ff3e1d]/25 active:scale-95 cursor-pointer"
                     >
                       {language === "km" ? "លុប" : "Delete"}
                     </button>

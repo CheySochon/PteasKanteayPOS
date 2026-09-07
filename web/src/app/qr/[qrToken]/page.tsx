@@ -136,9 +136,40 @@ const parsePriceNumber = (val: any): number => {
     if (val.amount !== undefined) return parsePriceNumber(val.amount);
     if (val.value !== undefined) return parsePriceNumber(val.value);
     if (val.price !== undefined) return parsePriceNumber(val.price);
+    if (val.unitPrice !== undefined) return parsePriceNumber(val.unitPrice);
+    if (val.basePrice !== undefined) return parsePriceNumber(val.basePrice);
   }
   return 0;
 };
+
+function getItemPrice(item: any, productsList: any[] = []): number {
+  if (!item) return 0;
+  let p = parsePriceNumber(
+    item.price ??
+    item.unitPrice ??
+    item.basePrice ??
+    item.product?.basePrice ??
+    item.product?.price ??
+    item.product?.unitPrice
+  );
+  if (p > 0) return p;
+
+  const targetId = item.productId || item.product?.id || item.id;
+  const targetName = String(item.name || item.product?.name || "").toLowerCase().trim();
+
+  if (Array.isArray(productsList)) {
+    const matched = productsList.find((prod) => {
+      if (prod.id && String(prod.id) === String(targetId)) return true;
+      if (targetName && String(prod.name || "").toLowerCase().trim() === targetName) return true;
+      return false;
+    });
+
+    if (matched) {
+      p = parsePriceNumber(matched.basePrice ?? matched.price ?? matched.unitPrice);
+    }
+  }
+  return p;
+}
 
 const formatPrice = (usd: any, locale: "EN" | "KH", rate: number = 4000) => {
   const num = parsePriceNumber(usd);
@@ -798,7 +829,7 @@ export default function TableQrPage({
           </div>
 
           {/* Desktop Navigation Tabs (Visible on Desktop >= md) */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+          <div className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/70 shadow-2xs">
             {[
               { icon: Utensils, label: t("Menu", "ម៉ឺនុយ"), page: "menu" as PageTab },
               { icon: ShoppingBag, label: t("My Order", "ការកម្មង់"), page: "order" as PageTab },
@@ -815,30 +846,47 @@ export default function TableQrPage({
                   disabled={!allowed}
                   type="button"
                   onClick={() => navigateToPage(nav.page)}
-                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-medium font-khmer transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold font-khmer transition-all duration-200 ${
                     isActive
-                      ? "bg-[#4EA668] text-white shadow-xs"
+                      ? "bg-[#4EA668] text-white shadow-sm shadow-[#4EA668]/20"
                       : allowed
-                      ? "text-slate-600 hover:text-slate-900 hover:bg-white/50 cursor-pointer"
-                      : "text-slate-300 cursor-not-allowed"
+                      ? "text-slate-600 hover:text-slate-900 hover:bg-white/80 cursor-pointer"
+                      : "text-slate-300 cursor-not-allowed opacity-50"
                   }`}
                 >
-                  <Icon size={15} className={isActive ? "text-white" : "text-slate-400"} />
+                  <div className="relative flex items-center shrink-0">
+                    <Icon size={16} className={isActive ? "text-white" : "text-slate-400"} />
+                    {nav.page === "order" && totalItems > 0 && (
+                      <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 rounded-full text-[9.5px] font-black flex items-center justify-center shadow-2xs transition-colors ${
+                        isActive ? "bg-white text-[#4EA668]" : "bg-[#4EA668] text-white"
+                      }`}>
+                        {totalItems}
+                      </span>
+                    )}
+                    {nav.page === "tracking" && activeOrders.length > 0 && (
+                      <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 rounded-full text-[9.5px] font-black flex items-center justify-center shadow-2xs transition-colors ${
+                        isActive ? "bg-white text-[#4EA668]" : "bg-[#4EA668] text-white"
+                      }`}>
+                        {activeOrders.length}
+                      </span>
+                    )}
+                  </div>
                   <span>{nav.label}</span>
-                  {nav.page === "order" && totalItems > 0 && (
-                    <span className="bg-white text-[#4EA668] text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                      {totalItems}
-                    </span>
-                  )}
                 </button>
               );
             })}
           </div>
 
-          {/* Right: Language Selector & Desktop Cart Shortcut */}
+          {/* Right: Table Badge, Language Selector & Desktop Cart Shortcut */}
           <div className="flex items-center gap-3 shrink-0 ml-2">
+            {/* Desktop Table Badge */}
+            <div className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-[#EAF5ED] border border-[#C5E9D0] px-3.5 py-1.5 text-xs font-bold text-[#4EA668]">
+              <Sparkles size={13} className="text-[#4EA668]" />
+              <span>Table {tableName}</span>
+            </div>
+
             {/* Language Switcher Pill */}
-            <div className="relative flex h-8 w-20 shrink-0 rounded-full bg-[#F2F2F7] p-0.5 shadow-inner">
+            <div className="relative flex h-8.5 w-20 shrink-0 rounded-full bg-slate-100 p-0.5 border border-slate-200/60 shadow-inner">
               <div
                 className={`absolute top-0.5 bottom-0.5 w-9 rounded-full bg-[#4EA668] transition-all duration-300 ease-out z-0 shadow-xs ${
                   locale === "EN" ? "left-0.5" : "left-[39px]"
@@ -847,8 +895,8 @@ export default function TableQrPage({
               <button
                 type="button"
                 onClick={() => setLocale("EN")}
-                className={`relative z-10 flex-1 text-[11px] font-semibold transition-colors ${
-                  locale === "EN" ? "text-white" : "text-slate-400"
+                className={`relative z-10 flex-1 text-[11px] font-bold transition-colors ${
+                  locale === "EN" ? "text-white" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 EN
@@ -856,8 +904,8 @@ export default function TableQrPage({
               <button
                 type="button"
                 onClick={() => setLocale("KH")}
-                className={`relative z-10 flex-1 text-[11px] font-semibold transition-colors ${
-                  locale === "KH" ? "text-white" : "text-slate-400"
+                className={`relative z-10 flex-1 text-[11px] font-bold transition-colors ${
+                  locale === "KH" ? "text-white" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 KH
@@ -892,66 +940,78 @@ export default function TableQrPage({
       <main className="mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-6 flex-1 pb-36 md:pb-6 touch-pan-y">
         {/* MENU TAB */}
         {activePage === "menu" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left Column: Search, Categories & Products Grid */}
-            <div className="lg:col-span-8 xl:col-span-8 space-y-5">
-              {/* STORE INFO BANNER CARD (Matching User Design & Backend Settings) */}
-              <div className="rounded-2xl bg-white border-0 sm:border sm:border-slate-200/90 p-5 sm:p-6 shadow-none sm:shadow-xs flex flex-col items-center text-center space-y-2.5">
-                {/* Store Image / Logo from Backend */}
-                <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 border border-slate-200/80 shadow-xs flex items-center justify-center">
-                  {finalLogoUrl ? (
-                    <img
-                      src={resolveImageUrl(finalLogoUrl)}
-                      alt={restaurantName}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <Utensils size={32} className="text-[#4EA668]" />
-                  )}
-                </div>
+            <div className="lg:col-span-8 xl:col-span-8 space-y-6">
+              {/* STORE INFO HERO CARD (Polished for Tablet & Desktop) */}
+              <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 lg:p-7 shadow-xs">
+                <div className="flex flex-col md:flex-row items-center md:items-center justify-between gap-5 text-center md:text-left">
+                  <div className="flex flex-col md:flex-row items-center gap-4 md:gap-5">
+                    {/* Store Image / Logo */}
+                    <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-50 border border-slate-200/80 shadow-xs flex items-center justify-center p-1 group">
+                      {finalLogoUrl ? (
+                        <img
+                          src={resolveImageUrl(finalLogoUrl)}
+                          alt={restaurantName}
+                          className="h-full w-full rounded-xl object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <Utensils size={34} className="text-[#4EA668]" />
+                      )}
+                    </div>
 
-                {/* Store Name */}
-                <h2 className="font-khmer text-lg sm:text-xl font-bold text-slate-900 leading-snug">
-                  {restaurantName}
-                </h2>
+                    {/* Store Info */}
+                    <div className="space-y-1.5">
+                      <h2 className="font-khmer text-xl sm:text-2xl font-bold text-slate-900 leading-snug">
+                        {restaurantName}
+                      </h2>
+                      <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 text-xs text-slate-600 font-medium">
+                        {storeAddressState && (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                            <MapPin size={13} className="text-[#4EA668] shrink-0" />
+                            <span className="font-khmer">{storeAddressState}</span>
+                          </div>
+                        )}
+                        {storePhoneState && (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                            <Phone size={13} className="text-[#4EA668] shrink-0" />
+                            <span>{storePhoneState}</span>
+                          </div>
+                        )}
+                        {storeEmailState && (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/60">
+                            <Mail size={13} className="text-[#4EA668] shrink-0" />
+                            <span>{storeEmailState}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                {/* Store Details: Location, Phone, Email from Backend Settings */}
-                <div className="flex flex-col items-center gap-1.5 text-xs text-slate-600 font-medium pt-0.5">
-                  {storeAddressState && (
-                    <div className="flex items-center gap-1.5">
-                      <MapPin size={14} className="text-slate-400 shrink-0" />
-                      <span className="font-khmer">{storeAddressState}</span>
+                  {/* Tablet/Desktop Table Badge */}
+                  <div className="hidden md:flex flex-col items-end shrink-0">
+                    <div className="inline-flex items-center gap-2 rounded-2xl bg-[#EAF5ED] border border-[#C5E9D0] px-4 py-2.5 text-sm font-bold text-[#4EA668] shadow-2xs">
+                      <Sparkles size={16} />
+                      <span>Table {tableName}</span>
                     </div>
-                  )}
-                  {storePhoneState && (
-                    <div className="flex items-center gap-1.5">
-                      <Phone size={14} className="text-slate-400 shrink-0" />
-                      <span>{storePhoneState}</span>
-                    </div>
-                  )}
-                  {storeEmailState && (
-                    <div className="flex items-center gap-1.5">
-                      <Mail size={14} className="text-slate-400 shrink-0" />
-                      <span>{storeEmailState}</span>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
-              {/* Top Category Pills & Search Filter Row (Matching POS Screen) */}
+              {/* Category Pills & Search Filter Row */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 {/* Category Horizontal Scroll Pills */}
-                <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar items-center flex-1 min-w-0">
+                <div className="flex gap-2.5 overflow-x-auto pb-1.5 no-scrollbar items-center flex-1 min-w-0">
                   <button
                     type="button"
                     onClick={() => setSelectedCategory("all")}
-                    className={`shrink-0 rounded-full px-5 py-2 text-xs sm:text-sm font-medium font-khmer transition-all cursor-pointer shadow-xs ${
+                    className={`shrink-0 rounded-full px-5 py-2 text-xs sm:text-sm font-semibold font-khmer transition-all cursor-pointer shadow-xs ${
                       selectedCategory === "all"
-                        ? "bg-[#4EA668] text-white shadow-sm"
-                        : "bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50"
+                        ? "bg-[#4EA668] text-white shadow-sm shadow-[#4EA668]/20 ring-2 ring-[#4EA668]/20"
+                        : "bg-white border border-slate-200/90 text-slate-700 hover:bg-[#EAF5ED] hover:text-[#4EA668] hover:border-[#C5E9D0]"
                     }`}
                   >
                     {t("All", "ទាំងអស់")}
@@ -961,10 +1021,10 @@ export default function TableQrPage({
                       key={cat.id}
                       type="button"
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`shrink-0 rounded-full px-5 py-2 text-xs sm:text-sm font-medium font-khmer transition-all cursor-pointer shadow-xs ${
+                      className={`shrink-0 rounded-full px-5 py-2 text-xs sm:text-sm font-semibold font-khmer transition-all cursor-pointer shadow-xs ${
                         selectedCategory === cat.id
-                          ? "bg-[#4EA668] text-white shadow-sm"
-                          : "bg-white border border-slate-200/90 text-slate-700 hover:bg-slate-50"
+                          ? "bg-[#4EA668] text-white shadow-sm shadow-[#4EA668]/20 ring-2 ring-[#4EA668]/20"
+                          : "bg-white border border-slate-200/90 text-slate-700 hover:bg-[#EAF5ED] hover:text-[#4EA668] hover:border-[#C5E9D0]"
                       }`}
                     >
                       {cat.name}
@@ -994,10 +1054,8 @@ export default function TableQrPage({
                 </div>
               </div>
 
-
-
               {/* Responsive 2-Col Mobile / 3-Col Tablet / 4-Col Desktop Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4.5">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
                 {filteredProducts.map((product, idx) => {
                   const qty = getQuantity(product.id);
                   const hasQty = qty > 0;
@@ -1042,7 +1100,7 @@ export default function TableQrPage({
                   return (
                     <div
                       key={product.id}
-                      className="group relative flex flex-col rounded-2xl bg-white p-3 shadow-xs border border-slate-200/80 hover:border-[#C5E9D0] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                      className="group relative flex flex-col rounded-2xl bg-white p-3.5 shadow-xs border border-slate-200/80 hover:border-[#C5E9D0] hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                     >
                       {/* Product Thumbnail with POS Category Badge Tag & Click-to-Order Photo */}
                       <div
@@ -1051,7 +1109,7 @@ export default function TableQrPage({
                         title={t("Click image to add to cart", "ចុចលើរូបភាពដើម្បីបន្ថែមចូលកន្ត្រក")}
                       >
                         {/* POS Category Badge Tag (Top-Left) */}
-                        <div className="absolute top-0 left-0 bg-[#4EA668] text-white text-[10px] font-medium px-2.5 py-0.5 rounded-br-xl rounded-tl-xl z-10 shadow-xs">
+                        <div className="absolute top-0 left-0 bg-[#4EA668] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-br-xl rounded-tl-xl z-10 shadow-xs">
                           {categoryName}
                         </div>
 
@@ -1073,15 +1131,15 @@ export default function TableQrPage({
                               e.stopPropagation();
                               addToCart(product);
                             }}
-                            className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-[#4EA668] hover:bg-[#3D8F55] text-white shadow-sm hover:scale-105 active:scale-90 transition-all cursor-pointer z-10"
+                            className="absolute bottom-2.5 right-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#4EA668] hover:bg-[#3D8F55] text-white shadow-md hover:scale-110 active:scale-90 transition-all cursor-pointer z-10"
                             title="Add to cart"
                           >
-                            <Plus size={16} className="stroke-[2.5]" />
+                            <Plus size={18} className="stroke-[2.5]" />
                           </button>
                         ) : (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute bottom-2 right-2 flex items-center justify-between rounded-full bg-white/95 backdrop-blur-xs border border-[#C5E9D0] overflow-hidden h-7 w-[80px] shadow-sm z-10"
+                            className="absolute bottom-2.5 right-2.5 flex items-center justify-between rounded-full bg-white/95 backdrop-blur-xs border border-[#C5E9D0] overflow-hidden h-8 w-[84px] shadow-sm z-10"
                           >
                             <button
                               type="button"
@@ -1090,11 +1148,11 @@ export default function TableQrPage({
                                 e.stopPropagation();
                                 removeFromCart(product.id);
                               }}
-                              className="flex h-full w-7 items-center justify-center text-xs font-semibold text-[#4EA668] hover:bg-[#EAF5ED] cursor-pointer"
+                              className="flex h-full w-7 items-center justify-center text-xs font-bold text-[#4EA668] hover:bg-[#EAF5ED] cursor-pointer"
                             >
                               −
                             </button>
-                            <span className="text-xs font-semibold text-[#4EA668]">
+                            <span className="text-xs font-extrabold text-[#4EA668]">
                               {qty}
                             </span>
                             <button
@@ -1104,7 +1162,7 @@ export default function TableQrPage({
                                 e.stopPropagation();
                                 addToCart(product);
                               }}
-                              className="flex h-full w-7 items-center justify-center text-xs font-semibold text-[#4EA668] hover:bg-[#EAF5ED] cursor-pointer"
+                              className="flex h-full w-7 items-center justify-center text-xs font-bold text-[#4EA668] hover:bg-[#EAF5ED] cursor-pointer"
                             >
                               +
                             </button>
@@ -1115,17 +1173,17 @@ export default function TableQrPage({
                       {/* Title - Clickable to Add to Cart */}
                       <h4
                         onClick={() => !isReadOnly && addToCart(product)}
-                        className="font-khmer text-xs sm:text-sm font-medium text-slate-800 mb-1.5 leading-snug line-clamp-2 min-h-[36px] cursor-pointer hover:text-[#4EA668] transition-colors"
+                        className="font-khmer text-xs sm:text-sm font-semibold text-slate-800 mb-2 leading-snug line-clamp-2 min-h-[36px] cursor-pointer hover:text-[#4EA668] transition-colors"
                       >
                         {product.name}
                       </h4>
 
                       {/* Price Tag & Cooking Duration Badge */}
-                      <div className="mt-auto pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-sm sm:text-base font-semibold text-[#4EA668]">
+                      <div className="mt-auto pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-sm sm:text-base font-bold text-[#4EA668]">
                           {formatPrice(parsePriceNumber(product.basePrice ?? (product as any).price), locale, exchangeRateState)}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
+                        <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/80 shadow-2xs">
                           <Clock size={11} className="stroke-[2.2]" />
                           <span>{(product as any).prepTime || 10} {locale === "KH" ? "នាទី" : "mins"}</span>
                         </span>
@@ -1138,36 +1196,43 @@ export default function TableQrPage({
 
             {/* Right Column: Desktop Sidebar Cart Panel (Visible on Desktop >= lg) */}
             <div className="hidden lg:block lg:col-span-4 xl:col-span-4">
-              <div className="sticky top-20 rounded-2xl bg-white border border-slate-200/90 p-5 shadow-sm flex flex-col h-[calc(100vh-6.5rem)] max-h-[680px] min-h-[560px]">
+              <div className="sticky top-20 rounded-3xl bg-white border border-slate-200/90 p-5 lg:p-6 shadow-sm flex flex-col h-[calc(100vh-6.5rem)] max-h-[700px] min-h-[580px]">
                 {/* Fixed Top Header */}
-                <div className="shrink-0 flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="text-[#4EA668]" size={20} />
-                    <h3 className="font-khmer text-base font-semibold text-slate-800">{t("Your Order", "ការបញ្ជាទិញ")}</h3>
+                <div className="shrink-0 flex items-center justify-between pb-3.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-xl bg-[#EAF5ED] flex items-center justify-center text-[#4EA668]">
+                      <ShoppingBag size={19} />
+                    </div>
+                    <div>
+                      <h3 className="font-khmer text-base font-bold text-slate-900 leading-none">{t("Your Order", "ការបញ្ជាទិញ")}</h3>
+                      <span className="text-[11px] font-medium text-slate-400">{cart.length} {t("items in cart", "មុខទំនិញ")}</span>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-[#EAF5ED] border border-[#C5E9D0] px-3 py-1 text-xs font-semibold text-[#4EA668]">
+                  <span className="rounded-full bg-[#EAF5ED] border border-[#C5E9D0] px-3.5 py-1 text-xs font-bold text-[#4EA668] shadow-2xs">
                     Table {tableName}
                   </span>
                 </div>
 
                 {cart.length === 0 ? (
                   /* Empty State Centered in Static Card */
-                  <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-400 space-y-2 py-8">
-                    <div className="text-4xl">🛒</div>
-                    <p className="text-xs font-semibold text-slate-600">
+                  <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-400 space-y-3 py-8">
+                    <div className="h-16 w-16 rounded-2xl bg-[#EAF5ED] flex items-center justify-center text-[#4EA668] shadow-2xs">
+                      <ShoppingBag size={30} />
+                    </div>
+                    <p className="text-sm font-bold text-slate-700">
                       {t("Your cart is empty", "មិនទាន់មានទំនិញក្នុងកន្ត្រក")}
                     </p>
-                    <p className="text-[11px] text-slate-400 max-w-[200px]">
+                    <p className="text-xs text-slate-400 max-w-[210px] leading-relaxed">
                       {t("Select dishes from the menu to build your order.", "សូមជ្រើសរើសមុខម្ហូបពីម៉ឺនុយដើម្បីដាក់កម្មង់")}
                     </p>
                   </div>
                 ) : (
                   <>
                     {/* Cart Items Scroll List (Flex-1 Scrollable Area) */}
-                    <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 py-2 no-scrollbar min-h-0">
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-3 no-scrollbar min-h-0">
                       {cart.map((item) => (
-                        <div key={item.productId} className="flex items-center gap-3 rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#EAF5ED]">
+                        <div key={item.productId} className="flex items-center gap-3 rounded-2xl bg-slate-50/80 p-3 border border-slate-100 hover:border-[#C5E9D0] transition-colors">
+                          <div className="relative h-13 w-13 shrink-0 overflow-hidden rounded-xl bg-[#EAF5ED] border border-slate-200/60">
                             <img
                               src={getProductPhoto(item, 0)}
                               alt={item.name}
@@ -1178,26 +1243,26 @@ export default function TableQrPage({
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h5 className="truncate text-xs font-medium text-slate-800">{item.name}</h5>
-                            <div className="text-[11px] font-medium text-[#4EA668]">
+                            <h5 className="truncate text-xs font-bold text-slate-800">{item.name}</h5>
+                            <div className="mt-0.5 text-[11.5px] font-bold text-[#4EA668]">
                               {formatPrice(item.price, locale, exchangeRateState)} × {item.quantity}
                             </div>
                           </div>
-                          <div className="flex items-center rounded-full bg-white border border-slate-200 overflow-hidden h-7">
+                          <div className="flex items-center rounded-full bg-white border border-slate-200 overflow-hidden h-7.5 shadow-2xs">
                             <button
                               type="button"
                               disabled={isReadOnly}
                               onClick={() => removeFromCart(item.productId)}
-                              className="h-full px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                              className="h-full px-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                             >
                               −
                             </button>
-                            <span className="px-1.5 text-xs font-semibold text-[#4EA668]">{item.quantity}</span>
+                            <span className="px-1.5 text-xs font-bold text-[#4EA668]">{item.quantity}</span>
                             <button
                               type="button"
                               disabled={isReadOnly}
                               onClick={() => addToCart({ id: item.productId, name: item.name, basePrice: item.price, categoryId: 0, isAvailable: true })}
-                              className="h-full px-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                              className="h-full px-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                             >
                               +
                             </button>
@@ -1207,10 +1272,10 @@ export default function TableQrPage({
                     </div>
 
                     {/* Fixed Bottom Footer (Notes, Total & Button) */}
-                    <div className="shrink-0 pt-3 border-t border-slate-100 space-y-3 mt-auto">
+                    <div className="shrink-0 pt-3.5 border-t border-slate-100 space-y-3.5 mt-auto">
                       {/* Special Notes Field */}
                       <div>
-                        <label htmlFor="desktop-order-note" className="block text-xs font-semibold text-slate-700 mb-1">
+                        <label htmlFor="desktop-order-note" className="block text-xs font-bold text-slate-700 mb-1.5">
                           {t("Order Notes", "កំណត់សម្គាល់")}
                         </label>
                         <textarea
@@ -1218,26 +1283,26 @@ export default function TableQrPage({
                           disabled={isReadOnly}
                           value={orderNote}
                           onChange={(e) => setOrderNote(e.target.value)}
-                          placeholder={t("Special requests (e.g., no spicy...)", "បន្ថែមការស្នើសុំពិសេស...")}
+                          placeholder={t("Special requests (e.g., no spicy...)", "បន្ថែមការស្នើសុំពិសេស (ឧ. មិនហិរ, ផ្អែមតិច...)...")}
                           rows={2}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2 text-xs font-normal outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#4EA668] transition-all resize-none"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-2.5 text-xs font-medium outline-none placeholder:text-slate-400 focus:bg-white focus:border-[#4EA668] focus:ring-4 focus:ring-[#4EA668]/10 transition-all resize-none text-slate-800"
                         />
                       </div>
 
                       {/* Summary & Checkout Action */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-slate-600">{t("Total Amount", "តម្លៃសរុប")}</span>
-                        <span className="text-sm font-semibold text-[#4EA668]">{formatDualTotal(totalPrice)}</span>
+                      <div className="flex items-center justify-between py-1 border-t border-dashed border-slate-200">
+                        <span className="text-xs font-semibold text-slate-600">{t("Total Amount", "តម្លៃសរុប")}</span>
+                        <span className="text-sm font-bold text-[#4EA668]">{formatDualTotal(totalPrice)}</span>
                       </div>
 
                       <button
                         type="button"
                         disabled={isReadOnly}
                         onClick={proceedToConfirmation}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4EA668] py-3 text-white font-semibold text-xs shadow-md shadow-[#4EA668]/20 hover:bg-[#3D8F55] active:scale-98 transition-all cursor-pointer disabled:opacity-50"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4EA668] py-3.5 text-white font-bold text-xs sm:text-sm shadow-md shadow-[#4EA668]/20 hover:bg-[#3D8F55] active:scale-98 transition-all cursor-pointer disabled:opacity-50"
                       >
                         <span>{t("Proceed to Confirmation", "បន្តទៅការបញ្ជាក់")}</span>
-                        <ArrowRight size={14} />
+                        <ArrowRight size={16} />
                       </button>
                     </div>
                   </>
@@ -1527,7 +1592,14 @@ export default function TableQrPage({
                   const isCooking = order.status === "preparing";
                   const currentStepIndex = isReady ? 2 : isCooking ? 1 : 0;
                   const itemPrepTimes = (order.items || []).map((item: any) => getItemPrepTime(item));
-                  const maxPrepTime = itemPrepTimes.length > 0 ? Math.max(...itemPrepTimes) : 12;
+                  const maxPrepTime = itemPrepTimes.length > 0 ? Math.max(...itemPrepTimes) : 10;
+                  const activePhone = storePhoneState || "+85569312142";
+
+                  // Dynamic total sum calculation
+                  const itemsSum = (order.items || []).reduce((sum: number, it: any) => {
+                    return sum + getItemPrice(it, menuData?.products || []) * (it.quantity || 1);
+                  }, 0);
+                  const orderTotal = parsePriceNumber(order.totalAmount ?? order.subtotal ?? order.total) || itemsSum;
 
                   return (
                     <div key={order.id} className="rounded-2xl bg-white p-5 shadow-xs border border-slate-200/80 space-y-4 animate-fade-in-up">
@@ -1535,7 +1607,7 @@ export default function TableQrPage({
                         <div>
                           <div className="text-sm font-black text-slate-900">Order #{order.orderNumber || order.id}</div>
                           <div className="text-[11px] font-semibold text-slate-400">
-                            {new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(order.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </div>
                         </div>
                         <span className={`rounded-lg px-3 py-1 text-xs font-extrabold ${
@@ -1547,13 +1619,33 @@ export default function TableQrPage({
                         </span>
                       </div>
 
+                      {/* Cook Time & Store Phone Info Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-700">
+                          <Clock size={14} className="text-amber-600 shrink-0" />
+                          <span>{t(`Est. Cook Time: ~${maxPrepTime} mins`, `រយៈពេលចម្អិន: ប្រហែល ~${maxPrepTime} នាទី`)}</span>
+                        </div>
+                        {activePhone && (
+                          <a
+                            href={`tel:${activePhone}`}
+                            className="flex items-center gap-1.5 font-bold text-[#4EA668] hover:underline"
+                            title={t("Call store for help", "ទាក់ទងហាង")}
+                          >
+                            <Phone size={13} className="shrink-0" />
+                            <span>{activePhone}</span>
+                          </a>
+                        )}
+                      </div>
+
                       {/* Items List */}
                       <div className="space-y-1.5">
                         <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">
-                          {t("Ordered Dishes", "មុខម្ហូប និង ពេលវេលារៀបចំ")}
+                          {t("Ordered Dishes", "មុខម្ហូប និង តម្លៃ")}
                         </div>
                         {order.items?.map((item: any) => {
                           const isDone = kdsItemStatuses[item.id] === "completed" || item.isCompleted || item.status === "completed" || isReady;
+                          const singlePrice = getItemPrice(item, menuData?.products || []);
+                          const itemTotal = singlePrice * (item.quantity || 1);
 
                           return (
                             <div
@@ -1575,11 +1667,17 @@ export default function TableQrPage({
                                 </span>
                               </div>
                               <span className={`font-bold shrink-0 ml-2 ${isDone ? "text-slate-400 line-through font-normal" : "text-[#4EA668]"}`}>
-                                {formatPrice(Number(item.price), locale, exchangeRateState)}
+                                {formatPrice(itemTotal, locale, exchangeRateState)}
                               </span>
                             </div>
                           );
                         })}
+
+                        {/* Total Order Amount Line */}
+                        <div className="flex items-center justify-between pt-2 px-1 text-xs font-bold border-t border-slate-100 mt-2">
+                          <span className="text-slate-600">{t("Total Order Amount", "តម្លៃសរុប")}</span>
+                          <span className="text-[#4EA668] text-sm font-extrabold">{formatDualTotal(orderTotal, exchangeRateState)}</span>
+                        </div>
                       </div>
 
                       {/* Foodpanda Vertical Stepper Timeline with Connecting Line */}
@@ -1701,6 +1799,11 @@ export default function TableQrPage({
                 {nav.page === "order" && totalItems > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 bg-[#4EA668] text-white text-[9.5px] font-black h-4 px-1.5 rounded-full flex items-center justify-center shadow-xs animate-pulse">
                     {totalItems}
+                  </span>
+                )}
+                {nav.page === "tracking" && activeOrders.length > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 bg-[#4EA668] text-white text-[9.5px] font-black h-4 px-1.5 rounded-full flex items-center justify-center shadow-xs animate-pulse">
+                    {activeOrders.length}
                   </span>
                 )}
               </div>
