@@ -1,6 +1,8 @@
+import "dotenv/config";
 import bcrypt from "bcrypt";
-import { prisma } from "../src/config/prisma.js";
-import { TableZone } from "@prisma/client";
+import { PrismaClient, TableZone } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 function slugify(value: string) {
   return String(value)
