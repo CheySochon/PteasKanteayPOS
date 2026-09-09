@@ -113,8 +113,8 @@ async function autoSeedIfEmpty() {
       const hashedPassword = await bcrypt.hash("password123", 10);
       const superAdmin = await prisma.user.upsert({
         where: { email: "cheychon258@gmail.com" },
-        update: { name: "Super Admin", password: hashedPassword, isActive: true, pin: "0000" },
-        create: { name: "Super Admin", email: "cheychon258@gmail.com", password: hashedPassword, isActive: true, pin: "0000" },
+        update: { name: "Super Admin", password: hashedPassword, isActive: true, pin: "1234" },
+        create: { name: "Super Admin", email: "cheychon258@gmail.com", password: hashedPassword, isActive: true, pin: "1234" },
       });
 
       const cashierUser = await prisma.user.upsert({
