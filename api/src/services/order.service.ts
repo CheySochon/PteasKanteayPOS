@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma.js";
-import { OrderStatus } from "../prisma/client.js";
+import { OrderStatus } from "@prisma/client";
 import { adjustStock } from "./inventory.service.js";
 
 const ALLOWED_STATUSES = [
