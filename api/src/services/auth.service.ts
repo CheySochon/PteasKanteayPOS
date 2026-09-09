@@ -127,7 +127,18 @@ export const login = async (emailOrUsername: string, password: string) => {
       ],
       deletedAt: null,
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      password: true,
+      isActive: true,
+      failedLoginAttempts: true,
+      lockedUntil: true,
+      pin: true,
+      deletedAt: true,
+      createdAt: true,
+      updatedAt: true,
       userGroups: {
         include: {
           group: {
@@ -284,9 +295,9 @@ export const resetUserPasswordWithoutCurrent = async (
 export const loginWithPin = async (pin: string, userId?: number, email?: string) => {
   let targetUser = null;
   if (userId) {
-    targetUser = await prisma.user.findUnique({ where: { id: userId } });
+    targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, pin: true } });
   } else if (email) {
-    targetUser = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    targetUser = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() }, select: { id: true, email: true, pin: true } });
   }
 
   if (targetUser && (!targetUser.pin || targetUser.pin.trim() === "")) {
@@ -306,7 +317,18 @@ export const loginWithPin = async (pin: string, userId?: number, email?: string)
 
   const rawUser = await prisma.user.findFirst({
     where: whereClause,
-    include: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      password: true,
+      isActive: true,
+      failedLoginAttempts: true,
+      lockedUntil: true,
+      pin: true,
+      deletedAt: true,
+      createdAt: true,
+      updatedAt: true,
       userGroups: {
         include: {
           group: {
