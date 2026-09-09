@@ -198,7 +198,15 @@ export const me = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isActive: true,
+        pin: true,
+        deletedAt: true,
+        createdAt: true,
+        updatedAt: true,
         userGroups: {
           include: {
             group: {
@@ -337,7 +345,6 @@ export const getPublicStaff = async (
         id: true,
         name: true,
         email: true,
-        imageUrl: true,
         userGroups: {
           select: {
             group: {
@@ -359,7 +366,7 @@ export const getPublicStaff = async (
         id: u.id,
         name: u.name,
         email: u.email,
-        imageUrl: u.imageUrl,
+        imageUrl: null,
         role: { name: groupName },
         roleName: groupName,
       };
