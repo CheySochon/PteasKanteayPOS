@@ -8,9 +8,15 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 const httpServer = http.createServer(app);
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: allowedOrigins,
     credentials: true,
   },
 });

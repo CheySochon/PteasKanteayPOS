@@ -1545,7 +1545,13 @@ export default function ReportsPage() {
                                   </span>
                                 </td>
                                 <td className={`px-4 py-3.5 whitespace-nowrap ${textSecondary}`}>
-                                  {m.reason || (m.orderId ? `Order #${m.orderId}` : "Manual Update")}
+                                  {m.user?.name || m.user?.email ? (
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                      👤 {m.user.name || m.user.email}
+                                    </span>
+                                  ) : (
+                                    m.reason || (m.orderId ? `Order #${m.orderId}` : "System (POS)")
+                                  )}
                                 </td>
                               </tr>
                             );

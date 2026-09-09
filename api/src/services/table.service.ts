@@ -20,6 +20,7 @@ export const createTable = async (data: {
   zone?: string;
   qrToken?: string;
   isActive?: boolean;
+  reservation?: string | null;
 }) => {
   return prisma.diningTable.create({
     data: {
@@ -28,7 +29,8 @@ export const createTable = async (data: {
       zone: (data.zone ?? "indoor") as TableZone,
       qrToken: data.qrToken ?? makeTableToken(data.name),
       isActive: data.isActive ?? true,
-    },
+      ...(data.reservation !== undefined ? { reservation: data.reservation } : {}),
+    } as any,
   });
 };
 
@@ -40,6 +42,7 @@ export const updateTable = async (
     zone?: string;
     qrToken?: string;
     isActive?: boolean;
+    reservation?: string | null;
   },
 ) => {
   return prisma.diningTable.update({
@@ -50,7 +53,8 @@ export const updateTable = async (
       zone: data.zone as TableZone | undefined,
       qrToken: data.qrToken,
       isActive: data.isActive,
-    },
+      ...(data.reservation !== undefined ? { reservation: data.reservation } : {}),
+    } as any,
   });
 };
 

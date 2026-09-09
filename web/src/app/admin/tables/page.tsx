@@ -27,6 +27,9 @@ import {
   ArrowRightLeft,
   GitMerge,
   GitPullRequest,
+  CalendarCheck,
+  UserCheck,
+  Calendar,
 } from "lucide-react";
 import { useAppTheme } from "../../../lib/theme";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
@@ -78,6 +81,35 @@ const EMPTY_TABLE_FORM: TableForm = {
   qrToken: "",
   isActive: true,
 };
+
+interface ReserveForm {
+  tableId: number;
+  tableName: string;
+  customerName: string;
+  customerPhone: string;
+  reservedTime: string;
+  guests: string;
+  notes: string;
+}
+
+const EMPTY_RESERVE_FORM: ReserveForm = {
+  tableId: 0,
+  tableName: "",
+  customerName: "",
+  customerPhone: "",
+  reservedTime: "",
+  guests: "2",
+  notes: "",
+};
+
+function parseReservationInfo(reservationStr?: string | null) {
+  if (!reservationStr) return null;
+  try {
+    return JSON.parse(reservationStr);
+  } catch {
+    return { customerName: reservationStr };
+  }
+}
 
 const liveOrderStatuses = ["pending", "accepted", "preparing", "ready", "served"] as const;
 const occupiedStatuses = ["pending", "accepted", "preparing", "ready"] as const;
@@ -205,6 +237,9 @@ export default function TablesPage() {
   const [mergeTargetTableId, setMergeTargetTableId] = useState<number | null>(null);
   const [isMoving, setIsMoving] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
+  const [isReserveModalOpen, setIsReserveModalOpen] = useState(false);
+  const [reserveForm, setReserveForm] = useState<ReserveForm>(EMPTY_RESERVE_FORM);
+  const [isReserving, setIsReserving] = useState(false);
 
 
   const dark = theme === "dark";
@@ -439,6 +474,101 @@ export default function TablesPage() {
       setMessage(err instanceof Error ? err.message : "Failed to merge table");
     } finally {
       setIsMerging(false);
+    }
+  }
+
+  function openReserveModal(table: DiningTable) {
+    if (!canEditTables) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិកក់តុឡើយ!" : "You do not have permission to reserve tables.");
+      return;
+    }
+    const parsed = parseReservationInfo(table.reservation);
+    setReserveForm({
+      tableId: table.id,
+      tableName: table.name,
+      customerName: parsed?.customerName || "",
+      customerPhone: parsed?.customerPhone || "",
+      reservedTime: parsed?.reservedTime || "",
+      guests: parsed?.guests || String(table.capacity || 2),
+      notes: parsed?.notes || "",
+    });
+    setMessage("");
+    setIsReserveModalOpen(true);
+  }
+
+  async function handleReserveSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (!reserveForm.tableId) return;
+    setIsReserving(true);
+    setMessage("");
+
+    try {
+      const reservationData = JSON.stringify({
+        customerName: reserveForm.customerName.trim(),
+        customerPhone: reserveForm.customerPhone.trim(),
+        reservedTime: reserveForm.reservedTime.trim(),
+        guests: reserveForm.guests,
+        notes: reserveForm.notes.trim(),
+        reservedAt: new Date().toISOString(),
+      });
+
+      const updated = await updateTable(reserveForm.tableId, {
+        reservation: reservationData,
+      });
+
+      setTables((current) =>
+        current.map((t) => (t.id === updated.id ? updated : t))
+      );
+
+      const socket = getSocket();
+      if (socket) socket.emit("table:updated", updated);
+
+      setIsReserveModalOpen(false);
+      setMessage(language === "km" ? `កក់តុ ${reserveForm.tableName} ជោគជ័យ!` : `Table ${reserveForm.tableName} reserved successfully!`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to reserve table");
+    } finally {
+      setIsReserving(false);
+    }
+  }
+
+  async function handleCancelReservation(table: DiningTable) {
+    if (!confirm(language === "km" ? `តើអ្នកពិតជាចង់លុបការកក់តុ ${table.name} នេះមែនទេ?` : `Cancel reservation for ${table.name}?`)) return;
+
+    try {
+      const updated = await updateTable(table.id, {
+        reservation: null,
+      });
+
+      setTables((current) =>
+        current.map((t) => (t.id === updated.id ? updated : t))
+      );
+
+      const socket = getSocket();
+      if (socket) socket.emit("table:updated", updated);
+
+      setMessage(language === "km" ? `បានលុបការកក់តុ ${table.name}` : `Reservation for ${table.name} cancelled.`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to cancel reservation");
+    }
+  }
+
+  async function handleCheckInReservation(table: DiningTable) {
+    try {
+      const updated = await updateTable(table.id, {
+        reservation: null,
+      });
+
+      setTables((current) =>
+        current.map((t) => (t.id === updated.id ? updated : t))
+      );
+
+      const socket = getSocket();
+      if (socket) socket.emit("table:updated", updated);
+
+      setMessage(language === "km" ? `ភ្ញៀវចូលអង្គុយតុ ${table.name} រួចរាល់!` : `Customer checked in to table ${table.name}!`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to check in reservation");
     }
   }
 
@@ -761,7 +891,28 @@ export default function TablesPage() {
 
                       {/* Middle Content Box */}
                       <div className="my-2 min-h-[54px] flex flex-col justify-center">
-                        {order ? (
+                        {state === "reserved" && table.reservation ? (() => {
+                          const resInfo = parseReservationInfo(table.reservation);
+                          return (
+                            <div className="w-full rounded-xl bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-amber-900/60">
+                              <div className="flex items-center justify-between gap-1.5 font-bold">
+                                <span className="truncate flex items-center gap-1">
+                                  <UserCheck size={12} className="text-amber-600 shrink-0" />
+                                  {resInfo?.customerName || "Reserved"}
+                                </span>
+                                {resInfo?.reservedTime && (
+                                  <span className="rounded bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300 shrink-0">
+                                    {resInfo.reservedTime}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 flex items-center justify-between text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                                <span>📞 {resInfo?.customerPhone || "N/A"}</span>
+                                <span>👥 {resInfo?.guests || 2} {language === "km" ? "នាក់" : "guests"}</span>
+                              </div>
+                            </div>
+                          );
+                        })() : order ? (
                           <div className="w-full rounded-xl bg-[#f5f5f9] dark:bg-[#232333] px-3 py-2 text-xs text-[#566a7f] border border-slate-100/60 dark:border-slate-800">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-[#55a060]">{formatShortOrderNo(order)}</span>
@@ -801,8 +952,48 @@ export default function TablesPage() {
                           </button>
                         )}
 
-                        {/* Action Toolbar for Merged / Occupied Tables */}
-                        {isMergedTable ? (
+                        {/* Action Toolbar for Reserved / Available / Merged / Occupied Tables */}
+                        {state === "reserved" ? (
+                          <div className="mb-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleCheckInReservation(table)}
+                              className="flex-1 rounded-xl bg-[#71dd37] hover:bg-[#5fc529] px-2 py-1.5 text-[11px] font-bold text-white shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                            >
+                              <CheckCircle2 size={12} />
+                              {language === "km" ? "ចូលអង្គុយ" : "Check In"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openReserveModal(table)}
+                              className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-2 py-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Edit Reservation"
+                            >
+                              <Pencil size={11} />
+                              {language === "km" ? "កែប្រែ" : "Edit"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCancelReservation(table)}
+                              className="rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 px-2 py-1.5 text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                              title="Cancel Reservation"
+                            >
+                              <X size={11} />
+                              {language === "km" ? "លុប" : "Cancel"}
+                            </button>
+                          </div>
+                        ) : state === "available" ? (
+                          <div className="mb-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openReserveModal(table)}
+                              className="w-full rounded-xl border border-amber-400/80 dark:border-amber-700/80 bg-amber-50/80 dark:bg-amber-950/40 px-2 py-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-100 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs"
+                            >
+                              <CalendarCheck size={12} />
+                              {language === "km" ? "កក់តុ" : "Reserve Table"}
+                            </button>
+                          </div>
+                        ) : isMergedTable ? (
                           <div className="mb-2 flex gap-1.5">
                             <button
                               type="button"
@@ -1336,6 +1527,153 @@ export default function TablesPage() {
                 >
                   {isMerging ? <Loader2 className="animate-spin" size={14} /> : <GitMerge size={14} />}
                   <span>{language === "km" ? "រួមតុ" : "Confirm Merge"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RESERVE TABLE MODAL */}
+      {isReserveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+          <button
+            type="button"
+            aria-label="Close reserve dialog"
+            onClick={() => setIsReserveModalOpen(false)}
+            className="absolute inset-0 cursor-default"
+          />
+
+          <div className={`relative max-h-[calc(100vh-32px)] w-full max-w-[440px] overflow-y-auto rounded-2xl p-6 shadow-2xl border ${dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-white border-slate-100/90 text-slate-800"} animate-[tableModalIn_220ms_cubic-bezier(0.16,1,0.3,1)]`}>
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                  <CalendarCheck size={18} />
+                </div>
+                <div>
+                  <h2 className={`text-base font-bold ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? `កក់តុ (${reserveForm.tableName})` : `Reserve Table (${reserveForm.tableName})`}
+                  </h2>
+                  <p className={`text-[11px] ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "បញ្ចូលព័ត៌មានអតិថិជនដើម្បីកក់តុទុកជាមុន" : "Enter customer details to reserve this table"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReserveModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <form onSubmit={handleReserveSubmit} className="space-y-4">
+              <div>
+                <label className={`text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ឈ្មោះអតិថិជន *" : "Customer Name *"}
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={reserveForm.customerName}
+                  onChange={(e) => setReserveForm((prev) => ({ ...prev, customerName: e.target.value }))}
+                  placeholder={language === "km" ? "ឧទាហរណ៍: លោក សុខ" : "e.g. John Doe"}
+                  className={`h-10 w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } px-3.5 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all`}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "លេខទូរស័ព្ទ" : "Phone Number"}
+                  </label>
+                  <input
+                    type="text"
+                    value={reserveForm.customerPhone}
+                    onChange={(e) => setReserveForm((prev) => ({ ...prev, customerPhone: e.target.value }))}
+                    placeholder="012 345 678"
+                    className={`h-10 w-full rounded-xl border ${
+                      dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                    } px-3.5 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "ចំនួនភ្ញៀវ" : "Number of Guests"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={reserveForm.guests}
+                    onChange={(e) => setReserveForm((prev) => ({ ...prev, guests: e.target.value }))}
+                    className={`h-10 w-full rounded-xl border ${
+                      dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                    } px-3.5 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ម៉ោងមកដល់" : "Arrival Time"}
+                </label>
+                <input
+                  type="text"
+                  value={reserveForm.reservedTime}
+                  onChange={(e) => setReserveForm((prev) => ({ ...prev, reservedTime: e.target.value }))}
+                  placeholder={language === "km" ? "ឧទាហរណ៍: 7:30 PM" : "e.g. 7:30 PM"}
+                  className={`h-10 w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } px-3.5 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all`}
+                />
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 block ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ចំណាំបន្ថែម" : "Notes"}
+                </label>
+                <textarea
+                  rows={2}
+                  value={reserveForm.notes}
+                  onChange={(e) => setReserveForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder={language === "km" ? "ឧទាហរណ៍: ខួបកំណើត..." : "e.g. Birthday celebration..."}
+                  className={`w-full rounded-xl border ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-100 placeholder:text-slate-500" : "border-slate-200/90 bg-white text-slate-800 placeholder:text-slate-400 shadow-xs"
+                  } p-3 text-xs font-semibold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all resize-none`}
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsReserveModalOpen(false)}
+                  className={`h-10 rounded-xl border px-4 text-xs font-semibold transition-all cursor-pointer ${
+                    dark ? "border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-slate-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isReserving}
+                  className="h-10 rounded-xl bg-amber-500 hover:bg-amber-600 px-5 text-xs font-bold text-white shadow-sm transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {isReserving ? (
+                    <>
+                      <Loader2 className="animate-spin" size={14} />
+                      {language === "km" ? "កំពុងរក្សាទុក..." : "Saving..."}
+                    </>
+                  ) : (
+                    <>
+                      <CalendarCheck size={14} />
+                      {language === "km" ? "រក្សាទុកការកក់" : "Confirm Reservation"}
+                    </>
+                  )}
                 </button>
               </div>
             </form>

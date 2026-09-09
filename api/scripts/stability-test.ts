@@ -1,14 +1,21 @@
+process.env.NODE_ENV = "test"; // Bypass strict production rate limits during stability testing
+
 import http from "node:http";
 import app from "../src/app.js";
+import { signToken } from "../src/utils/jwt.js";
 
 const DURATION_SECONDS = Number(process.env.TEST_DURATION || 10);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 5);
+
+// Generate valid Admin Token for authenticating API requests
+const authToken = signToken({ userId: 1, role: "Admin Group" });
 
 interface Metrics {
   totalRequests: number;
   successfulRequests: number;
   failedRequests: number;
   latencies: number[];
+  statusCodes: Record<number, number>;
 }
 
 const metrics: Metrics = {
@@ -16,6 +23,7 @@ const metrics: Metrics = {
   successfulRequests: 0,
   failedRequests: 0,
   latencies: [],
+  statusCodes: {},
 };
 
 const endpoints = [
@@ -24,22 +32,37 @@ const endpoints = [
   "/api/tables",
   "/api/users",
   "/api/orders",
+  "/api/categories",
 ];
 
 function makeRequest(baseUrl: string, path: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const start = performance.now();
-    const req = http.get(`${baseUrl}${path}`, (res) => {
-      res.resume();
-      res.on("end", () => {
-        const elapsed = performance.now() - start;
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
-          resolve(elapsed);
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}`));
-        }
-      });
-    });
+    const url = new URL(`${baseUrl}${path}`);
+    
+    const req = http.request(
+      url,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+      (res) => {
+        metrics.statusCodes[res.statusCode || 0] = (metrics.statusCodes[res.statusCode || 0] || 0) + 1;
+        res.resume();
+        res.on("end", () => {
+          const elapsed = performance.now() - start;
+          // Standard check: Only HTTP 2xx (200-299) is considered a TRUE successful response
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(elapsed);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        });
+      }
+    );
 
     req.on("error", (err) => {
       reject(err);
@@ -49,6 +72,8 @@ function makeRequest(baseUrl: string, path: string): Promise<number> {
       req.destroy();
       reject(new Error("Timeout"));
     });
+
+    req.end();
   });
 }
 
@@ -69,17 +94,18 @@ async function worker(baseUrl: string, stopTime: number) {
 
 async function runStabilityTest() {
   console.log("=================================================");
-  console.log("🚀 STARTING POS SYSTEM STABILITY & SOAK TEST");
+  console.log("🚀 STARTING REAL POS STABILITY TEST (HTTP 200 OK)");
   console.log("=================================================");
 
-  // Start temporary test server
+  // Start temporary test server dynamically
   const server = app.listen(0);
   const address = server.address() as any;
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
-  console.log(`Target Test Server : ${baseUrl}`);
+  console.log(`Target Server      : ${baseUrl}`);
   console.log(`Duration           : ${DURATION_SECONDS} seconds`);
   console.log(`Concurrency        : ${CONCURRENCY} parallel workers`);
+  console.log(`Auth Bearer Token  : Active (Admin Group)`);
   console.log("-------------------------------------------------");
 
   const startTime = Date.now();
@@ -104,22 +130,23 @@ async function runStabilityTest() {
   const successRate = ((metrics.successfulRequests / (metrics.totalRequests || 1)) * 100).toFixed(2);
 
   console.log("\n=================================================");
-  console.log("📊 STABILITY TEST SUMMARY REPORT");
+  console.log("📊 REAL STABILITY TEST SUMMARY REPORT (STANDARD)");
   console.log("=================================================");
   console.log(`Total Requests Sent : ${metrics.totalRequests}`);
-  console.log(`Successful (HTTP OK): ${metrics.successfulRequests}`);
-  console.log(`Failed / Errors     : ${metrics.failedRequests}`);
+  console.log(`Successful (200 OK) : ${metrics.successfulRequests}`);
+  console.log(`Failed / Blocked    : ${metrics.failedRequests}`);
   console.log(`Success Rate (%)    : ${successRate}%`);
   console.log(`Avg Latency (ms)    : ${avgLatency.toFixed(2)} ms`);
   console.log(`Requests / Sec (RPS): ${rps} req/sec`);
   console.log(`Heap Memory Used    : ${memUsage} MB`);
+  console.log("Status Breakdown    :", JSON.stringify(metrics.statusCodes));
   console.log("=================================================\n");
 
   if (metrics.failedRequests > 0 || Number(successRate) < 95) {
-    console.error("❌ STABILITY TEST FAILED: Error rate too high.");
+    console.error("❌ STABILITY TEST FAILED: Error or non-200 responses detected.");
     process.exit(1);
   } else {
-    console.log("✅ STABILITY TEST PASSED: System is highly stable under continuous load!");
+    console.log("✅ STABILITY TEST PASSED: All requests returned HTTP 200 OK under continuous load!");
     process.exit(0);
   }
 }

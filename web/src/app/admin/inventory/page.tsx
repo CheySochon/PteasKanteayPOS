@@ -50,6 +50,7 @@ import {
   ShoppingBag,
   RotateCw,
   ChevronDown,
+  User,
 } from "lucide-react";
 
 type InventoryItem = {
@@ -1569,12 +1570,12 @@ export default function InventoryPage() {
                         <th className="px-4 py-3.5 text-left whitespace-nowrap">#</th>
                         <th className="px-4 py-3.5 text-left whitespace-nowrap">ITEM</th>
                         <th className="px-4 py-3.5 text-left whitespace-nowrap">TYPE</th>
+                        <th className="px-4 py-3.5 text-left whitespace-nowrap">PERFORMED BY</th>
+                        <th className="px-4 py-3.5 text-center whitespace-nowrap">CHANGE QTY</th>
                         <th className="px-4 py-3.5 text-right whitespace-nowrap">PREVIOUS QTY</th>
-                        <th className="px-4 py-3.5 text-right whitespace-nowrap">CHANGE QTY</th>
                         <th className="px-4 py-3.5 text-right whitespace-nowrap">BALANCE QTY</th>
                         <th className="px-4 py-3.5 text-left whitespace-nowrap">DATE &amp; TIME</th>
                         <th className="px-4 py-3.5 text-left whitespace-nowrap">REMARKS / REASON</th>
-                        <th className="px-4 py-3.5 text-left whitespace-nowrap">UPDATED BY</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
@@ -1595,7 +1596,7 @@ export default function InventoryPage() {
                           const isCancelled = move.notes?.toLowerCase().includes("cancel");
 
                           return (
-                            <tr key={move.id} className={`transition-colors ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/50 text-slate-700"}`}>
+                            <tr key={move.id} className={`transition-colors duration-150 ${dark ? "hover:bg-[#34354c]/40 text-slate-200" : "hover:bg-slate-50/70 text-slate-700"}`}>
                               <td className={`px-4 py-3.5 text-xs font-bold ${dark ? "text-slate-400" : "text-slate-400"}`}>
                                 {filteredMovements.length - idx}
                               </td>
@@ -1632,15 +1633,31 @@ export default function InventoryPage() {
                                   </span>
                                 )}
                               </td>
+                              <td className="px-4 py-3.5 whitespace-nowrap">
+                                {move.user?.name || move.user?.email ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                                    <User size={11} className="text-emerald-600 dark:text-emerald-400" />
+                                    {move.user.name || move.user.email}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60">
+                                    <User size={11} className="text-slate-400" />
+                                    System (POS)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3.5 whitespace-nowrap text-center">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-black border ${
+                                  isPositive 
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50" 
+                                    : "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200/50 dark:border-rose-800/50"
+                                }`}>
+                                  {isPositive ? `+${formatStockQuantity(Math.abs(quantityVal))}` : `-${formatStockQuantity(Math.abs(quantityVal))}`} {move.product?.unit || "pc"}
+                                </span>
+                              </td>
                               <td className="px-4 py-3.5 text-right whitespace-nowrap">
                                 <span className={`text-xs font-semibold ${dark ? "text-slate-300" : "text-slate-600"}`}>
                                   {formatStockQuantity(move.previousQty ?? 0)}
-                                </span>{" "}
-                                <span className={`text-[10px] font-medium ${dark ? "text-slate-300" : "text-slate-400"}`}>{move.product?.unit}</span>
-                              </td>
-                              <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                                <span className={`font-black text-xs ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
-                                  {isPositive ? `+${formatStockQuantity(Math.abs(quantityVal))}` : `-${formatStockQuantity(Math.abs(quantityVal))}`}
                                 </span>{" "}
                                 <span className={`text-[10px] font-medium ${dark ? "text-slate-300" : "text-slate-400"}`}>{move.product?.unit}</span>
                               </td>
@@ -1677,11 +1694,6 @@ export default function InventoryPage() {
                                   )}
                                   {!move.referenceId && !move.notes && <span className="text-slate-400">-</span>}
                                 </div>
-                              </td>
-                              <td className={`px-4 py-3.5 text-xs font-semibold whitespace-nowrap ${dark ? "text-slate-100" : "text-slate-700"}`}>
-                                {move.user?.name || move.user?.email || (
-                                  <span className={`font-normal ${dark ? "text-slate-400" : "text-slate-400"}`}>System</span>
-                                )}
                               </td>
                             </tr>
                           );

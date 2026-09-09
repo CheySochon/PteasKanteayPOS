@@ -1328,7 +1328,7 @@ export default function MenuPage() {
                     <button
                       type="button"
                       onClick={() => { void confirmModal.onConfirm(); }}
-                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white bg-[#ff3e1d] hover:bg-[#e03417] transition-all duration-150 shadow-md shadow-[#ff3e1d]/25 active:scale-95 cursor-pointer"
+                      className="flex-1 h-10 rounded-xl text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all duration-150 shadow-md shadow-rose-500/20 active:scale-95 cursor-pointer"
                     >
                       {language === "km" ? "លុប" : "Delete"}
                     </button>

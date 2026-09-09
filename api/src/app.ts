@@ -28,10 +28,25 @@ const app = express();
 app.disable("x-powered-by");
 
 /**
- * Security headers (basic HTTP hardening)
+ * Remove Server and X-Powered-By headers on all responses
+ */
+app.use((req, res, next) => {
+  res.removeHeader("Server");
+  res.removeHeader("X-Powered-By");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  next();
+});
+
+/**
+ * Security headers (basic HTTP hardening & HSTS)
  */
 app.use(
   helmet({
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
     crossOriginResourcePolicy: false,
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
@@ -39,7 +54,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
-        styleSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:"],
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
@@ -52,11 +67,23 @@ app.use(
 );
 
 /**
- * CORS (frontend access + cookie support)
+ * CORS (restrict allowed origin to prevent cross-domain misconfiguration)
  */
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     credentials: true,
   }),
 );
@@ -74,6 +101,7 @@ if (process.env.NODE_ENV !== "production") {
 const globalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: process.env.NODE_ENV === "production" ? 100 : 10000,
+  skip: () => process.env.NODE_ENV === "test" || process.env.DISABLE_RATE_LIMIT === "true",
   standardHeaders: true,
   legacyHeaders: false,
 });

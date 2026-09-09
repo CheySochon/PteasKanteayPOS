@@ -216,6 +216,7 @@ model DiningTable {
   zone      TableZone
   qrToken   String    @unique
   isActive  Boolean   @default(true)
+  reservation String?
   orders    Order[]
   deletedAt DateTime?
   createdAt DateTime  @default(now())

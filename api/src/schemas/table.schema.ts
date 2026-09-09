@@ -10,6 +10,7 @@ export const createTableSchema = z.object({
   zone: z.string().trim().max(100).default("indoor").optional(),
   qrToken: z.string().trim().optional(),
   isActive: z.boolean().default(true).optional(),
+  reservation: z.string().nullable().optional(),
 });
 
 export const updateTableSchema = z.object({
@@ -18,6 +19,7 @@ export const updateTableSchema = z.object({
   zone: z.string().trim().max(100).optional(),
   qrToken: z.string().trim().optional(),
   isActive: z.boolean().optional(),
+  reservation: z.string().nullable().optional(),
 });
 
 export type CreateTableBody = z.infer<typeof createTableSchema>;

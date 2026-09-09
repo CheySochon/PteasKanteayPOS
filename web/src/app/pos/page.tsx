@@ -800,7 +800,20 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     [products]
   );
 
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const itemsGrossTotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+  const itemDiscountsTotal = cart.reduce((sum, item) => {
+    const lineGross = item.unitPrice * item.quantity;
+    if (item.itemDiscountPercent && item.itemDiscountPercent > 0) {
+      return sum + (lineGross * item.itemDiscountPercent) / 100;
+    }
+    if (item.itemDiscountAmount && item.itemDiscountAmount > 0) {
+      return sum + Math.min(lineGross, item.itemDiscountAmount);
+    }
+    return sum;
+  }, 0);
+
+  const subtotal = Math.max(0, itemsGrossTotal - itemDiscountsTotal);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const discountAmount = Math.min(subtotal, subtotal * (discountPercent / 100));
   const discountedSubtotal = Math.max(subtotal - discountAmount, 0);
@@ -1448,17 +1461,42 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   <>
                     <select
                       value={tableId || ""}
-                      onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) => {
+                        const selectedVal = e.target.value ? Number(e.target.value) : undefined;
+                        const targetTable = tables.find((t) => t.id === selectedVal);
+                        if (targetTable?.reservation) {
+                          showErrorToast(
+                            language === "km"
+                              ? `តុ ${targetTable.name} ត្រូវបានកក់ទុក! សូមធ្វើការ Check-In ភ្ញៀវជាមុនសិន។`
+                              : `Table ${targetTable.name} is reserved! Please Check-In first.`
+                          );
+                          return;
+                        }
+                        setTableId(selectedVal);
+                      }}
                       className={`h-10 w-full rounded-xl border pl-3.5 pr-7 text-xs font-semibold outline-none focus:border-[#55a060] transition-all appearance-none cursor-pointer ${
                         dark ? "border-[#3b3c54] bg-[#232333] text-slate-200 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 hover:bg-slate-100/80 text-slate-700"
                       } ${language === "km" ? "font-khmer" : ""}`}
                     >
                       <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជ្រើសរើសតុ" : "Select Table"}</option>
-                      {tables.map((table) => (
-                        <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
-                          {getPosDisplayTableName(table, qrOrders, language)}
-                        </option>
-                      ))}
+                      {tables.map((table) => {
+                        const isReserved = Boolean(table.reservation);
+                        const baseLabel = getPosDisplayTableName(table, qrOrders, language);
+                        return (
+                          <option
+                            key={table.id}
+                            value={table.id}
+                            disabled={isReserved}
+                            className={`${dark ? "bg-[#232333] text-slate-200" : ""} ${
+                              isReserved ? "opacity-50 text-slate-400 bg-slate-100 dark:bg-slate-800" : ""
+                            }`}
+                          >
+                            {isReserved
+                              ? `${baseLabel} (${language === "km" ? "កក់ទុក - ត្រូវ Check-In សិន" : "Reserved - Require Check-In"})`
+                              : baseLabel}
+                          </option>
+                        );
+                      })}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                   </>
@@ -1516,6 +1554,19 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                         onAddNote={(noteText) => {
                           setCart((current) =>
                             current.map((i) => (i.productId === item.productId ? { ...i, notes: noteText } : i))
+                          );
+                        }}
+                        onUpdateDiscount={(discountPercent, discountAmount) => {
+                          setCart((current) =>
+                            current.map((i) =>
+                              i.productId === item.productId
+                                ? {
+                                    ...i,
+                                    itemDiscountPercent: discountPercent,
+                                    itemDiscountAmount: discountAmount,
+                                  }
+                                : i
+                            )
                           );
                         }}
                       />
@@ -3164,6 +3215,7 @@ function TicketItem({
   onDecrement,
   onRemove,
   onAddNote,
+  onUpdateDiscount,
 }: {
   item: CartItem;
   dark?: boolean;
@@ -3174,9 +3226,30 @@ function TicketItem({
   onDecrement: () => void;
   onRemove?: () => void;
   onAddNote?: (noteText: string) => void;
+  onUpdateDiscount?: (discountPercent?: number, discountAmount?: number) => void;
 }) {
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteText, setNoteText] = useState(item.notes || "");
+  const [isEditingDiscount, setIsEditingDiscount] = useState(false);
+  const [discountMode, setDiscountMode] = useState<"percent" | "amount">(
+    item.itemDiscountAmount ? "amount" : "percent"
+  );
+  const [discountInputVal, setDiscountInputVal] = useState(
+    item.itemDiscountPercent
+      ? String(item.itemDiscountPercent)
+      : item.itemDiscountAmount
+      ? String(item.itemDiscountAmount)
+      : ""
+  );
+
+  const lineGross = item.unitPrice * item.quantity;
+  let lineDiscountVal = 0;
+  if (item.itemDiscountPercent && item.itemDiscountPercent > 0) {
+    lineDiscountVal = (lineGross * item.itemDiscountPercent) / 100;
+  } else if (item.itemDiscountAmount && item.itemDiscountAmount > 0) {
+    lineDiscountVal = Math.min(lineGross, item.itemDiscountAmount);
+  }
+  const lineNet = Math.max(0, lineGross - lineDiscountVal);
 
   return (
     <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 ${
@@ -3188,11 +3261,23 @@ function TicketItem({
             {item.name}
           </h3>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <span className="text-xs font-semibold text-[#55a060]">
-              {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
-            </span>
+            {lineDiscountVal > 0 ? (
+              <span className="text-xs font-semibold text-[#55a060] flex items-center gap-1.5">
+                <span className="line-through text-slate-400 font-normal">{money(lineGross)}</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(lineNet)}</span>
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-[#55a060]">
+                {money(item.unitPrice)} × {item.quantity} = {money(lineGross)}
+              </span>
+            )}
+            {lineDiscountVal > 0 && (
+              <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                -{item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}
+              </span>
+            )}
             <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
-              ({(Math.round(item.unitPrice * item.quantity * exchangeRate)).toLocaleString()} ៛)
+              ({(Math.round(lineNet * exchangeRate)).toLocaleString()} ៛)
             </span>
           </div>
           {item.notes && (
@@ -3213,8 +3298,8 @@ function TicketItem({
         )}
       </div>
 
-      {/* Stepper Count & Add Note Row */}
-      <div className="flex items-center justify-between mt-1">
+      {/* Stepper Count & Add Note & Discount Row */}
+      <div className="flex items-center justify-between mt-1 flex-wrap gap-1.5">
         <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
           dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
         }`}>
@@ -3237,22 +3322,56 @@ function TicketItem({
           </button>
         </div>
 
-        {/* Add Notes Button */}
-        {onAddNote && (
-          <button
-            type="button"
-            onClick={() => {
-              setNoteText(item.notes || "");
-              setIsEditingNote(true);
-            }}
-            className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
-            } ${language === "km" ? "font-khmer" : ""}`}
-          >
-            <StickyNote size={13} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
-            <span>{item.notes ? (language === "km" ? "កែសម្រួលចំណាំ" : "Edit Note") : (language === "km" ? "បន្ថែមចំណាំ" : "Add Notes")}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {/* Add Notes Button */}
+          {onAddNote && (
+            <button
+              type="button"
+              onClick={() => {
+                setNoteText(item.notes || "");
+                setIsEditingNote(true);
+              }}
+              className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
+              } ${language === "km" ? "font-khmer" : ""}`}
+            >
+              <StickyNote size={12} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
+              <span>{item.notes ? (language === "km" ? "ចំណាំ" : "Note") : (language === "km" ? "+ចំណាំ" : "+Note")}</span>
+            </button>
+          )}
+
+          {/* Item Discount Button */}
+          {onUpdateDiscount && (
+            <button
+              type="button"
+              onClick={() => {
+                setDiscountInputVal(
+                  item.itemDiscountPercent
+                    ? String(item.itemDiscountPercent)
+                    : item.itemDiscountAmount
+                    ? String(item.itemDiscountAmount)
+                    : ""
+                );
+                setDiscountMode(item.itemDiscountAmount ? "amount" : "percent");
+                setIsEditingDiscount(true);
+              }}
+              className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                lineDiscountVal > 0
+                  ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold"
+                  : dark
+                  ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]"
+                  : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
+              } ${language === "km" ? "font-khmer" : ""}`}
+            >
+              <Tag size={12} strokeWidth={2} className={lineDiscountVal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600 dark:text-slate-300"} />
+              <span>
+                {lineDiscountVal > 0
+                  ? `-${item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}`
+                  : (language === "km" ? "+បញ្ចុះតម្លៃ" : "+Discount")}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add Notes Modal Popup */}
@@ -3318,6 +3437,140 @@ function TicketItem({
             >
               Save
             </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Item Discount Modal Popup */}
+      {isEditingDiscount && onUpdateDiscount && typeof window !== "undefined" && createPortal(
+        <div
+          onClick={() => setIsEditingDiscount(false)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-xs sm:max-w-sm overflow-hidden rounded-2xl p-5 shadow-2xl transition-all ${
+              dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? `បញ្ចុះតម្លៃ (${item.name})` : `Item Discount (${item.name})`}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {language === "km" ? `តម្លៃដើម: ${money(lineGross)}` : `Original Total: ${money(lineGross)}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditingDiscount(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
+              >
+                <X size={14} strokeWidth={2.5} />
+              </button>
+            </div>
+
+            {/* Quick Preset Chips */}
+            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+              {[5, 10, 15, 20, 50].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => {
+                    setDiscountMode("percent");
+                    setDiscountInputVal(String(pct));
+                  }}
+                  className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                    discountMode === "percent" && Number(discountInputVal) === pct
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : dark
+                      ? "border-slate-700 bg-[#2b2c40] text-slate-200 hover:bg-slate-700"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+
+            {/* Mode Switch & Input */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-[#2b2c40]">
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode("percent")}
+                  className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    discountMode === "percent" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
+                  }`}
+                >
+                  {language === "km" ? "ភាគរយ (%)" : "Percent (%)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode("amount")}
+                  className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    discountMode === "amount" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
+                  }`}
+                >
+                  {language === "km" ? "ទឹកប្រាក់ ($)" : "Amount ($)"}
+                </button>
+              </div>
+
+              <div className="relative">
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step={discountMode === "percent" ? "1" : "0.01"}
+                  max={discountMode === "percent" ? "100" : lineGross}
+                  value={discountInputVal}
+                  onChange={(e) => setDiscountInputVal(e.target.value)}
+                  placeholder={discountMode === "percent" ? "0 - 100%" : "0.00"}
+                  className={`h-10 w-full rounded-xl border pl-3.5 pr-8 text-sm font-bold outline-none transition-all ${
+                    dark
+                      ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-emerald-500"
+                      : "border-slate-200 bg-white text-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                  }`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                  {discountMode === "percent" ? "%" : "$"}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateDiscount(undefined, undefined);
+                  setIsEditingDiscount(false);
+                }}
+                className={`flex-1 h-9.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  dark ? "border-slate-700 bg-[#2b2c40] text-slate-300 hover:bg-slate-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {language === "km" ? "លុបបញ្ចុះតម្លៃ" : "Clear"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const num = Number(discountInputVal) || 0;
+                  if (num <= 0) {
+                    onUpdateDiscount(undefined, undefined);
+                  } else if (discountMode === "percent") {
+                    onUpdateDiscount(Math.min(100, num), undefined);
+                  } else {
+                    onUpdateDiscount(undefined, Math.min(lineGross, num));
+                  }
+                  setIsEditingDiscount(false);
+                }}
+                className="flex-1 h-9.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                {language === "km" ? "រក្សាទុក" : "Apply"}
+              </button>
+            </div>
           </div>
         </div>,
         document.body
