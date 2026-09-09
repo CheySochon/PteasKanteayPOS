@@ -25,27 +25,20 @@ export function getApiBaseUrl() {
     const customUrl = localStorage.getItem("pos_api_url");
     if (customUrl && customUrl.trim()) {
       const cleanCustom = customUrl.trim().replace(/\/$/, "");
-      if (cleanCustom.includes(".trycloudflare.com") && !cleanCustom.includes(window.location.hostname)) {
-        localStorage.removeItem("pos_api_url");
-      } else {
+      if (!cleanCustom.includes("localhost") && !cleanCustom.includes("127.0.0.1")) {
         return cleanCustom;
       }
     }
   }
 
-  const envUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
-  if (typeof window !== "undefined") {
-    try {
-      const parsed = new URL(envUrl, window.location.href);
-      if (parsed.hostname === "localhost" && window.location.hostname !== "localhost") {
-        const isLocalIp = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.)/.test(window.location.hostname);
-        if (isLocalIp) {
-          parsed.hostname = window.location.hostname;
-          return parsed.toString().replace(/\/$/, "");
-        }
-      }
-    } catch {}
+  const envUrl = (process.env.NEXT_PUBLIC_API_URL || "https://pteaskanteaypos.onrender.com/api").replace(/\/$/, "");
+
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    if (envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+      return "https://pteaskanteaypos.onrender.com/api";
+    }
   }
+
   return envUrl;
 }
 
