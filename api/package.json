@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "prisma generate && tsc",
-    "start": "node dist/server.js",
+    "build": "prisma generate && npx prisma migrate deploy && tsx prisma/seed.ts && tsc",
+    "start": "npx prisma migrate deploy && node dist/server.js",
     "clean": "rimraf dist",
     "clean:prisma": "rimraf src/prisma",
     "clean:install": "rimraf node_modules package-lock.json && npm install",
