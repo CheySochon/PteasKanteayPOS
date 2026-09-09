@@ -35,10 +35,12 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: ["*.trycloudflare.com", "localhost:3000"],
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pteaskanteaypos.onrender.com/api";
+    const baseUrl = apiUrl.endsWith("/api") ? apiUrl.slice(0, -4) : apiUrl;
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:4000/api/:path*",
+        destination: `${baseUrl}/api/:path*`,
       },
     ];
   },
