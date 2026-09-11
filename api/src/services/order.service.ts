@@ -126,49 +126,63 @@ async function findProductSafely(productId: any, name?: string, price?: number) 
   const pid = Number(productId);
   let product = null;
 
+  // 1. Try finding by ID first
   if (pid && !isNaN(pid) && pid > 0 && pid <= MAX_INT) {
     product = await prisma.product.findUnique({
       where: { id: pid },
+      include: { category: true },
     });
   }
 
   const cleanName = name && typeof name === "string" ? name.trim() : "";
 
-  // Safety Verification: If product was found by ID, but cleanName is provided and DOES NOT MATCH the product's name,
-  // then pid was a wrong/mismatched ID (e.g. 1 or custom timestamp ID).
-  // We invalidate product to null so it looks up or creates by cleanName!
+  // Name Verification: If product was found by ID, but cleanName is provided and DOES NOT MATCH the product's name/nameKm,
+  // then pid was a wrong/mismatched ID (e.g. 1 or mock index ID).
+  // We set product to null so it searches or auto-creates by cleanName!
   if (product && cleanName) {
-    const pName = product.name.trim().toLowerCase();
+    const pName = (product.name || "").trim().toLowerCase();
+    const pNameKm = (product.nameKm || "").trim().toLowerCase();
     const cName = cleanName.toLowerCase();
-    const matches = pName === cName || pName.includes(cName) || cName.includes(pName);
+
+    const matches = Boolean(
+      pName === cName ||
+      pName.includes(cName) ||
+      (pName.length > 0 && cName.includes(pName)) ||
+      (pNameKm && (pNameKm === cName || pNameKm.includes(cName) || cName.includes(pNameKm)))
+    );
+
+    console.log("findProductSafely debug:", { pid, cleanName, pName, pNameKm, cName, matches });
+
     if (!matches) {
       product = null;
     }
   }
 
-  // 1. Exact string match first (vital for non-ASCII/Khmer names)
+  // 2. If product was NOT found by ID or name mismatched, search by name / nameKm
   if (!product && cleanName) {
-    product = await prisma.product.findFirst({
-      where: { name: cleanName, deletedAt: null },
+    const foundByName = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { name: cleanName },
+          { nameKm: cleanName },
+          { name: { contains: cleanName } },
+          { nameKm: { contains: cleanName } },
+        ],
+      },
+      include: { category: true },
     });
+    if (foundByName) {
+      product = foundByName;
+    }
   }
 
-  if (!product && cleanName) {
-    product = await prisma.product.findFirst({
-      where: { name: { equals: cleanName, mode: "insensitive" }, deletedAt: null },
-    });
-  }
-
-  if (!product && cleanName) {
-    product = await prisma.product.findFirst({
-      where: { name: { contains: cleanName, mode: "insensitive" }, deletedAt: null },
-    });
-  }
-
-  // Dynamic Auto-Creation: If a real product name was sent but no match exists yet, create it in DB
+  // 3. Dynamic Auto-Creation: If a real product name was sent but no match exists yet
   if (!product && cleanName) {
     try {
       let defaultCategory = await prisma.category.findFirst({ where: { deletedAt: null }, orderBy: { id: "asc" } });
+      if (!defaultCategory) {
+        defaultCategory = await prisma.category.findFirst({ orderBy: { id: "asc" } });
+      }
       if (!defaultCategory) {
         defaultCategory = await prisma.category.create({
           data: { name: "General", slug: `general-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}` },
@@ -184,24 +198,67 @@ async function findProductSafely(productId: any, name?: string, price?: number) 
       product = await prisma.product.create({
         data: {
           name: cleanName,
+          nameKm: cleanName,
           slug: uniqueSlug,
-          basePrice: price && !isNaN(price) ? price : 0,
+          basePrice: price && !isNaN(price) && price > 0 ? price : 0,
           categoryId: defaultCategory.id,
           isAvailable: true,
           trackStock: false,
         },
+        include: { category: true },
       });
-    } catch (err) {
-      console.error("Auto-creating product failed:", err);
+    } catch (err: any) {
+      console.error("Auto-creating product failed error details:", err?.message || err);
+      // Secondary fallback attempt with guaranteed unique random slug
+      try {
+        let defaultCategory = await prisma.category.findFirst({ orderBy: { id: "asc" } });
+        if (defaultCategory) {
+          product = await prisma.product.create({
+            data: {
+              name: cleanName,
+              nameKm: cleanName,
+              slug: `product-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+              basePrice: price && !isNaN(price) && price > 0 ? price : 0,
+              categoryId: defaultCategory.id,
+              isAvailable: true,
+              trackStock: false,
+            },
+            include: { category: true },
+          });
+        }
+      } catch (fallbackErr: any) {
+        console.error("Secondary auto-creation failed:", fallbackErr?.message || fallbackErr);
+      }
     }
   }
 
-  // Fallback only if no product AND no cleanName was supplied
+  // 4. Fallback: ONLY if cleanName was NOT provided should we fall back to generic first product in DB.
   if (!product && !cleanName) {
     product = await prisma.product.findFirst({
       where: { deletedAt: null },
       orderBy: { id: "asc" },
+      include: { category: true },
     });
+
+    if (!product) {
+      product = await prisma.product.findFirst({
+        orderBy: { id: "asc" },
+        include: { category: true },
+      });
+    }
+  }
+
+  // If the matched product was soft-deleted, automatically restore it so active queries include it
+  if (product && product.deletedAt) {
+    try {
+      product = await prisma.product.update({
+        where: { id: product.id },
+        data: { deletedAt: null },
+        include: { category: true },
+      });
+    } catch {
+      // Ignore update error if any
+    }
   }
 
   return product;

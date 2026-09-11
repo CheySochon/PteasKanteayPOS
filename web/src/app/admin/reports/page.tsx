@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { setAppLanguage, useAppLanguage, resolveCategoryName, resolveProductName } from "../../../lib/language";
+import { setAppLanguage, useAppLanguage, resolveCategoryName, resolveProductName, getProductCategoryBadgeName } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
 import {
@@ -606,8 +606,14 @@ export default function ReportsPage() {
       socket.on("order:updated", onRealtimeUpdate);
       socket.on("order:deleted", onRealtimeUpdate);
       socket.on("order:status_changed", onRealtimeUpdate);
+      socket.on("orders:updated", onRealtimeUpdate);
+      socket.on("reports:updated", onRealtimeUpdate);
       socket.on("inventory:updated", onRealtimeUpdate);
     }
+
+    window.addEventListener("pos-order-created", onRealtimeUpdate);
+    window.addEventListener("pos-order-updated", onRealtimeUpdate);
+    window.addEventListener("storage", onRealtimeUpdate);
 
     const refreshTimer = window.setInterval(refreshReports, 10000);
 
@@ -620,8 +626,13 @@ export default function ReportsPage() {
         socket.off("order:updated", onRealtimeUpdate);
         socket.off("order:deleted", onRealtimeUpdate);
         socket.off("order:status_changed", onRealtimeUpdate);
+        socket.off("orders:updated", onRealtimeUpdate);
+        socket.off("reports:updated", onRealtimeUpdate);
         socket.off("inventory:updated", onRealtimeUpdate);
       }
+      window.removeEventListener("pos-order-created", onRealtimeUpdate);
+      window.removeEventListener("pos-order-updated", onRealtimeUpdate);
+      window.removeEventListener("storage", onRealtimeUpdate);
       window.clearInterval(refreshTimer);
     };
   }, [refreshReports]);
@@ -858,8 +869,6 @@ export default function ReportsPage() {
   }, [dateLocale, monthly, filteredRealtimeOrders]);
 
   const dynamicTopProducts = useMemo<TopProductReport[]>(() => {
-    if (topProducts.length > 0) return topProducts;
-
     const productMap: Record<string, TopProductReport> = {};
 
     filteredRealtimeOrders.forEach((order: any) => {
@@ -870,13 +879,30 @@ export default function ReportsPage() {
         const pId = item.productId || item.product?.id || item.id;
         if (!pId) return;
 
-        const prodName = resolveProductName(item.product || { name: item.productName || item.name }, language) || item.productName || item.name || "Unknown";
-        let catName = resolveCategoryName(item.product?.category || item.category, language) || item.categoryName || t.uncategorized;
-        if (catName.toLowerCase() === "inventory") {
-          catName = "Drink";
+        const prodName = resolveProductName(item.product || { name: item.productName || item.name, nameKm: item.product?.nameKm }, language) || item.productName || item.name || "Unknown";
+        
+        let catName = resolveCategoryName(item.product?.category || item.category, language) || item.categoryName || item.product?.categoryName;
+
+        if (!catName || catName.toLowerCase() === "uncategorized" || catName === "គ្មានប្រភេទ") {
+          const invProd = inventoryItems.find((inv: any) => Number(inv.id) === Number(pId));
+          if (invProd && invProd.category) {
+            catName = resolveCategoryName(invProd.category, language);
+          }
         }
+
+        if (!catName || catName.toLowerCase() === "uncategorized" || catName === "គ្មានប្រភេទ") {
+          const lowerPName = prodName.toLowerCase();
+          if (["coca", "cola", "sprite", "fanta", "water", "evian", "evlan", "americano", "coffee", "tea", "drink", "beverage", "soda", "frappe", "latte", "espresso"].some(k => lowerPName.includes(k))) {
+            catName = language === "km" ? "ភេសជ្ជៈ" : "Beverages";
+          } else if (["ឆា", "អាំង", "ស៊ុប", "បាយ", "rice", "soup", "noodle", "fried", "food", "meat", "pork", "beef", "chicken"].some(k => lowerPName.includes(k))) {
+            catName = language === "km" ? "ម្ហូបអាហារ" : "Food";
+          } else {
+            catName = language === "km" ? "ទូទៅ" : "General";
+          }
+        }
+
         const qty = Number(item.quantity || 1);
-        const sales = Number(item.totalPrice || (item.price ? item.price * qty : 0));
+        const sales = Number(item.totalPrice || (item.price ? item.price * qty : 0) || (item.unitPrice ? item.unitPrice * qty : 0));
 
         if (!productMap[pId]) {
           productMap[pId] = {
@@ -893,8 +919,11 @@ export default function ReportsPage() {
       });
     });
 
-    return Object.values(productMap).sort((a, b) => b.quantity - a.quantity);
-  }, [topProducts, filteredRealtimeOrders, language, t.uncategorized]);
+    const realTimeTop = Object.values(productMap).sort((a, b) => b.quantity - a.quantity);
+    if (realTimeTop.length > 0) return realTimeTop;
+
+    return topProducts;
+  }, [topProducts, filteredRealtimeOrders, inventoryItems, language]);
 
   const categories = useMemo(() => {
     const grouped = dynamicTopProducts.reduce<Record<string, number>>((acc, item) => {

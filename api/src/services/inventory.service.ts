@@ -292,16 +292,42 @@ export const addInventoryItem = async (
           },
         });
       }
+
+      // Check if item is a food / dish
+      if (!category) {
+        const isFood = [
+          "food", "rice", "soup", "bread", "meat", "pork", "beef", "chicken", "fish",
+          "noodle", "sandwich", "burger", "croissant", "sauce", "vegetable", "carrot",
+          "បាយ", "ស៊ុប", "ម្ហូប", "សាច់", "ឆា", "អាំង", "បំពង", "នំ", "អាហារ", "ស្ងោរ"
+        ].some((kw) => nameLower.includes(kw));
+
+        if (isFood) {
+          category = await tx.category.findFirst({
+            where: {
+              deletedAt: null,
+              OR: [
+                { slug: "food" },
+                { name: { contains: "Food", mode: "insensitive" } },
+                { slug: "soup" },
+                { name: { contains: "Soup", mode: "insensitive" } },
+              ],
+            },
+          });
+        }
+      }
     }
 
-    // 3. Fallback to default "Drink" category if no category matched
+    // 3. Fallback to default Food / Inventory / General category if no category matched
     if (!category) {
       category = await tx.category.findFirst({
         where: {
           deletedAt: null,
           OR: [
-            { slug: "drink" },
-            { name: { contains: "Drink", mode: "insensitive" } },
+            { slug: "food" },
+            { name: { contains: "Food", mode: "insensitive" } },
+            { slug: "inventory" },
+            { name: { contains: "Inventory", mode: "insensitive" } },
+            { name: { contains: "General", mode: "insensitive" } },
           ],
         },
       });
@@ -316,10 +342,10 @@ export const addInventoryItem = async (
     if (!category) {
       category = await tx.category.create({
         data: {
-          name: "Drink",
-          nameKm: "ភេសជ្ជៈ",
-          slug: "drink",
-          description: "Drink and beverage stock category",
+          name: "Food",
+          nameKm: "អាហារ",
+          slug: "food",
+          description: "Food and stock category",
         },
       });
     }

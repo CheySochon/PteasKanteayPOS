@@ -7,10 +7,18 @@ export const errorMiddleware = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction,
 ) => {
-  // eslint-disable-next-line no-console
   console.error(err);
 
-  const message = err instanceof Error ? err.message : "Internal server error";
+  let message = err instanceof Error ? err.message : "Internal server error";
+
+  // Prevent internal Prisma/Database schema information disclosure
+  if (
+    message.includes("prisma") ||
+    message.includes("invocation:") ||
+    (err as any)?.name?.includes("Prisma")
+  ) {
+    message = "Internal server error";
+  }
 
   res.status(500).json({
     success: false,

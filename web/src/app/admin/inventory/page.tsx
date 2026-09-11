@@ -1269,12 +1269,7 @@ export default function InventoryPage() {
                   setAddQuantity("");
                   setAddMinStock("");
                   setAddSupplierId("");
-                  const drinkCat = categories.find((c) =>
-                    (c.name && c.name.toLowerCase().includes("drink")) ||
-                    (c.nameKm && c.nameKm.includes("ភេសជ្ជៈ")) ||
-                    c.slug === "drink"
-                  );
-                  setAddCategoryId(drinkCat ? String(drinkCat.id) : "");
+                  setAddCategoryId("");
                   setIsAddModalOpen(true);
                 }}
                 className="flex items-center gap-1.5 rounded-xl bg-[#55a060] hover:bg-[#488c52] text-white px-4 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer"

@@ -19,7 +19,12 @@ export const list = asyncHandler(async (_req: Request, res: Response) => {
 
 export const get = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
-    const data = await getProduct(Number(req.params.id));
+    const id = Number(req.params.id);
+    if (isNaN(id) || id <= 0) {
+      res.status(400).json({ success: false, message: "Invalid product ID format" });
+      return;
+    }
+    const data = await getProduct(id);
     res.json({ success: true, message: "Product fetched", data });
   },
 );

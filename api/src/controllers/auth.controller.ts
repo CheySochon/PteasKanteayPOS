@@ -382,7 +382,7 @@ export const loginPin = async (
   res: Response,
 ) => {
   try {
-    const { pin, userId, email } = req.body;
+    const { pin, userId, email } = req.body || {};
     if (!pin) {
       res.status(400).json({ success: false, message: "PIN is required" });
       return;

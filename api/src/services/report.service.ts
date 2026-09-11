@@ -147,13 +147,20 @@ export const getTopProducts = async (
 
   return rows.map((row) => {
     const prod = products.find((p) => p.id === row.productId);
-    let categoryName = prod?.category?.name ?? "Uncategorized";
-    if (categoryName.toLowerCase() === "inventory") {
-      categoryName = "Drink";
+    let categoryName = prod?.category?.name || prod?.category?.nameKm || "";
+    if (!categoryName || categoryName.toLowerCase() === "uncategorized") {
+      const pName = (prod?.name || prod?.nameKm || "").toLowerCase();
+      if (["coca", "cola", "sprite", "fanta", "water", "evian", "americano", "coffee", "tea", "drink", "beverage", "soda", "latte", "frappe"].some((k) => pName.includes(k))) {
+        categoryName = "Beverages";
+      } else if (["ឆា", "អាំង", "ស៊ុប", "បាយ", "rice", "soup", "noodle", "fried", "food", "pork", "beef", "chicken"].some((k) => pName.includes(k))) {
+        categoryName = "Main Course";
+      } else {
+        categoryName = "General";
+      }
     }
     return {
       productId: row.productId,
-      productName: prod?.name ?? "Unknown",
+      productName: prod?.nameKm || prod?.name || "Unknown",
       categoryName,
       quantity: row._sum.quantity ?? 0,
       totalSales: toNum(row._sum.totalPrice),

@@ -45,6 +45,7 @@ import {
   UsersRound,
   ShoppingBag,
   X,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -1428,8 +1429,8 @@ export default function SettingsPage() {
                             <span>{language === "km" ? "ទាញយក JSON Snapshot (.json)" : "Download JSON Snapshot (.json)"}</span>
                           </button>
 
-                          <label className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition-all ${borderCol} ${surface} ${textPrimary} hover:bg-slate-50 dark:hover:bg-slate-800`}>
-                            {backupBusy === "preview" ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />}
+                          <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300/80 bg-amber-50/70 dark:bg-amber-950/30 dark:border-amber-700/60 text-amber-800 dark:text-amber-300 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 px-3 text-xs font-bold transition-all shadow-xs shadow-amber-500/5 active:scale-[0.98]">
+                            {backupBusy === "preview" ? <Loader2 className="animate-spin text-amber-600" size={15} /> : <RotateCcw size={15} className="text-amber-600 dark:text-amber-400 stroke-[2.2]" />}
                             <span>{language === "km" ? "ស្ដារ Database (Restore)" : "Restore Database (.sql/.json)"}</span>
                             <input type="file" accept="application/json,.json,.sql" disabled={Boolean(backupBusy)} onChange={selectRestoreFile} className="hidden" />
                           </label>

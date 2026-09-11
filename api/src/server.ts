@@ -21,10 +21,47 @@ app.set("io", io);
 io.on("connection", (socket: Socket) => {
   socket.on("order:new", (order: unknown) => {
     io.emit("order:created", order);
+    io.emit("order:new", order);
+    io.emit("orders:updated", order);
+    io.emit("dashboard:update", order);
+    io.emit("reports:updated", order);
+  });
+
+  socket.on("order:create", (order: unknown) => {
+    io.emit("order:created", order);
+    io.emit("order:new", order);
+    io.emit("orders:updated", order);
+    io.emit("dashboard:update", order);
+    io.emit("reports:updated", order);
+  });
+
+  socket.on("order:created", (order: unknown) => {
+    io.emit("order:created", order);
+    io.emit("order:new", order);
+    io.emit("orders:updated", order);
+    io.emit("dashboard:update", order);
+    io.emit("reports:updated", order);
   });
 
   socket.on("order:update", (order: unknown) => {
     io.emit("order:updated", order);
+    io.emit("orders:updated", order);
+    io.emit("dashboard:update", order);
+    io.emit("reports:updated", order);
+  });
+
+  socket.on("order:updated", (order: unknown) => {
+    io.emit("order:updated", order);
+    io.emit("orders:updated", order);
+    io.emit("dashboard:update", order);
+    io.emit("reports:updated", order);
+  });
+
+  socket.on("order:deleted", (data: unknown) => {
+    io.emit("order:deleted", data);
+    io.emit("orders:updated", data);
+    io.emit("dashboard:update", data);
+    io.emit("reports:updated", data);
   });
 
   socket.on("user:created", (user: unknown) => {

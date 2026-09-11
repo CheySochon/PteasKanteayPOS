@@ -61,6 +61,9 @@ export const create = asyncHandler(
     if (io) {
       io.emit("order:created", data);
       io.emit("order:new", data);
+      io.emit("orders:updated", data);
+      io.emit("dashboard:update", data);
+      io.emit("reports:updated", data);
     }
     res.status(201).json({ success: true, message: "Order created", data });
   },
@@ -76,6 +79,10 @@ export const updateStatus = asyncHandler(
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("order:updated", data);
+      io.emit("order:status_changed", data);
+      io.emit("orders:updated", data);
+      io.emit("dashboard:update", data);
+      io.emit("reports:updated", data);
     }
     res.json({ success: true, message: "Order status updated", data });
   },
@@ -85,6 +92,13 @@ export const remove = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
     const userId = getUserIdFromReq(req);
     await deleteOrder(Number(req.params.id), userId);
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
+    if (io) {
+      io.emit("order:deleted", { id: Number(req.params.id) });
+      io.emit("orders:updated", { id: Number(req.params.id) });
+      io.emit("dashboard:update", { id: Number(req.params.id) });
+      io.emit("reports:updated", { id: Number(req.params.id) });
+    }
     res.json({ success: true, message: "Order deleted" });
   },
 );
@@ -95,6 +109,13 @@ export const addItem = asyncHandler(
     res: Response,
   ) => {
     const data = await addOrderItem(Number(req.params.id), req.body);
+    const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
+    if (io) {
+      io.emit("order:updated", data);
+      io.emit("orders:updated", data);
+      io.emit("dashboard:update", data);
+      io.emit("reports:updated", data);
+    }
     res.status(201).json({ success: true, message: "Order item added", data });
   },
 );
@@ -123,6 +144,9 @@ export const update = asyncHandler(
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("order:updated", data);
+      io.emit("orders:updated", data);
+      io.emit("dashboard:update", data);
+      io.emit("reports:updated", data);
     }
     res.json({ success: true, message: "Order updated successfully", data });
   },

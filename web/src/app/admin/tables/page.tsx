@@ -909,7 +909,7 @@ export default function TablesPage() {
 
       {/* CREATE / EDIT TABLE MODAL */}
       {isTableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-[2px] animate-[tableModalBackdrop_180ms_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/10 backdrop-blur-[1px] animate-[tableModalBackdrop_180ms_ease-out]">
           <button
             type="button"
             aria-label="Close table dialog"
