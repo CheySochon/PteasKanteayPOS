@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, memo, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, memo, useCallback, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -94,10 +94,11 @@ let cachedProducts: Product[] | null = null;
 let cachedTables: DiningTable[] | null = null;
 let cachedSettings: any = null;
 
+const ACTIVE_STATUSES = ["pending", "accepted", "preparing", "ready", "served"];
+
 function getPosDisplayTableName(table: DiningTable, qrOrders: any[], language: string) {
-  const activeStatuses = ["pending", "accepted", "preparing", "ready", "served"];
   const tableOrder = qrOrders.find(
-    (o) => (o.tableId === table.id || o.table?.id === table.id) && activeStatuses.includes(o.status) && o.notes
+    (o) => (o.tableId === table.id || o.table?.id === table.id) && ACTIVE_STATUSES.includes(o.status) && o.notes
   );
 
   if (tableOrder?.notes) {
@@ -125,7 +126,6 @@ function getPosDisplayTableName(table: DiningTable, qrOrders: any[], language: s
 
 export default function PosPage(props?: { isAdminView?: boolean; params?: Promise<any>; searchParams?: Promise<any> }) {
   const isAdminView = props?.isAdminView ?? false;
-  const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useAppTheme();
   const dark = theme === "dark";
   const language = useAppLanguage();
@@ -138,6 +138,8 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mobileTab, setMobileTab] = useState<"menu" | "cart">("menu");
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ticketNumber, setTicketNumber] = useState("0000");
   const [orderNote, setOrderNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
@@ -183,6 +185,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [restaurantPhone, setRestaurantPhone] = useState(cachedSettings?.restaurantPhone || "");
   const [restaurantEmail, setRestaurantEmail] = useState(cachedSettings?.restaurantEmail || "");
   const [receiptFooterText, setReceiptFooterText] = useState(cachedSettings?.receiptFooter || "Thanks for visit. Come again");
+  const [vatTin, setVatTin] = useState(cachedSettings?.vatTin || "");
+  const [showVatTin, setShowVatTin] = useState(cachedSettings?.showVatTin ?? true);
+  const [receiptHeaderTitle, setReceiptHeaderTitle] = useState(cachedSettings?.receiptHeaderTitle || "RECEIPT");
+  const [invoiceHeaderTitle, setInvoiceHeaderTitle] = useState(cachedSettings?.invoiceHeaderTitle || "TAX INVOICE");
+  const [receiptPrefix, setReceiptPrefix] = useState(cachedSettings?.receiptPrefix || "REC-");
+  const [invoicePrefix, setInvoicePrefix] = useState(cachedSettings?.invoicePrefix || "INV-");
+  const [showCashierName, setShowCashierName] = useState(cachedSettings?.showCashierName ?? true);
+  const [showTableInfo, setShowTableInfo] = useState(cachedSettings?.showTableInfo ?? true);
+  const [showCustomerInfoOnInvoice, setShowCustomerInfoOnInvoice] = useState(cachedSettings?.showCustomerInfoOnInvoice ?? true);
+  const [showPaymentQr, setShowPaymentQr] = useState(cachedSettings?.showPaymentQr ?? true);
+  const [invoiceTerms, setInvoiceTerms] = useState(cachedSettings?.invoiceTerms || "1. Payment is due within 30 days.\n2. Goods once sold are not returnable.");
   const [serviceRate, setServiceRate] = useState(cachedSettings?.serviceChargeRate != null ? Number(cachedSettings.serviceChargeRate) / 100 : SERVICE_RATE);
   const [vatRate, setVatRate] = useState(cachedSettings?.taxRate != null ? Number(cachedSettings.taxRate) / 100 : VAT_RATE);
   const [exchangeRate, setExchangeRate] = useState<number>(cachedSettings?.exchangeRate ? Number(cachedSettings.exchangeRate) : 4000);
@@ -218,7 +231,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const setMessage = showSuccessToast;
   const setErrorMessage = showErrorToast;
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(!cachedCategories);
+  const [initialLoading, setInitialLoading] = useState(!(cachedCategories && cachedProducts && cachedTables));
   const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
@@ -314,6 +327,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   // Thermal Print Receipt Slip Modal State
   const [printSlipModalOpen, setPrintSlipModalOpen] = useState(false);
   const [printSlipData, setPrintSlipData] = useState<{
+    type?: "invoice" | "receipt";
     orderNumber: string;
     createdAt: string;
     customer: string;
@@ -490,6 +504,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       }
 
       setPrintSlipData({
+        type: "invoice",
         orderNumber: fullOrder.orderNumber || ticketNumber,
         createdAt: fullOrder.createdAt || new Date().toISOString(),
         customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
@@ -561,8 +576,23 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     const socket = getSocket();
     if (!socket) return;
 
+    const recentEvents = new Map<string, number>();
+    function isDuplicateEvent(key: string): boolean {
+      const now = Date.now();
+      const last = recentEvents.get(key);
+      if (last && now - last < 500) return true;
+      recentEvents.set(key, now);
+      if (recentEvents.size > 100) {
+        for (const [k, t] of recentEvents.entries()) {
+          if (now - t > 2000) recentEvents.delete(k);
+        }
+      }
+      return false;
+    }
+
     function handleOrderCreated(order: any) {
-      if (!order) return;
+      if (!order || !order.id) return;
+      if (isDuplicateEvent(`create-${order.id}`)) return;
 
       setQrOrders((current) => {
         const exists = current.some((o) => o.id === order.id);
@@ -587,13 +617,15 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     }
 
     function handleOrderUpdated(order: any) {
-      if (!order) return;
+      if (!order || !order.id) return;
+      if (isDuplicateEvent(`update-${order.id}-${order.status}`)) return;
       setQrOrders((current) => current.map((o) => (o.id === order.id ? { ...o, ...order } : o)));
     }
 
     function handleOrderDeleted(payload: any) {
       const deletedId = typeof payload === "object" ? payload.id || payload.orderId : payload;
       if (!deletedId) return;
+      if (isDuplicateEvent(`delete-${deletedId}`)) return;
       setQrOrders((current) => current.filter((o) => Number(o.id) !== Number(deletedId)));
     }
 
@@ -652,6 +684,10 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       setTicketNumber(String(Date.now()).slice(-4));
     });
 
+    if (cachedCategories && cachedProducts && cachedTables) {
+      setInitialLoading(false);
+    }
+
     Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
       .then(([categoryRows, productRows, tableRows, appSettings]) => {
         cachedCategories = categoryRows;
@@ -669,6 +705,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         setRestaurantPhone(appSettings.restaurantPhone || "");
         setRestaurantEmail(appSettings.restaurantEmail || "");
         setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
+        setVatTin(appSettings.vatTin || "");
+        setShowVatTin(appSettings.showVatTin ?? true);
+        setReceiptHeaderTitle(appSettings.receiptHeaderTitle || "RECEIPT");
+        setInvoiceHeaderTitle(appSettings.invoiceHeaderTitle || "TAX INVOICE");
+        setReceiptPrefix(appSettings.receiptPrefix || "REC-");
+        setInvoicePrefix(appSettings.invoicePrefix || "INV-");
+        setShowCashierName(appSettings.showCashierName ?? true);
+        setShowTableInfo(appSettings.showTableInfo ?? true);
+        setShowCustomerInfoOnInvoice(appSettings.showCustomerInfoOnInvoice ?? true);
+        setShowPaymentQr(appSettings.showPaymentQr ?? true);
+        setInvoiceTerms(appSettings.invoiceTerms || "1. Payment is due within 30 days.\n2. Goods once sold are not returnable.");
         localStorage.setItem("pos_restaurant_name", nextName);
         setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
         setVatRate(Number(appSettings.taxRate || 0) / 100);
@@ -700,34 +747,63 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       setCurrentUserImageUrl("");
     }
 
-    function reloadMenuData() {
-      Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
-        .then(([categoryRows, productRows, tableRows, appSettings]) => {
-          cachedCategories = categoryRows;
-          cachedProducts = productRows;
-          cachedTables = tableRows.filter((table: DiningTable) => table.isActive);
-          cachedSettings = appSettings;
+    function applySettings(appSettings: any) {
+      if (!appSettings) return;
+      cachedSettings = appSettings;
+      const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
+      setPosName(nextName);
+      setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
+      setRestaurantAddress(appSettings.address || "");
+      setRestaurantPhone(appSettings.restaurantPhone || "");
+      setRestaurantEmail(appSettings.restaurantEmail || "");
+      setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
+      setVatTin(appSettings.vatTin || "");
+      setShowVatTin(appSettings.showVatTin ?? true);
+      setReceiptHeaderTitle(appSettings.receiptHeaderTitle || "RECEIPT");
+      setInvoiceHeaderTitle(appSettings.invoiceHeaderTitle || "TAX INVOICE");
+      setReceiptPrefix(appSettings.receiptPrefix || "REC-");
+      setInvoicePrefix(appSettings.invoicePrefix || "INV-");
+      setShowCashierName(appSettings.showCashierName ?? true);
+      setShowTableInfo(appSettings.showTableInfo ?? true);
+      setShowCustomerInfoOnInvoice(appSettings.showCustomerInfoOnInvoice ?? true);
+      setShowPaymentQr(appSettings.showPaymentQr ?? true);
+      setInvoiceTerms(appSettings.invoiceTerms || "1. Payment is due within 30 days.\n2. Goods once sold are not returnable.");
+      setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
+      setVatRate(Number(appSettings.taxRate || 0) / 100);
+      if (appSettings.exchangeRate != null) setExchangeRate(Number(appSettings.exchangeRate) || 4000);
+    }
 
-          setCategories(cachedCategories);
-          setProducts(cachedProducts);
-          setTables(cachedTables);
-          const nextName = appSettings.restaurantName || DEFAULT_POS_NAME;
-          setPosName(nextName);
-          setRestaurantImageUrl(appSettings.restaurantImageUrl || "");
-          setRestaurantAddress(appSettings.address || "");
-          setRestaurantPhone(appSettings.restaurantPhone || "");
-          setRestaurantEmail(appSettings.restaurantEmail || "");
-          setReceiptFooterText(appSettings.receiptFooter || "Thanks for visit. Come again");
-          setServiceRate(Number(appSettings.serviceChargeRate || 0) / 100);
-          setVatRate(Number(appSettings.taxRate || 0) / 100);
-          if (appSettings.exchangeRate != null) setExchangeRate(Number(appSettings.exchangeRate) || 4000);
-        })
-        .catch(() => undefined);
+    function reloadMenuData() {
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+      }
+      reloadTimerRef.current = setTimeout(() => {
+        Promise.all([getCategories(), getProducts(), getTables(), getSettings()])
+          .then(([categoryRows, productRows, tableRows, appSettings]) => {
+            cachedCategories = categoryRows;
+            cachedProducts = productRows;
+            cachedTables = tableRows.filter((table: DiningTable) => table.isActive);
+            setCategories(cachedCategories);
+            setProducts(cachedProducts);
+            setTables(cachedTables);
+            applySettings(appSettings);
+          })
+          .catch(() => undefined);
+      }, 300);
     }
 
     syncAuthUser();
-    const handleSettingsAndAuth = () => {
+    const handleSettingsAndAuth = (e?: Event) => {
       syncAuthUser();
+      if (e && (e as CustomEvent).detail) {
+        applySettings((e as CustomEvent).detail);
+        return;
+      }
+      if (e && e instanceof StorageEvent && e.key) {
+        if (!e.key.includes("menu") && !e.key.includes("settings") && !e.key.includes("product") && !e.key.includes("restaurant")) {
+          return;
+        }
+      }
       reloadMenuData();
     };
 
@@ -736,9 +812,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     window.addEventListener("pos-auth-change", syncAuthUser);
     window.addEventListener("pos-menu-change", reloadMenuData);
 
+    const handleSocketSettings = (updated: any) => {
+      if (updated && typeof updated === "object") {
+        applySettings(updated);
+      }
+      reloadMenuData();
+    };
+
     const socket = getSocket();
     if (socket) {
-      socket.on("settings:updated", reloadMenuData);
+      socket.on("settings:updated", handleSocketSettings);
+      socket.on("settings:change", handleSocketSettings);
       socket.on("product:updated", reloadMenuData);
       socket.on("product:created", reloadMenuData);
       socket.on("product:deleted", reloadMenuData);
@@ -750,12 +834,16 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     }
 
     return () => {
+      if (reloadTimerRef.current) {
+        clearTimeout(reloadTimerRef.current);
+      }
       window.removeEventListener("storage", handleSettingsAndAuth);
       window.removeEventListener("pos-settings-change", handleSettingsAndAuth);
       window.removeEventListener("pos-auth-change", syncAuthUser);
       window.removeEventListener("pos-menu-change", reloadMenuData);
       if (socket) {
-        socket.off("settings:updated", reloadMenuData);
+        socket.off("settings:updated", handleSocketSettings);
+        socket.off("settings:change", handleSocketSettings);
         socket.off("product:updated", reloadMenuData);
         socket.off("product:created", reloadMenuData);
         socket.off("product:deleted", reloadMenuData);
@@ -779,7 +867,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   }, [tables, selectedZone]);
 
   const filteredProducts = useMemo(() => {
-    const search = query.trim().toLowerCase();
+    const search = deferredQuery.trim().toLowerCase();
 
     return products.filter((product) => {
       const matchesCategory =
@@ -793,21 +881,75 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
       return matchesCategory && matchesSearch;
     });
-  }, [categoryId, products, query]);
+  }, [categoryId, products, deferredQuery]);
 
   const productMap = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
     [products]
   );
 
-  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const discountAmount = Math.min(subtotal, subtotal * (discountPercent / 100));
-  const discountedSubtotal = Math.max(subtotal - discountAmount, 0);
-  const serviceFee = discountedSubtotal * serviceRate;
-  const vat = discountedSubtotal * vatRate;
-  const total = discountedSubtotal + serviceFee + vat;
-  const splitAmount = splitCount > 0 ? total / splitCount : total;
+  const tableNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    const activeNotesByTable = new Map<number, string>();
+    for (let i = 0; i < qrOrders.length; i++) {
+      const o = qrOrders[i];
+      if (o.notes && ACTIVE_STATUSES.includes(String(o.status || "").toLowerCase().trim())) {
+        const tid = Number(o.tableId || o.table?.id);
+        if (tid && !activeNotesByTable.has(tid)) {
+          activeNotesByTable.set(tid, o.notes);
+        }
+      }
+    }
+
+    for (let i = 0; i < tables.length; i++) {
+      const table = tables[i];
+      const notes = activeNotesByTable.get(table.id);
+      let name = language === "km" ? `តុ ${table.name}` : table.name;
+
+      if (notes) {
+        const match = notes.match(/Merged (?:with|into|from) ([^)\n,]+)/i);
+        if (match && match[1]) {
+          const mergedPart = match[1].trim();
+          const cleanMerged = mergedPart.toLowerCase().startsWith("table ") ? `T${mergedPart.slice(6).trim()}` : (mergedPart.startsWith("T") ? mergedPart : `T${mergedPart}`);
+          const cleanBase = table.name.toLowerCase().startsWith("table ") ? `T${table.name.slice(6).trim()}` : (table.name.startsWith("T") ? table.name : `T${table.name}`);
+
+          if (cleanMerged && cleanBase.toLowerCase() !== cleanMerged.toLowerCase()) {
+            const numBase = parseInt(cleanBase.replace(/\D/g, ""), 10);
+            const numOther = parseInt(cleanMerged.replace(/\D/g, ""), 10);
+            let combined = `${cleanBase} & ${cleanMerged}`;
+            if (!isNaN(numBase) && !isNaN(numOther)) {
+              const sorted = [numBase, numOther].sort((a, b) => a - b);
+              combined = `T${sorted[0]} & T${sorted[1]}`;
+            }
+            name = language === "km" ? `តុ ${combined}` : combined;
+          }
+        }
+      }
+      map.set(table.id, name);
+    }
+    return map;
+  }, [tables, qrOrders, language]);
+
+  const { subtotal, cartCount, discountAmount, discountedSubtotal, serviceFee, vat, total, splitAmount } = useMemo(() => {
+    const sub = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const discAmt = Math.min(sub, sub * (discountPercent / 100));
+    const discSub = Math.max(sub - discAmt, 0);
+    const sFee = discSub * serviceRate;
+    const v = discSub * vatRate;
+    const tot = discSub + sFee + v;
+    const splitAmt = splitCount > 0 ? tot / splitCount : tot;
+    return {
+      subtotal: sub,
+      cartCount: count,
+      discountAmount: discAmt,
+      discountedSubtotal: discSub,
+      serviceFee: sFee,
+      vat: v,
+      total: tot,
+      splitAmount: splitAmt,
+    };
+  }, [cart, discountPercent, serviceRate, vatRate, splitCount]);
 
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
   const [heldModalOpen, setHeldModalOpen] = useState(false);
@@ -920,10 +1062,10 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
   const handleAddProduct = useCallback((product: Product) => {
     const item = cartItemFromProduct(product);
-    const key = item.productId;
+    const key = Number(item.productId || product.id);
 
     setCart((current) => {
-      const existingItem = current.find((i: any) => i.productId === key);
+      const existingItem = current.find((i: any) => Number(i.productId) === key);
       const nextQty = (existingItem?.quantity || 0) + 1;
 
       if (product.trackStock && Number(product.inventory?.quantity ?? 0) < nextQty) {
@@ -931,16 +1073,52 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         return current;
       }
 
-      const exists = current.some((entry) => entry.productId === key);
-      if (!exists) return [...current, item];
+      const exists = current.some((entry) => Number(entry.productId) === key);
+      if (!exists) return [...current, { ...item, productId: key, name: product.name || item.name }];
 
       return current.map((entry) =>
-        entry.productId === key
+        Number(entry.productId) === key
           ? { ...entry, quantity: nextQty }
           : entry
       );
     });
   }, [showErrorToast]);
+
+  const handleIncrementItem = useCallback(
+    (productId: number) => {
+      const prod = productMap.get(productId);
+      setCart((current) =>
+        current.map((i) => {
+          if (i.productId !== productId) return i;
+          const nextQty = i.quantity + 1;
+          if (prod?.trackStock && Number(prod.inventory?.quantity ?? 0) < nextQty) {
+            showErrorToast(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
+            return i;
+          }
+          return { ...i, quantity: nextQty };
+        })
+      );
+    },
+    [productMap, showErrorToast]
+  );
+
+  const handleDecrementItem = useCallback((productId: number) => {
+    setCart((current) =>
+      current
+        .map((i) => (i.productId === productId ? { ...i, quantity: i.quantity - 1 } : i))
+        .filter((i) => i.quantity > 0)
+    );
+  }, []);
+
+  const handleRemoveItem = useCallback((productId: number) => {
+    setCart((current) => current.filter((i) => i.productId !== productId));
+  }, []);
+
+  const handleSetItemNote = useCallback((productId: number, noteText: string) => {
+    setCart((current) =>
+      current.map((i) => (i.productId === productId ? { ...i, notes: noteText } : i))
+    );
+  }, []);
 
   async function processCheckout() {
     setLoading(true);
@@ -1052,6 +1230,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       }
 
       setPrintSlipData({
+        type: "receipt",
         orderNumber: order.orderNumber || order.orderId || ticketNumber,
         createdAt: new Date().toISOString(),
         customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
@@ -1257,15 +1436,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 ? "bg-[#2b2c40]/85 border-[#3b3c54]/70 shadow-xs"
                 : "bg-white/80 border-slate-200/70 shadow-xs"
             }`}>
-              {/* Left Scrollable Pills Wrapper with Pure CSS Linear Alpha Fade Mask (No White Box Artifact) */}
+              {/* Left Scrollable Pills Wrapper */}
               <div className="flex-1 min-w-0 flex items-center pr-2 sm:pr-4">
-                <div
-                  className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0"
-                  style={{
-                    maskImage: "linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 82%, rgba(0,0,0,0) 100%)",
-                    WebkitMaskImage: "linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 82%, rgba(0,0,0,0) 100%)",
-                  }}
-                >
+                <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 min-w-0 pr-2">
                   <button
                     type="button"
                     onClick={() => setCategoryId("all")}
@@ -1360,13 +1533,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} categories={categories} onAdd={handleAddProduct} />
+                    <ProductCard key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} language={language} categories={categories} onAdd={handleAddProduct} />
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3.5">
                   {filteredProducts.map((product) => (
-                    <ProductListItem key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} categories={categories} onAdd={handleAddProduct} />
+                    <ProductListItem key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} language={language} categories={categories} onAdd={handleAddProduct} />
                   ))}
                 </div>
               )}
@@ -1456,7 +1629,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                       <option value="" className={dark ? "bg-[#232333] text-slate-200" : ""}>{language === "km" ? "ជ្រើសរើសតុ" : "Select Table"}</option>
                       {tables.map((table) => (
                         <option key={table.id} value={table.id} className={dark ? "bg-[#232333] text-slate-200" : ""}>
-                          {getPosDisplayTableName(table, qrOrders, language)}
+                          {tableNameMap.get(table.id) || table.name}
                         </option>
                       ))}
                     </select>
@@ -1484,40 +1657,16 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     const product = productMap.get(item.productId);
                     return (
                       <TicketItem
-                        key={`${item.productId}-${index}`}
+                        key={`cart-item-${item.productId}-${index}`}
                         item={item}
                         dark={dark}
                         language={language}
                         exchangeRate={exchangeRate}
                         imageUrl={resolveImageUrl(product?.imageUrl)}
-                        onIncrement={() => {
-                          const prod = products.find((p) => p.id === item.productId);
-                          const nextQty = item.quantity + 1;
-                          if (prod?.trackStock && Number(prod.inventory?.quantity ?? 0) < nextQty) {
-                            showErrorToast(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
-                            return;
-                          }
-                          setCart((current) =>
-                            current.map((i) =>
-                              i.productId === item.productId ? { ...i, quantity: nextQty } : i
-                            )
-                          );
-                        }}
-                        onDecrement={() => {
-                          setCart((current) =>
-                            current
-                              .map((i) => (i.productId === item.productId ? { ...i, quantity: i.quantity - 1 } : i))
-                              .filter((i) => i.quantity > 0)
-                          );
-                        }}
-                        onRemove={() => {
-                          setCart((current) => current.filter((i) => i.productId !== item.productId));
-                        }}
-                        onAddNote={(noteText) => {
-                          setCart((current) =>
-                            current.map((i) => (i.productId === item.productId ? { ...i, notes: noteText } : i))
-                          );
-                        }}
+                        onIncrement={handleIncrementItem}
+                        onDecrement={handleDecrementItem}
+                        onRemove={handleRemoveItem}
+                        onAddNote={handleSetItemNote}
                       />
                     );
                   })}
@@ -2790,7 +2939,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             {/* Modal Controls (Print & Close) */}
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 print:hidden font-sans">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Print Slip Preview
+                {printSlipData.type === "invoice" ? "PRINT INVOICE PREVIEW" : "PRINT RECEIPT PREVIEW"}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -2832,21 +2981,55 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     {restaurantPhone ? `Phone: ${restaurantPhone}` : ""}{restaurantPhone && restaurantEmail ? ", " : ""}{restaurantEmail ? `Email: ${restaurantEmail}` : ""}
                   </p>
                 )}
-                <div className="mt-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
-                  {printSlipData.customer}
+                {showVatTin && vatTin && (
+                  <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                    VAT TIN: {vatTin}
+                  </p>
+                )}
+
+                <div className="mt-2.5 pt-2 border-t border-slate-200">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                    {printSlipData.type === "invoice"
+                      ? (invoiceHeaderTitle || "TAX INVOICE")
+                      : (receiptHeaderTitle || "RECEIPT")}
+                  </h3>
                 </div>
+
+                {((printSlipData.type === "invoice" && showCustomerInfoOnInvoice) || (printSlipData.type !== "invoice" && showTableInfo)) && (
+                  <div className="mt-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
+                    {printSlipData.customer}
+                  </div>
+                )}
               </div>
 
               {/* Order Metadata */}
               <div className="mt-3.5 space-y-1 text-xs">
+                {showTableInfo && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 font-normal">Order Type:</span>
+                    <span className="font-semibold text-slate-800">{printSlipData.orderType}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-normal">Order Type:</span>
-                  <span className="font-semibold text-slate-800">{printSlipData.orderType}</span>
+                  <span className="text-slate-500 font-normal">
+                    {printSlipData.type === "invoice" ? "Invoice No.:" : "Receipt No.:"}
+                  </span>
+                  <span className="font-semibold text-slate-800">
+                    {(() => {
+                      const numStr = String(printSlipData.orderNumber || "");
+                      const prefix = printSlipData.type === "invoice" ? invoicePrefix : receiptPrefix;
+                      if (!prefix) return numStr;
+                      if (numStr.startsWith(prefix)) return numStr;
+                      return `${prefix}${numStr.replace(/^(INV-|REC-)/i, "")}`;
+                    })()}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-normal">Receipt No.:</span>
-                  <span className="font-semibold text-slate-800">{printSlipData.orderNumber}</span>
-                </div>
+                {showCashierName && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 font-normal">Cashier:</span>
+                    <span className="font-semibold text-slate-800">{currentUserName}</span>
+                  </div>
+                )}
                 <div className="text-slate-400 text-[11px] text-right font-normal mt-0.5">
                   {new Date(printSlipData.createdAt).toLocaleDateString("en-US", {
                     month: "numeric",
@@ -2911,9 +3094,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     <span>Discount:</span>
                     <span className="font-semibold">-{money(printSlipData.discountAmount)}</span>
                   </div>
-)}
+                )}
                 <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
-                  <span>Total:</span>
+                  <span>{printSlipData.type === "invoice" ? "Total:" : "Total (PAID):"}</span>
                   <span className="text-base text-[#55a060] font-bold">{money(printSlipData.total)}</span>
                 </div>
                 <div className="text-right text-[10.5px] text-slate-400 font-normal mt-0.5">
@@ -2921,11 +3104,27 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 </div>
               </div>
 
-              {/* Dashed Line & Footer Note */}
-              <div className="my-3 border-b border-dashed border-slate-200" />
-              <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
-                <p>{receiptFooterText || "Thanks for visit. Come again"}</p>
-              </div>
+              {/* Footer Note / Terms */}
+              {printSlipData.type === "invoice" ? (
+                invoiceTerms ? (
+                  <>
+                    <div className="my-3 border-b border-dashed border-slate-200" />
+                    <div className="text-[10.5px] text-slate-500 font-normal leading-relaxed whitespace-pre-line">
+                      <p className="font-semibold text-slate-700 mb-0.5">Terms & Conditions:</p>
+                      {invoiceTerms}
+                    </div>
+                  </>
+                ) : null
+              ) : (
+                receiptFooterText ? (
+                  <>
+                    <div className="my-3 border-b border-dashed border-slate-200" />
+                    <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
+                      <p>{receiptFooterText}</p>
+                    </div>
+                  </>
+                ) : null
+              )}
             </div>
           </div>
         </div>,
@@ -2946,13 +3145,12 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 }
 
 const ProductCard = memo(
-  function ProductCard({ product, dark, exchangeRate = 4000, categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; categories?: Category[]; onAdd: (product: Product) => void }) {
-    const appLanguage = useAppLanguage();
+  function ProductCard({ product, dark, exchangeRate = 4000, language = "en", categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; language?: "en" | "km" | string; categories?: Category[]; onAdd: (product: Product) => void }) {
     const imageUrl = resolveImageUrl(product.imageUrl);
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
 
-    const categoryBadge = getProductCategoryBadgeName(product, categories, appLanguage);
+    const categoryBadge = getProductCategoryBadgeName(product, categories, language as any);
 
     return (
       <button
@@ -2976,7 +3174,7 @@ const ProductCard = memo(
           {imageUrl && !imgFailed ? (
             <img loading="lazy"
               src={imageUrl}
-              alt={resolveProductName(product, appLanguage)}
+              alt={resolveProductName(product, language as any)}
               onError={() => setImgFailed(true)}
               className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
             />
@@ -3018,7 +3216,7 @@ const ProductCard = memo(
               <h3 className={`line-clamp-1 text-[12.5px] font-semibold leading-snug font-khmer ${
                 dark ? "text-slate-100" : "text-slate-800"
               }`}>
-                {resolveProductName(product, appLanguage)}
+                {resolveProductName(product, language as any)}
               </h3>
 
               {/* Reserved Middle Slot for Stock Info */}
@@ -3043,7 +3241,8 @@ const ProductCard = memo(
     prev.product.id === next.product.id &&
     prev.dark === next.dark &&
     prev.exchangeRate === next.exchangeRate &&
-    prev.categories === next.categories &&
+    prev.language === next.language &&
+    (prev.categories?.length ?? 0) === (next.categories?.length ?? 0) &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
     prev.product.name === next.product.name &&
@@ -3052,13 +3251,12 @@ const ProductCard = memo(
 );
 
 const ProductListItem = memo(
-  function ProductListItem({ product, dark, exchangeRate = 4000, categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; categories?: Category[]; onAdd: (product: Product) => void }) {
-    const appLanguage = useAppLanguage();
+  function ProductListItem({ product, dark, exchangeRate = 4000, language = "en", categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; language?: "en" | "km" | string; categories?: Category[]; onAdd: (product: Product) => void }) {
     const imageUrl = resolveImageUrl(product.imageUrl);
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
 
-    const categoryBadge = getProductCategoryBadgeName(product, categories, appLanguage);
+    const categoryBadge = getProductCategoryBadgeName(product, categories, language as any);
 
     return (
       <button
@@ -3086,7 +3284,7 @@ const ProductListItem = memo(
           {imageUrl && !imgFailed ? (
             <img loading="lazy"
               src={imageUrl}
-              alt={product.name}
+              alt={resolveProductName(product, language as any)}
               onError={() => setImgFailed(true)}
               className="h-full w-full object-cover transition-all duration-200 group-hover:scale-105 group-hover:opacity-95"
             />
@@ -3113,7 +3311,7 @@ const ProductListItem = memo(
             <h3 className={`line-clamp-1 text-xs font-semibold leading-snug font-khmer ${
               dark ? "text-slate-100" : "text-slate-800"
             }`}>
-              {product.name}
+              {resolveProductName(product, language as any)}
             </h3>
             <div className="flex flex-col items-end shrink-0">
               <span className="text-xs font-black text-[#55a060]">
@@ -3146,7 +3344,8 @@ const ProductListItem = memo(
     prev.product.id === next.product.id &&
     prev.dark === next.dark &&
     prev.exchangeRate === next.exchangeRate &&
-    prev.categories === next.categories &&
+    prev.language === next.language &&
+    (prev.categories?.length ?? 0) === (next.categories?.length ?? 0) &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
     prev.product.name === next.product.name &&
@@ -3154,177 +3353,192 @@ const ProductListItem = memo(
     prev.product.category?.name === next.product.category?.name
 );
 
-function TicketItem({
-  item,
-  dark,
-  language,
-  imageUrl,
-  exchangeRate = 4000,
-  onIncrement,
-  onDecrement,
-  onRemove,
-  onAddNote,
-}: {
-  item: CartItem;
-  dark?: boolean;
-  language?: string;
-  imageUrl: string;
-  exchangeRate?: number;
-  onIncrement: () => void;
-  onDecrement: () => void;
-  onRemove?: () => void;
-  onAddNote?: (noteText: string) => void;
-}) {
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [noteText, setNoteText] = useState(item.notes || "");
+const TicketItem = memo(
+  function TicketItem({
+    item,
+    dark,
+    language,
+    imageUrl,
+    exchangeRate = 4000,
+    onIncrement,
+    onDecrement,
+    onRemove,
+    onAddNote,
+  }: {
+    item: CartItem;
+    dark?: boolean;
+    language?: string;
+    imageUrl: string;
+    exchangeRate?: number;
+    onIncrement: (productId: number) => void;
+    onDecrement: (productId: number) => void;
+    onRemove?: (productId: number) => void;
+    onAddNote?: (productId: number, noteText: string) => void;
+  }) {
+    const [isEditingNote, setIsEditingNote] = useState(false);
+    const [noteText, setNoteText] = useState(item.notes || "");
 
-  return (
-    <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 ${
-      dark ? "bg-[#232333] border-[#2b2c40] text-slate-100" : "bg-white border-slate-100 text-slate-700"
-    }`}>
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex-1 min-w-0">
-          <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"} ${language === "km" ? "font-khmer" : ""}`}>
-            {item.name}
-          </h3>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <span className="text-xs font-semibold text-[#55a060]">
-              {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
-            </span>
-            <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
-              ({(Math.round(item.unitPrice * item.quantity * exchangeRate)).toLocaleString()} ៛)
-            </span>
-          </div>
-          {item.notes && (
-            <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
-              {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}
+    return (
+      <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 ${
+        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100" : "bg-white border-slate-100 text-slate-700"
+      }`}>
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex-1 min-w-0">
+            <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"} ${language === "km" ? "font-khmer" : ""}`}>
+              {item.name}
+            </h3>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="text-xs font-semibold text-[#55a060]">
+                {money(item.unitPrice)} × {item.quantity} = {money(item.unitPrice * item.quantity)}
+              </span>
+              <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
+                ({(Math.round(item.unitPrice * item.quantity * exchangeRate)).toLocaleString()} ៛)
+              </span>
             </div>
+            {item.notes && (
+              <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}
+              </div>
+            )}
+          </div>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(item.productId)}
+              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
+              title="Remove item"
+            >
+              <Trash2 size={13} className="stroke-[2.5]" />
+            </button>
           )}
         </div>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
-            title="Remove item"
-          >
-            <Trash2 size={13} className="stroke-[2.5]" />
-          </button>
-        )}
-      </div>
 
-      {/* Stepper Count & Add Note Row */}
-      <div className="flex items-center justify-between mt-1">
-        <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
-          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
-        }`}>
-          <button
-            type="button"
-            onClick={onDecrement}
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
-          >
-            <Minus size={12} />
-          </button>
-          <span className={`w-6 text-center text-xs font-bold ${dark ? "text-slate-200" : "text-slate-600"}`}>
-            {item.quantity}
-          </span>
-          <button
-            type="button"
-            onClick={onIncrement}
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-          >
-            <Plus size={12} />
-          </button>
-        </div>
+        {/* Stepper Count & Add Note Row */}
+        <div className="flex items-center justify-between mt-1">
+          <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
+          }`}>
+            <button
+              type="button"
+              onClick={() => onDecrement(item.productId)}
+              className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
+            >
+              <Minus size={12} />
+            </button>
+            <span className={`w-6 text-center text-xs font-bold ${dark ? "text-slate-200" : "text-slate-600"}`}>
+              {item.quantity}
+            </span>
+            <button
+              type="button"
+              onClick={() => onIncrement(item.productId)}
+              className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
 
-        {/* Add Notes Button */}
-        {onAddNote && (
-          <button
-            type="button"
-            onClick={() => {
-              setNoteText(item.notes || "");
-              setIsEditingNote(true);
-            }}
-            className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-              dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
-            } ${language === "km" ? "font-khmer" : ""}`}
-          >
-            <StickyNote size={13} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
-            <span>{item.notes ? (language === "km" ? "កែសម្រួលចំណាំ" : "Edit Note") : (language === "km" ? "បន្ថែមចំណាំ" : "Add Notes")}</span>
-          </button>
-        )}
-      </div>
-
-      {/* Add Notes Modal Popup */}
-      {isEditingNote && onAddNote && typeof window !== "undefined" && createPortal(
-        <div
-          onClick={() => setIsEditingNote(false)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-sm sm:max-w-md overflow-hidden rounded-2xl p-5.5 shadow-2xl transition-all ${
-              dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
-            }`}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between mb-3.5">
-              <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">
-                Add Notes
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsEditingNote(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
-              >
-                <X size={15} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* Note Sub-label & Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 block">
-                Notes (100 character max.)
-              </label>
-              <input
-                autoFocus
-                type="text"
-                maxLength={100}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    onAddNote(noteText);
-                    setIsEditingNote(false);
-                  }
-                }}
-                placeholder="e.g. Less sugar, extra ice..."
-                className={`h-10 w-full rounded-lg border px-3.5 text-sm font-semibold outline-none transition-all ${
-                  dark
-                    ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-[#55a060]"
-                    : "border-slate-200 bg-white text-slate-800 focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10"
-                }`}
-              />
-            </div>
-
-            {/* Modal Action Button */}
+          {/* Add Notes Button */}
+          {onAddNote && (
             <button
               type="button"
               onClick={() => {
-                onAddNote(noteText);
-                setIsEditingNote(false);
+                setNoteText(item.notes || "");
+                setIsEditingNote(true);
               }}
-              className="mt-4.5 w-full h-10.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] text-white text-sm font-bold shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer"
+              className={`rounded-lg border px-2.5 py-1 text-[11.5px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
+              } ${language === "km" ? "font-khmer" : ""}`}
             >
-              Save
+              <StickyNote size={13} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
+              <span>{item.notes ? (language === "km" ? "កែសម្រួលចំណាំ" : "Edit Note") : (language === "km" ? "បន្ថែមចំណាំ" : "Add Notes")}</span>
             </button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
+          )}
+        </div>
+
+        {/* Add Notes Modal Popup */}
+        {isEditingNote && onAddNote && typeof window !== "undefined" && createPortal(
+          <div
+            onClick={() => setIsEditingNote(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-sm sm:max-w-md overflow-hidden rounded-2xl p-5.5 shadow-2xl transition-all ${
+                dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-3.5">
+                <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                  Add Notes
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingNote(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
+                >
+                  <X size={15} strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* Note Sub-label & Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400 block">
+                  Notes (100 character max.)
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  maxLength={100}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onAddNote(item.productId, noteText);
+                      setIsEditingNote(false);
+                    }
+                  }}
+                  placeholder="e.g. Less sugar, extra ice..."
+                  className={`h-10 w-full rounded-lg border px-3.5 text-sm font-semibold outline-none transition-all ${
+                    dark
+                      ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-[#55a060]"
+                      : "border-slate-200 bg-white text-slate-800 focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10"
+                  }`}
+                />
+              </div>
+
+              {/* Modal Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  onAddNote(item.productId, noteText);
+                  setIsEditingNote(false);
+                }}
+                className="mt-4.5 w-full h-10.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] text-white text-sm font-bold shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.item.productId === next.item.productId &&
+    prev.item.quantity === next.item.quantity &&
+    prev.item.notes === next.item.notes &&
+    prev.item.unitPrice === next.item.unitPrice &&
+    prev.dark === next.dark &&
+    prev.language === next.language &&
+    prev.imageUrl === next.imageUrl &&
+    prev.exchangeRate === next.exchangeRate &&
+    prev.onIncrement === next.onIncrement &&
+    prev.onDecrement === next.onDecrement &&
+    prev.onRemove === next.onRemove &&
+    prev.onAddNote === next.onAddNote
+);
 
 function getCategoryIcon(name: string): string {
   const map: Record<string, string> = {

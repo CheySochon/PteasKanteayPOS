@@ -20,7 +20,6 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [theme, setTheme] = useAppTheme();
   const language = useAppLanguage();
-  const [collapsed, setCollapsed] = useState(false);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   const [userAuthToast, setUserAuthToast] = useState<{ userName: string; role: string; type: "login" | "logout" } | null>(null);
@@ -59,11 +58,11 @@ export default function AdminLayout({
         } else {
           setAuthorized(false);
           if (uRole.includes("cashier")) {
-            window.location.href = "/pos";
+            router.replace("/pos");
           } else if (uRole.includes("staff") || uRole.includes("kitchen")) {
-            window.location.href = "/kds";
+            router.replace("/admin/kitchen");
           } else {
-            window.location.href = "/pos";
+            router.replace("/pos");
           }
         }
       } catch {
@@ -170,8 +169,6 @@ export default function AdminLayout({
   return (
     <div suppressHydrationWarning className={`flex h-screen h-[100dvh] overflow-hidden font-sans ${bg} ${language === "km" ? "font-khmer" : ""}`}>
       <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
         theme={theme}
         setTheme={setTheme}
       />

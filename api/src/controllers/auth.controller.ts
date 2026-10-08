@@ -459,6 +459,13 @@ export const loginPin = async (
   }
 };
 
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: (process.env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
 export const refreshToken = async (req: Request, res: Response) => {
   try {
     let token = req.cookies?.refresh_token as string | undefined;
@@ -468,16 +475,19 @@ export const refreshToken = async (req: Request, res: Response) => {
         token = authHeader.substring(7);
       }
     }
+    if (!token && req.body?.refreshToken) {
+      token = String(req.body.refreshToken);
+    }
 
     if (!token) {
       return res.status(401).json({ success: false, message: "Refresh token required" });
     }
 
-    const { verifyRefreshToken, signToken } = await import("../utils/jwt.js");
+    const { verifyRefreshToken, signToken, signRefreshToken } = await import("../utils/jwt.js");
     const decoded = verifyRefreshToken(token);
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: decoded.userId || decoded.id },
       include: {
         userGroups: {
           include: {
@@ -492,16 +502,25 @@ export const refreshToken = async (req: Request, res: Response) => {
     }
 
     const groupName = user.userGroups[0]?.group?.name || "Cashier";
-    const newToken = signToken({
+    const payload = {
       userId: user.id,
+      id: user.id,
+      name: user.name,
+      email: user.email,
       role: groupName,
-    });
+    };
 
-    res.cookie("access_token", newToken, cookieOptions);
+    // ── REFRESH TOKEN ROTATION (Issue new access token AND new rotated refresh token) ──
+    const newAccessToken = signToken(payload);
+    const newRefreshToken = signRefreshToken(payload);
+
+    res.cookie("access_token", newAccessToken, cookieOptions);
+    res.cookie("refresh_token", newRefreshToken, refreshCookieOptions);
 
     return res.json({
       success: true,
-      token: newToken,
+      token: newAccessToken,
+      refreshToken: newRefreshToken,
       user: {
         id: user.id,
         name: user.name,

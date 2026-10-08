@@ -16,6 +16,7 @@ import {
   CreditCard,
   Database,
   Download,
+  FileText,
   Grid2X2,
   Globe,
   History,
@@ -44,6 +45,8 @@ import {
   User,
   UsersRound,
   ShoppingBag,
+  Store,
+  UtensilsCrossed,
   X,
   RotateCcw,
   type LucideIcon,
@@ -74,18 +77,30 @@ import { DEFAULT_STAFF_PERMISSIONS, STAFF_PERMISSION_PAGES, permissionsForUser, 
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 import { useAppLanguage, setAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
+import { getSocket } from "../../../lib/socket";
 
 const DEFAULT_SETTINGS: AppSettings = {
-  restaurantName: "The Tofu",
-  restaurantEmail: "hello@thetofu.local",
-  restaurantPhone: "+66 00 000 0000",
+  restaurantName: "",
+  restaurantEmail: "",
+  restaurantPhone: "",
   restaurantImageUrl: "",
-  address: "Bangkok, Thailand",
+  address: "",
+  vatTin: "",
   currency: "USD",
   exchangeRate: 4000,
   taxRate: 7,
   serviceChargeRate: 10,
-  receiptFooter: "Thank you for dining with us.",
+  receiptFooter: "Thank you for dining with us. Come again!",
+  invoiceHeaderTitle: "TAX INVOICE / វិក្កយបត្រពន្ធ",
+  receiptHeaderTitle: "RECEIPT / បង្កាន់ដៃទទួលប្រាក់",
+  invoicePrefix: "INV-",
+  receiptPrefix: "REC-",
+  showVatTin: true,
+  showCustomerInfoOnInvoice: true,
+  showCashierName: true,
+  showTableInfo: true,
+  showPaymentQr: true,
+  invoiceTerms: "Goods sold are non-refundable. Thank you for your business.",
   autoAcceptQrOrders: false,
   lowStockAlerts: true,
   orderNotifications: true,
@@ -225,12 +240,13 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
 
-  const [activeTab, setActiveTab] = useState<"dashboard" | "general" | "billing" | "printers" | "integrations" | "security">("general");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "general" | "invoice_receipt" | "billing" | "printers" | "integrations" | "security">("general");
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(true);
+  const [previewMode, setPreviewMode] = useState<"receipt" | "invoice" | "both">("both");
 
   useEffect(() => {
-    if (tabParam && ["general", "billing", "printers", "integrations", "security"].includes(tabParam)) {
-      setActiveTab(tabParam as "dashboard" | "general" | "billing" | "printers" | "integrations" | "security");
+    if (tabParam && ["general", "invoice_receipt", "billing", "printers", "integrations", "security"].includes(tabParam)) {
+      setActiveTab(tabParam as "dashboard" | "general" | "invoice_receipt" | "billing" | "printers" | "integrations" | "security");
     }
   }, [tabParam]);
 
@@ -478,7 +494,15 @@ export default function SettingsPage() {
       localStorage.setItem("pos_restaurant_name", next.restaurantName || DEFAULT_SETTINGS.restaurantName);
       localStorage.setItem("pos_restaurant_image_url", next.restaurantImageUrl || "");
       localStorage.setItem("pos_staff_permissions", JSON.stringify(permissionsForUser(storedUserId(), next.staffPermissions)));
-      window.dispatchEvent(new Event("pos-settings-change"));
+      localStorage.setItem("pos_settings_cache", JSON.stringify(updated));
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("settings:updated", updated);
+        socket.emit("settings:change", updated);
+      }
+
+      window.dispatchEvent(new CustomEvent("pos-settings-change", { detail: updated }));
       window.dispatchEvent(new Event("pos-permissions-change"));
       setMessage("Settings saved successfully.");
     } catch (err) {
@@ -721,6 +745,22 @@ export default function SettingsPage() {
             <span>{language === "km" ? "ការកំណត់ពន្ធ" : "Tax Setup"}</span>
           </button>
 
+          {/* Invoice & Receipt Setup */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("invoice_receipt")}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
+              activeTab === "invoice_receipt"
+                ? "bg-[#55a060] text-white font-bold shadow-xs"
+                : dark
+                ? "bg-[#232333] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            }`}
+          >
+            <SlidersHorizontal size={17} />
+            <span>{language === "km" ? "ការកំណត់ វិក្កយបត្រ & បង្កាន់ដៃ" : "Invoice & Receipt Setup"}</span>
+          </button>
+
           {/* 8. Integrations */}
           <button
             type="button"
@@ -786,16 +826,25 @@ export default function SettingsPage() {
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <>
+                            <div className="flex flex-col items-center justify-center gap-2.5 p-4 text-center">
                               {uploadingImage ? (
-                                <Loader2 className="animate-spin text-[#4caf50]" size={24} />
+                                <Loader2 className="animate-spin text-[#4caf50]" size={28} />
                               ) : (
-                                <Upload size={22} className="text-[#4caf50]" />
+                                <>
+                                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/40 flex items-center justify-center text-[#4caf50] shadow-xs hover:scale-105 transition-transform">
+                                    <Store size={28} strokeWidth={1.75} />
+                                  </div>
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-xs font-bold text-[#4caf50]">
+                                      Upload Logo
+                                    </span>
+                                    <span className={`text-[10px] ${textSecondary}`}>
+                                      Click to choose image
+                                    </span>
+                                  </div>
+                                </>
                               )}
-                              <span className={`text-xs ${textSecondary}`}>
-                                {uploadingImage ? "Uploading…" : "No image"}
-                              </span>
-                            </>
+                            </div>
                           )}
                         </div>
                         <input
@@ -897,6 +946,532 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 1.5: INVOICE & RECEIPT SETUP */}
+              {activeTab === "invoice_receipt" && (
+                <div className="animate-[printerFadeIn_200ms_ease-out]">
+                  <h2 className={`text-2xl font-normal mb-5 ${textPrimary}`}>
+                    {language === "km" ? "ការកំណត់ វិក្កយបត្រ & បង្កាន់ដៃ" : "Invoice & Receipt Setup"}
+                  </h2>
+
+                  <div className="flex flex-col lg:flex-row gap-5">
+                    {/* ── LEFT: 2 Separate Cards for Receipt and Invoice Setup ── */}
+                    <div className="flex-1 flex flex-col gap-5">
+                      
+                      {/* CARD 1: RECEIPT SETUP */}
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5 shadow-xs`}>
+                        {/* Card Header */}
+                        <div className="flex items-center gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-[#55a060] dark:bg-emerald-950/60 dark:text-emerald-400">
+                            <ReceiptText size={18} />
+                          </div>
+                          <div>
+                            <h3 className={`text-sm font-bold ${textPrimary}`}>
+                              {language === "km" ? "១. ការកំណត់ បង្កាន់ដៃ (Receipt Configuration)" : "1. Receipt Configuration"}
+                            </h3>
+                            <p className={`text-xs ${textSecondary} mt-0.5`}>
+                              {language === "km" ? "កំណត់ទម្រង់ បង្កាន់ដៃទទួលប្រាក់ធម្មតា (Thermal Slip)" : "Configure normal thermal receipt slip titles, prefixes & footers"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Title & Prefix Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-semibold ${textSecondary}`}>
+                              {language === "km" ? "ចំណងជើង បង្កាន់ដៃ (Receipt Title)" : "Receipt Header Title"}
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.receiptHeaderTitle || ""}
+                              onChange={(e) => update("receiptHeaderTitle", e.target.value)}
+                              placeholder="e.g. RECEIPT / បង្កាន់ដៃទទួលប្រាក់"
+                              className={`${inputClass} w-full`}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-semibold ${textSecondary}`}>
+                              {language === "km" ? "Prefix បង្កាន់ដៃ (Receipt Prefix)" : "Receipt Prefix"}
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.receiptPrefix || ""}
+                              onChange={(e) => update("receiptPrefix", e.target.value)}
+                              placeholder="e.g. REC-"
+                              className={`${inputClass} w-full font-mono`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Display Toggles for Receipt */}
+                        <div className="space-y-2.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "ការបង្ហាញព័ត៌មានលើបង្កាន់ដៃ (Receipt Display Toggles)" : "Receipt Display Toggles"}
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className={`flex items-center justify-between p-3 rounded-xl border ${borderCol} ${softSurface} cursor-pointer`}>
+                              <span className={`text-xs font-semibold ${textPrimary}`}>
+                                {language === "km" ? "បង្ហាញ ឈ្មោះអ្នកគិតប្រាក់ (Cashier)" : "Show Cashier Name"}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={settings.showCashierName ?? true}
+                                onChange={(e) => update("showCashierName", e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer"
+                              />
+                            </label>
+
+                            <label className={`flex items-center justify-between p-3 rounded-xl border ${borderCol} ${softSurface} cursor-pointer`}>
+                              <span className={`text-xs font-semibold ${textPrimary}`}>
+                                {language === "km" ? "បង្ហាញ លេខតុ / ប្រភេទ (Table/Takeaway)" : "Show Table & Dining Option"}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={settings.showTableInfo ?? true}
+                                onChange={(e) => update("showTableInfo", e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer"
+                              />
+                            </label>
+
+                            <label className={`flex items-center justify-between p-3 rounded-xl border ${borderCol} ${softSurface} cursor-pointer sm:col-span-2`}>
+                              <span className={`text-xs font-semibold ${textPrimary}`}>
+                                {language === "km" ? "បង្ហាញ Bakong QR Code ទូទាត់ប្រាក់" : "Show Payment Bakong QR Code"}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={settings.showPaymentQr ?? true}
+                                onChange={(e) => update("showPaymentQr", e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Receipt Footer Note */}
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "សារអរគុណបាតវិក្កយបត្រ (Receipt Footer Note)" : "Receipt Footer Note"}
+                          </label>
+                          <textarea
+                            value={settings.receiptFooter || ""}
+                            onChange={(e) => update("receiptFooter", e.target.value)}
+                            rows={2}
+                            placeholder="e.g. Thank you for dining with us! Please come again."
+                            className={`${inputClass} w-full resize-none`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* CARD 2: TAX INVOICE SETUP */}
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-6 space-y-5 shadow-xs`}>
+                        {/* Card Header */}
+                        <div className="flex items-center gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                            <FileText size={18} />
+                          </div>
+                          <div>
+                            <h3 className={`text-sm font-bold ${textPrimary}`}>
+                              {language === "km" ? "២. ការកំណត់ វិក្កយបត្រពន្ធ (Tax Invoice Configuration)" : "2. Tax Invoice Configuration"}
+                            </h3>
+                            <p className={`text-xs ${textSecondary} mt-0.5`}>
+                              {language === "km" ? "កំណត់ទម្រង់ វិក្កយបត្រពន្ធផ្លូវការ (Formal Tax Invoice)" : "Configure tax invoice header titles, VAT TIN, prefix & terms"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Title, VAT TIN & Prefix Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1.5 sm:col-span-3">
+                            <label className={`block text-xs font-semibold ${textSecondary}`}>
+                              {language === "km" ? "ចំណងជើង វិក្កយបត្រ (Invoice Title)" : "Invoice Header Title"}
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.invoiceHeaderTitle || ""}
+                              onChange={(e) => update("invoiceHeaderTitle", e.target.value)}
+                              placeholder="e.g. TAX INVOICE / វិក្កយបត្រពន្ធ"
+                              className={`${inputClass} w-full`}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <label className={`block text-xs font-semibold ${textSecondary}`}>
+                              {language === "km" ? "លេខអត្តសញ្ញាណពន្ធ (VAT TIN / Tax ID)" : "VAT TIN / Tax ID"}
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.vatTin || ""}
+                              onChange={(e) => update("vatTin", e.target.value)}
+                              placeholder="e.g. K008-90230192"
+                              className={`${inputClass} w-full font-mono text-emerald-600 dark:text-emerald-400 font-bold`}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-semibold ${textSecondary}`}>
+                              {language === "km" ? "Prefix វិក្កយបត្រ (Invoice Prefix)" : "Invoice Prefix"}
+                            </label>
+                            <input
+                              type="text"
+                              value={settings.invoicePrefix || ""}
+                              onChange={(e) => update("invoicePrefix", e.target.value)}
+                              placeholder="e.g. INV-"
+                              className={`${inputClass} w-full font-mono`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Display Toggles for Invoice */}
+                        <div className="space-y-2.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "ការបង្ហាញព័ត៌មានលើវិក្កយបត្រពន្ធ (Invoice Display Toggles)" : "Invoice Display Toggles"}
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className={`flex items-center justify-between p-3 rounded-xl border ${borderCol} ${softSurface} cursor-pointer`}>
+                              <span className={`text-xs font-semibold ${textPrimary}`}>
+                                {language === "km" ? "បង្ហាញ លេខអត្តសញ្ញាណពន្ធ (VAT TIN)" : "Show VAT TIN Number"}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={settings.showVatTin ?? true}
+                                onChange={(e) => update("showVatTin", e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer"
+                              />
+                            </label>
+
+                            <label className={`flex items-center justify-between p-3 rounded-xl border ${borderCol} ${softSurface} cursor-pointer`}>
+                              <span className={`text-xs font-semibold ${textPrimary}`}>
+                                {language === "km" ? "បង្ហាញ ព័ត៌មានអតិថិជនលើ Invoice" : "Show Customer Info on Invoice"}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={settings.showCustomerInfoOnInvoice ?? true}
+                                onChange={(e) => update("showCustomerInfoOnInvoice", e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-[#55a060] focus:ring-[#55a060] cursor-pointer"
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Invoice Terms & Conditions */}
+                        <div className="space-y-1.5">
+                          <label className={`block text-xs font-semibold ${textSecondary}`}>
+                            {language === "km" ? "លក្ខខណ្ឌវិក្កយបត្រ (Invoice Terms & Conditions)" : "Invoice Terms & Conditions"}
+                          </label>
+                          <textarea
+                            value={settings.invoiceTerms || ""}
+                            onChange={(e) => update("invoiceTerms", e.target.value)}
+                            rows={2}
+                            placeholder="e.g. Goods sold are non-refundable. Payment due upon receipt."
+                            className={`${inputClass} w-full resize-none`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Save Button */}
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={saving}
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#55a060] hover:bg-[#498b52] active:scale-95 px-6 py-2.5 text-sm font-bold text-white shadow-sm shadow-[#55a060]/20 transition-all duration-200 disabled:opacity-60 cursor-pointer"
+                        >
+                          {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                          {saving ? (language === "km" ? "កំពុងរក្សាទុក..." : "Saving...") : (language === "km" ? "រក្សាទុក" : "Save Changes")}
+                        </button>
+                      </div>
+
+                    </div>
+
+                    {/* ── RIGHT: Dynamic Live Preview Cards (Receipt + Tax Invoice) ── */}
+                    <div className="w-full lg:w-[340px] xl:w-[360px] shrink-0 flex flex-col gap-3.5">
+                      
+                      {/* Segment Preview Mode Selector */}
+                      <div className={`p-1.5 rounded-2xl border ${borderCol} ${surface} flex items-center justify-between gap-1 shadow-xs`}>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("receipt")}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer text-center ${
+                            previewMode === "receipt"
+                              ? "bg-[#55a060] text-white shadow-xs"
+                              : dark
+                              ? "text-slate-400 hover:text-slate-200 hover:bg-[#232333]"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                          }`}
+                        >
+                          🧾 {language === "km" ? "បង្កាន់ដៃ" : "Receipt"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("invoice")}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer text-center ${
+                            previewMode === "invoice"
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : dark
+                              ? "text-slate-400 hover:text-slate-200 hover:bg-[#232333]"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                          }`}
+                        >
+                          📄 {language === "km" ? "វិក្កយបត្រ" : "Invoice"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewMode("both")}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer text-center ${
+                            previewMode === "both"
+                              ? "bg-slate-800 text-white dark:bg-slate-700 shadow-xs"
+                              : dark
+                              ? "text-slate-400 hover:text-slate-200 hover:bg-[#232333]"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                          }`}
+                        >
+                          👁️ {language === "km" ? "ទាំងពីរ" : "Both"}
+                        </button>
+                      </div>
+
+                      {/* CARD 1: RECEIPT SAMPLE PREVIEW */}
+                      {(previewMode === "receipt" || previewMode === "both") && (
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-4.5 flex flex-col gap-3 shadow-xs animate-[printerFadeIn_200ms_ease-out]`}>
+                        <div className="flex items-center justify-between border-b pb-2.5 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <ReceiptText size={16} className="text-[#55a060]" />
+                            <span className={`text-xs font-bold ${textPrimary}`}>
+                              {language === "km" ? "១. បង្កាន់ដៃ (Receipt Preview)" : "1. Receipt Sample Slip"}
+                            </span>
+                          </div>
+                          <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-[#55a060] text-[9.5px] font-black px-2 py-0.5 uppercase tracking-wider">
+                            Thermal Slip
+                          </span>
+                        </div>
+
+                        {/* Paper Slip Mockup */}
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1f2130] p-4 text-slate-800 dark:text-slate-100 text-xs font-mono shadow-inner space-y-2.5">
+                          {/* Store Name & Info */}
+                          <div className="text-center space-y-1">
+                            {settings.restaurantImageUrl ? (
+                              <div className="flex justify-center mb-1">
+                                <img
+                                  src={resolveImageUrl(settings.restaurantImageUrl)}
+                                  alt="Logo"
+                                  className="h-9 w-9 object-contain rounded-lg border border-slate-200 dark:border-slate-700"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex justify-center mb-1">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center text-[#55a060]">
+                                  <UtensilsCrossed size={16} />
+                                </div>
+                              </div>
+                            )}
+                            <div className="font-bold text-sm tracking-wide">{settings.restaurantName || "PteasKanteay POS"}</div>
+                            {settings.address && <div className="text-[10px] text-slate-500 dark:text-slate-400">{settings.address}</div>}
+                            {settings.restaurantPhone && <div className="text-[10px] text-slate-500 dark:text-slate-400">Tel: {settings.restaurantPhone}</div>}
+                            {(settings.showVatTin ?? true) && settings.vatTin && (
+                              <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                VATTIN: {settings.vatTin}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="border-b border-dashed border-slate-300 dark:border-slate-700 my-1" />
+
+                          {/* Title & Receipt Number */}
+                          <div className="text-center font-bold uppercase tracking-wider text-xs text-[#55a060]">
+                            {settings.receiptHeaderTitle || "RECEIPT"}
+                          </div>
+                          <div className="flex justify-between text-[10.5px]">
+                            <span>No: {(settings.receiptPrefix || "REC-") + "0084"}</span>
+                            <span>{new Date().toLocaleDateString()}</span>
+                          </div>
+
+                          {(settings.showCashierName ?? true) && (
+                            <div className="flex justify-between text-[10.5px]">
+                              <span>Cashier: Super Admin</span>
+                              {(settings.showTableInfo ?? true) && <span>Table: T-04</span>}
+                            </div>
+                          )}
+
+                          <div className="border-b border-dashed border-slate-300 dark:border-slate-700 my-1" />
+
+                          {/* Sample Items */}
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between">
+                              <span>1x Iced Latte</span>
+                              <span>$2.50</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>2x Fried Rice Special</span>
+                              <span>$7.00</span>
+                            </div>
+                          </div>
+
+                          <div className="border-b border-dashed border-slate-300 dark:border-slate-700 my-1" />
+
+                          {/* Totals */}
+                          <div className="space-y-0.5 text-[11px]">
+                            <div className="flex justify-between">
+                              <span>Subtotal:</span>
+                              <span>$9.50</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>VAT ({settings.taxRate || 0}%):</span>
+                              <span>${(9.5 * (Number(settings.taxRate || 0)/100)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-sm pt-1">
+                              <span>TOTAL:</span>
+                              <span className="text-[#55a060]">${(9.5 * (1 + Number(settings.taxRate || 0)/100)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>KHR Total:</span>
+                              <span>{(Math.round(9.5 * (1 + Number(settings.taxRate || 0)/100) * (Number(settings.exchangeRate) || 4000))).toLocaleString()} ៛</span>
+                            </div>
+                          </div>
+
+                          {/* Bakong KHQR Payment Box */}
+                          {(settings.showPaymentQr ?? true) && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-slate-300 dark:border-slate-700 text-center">
+                              <div className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                Bakong KHQR Payment
+                              </div>
+                              <div className="w-18 h-18 mx-auto rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-1 flex flex-col items-center justify-center text-red-600 dark:text-red-400">
+                                <div className="text-[8px] font-black tracking-tighter">KHQR</div>
+                                <div className="w-10 h-10 my-0.5 border border-dashed border-red-400 rounded flex items-center justify-center text-[8px] font-mono">
+                                  [ QR ]
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Footer note */}
+                          {settings.receiptFooter && (
+                            <div className="text-center text-[10px] italic text-slate-500 dark:text-slate-400 border-t border-dashed border-slate-300 dark:border-slate-700 pt-2">
+                              "{settings.receiptFooter}"
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      )}
+
+                      {/* CARD 2: TAX INVOICE SAMPLE PREVIEW */}
+                      {(previewMode === "invoice" || previewMode === "both") && (
+                      <div className={`rounded-2xl border ${borderCol} ${surface} p-4.5 flex flex-col gap-3 shadow-xs animate-[printerFadeIn_200ms_ease-out]`}>
+                        <div className="flex items-center justify-between border-b pb-2.5 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <FileText size={16} className="text-indigo-600 dark:text-indigo-400" />
+                            <span className={`text-xs font-bold ${textPrimary}`}>
+                              {language === "km" ? "២. វិក្កយបត្រ (Tax Invoice Preview)" : "2. Tax Invoice Sheet"}
+                            </span>
+                          </div>
+                          <span className="rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9.5px] font-black px-2 py-0.5 uppercase tracking-wider">
+                            Formal Sheet
+                          </span>
+                        </div>
+
+                        {/* Formal Invoice Document Mockup */}
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1f2130] p-4 text-slate-800 dark:text-slate-100 text-xs shadow-inner space-y-3">
+                          {/* Invoice Header Title & Logo */}
+                          <div className="text-center border-b pb-2 border-slate-200 dark:border-slate-700 space-y-1">
+                            {settings.restaurantImageUrl ? (
+                              <div className="flex justify-center mb-1">
+                                <img
+                                  src={resolveImageUrl(settings.restaurantImageUrl)}
+                                  alt="Logo"
+                                  className="h-9 w-9 object-contain rounded-lg border border-slate-200 dark:border-slate-700"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex justify-center mb-1">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                  <Store size={16} />
+                                </div>
+                              </div>
+                            )}
+                            <div className="font-black text-sm tracking-wider text-indigo-600 dark:text-indigo-400 uppercase">
+                              {settings.invoiceHeaderTitle || "TAX INVOICE / វិក្កយបត្រពន្ធ"}
+                            </div>
+                            <div className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300">
+                              {settings.restaurantName || "PteasKanteay POS"}
+                            </div>
+                            {(settings.showVatTin ?? true) && settings.vatTin && (
+                              <div className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                VATTIN: {settings.vatTin}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Invoice & Customer Info Grid */}
+                          <div className="grid grid-cols-2 gap-2 text-[10.5px] bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700/60">
+                            <div>
+                              <div className="text-[9.5px] font-bold text-slate-400 uppercase">Invoice Info:</div>
+                              <div className="font-mono font-bold">{(settings.invoicePrefix || "INV-") + "2026-0084"}</div>
+                              <div className="text-slate-500">Date: {new Date().toLocaleDateString()}</div>
+                            </div>
+                            <div>
+                              {(settings.showCustomerInfoOnInvoice ?? true) && (
+                                <>
+                                  <div className="text-[9.5px] font-bold text-slate-400 uppercase">Bill To:</div>
+                                  <div className="font-bold truncate">Sokha Trading Co.</div>
+                                  <div className="text-slate-500 truncate">Phnom Penh, KH</div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Items Table */}
+                          <div className="border rounded-lg overflow-hidden border-slate-200 dark:border-slate-700">
+                            <table className="w-full text-[10.5px] text-left">
+                              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                                <tr>
+                                  <th className="p-1.5">Item</th>
+                                  <th className="p-1.5 text-center">Qty</th>
+                                  <th className="p-1.5 text-right">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tr>
+                                  <td className="p-1.5 font-medium">Catering Set Package A</td>
+                                  <td className="p-1.5 text-center">1</td>
+                                  <td className="p-1.5 text-right font-mono">$150.00</td>
+                                </tr>
+                                <tr>
+                                  <td className="p-1.5 font-medium">Beverage & Dessert Option</td>
+                                  <td className="p-1.5 text-center">1</td>
+                                  <td className="p-1.5 text-right font-mono">$50.00</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Invoice Subtotal & VAT */}
+                          <div className="space-y-1 text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex justify-between text-slate-500">
+                              <span>Subtotal:</span>
+                              <span className="font-mono">$200.00</span>
+                            </div>
+                            <div className="flex justify-between text-slate-500">
+                              <span>VAT ({settings.taxRate}%):</span>
+                              <span className="font-mono">${(200 * (Number(settings.taxRate || 0)/100)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-sm pt-1 text-slate-900 dark:text-slate-100">
+                              <span>Grand Total:</span>
+                              <span className="text-indigo-600 dark:text-indigo-400 font-mono">${(200 * (1 + Number(settings.taxRate || 0)/100)).toFixed(2)}</span>
+                            </div>
+                          </div>
+
+                          {/* Invoice Terms */}
+                          {settings.invoiceTerms && (
+                            <div className="text-[9.5px] text-slate-500 dark:text-slate-400 border-t pt-2 border-slate-100 dark:border-slate-800">
+                              <span className="font-bold">Terms: </span>{settings.invoiceTerms}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      )}
+
+                    </div>
+
                   </div>
                 </div>
               )}

@@ -7,17 +7,17 @@ const DEFAULT_SETTINGS: Record<
   { value: SettingValue; category: string; description: string }
 > = {
   restaurantName: {
-    value: "The Tofu",
+    value: "",
     category: "profile",
     description: "Restaurant display name",
   },
   restaurantEmail: {
-    value: "hello@thetofu.local",
+    value: "",
     category: "profile",
     description: "Public contact email",
   },
   restaurantPhone: {
-    value: "+66 00 000 0000",
+    value: "",
     category: "profile",
     description: "Public contact phone",
   },
@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: Record<
     description: "Restaurant profile image",
   },
   address: {
-    value: "Bangkok, Thailand",
+    value: "",
     category: "profile",
     description: "Receipt and customer-facing address",
   },

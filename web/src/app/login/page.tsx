@@ -503,6 +503,10 @@ export default function LoginPage() {
       localStorage.setItem("pos_logged_in", "true");
       localStorage.setItem("pos_login_timestamp", Date.now().toString());
       localStorage.setItem("pos_token", res.token);
+      if (res.refreshToken) {
+        localStorage.setItem("pos_refresh_token", res.refreshToken);
+        setCookie("pos_refresh_token", res.refreshToken, 7);
+      }
       localStorage.setItem("pos_user", JSON.stringify(userPayload));
       saveStaffToHistory(userPayload, res.token);
 
@@ -523,10 +527,8 @@ export default function LoginPage() {
         : `Sign in successful! Welcome back, ${res.user.name}`;
       setMessage(successMsg);
 
-      setTimeout(() => {
-        const targetPath = firstAllowedPathForRole(userPayload);
-        router.replace(targetPath);
-      }, 450);
+      const targetPath = firstAllowedPathForRole(userPayload);
+      router.replace(targetPath);
     } catch (err: any) {
       const errText = err instanceof Error ? err.message : "Invalid PIN";
       let localizedMsg = errText;
@@ -925,10 +927,7 @@ export default function LoginPage() {
     <main className={`min-h-screen w-full flex items-center justify-center p-4 relative font-sans transition-colors duration-200 ${
       theme === "dark" ? "bg-[#101117]" : "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-slate-50 to-slate-100/70"
     }`}>
-      {/* Background Decorator Gradients */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[350px] w-[350px] rounded-full bg-emerald-500/5 blur-[120px] dark:bg-emerald-500/10" />
-      </div>
+
 
       {/* FLOATING TOP TOAST ALERTS */}
       <div className="fixed top-6 left-0 right-0 z-[99999] flex flex-col items-center justify-center pointer-events-none px-4 gap-2">
@@ -938,6 +937,14 @@ export default function LoginPage() {
               <Check size={11} strokeWidth={4.5} className="text-white" />
             </div>
             <span>{message}</span>
+            <button
+              type="button"
+              onClick={() => setMessage("")}
+              className="ml-1 rounded-md p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
           </div>
         )}
         {error && (
@@ -946,6 +953,14 @@ export default function LoginPage() {
               <X size={11} strokeWidth={4.5} className="text-white" />
             </div>
             <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="ml-1 rounded-md p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
           </div>
         )}
       </div>
@@ -962,6 +977,11 @@ export default function LoginPage() {
                   <img
                     src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
                     alt="Restaurant Logo"
+                    width={64}
+                    height={64}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className="h-16 w-16 rounded-full object-cover border border-slate-100 dark:border-slate-800 ring-4 ring-emerald-500/10 shadow-xs"
                     onError={() => setImageError(true)}
                   />
@@ -1078,7 +1098,7 @@ export default function LoginPage() {
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
                   {selectedStaff.name}
                 </h3>
-                <span className="inline-block mt-1 text-[10.5px] font-bold uppercase tracking-wide bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 px-3 py-0.5 rounded-full">
+                <span className="inline-block mt-1 text-xs font-bold uppercase tracking-wide bg-[#55a060]/10 text-[#55a060] dark:bg-emerald-500/20 dark:text-emerald-400 px-3 py-0.5 rounded-full">
                   {selectedStaff.role}
                 </span>
               </div>
@@ -1207,7 +1227,7 @@ export default function LoginPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#55a060] transition-colors">{staff.name}</h4>
-                          <span className="inline-block mt-0.5 text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
+                          <span className="inline-block mt-0.5 text-xs font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md group-hover:bg-[#55a060]/10 group-hover:text-[#55a060] transition-colors">{staff.role}</span>
                         </div>
                         <ChevronRight size={18} className="text-slate-400 group-hover:text-[#55a060] dark:group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 mr-0.5" />
                       </button>
@@ -1286,10 +1306,12 @@ export default function LoginPage() {
 
             {/* Username/Email Input */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label htmlFor="user_login_identity" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Email / Username
               </label>
               <input
+                id="user_login_identity"
+                aria-label="Email or Username"
                 value={email}
                 onChange={(event) => {
                   if (error) setError("");
@@ -1297,6 +1319,8 @@ export default function LoginPage() {
                 }}
                 onFocus={() => setError("")}
                 type="text"
+                name="no_autofill_email"
+                autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect="off"
                 placeholder={authMode === "staff_2step" ? (language === "km" ? "បញ្ចូលឈ្មោះអ្នកប្រើប្រាស់ ឬ Email..." : "Enter username or email address...") : "Enter admin email address..."}
@@ -1308,7 +1332,7 @@ export default function LoginPage() {
             {/* Password Input */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label htmlFor="user_login_password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Password
                 </label>
                 <button
@@ -1319,13 +1343,15 @@ export default function LoginPage() {
                     setResetEmail(email || "");
                     setStep("forgot_email");
                   }}
-                  className="text-xs text-slate-400 hover:text-[#55a060] dark:hover:text-emerald-400 font-medium outline-none transition-colors"
+                  className="text-xs text-slate-400 hover:text-[#55a060] dark:hover:text-emerald-400 font-medium outline-none transition-colors p-1.5 inline-flex items-center min-h-[44px]"
                 >
                   Forgot Password?
                 </button>
               </div>
               <div className="relative">
                 <input
+                  id="user_login_password"
+                  aria-label="Password"
                   value={password}
                   onChange={(event) => {
                     if (error) setError("");
@@ -1333,14 +1359,17 @@ export default function LoginPage() {
                   }}
                   onFocus={() => setError("")}
                   type={showPassword ? "text" : "password"}
+                  name="no_autofill_password"
+                  autoComplete="new-password"
                   placeholder={language === "km" ? "បញ្ចូលពាក្យសម្ងាត់ (យ៉ាងហោច ៨ តួអក្សរ)..." : "Enter your password (min 8 characters)..."}
                   className="w-full h-11 sm:h-12 rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-800/80 pl-4 pr-12 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400/70 dark:placeholder-slate-500 outline-none focus:ring-2 focus:ring-[#55a060]/30 focus:border-[#55a060] focus:bg-white dark:focus:bg-slate-800 transition-all font-medium"
                   required
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 outline-none p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -1417,11 +1446,13 @@ export default function LoginPage() {
         {step === "forgot_email" && (
           <form onSubmit={handleSendResetOtp} className="space-y-5 w-full">
             <div className="space-y-2.5">
-              <label className="block text-sm font-normal text-slate-600 dark:text-slate-400">
+              <label htmlFor="reset_admin_email" className="block text-sm font-normal text-slate-600 dark:text-slate-400">
                 Admin Email Address
               </label>
               <div className="relative">
                 <input
+                  id="reset_admin_email"
+                  aria-label="Admin Email Address"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                   type="email"
@@ -1594,7 +1625,7 @@ export default function LoginPage() {
                     placeholder="https://personals-them-diploma-andale.trycloudflare.com/api"
                     className="w-full h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#55a060]"
                   />
-                  <p className="text-[10.5px] text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Example: <code className="text-emerald-600">https://personals-them-diploma-andale.trycloudflare.com/api</code>
                   </p>
                 </div>

@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma.js";
-import { TableZone } from "../prisma/client.js";
+import { TableZone } from "@prisma/client";
 
 function makeTableToken(name: string): string {
   return `table-${String(name)

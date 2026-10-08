@@ -1335,7 +1335,9 @@ export default function OrdersPage() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[1px] print:p-0 print:bg-white p-4">
             <div className="w-full max-w-[380px] overflow-hidden rounded-2xl bg-white p-5 shadow-2xl animate-[dashboardPageIn_200ms_ease-out] print:shadow-none print:w-full print:max-w-none print:p-0">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 print:hidden">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">PRINT SLIP PREVIEW</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  {printSlipOrder.status === "completed" ? "PRINT RECEIPT PREVIEW" : "PRINT INVOICE PREVIEW"}
+                </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -1389,7 +1391,9 @@ export default function OrdersPage() {
                     <span className="font-semibold text-slate-800">{printSlipOrder.orderType || "Dine-In"}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-500">Receipt No.:</span>
+                    <span className="text-slate-500">
+                      {printSlipOrder.status === "completed" ? "Receipt No.:" : "Invoice No.:"}
+                    </span>
                     <span className="font-semibold text-slate-800">{printSlipOrder.orderNumber || `#${printSlipOrder.id}`}</span>
                   </div>
                   <div className="text-slate-400 text-[11px] text-right mt-0.5">
@@ -1432,7 +1436,7 @@ export default function OrdersPage() {
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
-                    <span>Total (PAID):</span>
+                    <span>{printSlipOrder.status === "completed" ? "Total (PAID):" : "Total:"}</span>
                     <span className="text-base text-[#55a060] font-bold">{money(getOrderTotalAmount(printSlipOrder))}</span>
                   </div>
                   <div className="text-right text-[10.5px] text-slate-500 font-bold mt-0.5">
@@ -1440,10 +1444,14 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <div className="my-3 border-b border-dashed border-slate-200" />
-                <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
-                  <p>{appSettings?.receiptFooter || "Thanks for visit. Come again"}</p>
-                </div>
+                {printSlipOrder.status === "completed" && (
+                  <>
+                    <div className="my-3 border-b border-dashed border-slate-200" />
+                    <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
+                      <p>{appSettings?.receiptFooter || "Thanks for visit. Come again"}</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

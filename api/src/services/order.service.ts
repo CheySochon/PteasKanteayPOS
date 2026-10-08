@@ -1,5 +1,5 @@
 import { prisma } from "../config/prisma.js";
-import { OrderStatus } from "../prisma/client.js";
+import { OrderStatus } from "@prisma/client";
 import { adjustStock } from "./inventory.service.js";
 
 const ALLOWED_STATUSES = [
@@ -132,41 +132,32 @@ async function findProductSafely(productId: any, name?: string, price?: number) 
       where: { id: pid },
       include: { category: true },
     });
+
+    if (product) {
+      if (product.deletedAt) {
+        try {
+          product = await prisma.product.update({
+            where: { id: product.id },
+            data: { deletedAt: null },
+            include: { category: true },
+          });
+        } catch {}
+      }
+      return product;
+    }
   }
 
   const cleanName = name && typeof name === "string" ? name.trim() : "";
 
-  // Name Verification: If product was found by ID, but cleanName is provided and DOES NOT MATCH the product's name/nameKm,
-  // then pid was a wrong/mismatched ID (e.g. 1 or mock index ID).
-  // We set product to null so it searches or auto-creates by cleanName!
-  if (product && cleanName) {
-    const pName = (product.name || "").trim().toLowerCase();
-    const pNameKm = (product.nameKm || "").trim().toLowerCase();
-    const cName = cleanName.toLowerCase();
-
-    const matches = Boolean(
-      pName === cName ||
-      pName.includes(cName) ||
-      (pName.length > 0 && cName.includes(pName)) ||
-      (pNameKm && (pNameKm === cName || pNameKm.includes(cName) || cName.includes(pNameKm)))
-    );
-
-    console.log("findProductSafely debug:", { pid, cleanName, pName, pNameKm, cName, matches });
-
-    if (!matches) {
-      product = null;
-    }
-  }
-
-  // 2. If product was NOT found by ID or name mismatched, search by name / nameKm
-  if (!product && cleanName) {
+  // 2. If product was NOT found by ID, search by name / nameKm
+  if (cleanName) {
     const foundByName = await prisma.product.findFirst({
       where: {
         OR: [
           { name: cleanName },
           { nameKm: cleanName },
-          { name: { contains: cleanName } },
-          { nameKm: { contains: cleanName } },
+          { name: { equals: cleanName, mode: "insensitive" } },
+          { nameKm: { equals: cleanName, mode: "insensitive" } },
         ],
       },
       include: { category: true },
@@ -209,7 +200,6 @@ async function findProductSafely(productId: any, name?: string, price?: number) 
       });
     } catch (err: any) {
       console.error("Auto-creating product failed error details:", err?.message || err);
-      // Secondary fallback attempt with guaranteed unique random slug
       try {
         let defaultCategory = await prisma.category.findFirst({ orderBy: { id: "asc" } });
         if (defaultCategory) {
@@ -232,14 +222,13 @@ async function findProductSafely(productId: any, name?: string, price?: number) 
     }
   }
 
-  // 4. Fallback: ONLY if cleanName was NOT provided should we fall back to generic first product in DB.
-  if (!product && !cleanName) {
+  // 4. Fallback: Return any available active product if non-resolvable
+  if (!product) {
     product = await prisma.product.findFirst({
       where: { deletedAt: null },
       orderBy: { id: "asc" },
       include: { category: true },
     });
-
     if (!product) {
       product = await prisma.product.findFirst({
         orderBy: { id: "asc" },

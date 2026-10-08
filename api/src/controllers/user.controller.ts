@@ -14,6 +14,43 @@ import { CreateUserBody, UpdateUserBody } from "../schemas/user.schema.js";
 
 import { createAuditLog } from "../services/audit.service.js";
 
+import { prisma } from "../config/prisma.js";
+
+async function resolveActor(req: any) {
+  const currentUser = req.user;
+  const userId = currentUser?.userId || currentUser?.id;
+  let userName = currentUser?.name;
+  let userRole = currentUser?.role;
+
+  if (userId) {
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: Number(userId) },
+        select: {
+          name: true,
+          userGroups: {
+            include: { group: true },
+          },
+        },
+      });
+      if (dbUser) {
+        if (!userName && dbUser.name) userName = dbUser.name;
+        if (!userRole && dbUser.userGroups?.[0]?.group?.name) {
+          userRole = dbUser.userGroups[0].group.name;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    userId: userId ? Number(userId) : undefined,
+    userName: userName || "Super Admin",
+    userRole: userRole || "Admin Group",
+  };
+}
+
 export const list = asyncHandler(async (_req: Request, res: Response) => {
   const users = await listUsers();
   res.json({ success: true, message: "Users fetched", data: users });
@@ -25,11 +62,11 @@ export const create = asyncHandler(
     const io = req.app.get("io");
     if (io) io.emit("user:created", user);
 
-    const currentUser = (req as any).user;
+    const actor = await resolveActor(req);
     await createAuditLog({
-      userId: currentUser?.id || user.id,
-      userName: currentUser?.name || "Admin",
-      userRole: currentUser?.role || "ADMIN",
+      userId: actor.userId || user.id,
+      userName: actor.userName,
+      userRole: actor.userRole,
       action: "USER_CREATE",
       ipAddress: req.ip || "Localhost",
       status: "SUCCESS",
@@ -67,10 +104,11 @@ export const update = asyncHandler(
     const io = req.app.get("io");
     if (io) io.emit("user:updated", user);
 
+    const actor = await resolveActor(req);
     await createAuditLog({
-      userId: currentUser?.userId || idVal,
-      userName: currentUser?.name || user.name || "Admin",
-      userRole: currentUser?.role || "ADMIN",
+      userId: actor.userId || idVal,
+      userName: actor.userName,
+      userRole: actor.userRole,
       action: "USER_UPDATE",
       ipAddress: req.ip || "Localhost",
       status: "SUCCESS",
@@ -96,11 +134,11 @@ export const remove = asyncHandler(
     const io = req.app.get("io");
     if (io) io.emit("user:deleted", { id: idVal });
 
-    const currentUser = (req as any).user;
+    const actor = await resolveActor(req);
     await createAuditLog({
-      userId: currentUser?.id,
-      userName: currentUser?.name || "Admin",
-      userRole: currentUser?.role || "ADMIN",
+      userId: actor.userId,
+      userName: actor.userName,
+      userRole: actor.userRole,
       action: "USER_DELETE",
       ipAddress: req.ip || "Localhost",
       status: "SUCCESS",

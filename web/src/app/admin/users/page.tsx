@@ -839,8 +839,10 @@ export default function AdminUsersPage() {
                                   className="h-7 w-7 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
                                 />
                               ) : (
-                                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0 ${profileAvatarClass(user.name)}`}>
-                                  {initials(user.name)}
+                                <div className="h-7 w-7 rounded-full bg-[#cbd0d9] dark:bg-slate-700 flex items-end justify-center shrink-0 overflow-hidden border border-slate-200 dark:border-slate-700">
+                                  <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                                  </svg>
                                 </div>
                               )}
                               <span>{user.name}</span>
@@ -1022,7 +1024,11 @@ export default function AdminUsersPage() {
               </button>
             </div>
 
-            <form onSubmit={handleModalSubmit} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleModalSubmit} autoComplete="off" className="p-6 space-y-4 text-xs">
+              {/* Hidden dummy inputs to block browser autofilling admin credentials */}
+              <input type="text" name="prevent_autofill_username" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="prevent_autofill_password" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+
               {/* Profile Image / Avatar Upload & Staff ID */}
               <div className="flex items-end justify-between gap-3">
                 <div>
@@ -1030,7 +1036,7 @@ export default function AdminUsersPage() {
                     {language === "km" ? "រូបថតប្រូហ្វាល (Profile Picture)" : "Profile Picture (Avatar)"}
                   </label>
                   <div className="flex items-center gap-3">
-                    <div className="relative h-12 w-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-500">
+                    <div className="relative h-12 w-12 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-[#cbd0d9] dark:bg-slate-700 flex items-end justify-center">
                       {form.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -1039,7 +1045,9 @@ export default function AdminUsersPage() {
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <span>{(form.name || "U")[0].toUpperCase()}</span>
+                        <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                        </svg>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1109,6 +1117,8 @@ export default function AdminUsersPage() {
                 <input
                   required
                   type="text"
+                  name="staff_user_name"
+                  autoComplete="off"
                   disabled={Boolean(editingUserId)}
                   readOnly={Boolean(editingUserId)}
                   value={form.name}
@@ -1129,6 +1139,8 @@ export default function AdminUsersPage() {
                 <input
                   required
                   type="email"
+                  name="staff_user_email"
+                  autoComplete="new-password"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="e.g. cashier@pos.local"
@@ -1151,6 +1163,8 @@ export default function AdminUsersPage() {
                   <div className="relative">
                     <input
                       type={showModalPassword ? "text" : "password"}
+                      name="staff_user_password"
+                      autoComplete="new-password"
                       value={form.password}
                       minLength={8}
                       onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -1175,6 +1189,8 @@ export default function AdminUsersPage() {
                   <div className="relative">
                     <input
                       type="text"
+                      name="staff_user_pin"
+                      autoComplete="off"
                       maxLength={4}
                       value={form.pin}
                       onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })}

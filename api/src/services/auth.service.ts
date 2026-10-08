@@ -1,6 +1,6 @@
 import { prisma } from "../config/prisma.js";
 import { hashPassword, comparePassword } from "../utils/bcrypt.js";
-import { signToken } from "../utils/jwt.js";
+import { signToken, signRefreshToken } from "../utils/jwt.js";
 import { getUserPermissions } from "../utils/rbac.js";
 
 async function findOrCreateGroup(groupName: string) {
@@ -109,10 +109,21 @@ export const register = async (data: {
 
   const token = signToken({
     userId: user.id,
+    id: user.id,
+    name: user.name,
+    email: user.email,
     role: user.role.name,
   });
 
-  return { user, token };
+  const refreshToken = signRefreshToken({
+    userId: user.id,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role.name,
+  });
+
+  return { user, token, refreshToken };
 };
 
 const MAX_ATTEMPTS = 5;
@@ -200,10 +211,21 @@ export const login = async (emailOrUsername: string, password: string) => {
 
   const token = signToken({
     userId: user.id,
+    id: user.id,
+    name: user.name,
+    email: user.email,
     role: user.role.name,
   });
 
-  return { user: { ...user, permissions }, token };
+  const refreshToken = signRefreshToken({
+    userId: user.id,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role.name,
+  });
+
+  return { user: { ...user, permissions }, token, refreshToken };
 };
 
 export const updatePassword = async (
@@ -334,10 +356,15 @@ export const loginWithPin = async (pin: string, userId?: number, email?: string)
   const user = formatUserWithRole(rawUser);
   const permissions = await getUserPermissions(user.id);
 
-  const token = signToken({
+  const payload = {
     userId: user.id,
+    id: user.id,
+    name: user.name,
+    email: user.email,
     role: user.role.name,
-  });
+  };
+  const token = signToken(payload);
+  const refreshToken = signRefreshToken(payload);
 
-  return { user: { ...user, permissions }, token };
+  return { user: { ...user, permissions }, token, refreshToken };
 };

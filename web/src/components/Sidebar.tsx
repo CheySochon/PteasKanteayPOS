@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Fragment, useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
+import React, { Fragment, useEffect, useRef, useState, useSyncExternalStore, useMemo, memo } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -90,7 +90,8 @@ const REPORTS_CHILDREN = [
 
 const SETTINGS_CHILDREN = [
   { key: "general", label: "General Info", href: "/admin/settings?tab=general", icon: Building2 },
-  { key: "billing", label: "Billing & Receipt", href: "/admin/settings?tab=billing", icon: ReceiptText },
+  { key: "invoice_receipt", label: "Invoice & Receipt", href: "/admin/settings?tab=invoice_receipt", icon: FileText },
+  { key: "billing", label: "Tax Setup", href: "/admin/settings?tab=billing", icon: ReceiptText },
   { key: "printers", label: "Hardware & Printers", href: "/admin/settings?tab=printers", icon: Printer },
   { key: "integrations", label: "Integrations", href: "/admin/settings?tab=integrations", icon: SendHorizontal },
   { key: "security", label: "System & Backups", href: "/admin/settings?tab=security", icon: ShieldAlert },
@@ -156,7 +157,8 @@ const TEXT = {
       "Payment Report": "Payment Report",
       "Stock Inventory Report": "Stock Inventory Report",
       "General Info": "General Info",
-      "Billing & Receipt": "Billing & Receipt",
+      "Invoice & Receipt": "Invoice & Receipt",
+      "Billing & Receipt": "Tax Setup",
       "Hardware & Printers": "Hardware & Printers",
       Integrations: "Integrations",
       "System & Backups": "System & Backups",
@@ -206,7 +208,8 @@ const TEXT = {
       "Payment Report": "របាយការណ៍ការទូទាត់",
       "Stock Inventory Report": "របាយការណ៍ស្តុកទំនិញ",
       "General Info": "ព័ត៌មានទូទៅ",
-      "Billing & Receipt": "វិក្កយបត្រ និងបង្កាន់ដៃ",
+      "Invoice & Receipt": "វិក្កយបត្រ & បង្កាន់ដៃ",
+      "Billing & Receipt": "ការកំណត់ពន្ធ",
       "Hardware & Printers": "ម៉ាស៊ីនបោះពុម្ព និងឧបករណ៍",
       Integrations: "ការតភ្ជាប់ប្រព័ន្ធ",
       "System & Backups": "ប្រព័ន្ធ និងការបម្រុងទុក",
@@ -246,7 +249,7 @@ type SideNavItemProps = {
   isKhmer?: boolean;
 };
 
-export default function Sidebar({
+function Sidebar({
   collapsed = false,
   setCollapsed = () => undefined,
   activeNav = "",
@@ -353,11 +356,22 @@ export default function Sidebar({
   const profileImg = getProfileImage(activeUser);
 
   const [groupsVersion, setGroupsVersion] = useState(0);
+  const updateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Fetch live group permissions from PostgreSQL DB API on mount
-    const handleUpdate = () => {
-      void getAdminGroups().then(() => setGroupsVersion((v) => v + 1)).catch(() => null);
+    const handleUpdate = (e?: Event) => {
+      if (e && e instanceof StorageEvent && e.key) {
+        if (!e.key.includes("group") && !e.key.includes("role") && !e.key.includes("permission") && !e.key.includes("auth") && !e.key.includes("user")) {
+          return;
+        }
+      }
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
+      updateTimerRef.current = setTimeout(() => {
+        void getAdminGroups().then(() => setGroupsVersion((v) => v + 1)).catch(() => null);
+      }, 400);
     };
 
     handleUpdate();
@@ -380,6 +394,9 @@ export default function Sidebar({
     }
 
     return () => {
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
       window.removeEventListener("storage", handleUpdate);
       window.removeEventListener("pos-groups-updated", handleUpdate);
       window.removeEventListener("pos-rules-updated", handleUpdate);
@@ -413,11 +430,11 @@ export default function Sidebar({
   const allowedMain = NAV_MAIN.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const allowedManagement = NAV_MANAGEMENT.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
   const allowedSystem = NAV_SYSTEM.filter((item) => canSeeHref(item.href, currentUser, staffPermissions));
-  const menuExpanded = !sidebarCollapsed && contentMounted && menuOpen;
-  const inventoryExpanded = !sidebarCollapsed && contentMounted && inventoryOpen;
-  const reportsExpanded = !sidebarCollapsed && contentMounted && reportsOpen;
-  const authExpanded = !sidebarCollapsed && contentMounted && authOpen;
-  const settingsExpanded = !sidebarCollapsed && contentMounted && settingsOpen;
+  const menuExpanded = !sidebarCollapsed && menuOpen;
+  const inventoryExpanded = !sidebarCollapsed && inventoryOpen;
+  const reportsExpanded = !sidebarCollapsed && reportsOpen;
+  const authExpanded = !sidebarCollapsed && authOpen;
+  const settingsExpanded = !sidebarCollapsed && settingsOpen;
 
   const activeMenuChild = useMemo(() => {
     if (pathname.startsWith("/admin/menu")) {
@@ -524,10 +541,12 @@ export default function Sidebar({
 
   function setSidebarState(next: boolean) {
     sidebarCollapsedRef.current = next;
-    localStorage.setItem("pos_sidebar_collapsed", String(next));
-    setCollapsed(next);
     setSidebarCollapsed(next);
-    setContentMounted(!next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("pos_sidebar_collapsed", String(next));
+      } catch {}
+    }
   }
 
   function toggleSidebar() {
@@ -629,7 +648,7 @@ export default function Sidebar({
       getSettings()
         .then((settings) => {
           if (!mounted) return;
-          const nextName = settings.restaurantName || "The Tofu";
+          const nextName = settings.restaurantName || "";
           localStorage.setItem("pos_restaurant_name", nextName);
           localStorage.setItem("pos_restaurant_image_url", settings.restaurantImageUrl || "");
           localStorage.setItem("pos_staff_permissions", JSON.stringify(permissionsForUser(currentUser.id, settings.staffPermissions)));
@@ -691,18 +710,18 @@ export default function Sidebar({
       />
     )}
     <aside
-      className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-[width,min-width,transform] duration-200 ease-out will-change-[width,transform] transform-gpu ${
+      className={`fixed bottom-0 left-0 top-0 h-screen ${sidebarBg} flex flex-col z-40 shrink-0 transition-[width,transform] duration-150 ease-in-out transform-gpu ${
         sidebarCollapsed ? "max-md:-translate-x-full w-[80px] min-w-[80px]" : "w-[280px] min-w-[280px] shadow-none"
       }`}
     >
       {/* Logo */}
       <div className="flex items-center min-h-[64px] px-5 py-4">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 rounded-xl bg-[#55a060] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#55a060]/30 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#55a060] to-[#3d7c47] flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-[#55a060]/30 shadow-md">
             {restaurantImageUrl ? (
               <img
                 src={resolveImageUrl(restaurantImageUrl)}
-                alt={restaurantName}
+                alt={restaurantName || "Restaurant"}
                 className="h-full w-full object-cover"
                 onError={(e) => {
                   (e.currentTarget as HTMLElement).style.display = "none";
@@ -711,8 +730,8 @@ export default function Sidebar({
                 }}
               />
             ) : null}
-            <div style={{ display: restaurantImageUrl ? "none" : "flex" }} className="w-full h-full items-center justify-center bg-[#55a060]">
-              <img src="/favicon.svg" alt="POS Logo" className="w-6 h-6 object-contain" />
+            <div style={{ display: restaurantImageUrl ? "none" : "flex" }} className="w-full h-full items-center justify-center bg-gradient-to-br from-[#55a060] to-[#3b7945]">
+              <UtensilsCrossed size={20} className="text-white drop-shadow-xs" />
             </div>
           </div>
 
@@ -720,7 +739,7 @@ export default function Sidebar({
             sidebarCollapsed ? "opacity-0 w-0 max-w-0 invisible" : "opacity-100 w-auto max-w-[200px] visible"
           }`}>
             <div className={`font-khmer whitespace-nowrap leading-snug tracking-tight ${dark ? "text-slate-100" : "text-slate-800"} ${language === "km" ? "text-[19.5px] font-medium" : "text-[18.5px] font-medium"}`}>
-              {restaurantName}
+              {restaurantName || (language === "km" ? "ប្រព័ន្ធ POS" : "POS System")}
             </div>
           </div>
         </div>
@@ -731,14 +750,14 @@ export default function Sidebar({
         <div className="mx-3 py-1 mb-1">
           <Link
             href="/admin/profile"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 ease-in-out cursor-pointer group active:scale-[0.98] ${
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200 ease-in-out cursor-pointer group ${
               pathname === "/admin/profile"
                 ? dark
                   ? "bg-[#55a060]/20 border-[#55a060]/50 shadow-xs text-white"
                   : "bg-[#e6f7ef] border-[#55a060]/40 shadow-xs ring-1 ring-[#55a060]/20"
                 : dark
-                ? "border-transparent bg-[#232333]/40 hover:bg-[#55a060]/15 hover:border-[#55a060]/40 hover:shadow-xs"
-                : "border-slate-200/70 bg-slate-50/70 hover:bg-[#e6f7ef]/70 hover:border-[#55a060]/40 hover:shadow-sm hover:scale-[1.01]"
+                ? "border-slate-800/60 bg-[#232333]/40 hover:bg-[#232333] hover:border-slate-700"
+                : "border-slate-200/60 bg-slate-50/60 hover:bg-slate-100/90 hover:border-slate-300/80"
             }`}
           >
             <div className="relative shrink-0">
@@ -746,11 +765,13 @@ export default function Sidebar({
                 <img
                   src={profileImg}
                   alt={activeUser.name}
-                  className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-200/80 group-hover:ring-[#55a060] shadow-xs group-hover:scale-105 transition-all duration-200"
+                  className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200/80 group-hover:ring-[#55a060] shadow-xs transition-all duration-200"
                 />
               ) : (
-                <span className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-black text-white shadow-xs group-hover:scale-105 group-hover:ring-2 group-hover:ring-[#55a060]/60 transition-all duration-200 ${profileAvatarClass(activeUser.role)}`}>
-                  {activeUser.name ? initials(activeUser.name) : <UserRound size={18} />}
+                <span className="flex h-10 w-10 items-end justify-center rounded-full bg-[#cbd0d9] dark:bg-slate-700 overflow-hidden shadow-xs group-hover:ring-1 group-hover:ring-[#55a060]/60 transition-all duration-200 shrink-0">
+                  <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                  </svg>
                 </span>
               )}
             </div>
@@ -758,7 +779,7 @@ export default function Sidebar({
               <div className={`text-[13.5px] font-semibold truncate tracking-tight group-hover:text-[#55a060] transition-colors duration-200 ${dark ? "text-slate-100" : "text-slate-800"}`}>
                 {activeUser.name}
               </div>
-              <div className="mt-0.5 inline-flex items-center rounded-md px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider bg-[#e6f7ef] text-[#1D9E75] dark:bg-[#1D9E75]/20 dark:text-[#34d399] group-hover:bg-[#1D9E75] group-hover:text-white dark:group-hover:bg-[#34d399] dark:group-hover:text-slate-950 transition-all duration-200">
+              <div className="mt-0.5 inline-flex items-center rounded-md px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider bg-[#e6f7ef] text-[#1D9E75] dark:bg-[#1D9E75]/20 dark:text-[#34d399] transition-all duration-200">
                 {activeUser.role}
               </div>
             </div>
@@ -785,8 +806,10 @@ export default function Sidebar({
                 className="h-9 w-9 rounded-full object-cover ring-2 ring-[#55a060]/30 group-hover:ring-[#55a060] shadow-xs group-hover:scale-105 transition-all duration-200"
               />
             ) : (
-              <span className={`flex h-9 w-9 items-center justify-center rounded-full text-[10px] font-black text-white shadow-xs group-hover:scale-105 transition-all duration-200 ${profileAvatarClass(activeUser.role)}`}>
-                {activeUser.name ? initials(activeUser.name) : <UserRound size={15} />}
+              <span className="flex h-9 w-9 items-end justify-center rounded-full bg-[#cbd0d9] dark:bg-slate-700 overflow-hidden shadow-xs group-hover:scale-105 transition-all duration-200 shrink-0">
+                <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                </svg>
               </span>
             )}
           </Link>
@@ -1501,11 +1524,11 @@ function getServerStaffPermissionsSnapshot() {
 }
 
 function getRestaurantNameSnapshot() {
-  return localStorage.getItem("pos_restaurant_name") || "The Tofu";
+  return localStorage.getItem("pos_restaurant_name") || "";
 }
 
 function getServerRestaurantNameSnapshot() {
-  return "The Tofu";
+  return "";
 }
 
 function getRestaurantImageSnapshot() {
@@ -1604,3 +1627,5 @@ function SettingsIcon({ active = false }: IconProps) {
 function LogoutIcon({ active = false }: IconProps) {
   return <LogOut size={18} strokeWidth={1.75} color="currentColor" />;
 }
+
+export default memo(Sidebar);

@@ -57,6 +57,32 @@ export const getProduct = async (id: number) => {
   return product;
 };
 
+export async function shouldTrackStockForProduct(categoryId?: number, productName?: string): Promise<boolean> {
+  if (categoryId) {
+    const category = await prisma.category.findUnique({ where: { id: categoryId } });
+    if (category) {
+      const catNameLower = `${category.name} ${category.nameKm || ""} ${category.slug}`.toLowerCase();
+      const isDrinkCategory = [
+        "coffee", "tea", "frappe", "drink", "drinks", "beverage", "beverages",
+        "juice", "smoothie", "boba", "soda", "beer", "wine", "កាហ្វេ", "តែ", "ភេសជ្ជៈ", "គ្រឿងផឹក"
+      ].some((kw) => catNameLower.includes(kw));
+      if (isDrinkCategory) return true;
+    }
+  }
+
+  if (productName) {
+    const prodNameLower = productName.toLowerCase();
+    const isDrinkName = [
+      "americano", "latte", "cappuccino", "mocha", "espresso", "frappe", "tea", "green tea",
+      "coca", "coke", "pepsi", "sprite", "fanta", "water", "soda", "juice", "smoothie",
+      "beer", "wine", "vital", "ទឹកក្រូច", "ទឹកសុទ្ធ", "ភេសជ្ជៈ"
+    ].some((kw) => prodNameLower.includes(kw));
+    if (isDrinkName) return true;
+  }
+
+  return false;
+}
+
 export const createProduct = async (data: {
   categoryId: number;
   name: string;
@@ -72,6 +98,7 @@ export const createProduct = async (data: {
   trackStock?: boolean;
 }) => {
   const slug = await uniqueProductSlug(data.slug ?? data.name);
+  const autoTrack = data.trackStock !== undefined ? data.trackStock : await shouldTrackStockForProduct(data.categoryId, data.name);
 
   return prisma.product.create({
     data: {
@@ -86,11 +113,11 @@ export const createProduct = async (data: {
       isAvailable: data.isAvailable ?? true,
       prepTime: data.prepTime ?? 10,
       unit: data.unit ?? "pc",
-      trackStock: data.trackStock ?? false,
+      trackStock: autoTrack,
       inventory: {
         create: {
-          quantity: 0,
-          minStock: 0,
+          quantity: autoTrack ? 50 : 0,
+          minStock: autoTrack ? 10 : 0,
         },
       },
     },

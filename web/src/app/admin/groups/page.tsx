@@ -832,7 +832,7 @@ export default function GroupsPage() {
                             {node.prefix}
                           </span>
                           <span className={node.level === 0 ? "font-semibold text-slate-800 dark:text-slate-100" : ""}>
-                            {node.id === 1 || node.name.toLowerCase() === "admin" ? "Admin Group" : node.name}
+                            {node.id === 1 ? "Admin Group" : node.name}
                           </span>
                         </td>
 

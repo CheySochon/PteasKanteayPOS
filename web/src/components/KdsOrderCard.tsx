@@ -166,13 +166,13 @@ const KdsOrderCard = memo(function KdsOrderCard({
               Standard Order Ticket
             </div>
           ) : (
-            order.items?.map((item) => {
+            order.items?.map((item, idx) => {
               const currentStatus = itemStatuses[item.id] || (order.status === "preparing" ? "preparing" : "pending");
               const isCompleted = currentStatus === "completed";
               const isPreparing = currentStatus === "preparing";
 
               return (
-                <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
+                <div key={item.id ? `kds-item-${item.id}` : `kds-item-idx-${idx}`} className="flex items-center justify-between gap-3 text-xs">
                   <div className="min-w-0 flex-1">
                     <div className={`font-normal ${isCompleted ? "text-slate-400 line-through" : "text-slate-800 dark:text-slate-200"}`}>
                       {item.product?.name || item.name || `Item #${item.productId}`} <span className="font-normal text-slate-500">x {item.quantity}</span>

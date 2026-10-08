@@ -341,7 +341,7 @@ export const deleteGroup = async (id: number, cascade = false) => {
     return { id, success: true };
   }
 
-  if (id === 1 || existing.name?.toLowerCase() === "admin") {
+  if (id === 1) {
     throw new Error(
       "System Protection: Root Admin group (ID 1) is a protected system owner group and cannot be deleted."
     );

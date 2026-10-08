@@ -9,13 +9,16 @@ export type CartItem = {
 };
 
 export function cartItemFromProduct(product: {
-  id: number;
-  name: string;
-  basePrice: number | string;
+  id: number | string;
+  name?: string | null;
+  nameKm?: string | null;
+  basePrice?: number | string | null;
 }): CartItem {
+  const pId = Number(product.id);
+  const pName = product.name || product.nameKm || (pId ? `Item #${pId}` : "Item");
   return {
-    productId: product.id,
-    name: product.name,
+    productId: isNaN(pId) ? 0 : pId,
+    name: pName,
     unitPrice: Number(product.basePrice ?? 0),
     quantity: 1,
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, memo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -37,6 +37,11 @@ import {
   MonitorSmartphone,
   Minimize,
   Lock,
+  Boxes,
+  Truck,
+  Tags,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import { getOrders, getProducts, getTables, logoutApi } from "../lib/api";
 import { getSocket } from "../lib/socket";
@@ -133,7 +138,7 @@ const labels = {
   },
 };
 
-export default function TopBar({
+function TopBar({
   title,
   subtitle,
   language,
@@ -275,22 +280,43 @@ export default function TopBar({
   }, []);
 
   const navRoutes = [
-    { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { label: "Orders", href: "/admin/orders", icon: Utensils },
-    { label: "Reservations", href: "/admin/tables", icon: Grid2X2 },
-    { label: "Menu", href: "/admin/menu", icon: ShoppingBag },
-    { label: "Reports", href: "/admin/reports", icon: TrendingUp },
-    { label: "Staff & Roles", href: "/admin/users", icon: UsersRound },
-    { label: "Settings", href: "/admin/settings", icon: Settings },
-    { label: "POS - Point of Sale", href: "/admin/pos", icon: MonitorSmartphone },
-    { label: "Kitchen", href: "/kds", icon: ChefHat },
+    { label: "Dashboard", keywords: ["dashboard", "home", "overview", "ផ្ទាំងគ្រប់គ្រង"], href: "/admin", icon: LayoutDashboard },
+    { label: "POS - Point of Sale", keywords: ["pos", "point of sale", "sale", "register", "counter", "លក់"], href: "/admin/pos", icon: MonitorSmartphone },
+    { label: "Orders", keywords: ["orders", "order", "history", "hold", "ការបញ្ជាទិញ"], href: "/admin/orders", icon: Utensils },
+    { label: "Kitchen", keywords: ["kitchen", "kds", "cook", "chef", "ផ្ទះបាយ"], href: "/admin/kitchen", icon: ChefHat },
+    { label: "Tables & Rooms", keywords: ["tables", "table", "rooms", "reservations", "dining", "តុ"], href: "/admin/tables", icon: Grid2X2 },
+    { label: "Invoices & Receipts", keywords: ["invoices", "invoice", "receipts", "receipt", "billing", "វិក្កយបត្រ"], href: "/admin/invoices", icon: ReceiptText },
+    
+    // Management
+    { label: "Menu Items", keywords: ["menu", "food", "dishes", "products", "items", "មុខម្ហូប"], href: "/admin/menu", icon: ShoppingBag },
+    { label: "Menu Categories", keywords: ["categories", "category", "menu categories", "ប្រភេទទំនិញ"], href: "/admin/menu?view=categories", icon: Tags },
+    { label: "Inventory", keywords: ["inventory", "stock", "items", "products", "ស្តុក"], href: "/admin/inventory", icon: Boxes },
+    { label: "Suppliers", keywords: ["supplier", "suppliers", "vendors", "អ្នកផ្គត់ផ្គង់"], href: "/admin/inventory?tab=suppliers", icon: Truck },
+    { label: "Reports & Analytics", keywords: ["reports", "analytics", "sales report", "revenue", "របាយការណ៍"], href: "/admin/reports", icon: TrendingUp },
+
+    // Auth & System
+    { label: "Auth - Staff & Roles", keywords: ["auth", "staff", "users", "user", "roles", "permissions", "បុគ្គលិក", "សិទ្ធិ"], href: "/admin/users", icon: UsersRound },
+    { label: "Staff Management", keywords: ["staff management", "users", "user", "admin", "employees", "បុគ្គលិក"], href: "/admin/users", icon: UserRound },
+    { label: "Audit Logs", keywords: ["audit logs", "logs", "activity log", "admin log", "កំណត់ហេតុ"], href: "/admin/logs", icon: FileText },
+    { label: "Role Groups", keywords: ["role groups", "groups", "group", "roles", "ក្រុមតួនាទី"], href: "/admin/groups", icon: UsersRound },
+    { label: "Permissions", keywords: ["permissions", "rules", "rule", "access control", "សិទ្ធិប្រើប្រាស់"], href: "/admin/roles", icon: ShieldCheck },
+
+    // Settings
+    { label: "Settings", keywords: ["settings", "configuration", "setup", "general", "ការកំណត់"], href: "/admin/settings", icon: Settings },
+    { label: "Invoice & Receipt Settings", keywords: ["invoice settings", "receipt settings", "print setup"], href: "/admin/settings?tab=invoice_receipt", icon: FileText },
+    { label: "Hardware & Printers", keywords: ["printers", "printer", "hardware", "thermal printer"], href: "/admin/settings?tab=printers", icon: Settings },
+    { label: "Tax Setup & Billing", keywords: ["tax", "vat", "billing", "tax setup"], href: "/admin/settings?tab=billing", icon: ReceiptText },
   ];
 
   const q = internalQuery.trim().toLowerCase();
 
   const matchingRoutes = useMemo(() => {
     if (!q) return [];
-    return navRoutes.filter((r) => r.label.toLowerCase().includes(q));
+    return navRoutes.filter((r) => {
+      const labelMatch = r.label.toLowerCase().includes(q);
+      const keywordMatch = r.keywords.some((k) => k.toLowerCase().includes(q));
+      return labelMatch || keywordMatch;
+    });
   }, [q]);
 
   const matchingOrders = useMemo(() => {
@@ -386,9 +412,17 @@ export default function TopBar({
       fetchNotifications();
     }
 
+    function handleStorageEvent(e: Event) {
+      if (e instanceof StorageEvent) {
+        if (!e.key || e.key.includes("order") || e.key.includes("notification")) {
+          fetchNotifications();
+        }
+      }
+    }
+
     window.addEventListener("pos-order-created", handleLocalOrderEvent);
     window.addEventListener("pos-order-updated", handleLocalOrderEvent);
-    window.addEventListener("storage", handleLocalOrderEvent);
+    window.addEventListener("storage", handleStorageEvent);
 
     const socket = getSocket();
     if (socket) {
@@ -425,7 +459,7 @@ export default function TopBar({
         clearInterval(pollInterval);
         window.removeEventListener("pos-order-created", handleLocalOrderEvent);
         window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
-        window.removeEventListener("storage", handleLocalOrderEvent);
+        window.removeEventListener("storage", handleStorageEvent);
         socket.off("order:created", handleNewOrder);
         socket.off("order:updated", handleNewOrder);
         socket.off("notifications:cleared", handleNotificationsCleared);
@@ -437,7 +471,7 @@ export default function TopBar({
       clearInterval(pollInterval);
       window.removeEventListener("pos-order-created", handleLocalOrderEvent);
       window.removeEventListener("pos-order-updated", handleLocalOrderEvent);
-      window.removeEventListener("storage", handleLocalOrderEvent);
+      window.removeEventListener("storage", handleStorageEvent);
     };
   }, []);
 
@@ -518,7 +552,7 @@ export default function TopBar({
   }, [topbarToast]);
 
   return (
-    <header className={`sticky top-0 z-20 border-b px-3 sm:px-4 backdrop-blur-md transition-colors duration-150 relative ${isDark ? "bg-[#232333]/90 border-[#4e4f6e]" : "bg-white/90 border-slate-200/80"}`}>
+    <header className={`sticky top-0 z-40 border-b px-3 sm:px-4 backdrop-blur-md transition-colors duration-150 relative ${isDark ? "bg-[#232333]/90 border-[#4e4f6e]" : "bg-white/90 border-slate-200/80"}`}>
       {/* GLOBAL TOP-CENTERED TOAST NOTIFICATION (PORTAL TO BODY - IGNORES SIDEBAR COMPLETELY) */}
       {topbarToast && mounted && createPortal(
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] pointer-events-none px-4">
@@ -662,7 +696,7 @@ export default function TopBar({
 
                     {/* 3. Kitchen */}
                     <Link
-                      href="/kds"
+                      href="/admin/kitchen"
                       onClick={() => setSearchOpen(false)}
                       className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
                         isDark ? "hover:bg-white/5 text-slate-200" : "hover:bg-slate-50 text-slate-700"
@@ -713,7 +747,7 @@ export default function TopBar({
                       const Icon = route.icon;
                       return (
                         <Link
-                          key={route.href}
+                          key={`${route.label}-${route.href}`}
                           href={route.href}
                           onClick={() => setSearchOpen(false)}
                           className={`flex items-center justify-between w-full px-4 py-3 rounded-[14px] transition-colors ${
@@ -866,7 +900,7 @@ export default function TopBar({
                 </div>
 
                 {activeNotifications.length === 0 ? (
-                  <div className={`rounded-xl bg-white border border-slate-200/80 dark:border-slate-800 dark:bg-[#232333] p-4 text-center text-xs font-medium ${textSecondary} ${kmClass}`}>
+                  <div className={`rounded-xl bg-slate-50/80 border border-slate-200/80 dark:border-slate-800 dark:bg-[#232333] p-4 text-center text-xs font-medium ${textSecondary} ${kmClass}`}>
                     {t.noNotifications}
                   </div>
                 ) : (
@@ -1278,12 +1312,12 @@ function ProfileAvatar({ user }: { user: ReturnType<typeof parseUserSnapshot> })
   }
 
   return (
-    <span
-      className={`flex h-[30px] w-[30px] items-center justify-center rounded-full text-xs font-black text-white ${profileAvatarClass(
-        user.role,
-      )}`}
-    >
-      {user.name ? initials(user.name) : <UserRound size={15} />}
+    <span className="flex h-[30px] w-[30px] items-end justify-center rounded-full bg-[#cbd0d9] dark:bg-slate-700 overflow-hidden ring-1 ring-slate-200/80 shrink-0">
+      <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+      </svg>
     </span>
   );
 }
+
+export default memo(TopBar);

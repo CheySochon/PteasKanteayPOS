@@ -105,7 +105,37 @@ export type RestoreBackupResult = {
   };
 };
 
-import { getCookie } from "./cookies";
+import { getCookie, setCookie, eraseCookie } from "./cookies";
+
+let isRefreshingToken = false;
+
+async function tryRefreshToken(currentApiUrl: string): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const storedRefreshToken = localStorage.getItem("pos_refresh_token") || getCookie("pos_refresh_token");
+  try {
+    const res = await fetch(`${currentApiUrl}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: storedRefreshToken ? JSON.stringify({ refreshToken: storedRefreshToken }) : undefined,
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const newToken = data?.token;
+      const newRefreshToken = data?.refreshToken;
+      if (newToken) {
+        localStorage.setItem("pos_token", newToken);
+        if (newRefreshToken) localStorage.setItem("pos_refresh_token", newRefreshToken);
+        setCookie("pos_token", newToken, 7);
+        if (newRefreshToken) setCookie("pos_refresh_token", newRefreshToken, 7);
+        return newToken;
+      }
+    }
+  } catch (_e) {
+    // ignore
+  }
+  return null;
+}
 
 function getStoredToken() {
   if (typeof window === "undefined") return null;
@@ -121,7 +151,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const currentApiUrl = getApiBaseUrl();
   let response: Response;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
   try {
     response = await fetch(`${currentApiUrl}${path}`, {
       method: options.method || "GET",
@@ -160,12 +190,24 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       }
     }
 
-    const isAuthLoginRoute = path.startsWith("/auth/login") || path.startsWith("/auth/login-pin") || path.startsWith("/auth/register");
+    const isAuthLoginRoute = path.startsWith("/auth/login") || path.startsWith("/auth/login-pin") || path.startsWith("/auth/register") || path.startsWith("/auth/refresh");
     if (!isAuthLoginRoute && (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed")) {
+      if (!isRefreshingToken) {
+        isRefreshingToken = true;
+        const newToken = await tryRefreshToken(currentApiUrl);
+        isRefreshingToken = false;
+        if (newToken) {
+          return request<T>(path, { ...options, token: newToken });
+        }
+      }
+
       if (typeof window !== "undefined") {
         localStorage.removeItem("pos_token");
+        localStorage.removeItem("pos_refresh_token");
         localStorage.removeItem("pos_user");
         localStorage.removeItem("pos_logged_in");
+        eraseCookie("pos_token");
+        eraseCookie("pos_refresh_token");
         window.dispatchEvent(new Event("pos-auth-change"));
         window.location.href = "/login";
       }
@@ -220,9 +262,42 @@ export const getCategories = async () => {
     throw err;
   }
 };
-export const createCategory = (body: Partial<Category>) => request<Category>("/categories", { method: "POST", body });
-export const updateCategory = (id: number, body: Partial<Category>) => request<Category>(`/categories/${id}`, { method: "PUT", body });
-export const deleteCategory = (id: number) => request<void>(`/categories/${id}`, { method: "DELETE" });
+export const createCategory = async (body: Partial<Category>): Promise<Category> => {
+  const res = await request<Category>("/categories", { method: "POST", body });
+  if (typeof window !== "undefined") {
+    try {
+      const cached = ((await getFromCache("categories")) as Category[]) || [];
+      await saveToCache("categories", [...cached, res]);
+      window.dispatchEvent(new Event("pos-menu-change"));
+    } catch {}
+  }
+  return res;
+};
+
+export const updateCategory = async (id: number, body: Partial<Category>): Promise<Category> => {
+  const res = await request<Category>(`/categories/${id}`, { method: "PUT", body });
+  if (typeof window !== "undefined") {
+    try {
+      const cached = ((await getFromCache("categories")) as Category[]) || [];
+      const updated = cached.map((c) => (c.id === id ? { ...c, ...res } : c));
+      await saveToCache("categories", updated);
+      window.dispatchEvent(new Event("pos-menu-change"));
+    } catch {}
+  }
+  return res;
+};
+
+export const deleteCategory = async (id: number): Promise<void> => {
+  await request<void>(`/categories/${id}`, { method: "DELETE" });
+  if (typeof window !== "undefined") {
+    try {
+      const cached = ((await getFromCache("categories")) as Category[]) || [];
+      const filtered = cached.filter((c) => c.id !== id);
+      await saveToCache("categories", filtered);
+      window.dispatchEvent(new Event("pos-menu-change"));
+    } catch {}
+  }
+};
 
 export const getSuppliers = () => request<any[]>("/suppliers");
 export const createSupplier = (body: any) => request<any>("/suppliers", { method: "POST", body });
@@ -270,9 +345,18 @@ export const parsePriceNumber = (val: any): number => {
 
 export const getProducts = async () => {
   let list: Product[] = [];
+  let isOnlineSuccess = false;
   try {
     const data = await request<Product[]>("/products");
-    if (Array.isArray(data)) list = data;
+    if (Array.isArray(data)) {
+      list = data;
+      isOnlineSuccess = true;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem("pos_custom_created_products");
+        } catch {}
+      }
+    }
   } catch (err) {
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("products")) as Product[] | null;
@@ -280,8 +364,8 @@ export const getProducts = async () => {
     }
   }
 
-  // Load custom created/updated products from localStorage
-  if (typeof window !== "undefined") {
+  // Only merge custom offline products if request failed (offline mode)
+  if (!isOnlineSuccess && typeof window !== "undefined") {
     try {
       const storedCustom = localStorage.getItem("pos_custom_created_products");
       if (storedCustom) {
@@ -313,7 +397,13 @@ export const getProducts = async () => {
       const lowerName = `${p.name} ${p.nameKm || ""} ${p.category?.name || ""} ${p.category?.nameKm || ""}`.toLowerCase().trim();
       let fallbackUrl = "";
 
-      if (lowerName.includes("coca") || lowerName.includes("coke") || lowerName.includes("cola") || lowerName.includes("pepsi") || lowerName.includes("soda") || lowerName.includes("sprite") || lowerName.includes("fanta") || lowerName.includes("កូកា")) {
+      if (lowerName.includes("croissant")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["croissant"];
+      } else if (lowerName.includes("frappe")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["chocolate frappe"];
+      } else if (lowerName.includes("cappuccino")) {
+        fallbackUrl = DEFAULT_PRODUCT_IMAGES["americano"];
+      } else if (/\b(coca|coke|pepsi|soda|sprite|fanta|cola)\b/i.test(lowerName) || lowerName.includes("កូកា")) {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["coca"];
       } else if (lowerName.includes("drink") || lowerName.includes("water") || lowerName.includes("juice") || lowerName.includes("ទឹក") || lowerName.includes("ភេសជ្ជៈ")) {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["drink"];
@@ -329,8 +419,6 @@ export const getProducts = async () => {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["rice"];
       } else if (lowerName.includes("tea") || lowerName.includes("តែ")) {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["green tea"];
-      } else if (lowerName.includes("frappe")) {
-        fallbackUrl = DEFAULT_PRODUCT_IMAGES["chocolate frappe"];
       } else if (lowerName.includes("cake") || lowerName.includes("នំ")) {
         fallbackUrl = DEFAULT_PRODUCT_IMAGES["cheesecake"];
       } else if (lowerName.includes("coffee") || lowerName.includes("latte") || lowerName.includes("កាហ្វេ")) {
@@ -418,6 +506,11 @@ export const deleteProduct = async (id: number): Promise<void> => {
       const stored: Product[] = JSON.parse(localStorage.getItem("pos_custom_created_products") || "[]");
       const filtered = stored.filter((p) => p.id !== id);
       localStorage.setItem("pos_custom_created_products", JSON.stringify(filtered));
+
+      const cached = ((await getFromCache("products")) as Product[]) || [];
+      const updatedCache = cached.filter((p) => p.id !== id);
+      await saveToCache("products", updatedCache);
+
       window.dispatchEvent(new Event("pos-menu-change"));
     } catch {}
   }
@@ -885,9 +978,6 @@ export const exportReportsCsv = (date?: string, period = "month") => date ? `${g
 
 const DEFAULT_DEMO_USERS: User[] = [
   { id: 1, name: "Super Admin", email: "cheychon258@gmail.com", role: { id: 1, name: "Super Admin" }, roleName: "SUPER_ADMIN", isActive: true },
-  { id: 2, name: "Chon (Cashier)", email: "chon.cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
-  { id: 3, name: "POS Cashier", email: "cashier@pos.local", role: { id: 2, name: "Cashier" }, roleName: "CASHIER", isActive: true },
-  { id: 4, name: "Kitchen Staff", email: "kitchen@pos.local", role: { id: 3, name: "Staff" }, roleName: "STAFF", isActive: true },
 ];
 
 const DEFAULT_DEMO_ROLES: Role[] = [
@@ -924,7 +1014,7 @@ export const getUsers = async (forceRefresh = false): Promise<User[]> => {
 
   try {
     const apiUsers = await request<User[]>("/users");
-    if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+    if (Array.isArray(apiUsers)) {
       swrMemoryCache.set("users", { data: apiUsers, timestamp: Date.now() });
       return apiUsers;
     }
@@ -1003,11 +1093,11 @@ export const getSettings = async (): Promise<AppSettings> => {
       } catch {}
     }
     return {
-      restaurantName: "The Tofu",
-      restaurantEmail: "hello@thetofu.local",
-      restaurantPhone: "+66 00 000 0000",
+      restaurantName: "",
+      restaurantEmail: "",
+      restaurantPhone: "",
       restaurantImageUrl: "",
-      address: "Bangkok, Thailand",
+      address: "",
       vatTin: "",
       currency: "USD",
       exchangeRate: 4000,

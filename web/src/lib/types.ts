@@ -7,6 +7,7 @@ export type ApiResponse<T> = {
 
 export type AuthResult = {
   token: string;
+  refreshToken?: string;
   user: User;
 };
 
@@ -27,6 +28,16 @@ export type AppSettings = {
   taxRate: number;
   serviceChargeRate: number;
   receiptFooter: string;
+  invoiceHeaderTitle?: string;
+  receiptHeaderTitle?: string;
+  invoicePrefix?: string;
+  receiptPrefix?: string;
+  showVatTin?: boolean;
+  showCustomerInfoOnInvoice?: boolean;
+  showCashierName?: boolean;
+  showTableInfo?: boolean;
+  showPaymentQr?: boolean;
+  invoiceTerms?: string;
   autoAcceptQrOrders: boolean;
   lowStockAlerts: boolean;
   orderNotifications: boolean;

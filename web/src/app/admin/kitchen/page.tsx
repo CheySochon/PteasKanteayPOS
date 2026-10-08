@@ -4,20 +4,66 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ChefHat,
   Clock,
-  CheckCircle2,
   Flame,
   RefreshCw,
 } from "lucide-react";
-import TopBar from "../../../components/TopBar";
 import KdsOrderCard from "../../../components/KdsOrderCard";
 import { getOrders, updateOrderStatus } from "../../../lib/api";
 import { getSocket } from "../../../lib/socket";
 import type { Order, OrderStatus } from "../../../lib/types";
 import { useAutoDismiss } from "../../../lib/useAutoDismiss";
 import { useAppTheme } from "../../../lib/theme";
-import { useAppLanguage, setAppLanguage } from "../../../lib/language";
+import { useAppLanguage } from "../../../lib/language";
 
-const visibleStatuses: OrderStatus[] = ["pending", "accepted", "preparing", "ready"];
+let globalAudioCtx: AudioContext | null = null;
+
+function getAudioContext() {
+  if (typeof window === "undefined") return null;
+  if (!globalAudioCtx) {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass) {
+      globalAudioCtx = new AudioContextClass();
+    }
+  }
+  if (globalAudioCtx && globalAudioCtx.state === "suspended") {
+    void globalAudioCtx.resume();
+  }
+  return globalAudioCtx;
+}
+
+function playKitchenBellSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      void ctx.resume();
+    }
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(987.77, now);
+    gain1.gain.setValueAtTime(0.5, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 1.2);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(1318.51, now + 0.12);
+    gain2.gain.setValueAtTime(0.6, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 1.6);
+  } catch (e) {
+    console.error("Kitchen audio chime error:", e);
+  }
+}
 
 export default function AdminKitchenPage() {
   const [theme] = useAppTheme();
@@ -28,18 +74,26 @@ export default function AdminKitchenPage() {
   useAutoDismiss(error, setError, 4000);
   useAutoDismiss(message, setMessage, 3000);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
 
   const dark = theme === "dark";
 
-  async function loadOrders() {
+  async function loadOrders(silent = false) {
     try {
-      setRefreshing(true);
+      if (!silent) setRefreshing(true);
       const data = await getOrders();
-      setOrders(data);
+      setOrders((prev) => {
+        const prevIds = new Set(prev.map((o) => o.id));
+        const hasNew = data.some((o) => !prevIds.has(o.id));
+        if (hasNew && prev.length > 0) {
+          playKitchenBellSound();
+        }
+        return data;
+      });
     } catch (err: any) {
-      setError(err?.message || "Failed to load kitchen orders");
+      if (!silent) setError(err?.message || "Failed to load kitchen orders");
     } finally {
-      setRefreshing(false);
+      if (!silent) setRefreshing(false);
     }
   }
 
@@ -48,14 +102,20 @@ export default function AdminKitchenPage() {
     const socket = getSocket();
 
     function handleOrderEvent() {
-      loadOrders();
+      loadOrders(true);
+    }
+
+    function handleNewOrder() {
+      playKitchenBellSound();
+      loadOrders(true);
     }
 
     if (socket) {
       if (!socket.connected) {
         socket.connect();
       }
-      socket.on("order:created", handleOrderEvent);
+      socket.on("order:created", handleNewOrder);
+      socket.on("order:new", handleNewOrder);
       socket.on("order:updated", handleOrderEvent);
       socket.on("table:merged", handleOrderEvent);
       socket.on("table:moved", handleOrderEvent);
@@ -67,7 +127,8 @@ export default function AdminKitchenPage() {
 
     return () => {
       if (socket) {
-        socket.off("order:created", handleOrderEvent);
+        socket.off("order:created", handleNewOrder);
+        socket.off("order:new", handleNewOrder);
         socket.off("order:updated", handleOrderEvent);
         socket.off("table:merged", handleOrderEvent);
         socket.off("table:moved", handleOrderEvent);
@@ -87,29 +148,42 @@ export default function AdminKitchenPage() {
     }
   }
 
-  const kitchenOrders = useMemo(() => {
-    return orders
-      .filter((o) => {
-        const s = (o.status || "pending").toLowerCase();
-        const hasItems = Array.isArray(o.items) && o.items.length > 0;
-        return s !== "cancelled" && s !== "served" && s !== "ready" && s !== "completed" && hasItems;
-      })
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const activeOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const s = (o.status || "pending").toLowerCase();
+      const hasItems = Array.isArray(o.items) && o.items.length > 0;
+      return s !== "cancelled" && s !== "served" && s !== "ready" && s !== "completed" && hasItems;
+    });
   }, [orders]);
+
+  const pendingCount = useMemo(() => {
+    return activeOrders.filter((o) => (o.status || "pending").toLowerCase() === "pending").length;
+  }, [activeOrders]);
+
+  const preparingCount = useMemo(() => {
+    return activeOrders.filter((o) => (o.status || "pending").toLowerCase() === "preparing").length;
+  }, [activeOrders]);
+
+  const kitchenOrders = useMemo(() => {
+    let rows = activeOrders;
+    if (statusFilter !== "all") {
+      rows = rows.filter((o) => (o.status || "pending").toLowerCase() === statusFilter);
+    }
+    return rows.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [activeOrders, statusFilter]);
 
   return (
     <div className={`flex-1 overflow-y-auto flex flex-col ${dark ? "bg-[#232333] text-slate-100" : "bg-[#f8faf9] text-slate-800"}`}>
-
       <main className="px-4 py-4 lg:px-6 space-y-4 flex-1 max-w-[1400px] w-full mx-auto">
         {/* Header Action Row matching screenshot */}
-        <div className="flex items-center justify-between gap-4 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
           <div className="flex items-center gap-3.5">
             <h1 className={`text-2xl font-normal ${dark ? "text-slate-100" : "text-slate-800"}`}>
               {language === "km" ? "ផ្ទះបាយ" : "Kitchen"}
             </h1>
             <button
               type="button"
-              onClick={loadOrders}
+              onClick={() => loadOrders(false)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer border ${
                 dark
                   ? "bg-[#2b2c40] border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
@@ -118,6 +192,53 @@ export default function AdminKitchenPage() {
             >
               <RefreshCw size={13} className={refreshing ? "animate-spin text-[#55a060]" : ""} />
               <span>{language === "km" ? "ថ្មីឡើងវិញ" : "Refresh"}</span>
+            </button>
+          </div>
+
+          {/* Ticket Status Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                statusFilter === "all"
+                  ? "bg-[#55a060] text-white shadow-xs"
+                  : dark
+                  ? "bg-[#2b2c40] border border-[#3b3c54] text-slate-300 hover:bg-[#34354e]"
+                  : "bg-slate-100 text-slate-600 border border-slate-200/80 hover:bg-slate-200/80"
+              }`}
+            >
+              {language === "km" ? `ទាំងអស់ (${activeOrders.length})` : `All (${activeOrders.length})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStatusFilter("pending")}
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                statusFilter === "pending"
+                  ? "bg-amber-500 text-white shadow-xs"
+                  : dark
+                  ? "bg-[#2b2c40] border border-amber-900/50 text-amber-400 hover:bg-amber-950/30"
+                  : "bg-amber-50 text-amber-600 border border-amber-200/60 hover:bg-amber-100/80"
+              }`}
+            >
+              <Clock size={13} />
+              {language === "km" ? `រង់ចាំ (${pendingCount})` : `Pending (${pendingCount})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStatusFilter("preparing")}
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                statusFilter === "preparing"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : dark
+                  ? "bg-[#2b2c40] border border-blue-900/50 text-blue-400 hover:bg-blue-950/30"
+                  : "bg-blue-50 text-blue-600 border border-blue-200/60 hover:bg-blue-100/80"
+              }`}
+            >
+              <Flame size={13} />
+              {language === "km" ? `កំពុងធ្វើ (${preparingCount})` : `Preparing (${preparingCount})`}
             </button>
           </div>
         </div>

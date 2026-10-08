@@ -392,7 +392,7 @@ export default function InvoicesPage() {
             </div>
           )}
 
-          <div className={`mt-4 overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
+          <div className={`mt-4 rounded-2xl border min-h-[260px] pb-12 ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
             {loading ? (
               <div className="p-12 text-center text-xs font-semibold text-slate-400">
                 Loading invoices...
@@ -402,7 +402,7 @@ export default function InvoicesPage() {
                 No invoices found.
               </div>
             ) : (
-              <div className="overflow-x-auto no-scrollbar">
+              <div className="overflow-x-auto no-scrollbar min-h-[220px]">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
                     <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${
@@ -423,7 +423,10 @@ export default function InvoicesPage() {
                   </thead>
                   <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
                     {filteredInvoices.map((inv: any, index: number) => {
-                      const isVoid = inv.status === "cancelled";
+                      const statusLower = (inv.status || "pending").toLowerCase();
+                      const isPaid = statusLower === "completed";
+                      const isVoid = statusLower === "cancelled";
+                      const isUnpaid = !isPaid && !isVoid;
                       const orderDbId = `#${inv.id}`;
                       const staff = cashierName(inv);
                       const staffImg = cashierImage(inv);
@@ -517,10 +520,15 @@ export default function InvoicesPage() {
                                 <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                                 VOID
                               </span>
-                            ) : (
+                            ) : isPaid ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-900/50 px-2.5 py-0.5 text-[10px] font-bold">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                 Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/50 px-2.5 py-0.5 text-[10px] font-bold">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                Unpaid
                               </span>
                             )}
                           </td>
@@ -552,7 +560,9 @@ export default function InvoicesPage() {
                             {actionMenuId === inv.id && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                className="absolute right-4 top-10 z-30 w-36 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2b2c40] p-1 shadow-lg text-left animate-[userModalIn_150ms_ease-out]"
+                                className={`absolute right-4 z-50 w-36 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2b2c40] p-1 shadow-xl text-left animate-[userModalIn_150ms_ease-out] ${
+                                  index >= filteredInvoices.length - 2 || filteredInvoices.length <= 3 ? "bottom-8" : "top-10"
+                                }`}
                               >
                                 <button
                                   type="button"

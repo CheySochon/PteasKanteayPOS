@@ -58,31 +58,6 @@ async function main() {
         "pos.users.manage",
       ],
     },
-    {
-      id: 2,
-      name: "Store Manager",
-      description: "Store management with reports and catalog rights",
-      permissionCodes: [
-        "pos.order.create",
-        "pos.payment.process",
-        "pos.discount.apply",
-        "pos.invoice.void",
-        "pos.reports.view",
-        "pos.menu.manage",
-      ],
-    },
-    {
-      id: 3,
-      name: "Supervisor",
-      description: "Shift supervisor with order & discount void rights",
-      permissionCodes: ["pos.order.create", "pos.payment.process", "pos.discount.apply", "pos.invoice.void"],
-    },
-    {
-      id: 4,
-      name: "Cashier",
-      description: "Front-of-house cashier operations team",
-      permissionCodes: ["pos.order.create", "pos.payment.process"],
-    },
   ];
 
   const groupsMap: Record<string, { id: number; name: string }> = {};
@@ -143,24 +118,6 @@ async function main() {
     },
   });
 
-  const cashierUser = await prisma.user.upsert({
-    where: { email: "cashier@pos.local" },
-    update: {
-      name: "Cashier User",
-      password: hashedPassword,
-      isActive: true,
-      pin: "1234",
-      deletedAt: null,
-    },
-    create: {
-      name: "Cashier User",
-      email: "cashier@pos.local",
-      password: hashedPassword,
-      isActive: true,
-      pin: "1234",
-    },
-  });
-
   // Explicitly Assign Super Admin (cheychon258@gmail.com) to Group ID 1 ("Admin")
   await prisma.userGroup.upsert({
     where: {
@@ -176,65 +133,8 @@ async function main() {
     },
   });
 
-  // Assign Cashier User to Cashier group (ID 4)
-  await prisma.userGroup.upsert({
-    where: {
-      userId_groupId: {
-        userId: cashierUser.id,
-        groupId: groupsMap["Cashier"].id,
-      },
-    },
-    update: {},
-    create: {
-      userId: cashierUser.id,
-      groupId: groupsMap["Cashier"].id,
-    },
-  });
-
-  // 4. Seed Product Categories
-  const categories: Record<string, { id: number; name: string }> = {};
-  for (const name of ["Coffee", "Tea", "Frappe", "Food", "Dessert"]) {
-    categories[name] = await prisma.category.upsert({
-      where: { slug: slugify(name) },
-      update: { name, deletedAt: null },
-      create: { name, slug: slugify(name) },
-    });
-  }
-
-  // 5. Seed Products
-  const productDefinitions = [
-    { category: "Coffee", name: "Americano", description: "Espresso with hot water.", price: 2.0 },
-    { category: "Coffee", name: "Latte", description: "Espresso with steamed milk.", price: 2.5 },
-    { category: "Coffee", name: "Cappuccino", description: "Espresso, milk, and foam.", price: 2.5 },
-    { category: "Tea", name: "Green Tea", description: "Fresh brewed green tea.", price: 2.75 },
-    { category: "Frappe", name: "Chocolate Frappe", description: "Iced blended chocolate drink.", price: 3.5 },
-    { category: "Food", name: "Croissant", description: "Buttery baked croissant.", price: 2.25 },
-    { category: "Dessert", name: "Cheesecake", description: "Classic cheesecake slice.", price: 3.25 },
-  ];
-
-  for (const definition of productDefinitions) {
-    const slug = slugify(definition.name);
-    const basePrice = definition.price;
-    await prisma.product.upsert({
-      where: { slug },
-      update: {
-        categoryId: categories[definition.category].id,
-        name: definition.name,
-        description: definition.description,
-        basePrice,
-        isAvailable: true,
-        deletedAt: null,
-      },
-      create: {
-        categoryId: categories[definition.category].id,
-        name: definition.name,
-        slug,
-        description: definition.description,
-        basePrice,
-        isAvailable: true,
-      },
-    });
-  }
+  // 4. Clean initial state for categories and products (Users start with clean empty menu)
+  console.log("Seed finished: System ready with Super Admin user and Admin group.");
 
   // 6. Seed Dining Tables
   const tables = [

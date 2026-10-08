@@ -26,7 +26,9 @@ import {
   UploadCloud,
   Utensils,
   X,
+  Sparkles,
 } from "lucide-react";
+import ImageCropperModal from "../../../components/ImageCropperModal";
 import { resolveCategoryName, resolveProductName, resolveProductDescription, useAppLanguage } from "../../../lib/language";
 import TopBar from "../../../components/TopBar";
 import { useAppTheme } from "../../../lib/theme";
@@ -355,6 +357,18 @@ export default function MenuPage() {
     onConfirm: () => {},
   });
 
+  const [cropperState, setCropperState] = useState<{
+    isOpen: boolean;
+    imageSrc: string;
+    target: "product" | "category";
+    title: string;
+  }>({
+    isOpen: false,
+    imageSrc: "",
+    target: "product",
+    title: "",
+  });
+
   const dark = theme === "dark";
   const surface = dark ? "bg-[#2b2c40]" : "bg-white";
   const softSurface = dark ? "bg-[#232333]" : "bg-white";
@@ -505,14 +519,20 @@ export default function MenuPage() {
   }
 
   function handleCategoryImageFile(file: File | null) {
-    setCategoryImageFile(file);
     if (!file) {
+      setCategoryImageFile(null);
       setCategoryImagePreview(categoryForm.imageUrl ? resolveImageUrl(categoryForm.imageUrl) : "");
       return;
     }
     const reader = new FileReader();
     reader.onloadend = () => {
-      setCategoryImagePreview(String(reader.result || ""));
+      const rawDataUrl = String(reader.result || "");
+      setCropperState({
+        isOpen: true,
+        imageSrc: rawDataUrl,
+        target: "category",
+        title: language === "km" ? "កែសម្រួល & Fit រូបថតប្រភេទ" : "Crop & Fit Category Image",
+      });
     };
     reader.readAsDataURL(file);
   }
@@ -837,14 +857,47 @@ export default function MenuPage() {
   }
 
   function handleImageFile(file: File | null) {
-    setImageFile(file);
-    setImagePreview(
-      file
-        ? URL.createObjectURL(file)
-        : productForm.imageUrl
+    if (!file) {
+      setImageFile(null);
+      setImagePreview(
+        productForm.imageUrl
           ? resolveImageUrl(productForm.imageUrl)
           : "",
-    );
+      );
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const rawDataUrl = String(reader.result || "");
+      setCropperState({
+        isOpen: true,
+        imageSrc: rawDataUrl,
+        target: "product",
+        title: language === "km" ? "កែសម្រួល & Fit រូបថតមុខម្ហូប/ភេសជ្ជៈ" : "Crop & Fit Item Image",
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleCropComplete(croppedFile: File, croppedPreviewUrl: string) {
+    if (cropperState.target === "product") {
+      setImageFile(croppedFile);
+      setImagePreview(croppedPreviewUrl);
+    } else {
+      setCategoryImageFile(croppedFile);
+      setCategoryImagePreview(croppedPreviewUrl);
+    }
+  }
+
+  function openCropperForCurrentPreview(target: "product" | "category") {
+    const src = target === "product" ? imagePreview : categoryImagePreview;
+    if (!src) return;
+    setCropperState({
+      isOpen: true,
+      imageSrc: src,
+      target,
+      title: language === "km" ? "កែសម្រួល & Fit រូបភាព" : "Crop & Fit Image",
+    });
   }
 
   return (
@@ -1093,8 +1146,8 @@ export default function MenuPage() {
           ) : (
             <>
               {/* Single Integrated Toolbar: Category Tabs (Left) + Actions (Right) */}
-              <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth py-1 min-w-0 flex-1 pr-2">
                   <FilterButton
                     active={selectedCategory === "all"}
                     onClick={() => setSelectedCategory("all")}
@@ -1205,6 +1258,7 @@ export default function MenuPage() {
                   categories={categories}
                   imagePreview={imagePreview}
                   handleImageFile={handleImageFile}
+                  onOpenCropper={() => openCropperForCurrentPreview("product")}
                   resetProductForm={resetProductForm}
                   submitProduct={submitProduct}
                   saving={saving}
@@ -1346,6 +1400,7 @@ export default function MenuPage() {
                   setCategoryForm={setCategoryForm}
                   categoryImagePreview={categoryImagePreview}
                   handleCategoryImageFile={handleCategoryImageFile}
+                  onOpenCropper={() => openCropperForCurrentPreview("category")}
                   submitCategory={submitCategory}
                   resetCategoryForm={resetCategoryForm}
                   onOpenChange={setCategoryEditorOpen}
@@ -1366,6 +1421,14 @@ export default function MenuPage() {
               </div>
             </div>
           )}
+
+          <ImageCropperModal
+            isOpen={cropperState.isOpen}
+            imageSrc={cropperState.imageSrc}
+            onClose={() => setCropperState((prev) => ({ ...prev, isOpen: false }))}
+            onCropComplete={handleCropComplete}
+            title={cropperState.title}
+          />
         </div>
       </main>
   );
@@ -1518,6 +1581,7 @@ function CategoryEditor({
   setCategoryForm,
   categoryImagePreview,
   handleCategoryImageFile,
+  onOpenCropper,
   resetCategoryForm,
   submitCategory,
   onOpenChange,
@@ -1534,6 +1598,7 @@ function CategoryEditor({
   setCategoryForm: React.Dispatch<React.SetStateAction<CategoryForm>>;
   categoryImagePreview?: string;
   handleCategoryImageFile?: (file: File | null) => void;
+  onOpenCropper?: () => void;
   resetCategoryForm: () => void;
   submitCategory: (event: FormEvent<HTMLFormElement>) => void;
   onOpenChange: (open: boolean) => void;
@@ -1577,29 +1642,46 @@ function CategoryEditor({
       <form onSubmit={submitCategory} className="space-y-4">
         {/* Category Image Picker */}
         {handleCategoryImageFile && (
-          <label
-            className={`mx-auto flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
-          >
-            {categoryImagePreview ? (
-              <img
-                src={categoryImagePreview}
-                alt="Category preview"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
-                <ImagePlus size={24} />
-                <span className="text-[11px] font-semibold">Category Image</span>
-              </div>
-            )}
+          <div className="relative group mx-auto h-28 w-28 overflow-hidden rounded-xl border border-dashed transition-all">
+            <label
+              className={`flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden hover:opacity-90 ${borderCol} ${mutedPanel}`}
+            >
+              {categoryImagePreview ? (
+                <img
+                  src={categoryImagePreview}
+                  alt="Category preview"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
+                  <ImagePlus size={24} />
+                  <span className="text-[11px] font-semibold">Category Image</span>
+                </div>
+              )}
 
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => handleCategoryImageFile(event.target.files?.[0] || null)}
-            />
-          </label>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => handleCategoryImageFile(event.target.files?.[0] || null)}
+              />
+            </label>
+            {categoryImagePreview && onOpenCropper && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenCropper();
+                }}
+                className="absolute bottom-1 right-1 flex items-center gap-1 rounded-md bg-black/75 backdrop-blur-xs px-2 py-0.5 text-[9.5px] font-bold text-white shadow-xs hover:bg-black cursor-pointer"
+                title="Crop / Fit image"
+              >
+                <Sparkles size={10} className="text-emerald-400" />
+                <span>Crop / Fit</span>
+              </button>
+            )}
+          </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1666,6 +1748,7 @@ function ProductEditor({
   categories,
   imagePreview,
   handleImageFile,
+  onOpenCropper,
   resetProductForm,
   submitProduct,
   saving,
@@ -1684,6 +1767,7 @@ function ProductEditor({
   categories: Category[];
   imagePreview: string;
   handleImageFile: (file: File | null) => void;
+  onOpenCropper?: () => void;
   resetProductForm: () => void;
   submitProduct: (event: FormEvent<HTMLFormElement>) => void;
   saving: boolean;
@@ -1716,29 +1800,46 @@ function ProductEditor({
       </div>
 
       <form onSubmit={submitProduct} className="space-y-4">
-        <label
-          className={`mx-auto flex h-32 w-32 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all hover:opacity-90 ${borderCol} ${mutedPanel}`}
-        >
-          {imagePreview ? (
-            <img
-              src={imagePreview}
-              alt="Product preview"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
-              <ImagePlus size={24} />
-              <span className="text-[11px] font-semibold">{text.uploadImage}</span>
-            </div>
-          )}
+        <div className="relative group mx-auto h-32 w-32 overflow-hidden rounded-xl border border-dashed transition-all">
+          <label
+            className={`flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden hover:opacity-90 ${borderCol} ${mutedPanel}`}
+          >
+            {imagePreview ? (
+              <img
+                src={imagePreview}
+                alt="Product preview"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-slate-400">
+                <ImagePlus size={24} />
+                <span className="text-[11px] font-semibold">{text.uploadImage}</span>
+              </div>
+            )}
 
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
-          />
-        </label>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => handleImageFile(event.target.files?.[0] || null)}
+            />
+          </label>
+          {imagePreview && onOpenCropper && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenCropper();
+              }}
+              className="absolute bottom-1 right-1 flex items-center gap-1 rounded-md bg-black/75 backdrop-blur-xs px-2 py-0.5 text-[9.5px] font-bold text-white shadow-xs hover:bg-black cursor-pointer"
+              title="Crop / Fit image"
+            >
+              <Sparkles size={10} className="text-emerald-400" />
+              <span>Crop / Fit</span>
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Item Name (English / ភាសាអង់គ្លេស)">
@@ -2062,7 +2163,7 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
+      className={`inline-flex shrink-0 whitespace-nowrap h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold select-none transition-all active:scale-95 ${
         active
           ? "bg-[#55a060] text-white shadow-sm shadow-[#55a060]/25"
           : dark

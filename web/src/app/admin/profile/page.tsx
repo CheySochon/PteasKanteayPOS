@@ -93,9 +93,11 @@ export default function ProfilePage() {
             email: meUser.email,
             role: resolvedRole,
           };
-          localStorage.setItem("pos_user", JSON.stringify(updated));
-          window.dispatchEvent(new Event("pos-auth-change"));
-          window.dispatchEvent(new Event("storage"));
+          const updatedStr = JSON.stringify(updated);
+          if (storedRaw !== updatedStr) {
+            localStorage.setItem("pos_user", updatedStr);
+            window.dispatchEvent(new Event("pos-auth-change"));
+          }
         }
       })
       .catch(() => {});
@@ -146,11 +148,11 @@ export default function ProfilePage() {
 
   const details = useMemo(
     () => [
-      { label: "Name", value: user.name, Icon: UserRound, colorClass: "text-[#696cff] bg-[#696cff]/10" },
-      { label: "Email", value: user.email || "No email saved", Icon: Mail, colorClass: "text-[#03c3ec] bg-[#03c3ec]/10" },
-      { label: "Role", value: user.role, Icon: ShieldCheck, colorClass: "text-[#71dd37] bg-[#71dd37]/10" },
-      { label: "Status", value: user.isActive === false ? "Inactive" : "Active", Icon: CheckCircle2, colorClass: "text-[#ffab00] bg-[#ffab00]/10" },
-      { label: "User ID", value: user.id ? `#${user.id}` : "#1", Icon: IdCard, colorClass: "text-[#8592a3] bg-[#8592a3]/10" },
+      { label: "Name", value: user.name, Icon: UserRound, colorClass: "text-indigo-600 dark:text-indigo-400 bg-gradient-to-br from-indigo-500/15 via-indigo-500/10 to-purple-500/20 border border-indigo-200/60 dark:border-indigo-800/40 shadow-xs" },
+      { label: "Email", value: user.email || "No email saved", Icon: Mail, colorClass: "text-sky-600 dark:text-sky-400 bg-gradient-to-br from-sky-500/15 via-sky-500/10 to-cyan-500/20 border border-sky-200/60 dark:border-sky-800/40 shadow-xs" },
+      { label: "Role", value: user.role, Icon: ShieldCheck, colorClass: "text-emerald-600 dark:text-emerald-400 bg-gradient-to-br from-emerald-500/15 via-emerald-500/10 to-teal-500/20 border border-emerald-200/60 dark:border-emerald-800/40 shadow-xs" },
+      { label: "Status", value: user.isActive === false ? "Inactive" : "Active", Icon: CheckCircle2, colorClass: "text-amber-600 dark:text-amber-400 bg-gradient-to-br from-amber-500/15 via-amber-500/10 to-orange-500/20 border border-amber-200/60 dark:border-amber-800/40 shadow-xs" },
+      { label: "User ID", value: user.id ? `#${user.id}` : "#1", Icon: IdCard, colorClass: "text-slate-600 dark:text-slate-300 bg-gradient-to-br from-slate-500/15 via-slate-500/10 to-zinc-500/20 border border-slate-200/60 dark:border-slate-800/40 shadow-xs" },
     ],
     [user.email, user.id, user.isActive, user.name, user.role]
   );
@@ -354,7 +356,7 @@ export default function ProfilePage() {
               <div className="flex flex-col items-center w-full">
                 {/* Avatar with Camera Upload Overlay */}
                 <div className="relative group mb-3">
-                  <div className={`h-28 w-28 overflow-hidden rounded-full border-4 ${dark ? "border-[#2b2c40]" : "border-white"} shadow-lg p-0.5 bg-white dark:bg-[#2b2c40]`}>
+                  <div className={`h-28 w-28 overflow-hidden rounded-full border-4 ${dark ? "border-[#2b2c40]" : "border-white"} shadow-xl p-0.5 bg-gradient-to-tr from-[#3b8c4c] via-[#55a060] to-[#71cc7e]`}>
                     {previewImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -363,17 +365,19 @@ export default function ProfilePage() {
                         className="h-full w-full rounded-full object-cover"
                       />
                     ) : (
-                      <div className={profileAvatarClass(user.name)}>
-                        {initials(user.name)}
+                      <div className="h-full w-full rounded-full bg-[#cbd0d9] dark:bg-slate-700 flex items-end justify-center overflow-hidden">
+                        <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                        </svg>
                       </div>
                     )}
                   </div>
 
                   <label
-                    className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#55a060] text-white shadow-md hover:bg-[#488c52] hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white dark:border-[#2b2c40]"
+                    className="absolute bottom-0 right-0 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-gradient-to-tr from-[#4ea668] via-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30 hover:scale-110 active:scale-95 transition-all duration-200 border-2 border-white dark:border-[#2b2c40] ring-2 ring-emerald-500/20"
                     title="Change Photo"
                   >
-                    <Camera size={16} />
+                    <Camera size={16} className="drop-shadow-xs stroke-[2.2]" />
                     <input
                       type="file"
                       accept="image/*,.heic,.heif,image/heic,image/heif"
@@ -435,8 +439,8 @@ export default function ProfilePage() {
 
               {/* Photo Action Row */}
               <div className="mt-6 flex items-center justify-center gap-2.5 w-full pt-4 border-t border-slate-100 dark:border-slate-800">
-                <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#55a060] px-4 text-xs font-semibold text-white hover:bg-[#488c52] transition active:scale-95 duration-200 shadow-sm">
-                  <UploadCloud size={15} />
+                <label className="inline-flex h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#55a060] to-[#468852] px-4 text-xs font-semibold text-white hover:from-[#488c52] hover:to-[#3b7343] transition active:scale-95 duration-200 shadow-sm shadow-[#55a060]/20">
+                  <Camera size={15} className="stroke-[2.2]" />
                   Upload Photo
                   <input
                     type="file"
@@ -600,13 +604,13 @@ export default function ProfilePage() {
 
 function RoleIcon({ role }: { role: string }) {
   if (role === "Super Admin" || role === "Admin") {
-    return <Crown size={14} className="text-[#696cff] shrink-0" />;
+    return <Crown size={15} className="text-amber-500 drop-shadow-xs stroke-[2.2] shrink-0 animate-pulse" />;
   }
   if (role === "Cashier") {
-    return <CreditCard size={14} className="text-[#03c3ec] shrink-0" />;
+    return <CreditCard size={15} className="text-blue-500 drop-shadow-xs stroke-[2.2] shrink-0" />;
   }
-  if (role === "Staff") {
-    return <ChefHat size={14} className="text-[#ffab00] shrink-0" />;
+  if (role === "Staff" || role === "Kitchen") {
+    return <ChefHat size={15} className="text-emerald-500 drop-shadow-xs stroke-[2.2] shrink-0" />;
   }
-  return <UserRound size={14} className="text-[#8592a3] shrink-0" />;
+  return <ShieldCheck size={15} className="text-indigo-500 drop-shadow-xs stroke-[2.2] shrink-0" />;
 }
