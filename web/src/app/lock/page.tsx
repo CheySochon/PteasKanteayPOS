@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { loginPin, apiOrigin } from "../../lib/api";
+import { loginPin, apiOrigin, resolveImageUrl } from "../../lib/api";
 import { getProfileImage } from "../../lib/profile";
 
 export default function LockScreen() {
@@ -92,7 +92,7 @@ export default function LockScreen() {
           <div className="flex flex-col items-center text-center shrink-0">
             {lockedUser.imageUrl ? (
               <img
-                src={lockedUser.imageUrl.startsWith("data:") || lockedUser.imageUrl.startsWith("http") ? lockedUser.imageUrl : `${apiOrigin}${lockedUser.imageUrl}`}
+                src={resolveImageUrl(lockedUser.imageUrl)}
                 alt={lockedUser.name}
                 className="h-16 w-16 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
               />

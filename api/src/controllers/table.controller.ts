@@ -36,6 +36,10 @@ export const update = asyncHandler(
     res: Response,
   ) => {
     const data = await updateTable(Number(req.params.id), req.body);
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("table:updated", data);
+    }
     res.json({ success: true, message: "Table updated", data });
   },
 );

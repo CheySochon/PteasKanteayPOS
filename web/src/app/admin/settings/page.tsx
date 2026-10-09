@@ -66,6 +66,7 @@ import {
   getTelegramConfig,
   updateTelegramConfig,
   testTelegramBot,
+  resolveImageUrl,
   type BackupFile,
   type BackupSummary,
   type AuditLogItem,
@@ -2345,12 +2346,6 @@ function currency(value: number, code: string) {
     style: "currency",
     currency: code || "USD",
   }).format(Number(value || 0));
-}
-
-function resolveImageUrl(imageUrl?: string | null) {
-  if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }
 
 function backupTotal(summary: BackupSummary) {

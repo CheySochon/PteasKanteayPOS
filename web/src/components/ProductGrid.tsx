@@ -2,18 +2,12 @@
 
 import { ImageIcon } from "lucide-react";
 import type { Product } from "../lib/types";
-import { apiOrigin } from "../lib/api";
+import { apiOrigin, resolveImageUrl } from "../lib/api";
 
 import { getProductCategoryBadgeName, resolveProductName, useAppLanguage } from "../lib/language";
 
 function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
-}
-
-function resolveImageUrl(imageUrl?: string | null) {
-  if (!imageUrl) return "";
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }
 
 export default function ProductGrid({

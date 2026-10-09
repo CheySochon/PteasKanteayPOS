@@ -30,7 +30,7 @@ router.post("/", ...adminOnly, validate(createTableSchema), asyncHandler(create)
 router.post("/move", ...staffOrAdmin, validate(moveTableSchema), asyncHandler(move));
 router.post("/merge", ...staffOrAdmin, validate(mergeTableSchema), asyncHandler(merge));
 router.post("/:id/unmerge", ...staffOrAdmin, asyncHandler(unmerge));
-router.put("/:id", ...adminOnly, validate(updateTableSchema), asyncHandler(update));
+router.put("/:id", ...staffOrAdmin, validate(updateTableSchema), asyncHandler(update));
 
 router.delete("/:id", ...adminOnly, asyncHandler(remove));
 router.get("/:qrToken/qr-code", asyncHandler(qrCode));

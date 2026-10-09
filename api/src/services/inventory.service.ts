@@ -197,7 +197,7 @@ export const listStockTransactions = async (productId?: number) => {
     where.productId = productId;
   }
 
-  return prisma.stockTransaction.findMany({
+  const transactions = await prisma.stockTransaction.findMany({
     where,
     include: {
       product: {
@@ -219,6 +219,46 @@ export const listStockTransactions = async (productId?: number) => {
       createdAt: "desc",
     },
   });
+
+  // Dynamic fallback: for transactions missing userId but having an order referenceId (ORD-...),
+  // fetch the order's createdBy user if available
+  const missingUserOrderRefs = Array.from(
+    new Set(
+      transactions
+        .filter((tx) => !tx.userId && tx.referenceId && tx.referenceId.startsWith("ORD-"))
+        .map((tx) => tx.referenceId as string),
+    ),
+  );
+
+  if (missingUserOrderRefs.length > 0) {
+    const orders = await prisma.order.findMany({
+      where: { orderNumber: { in: missingUserOrderRefs } },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    const orderUserMap = new Map<string, any>();
+    for (const ord of orders) {
+      if (ord.createdBy) {
+        orderUserMap.set(ord.orderNumber, ord.createdBy);
+      }
+    }
+
+    for (const tx of transactions) {
+      if (!tx.user && tx.referenceId && orderUserMap.has(tx.referenceId)) {
+        (tx as any).user = orderUserMap.get(tx.referenceId);
+      }
+    }
+  }
+
+  return transactions;
 };
 
 function slugify(value: string): string {

@@ -51,6 +51,7 @@ import {
   apiOrigin,
   uploadUserImage,
   getAdminGroups,
+  resolveImageUrl,
 } from "../../../lib/api";
 import type { Role, User } from "../../../lib/types";
 import {
@@ -1040,7 +1041,7 @@ export default function AdminUsersPage() {
                       {form.imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={form.imageUrl.startsWith("data:") || form.imageUrl.startsWith("http") ? form.imageUrl : `${apiOrigin}${form.imageUrl}`}
+                          src={resolveImageUrl(form.imageUrl)}
                           alt="Avatar"
                           className="h-full w-full object-cover"
                         />
@@ -1289,7 +1290,7 @@ export default function AdminUsersPage() {
                   {viewingUser.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={viewingUser.imageUrl.startsWith("data:") || viewingUser.imageUrl.startsWith("http") ? viewingUser.imageUrl : `${apiOrigin}${viewingUser.imageUrl}`}
+                      src={resolveImageUrl(viewingUser.imageUrl)}
                       alt={viewingUser.name}
                       className="h-full w-full object-cover"
                     />

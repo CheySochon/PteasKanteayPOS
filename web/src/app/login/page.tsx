@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { apiOrigin, getSettings, getUsers, login, logAuditEntry, loginPin, getPublicStaff, resetPasswordApi } from "../../lib/api";
+import { apiOrigin, getSettings, getUsers, login, logAuditEntry, loginPin, getPublicStaff, resetPasswordApi, resolveImageUrl } from "../../lib/api";
 import { setCookie } from "../../lib/cookies";
 import { firstAllowedPathForRole } from "../../lib/permissions";
 import { useAutoDismiss } from "../../lib/useAutoDismiss";
@@ -975,7 +975,7 @@ export default function LoginPage() {
               <div className="flex flex-col items-center text-center mb-5">
                 {restaurantImageUrl && !imageError ? (
                   <img
-                    src={restaurantImageUrl.startsWith("http") ? restaurantImageUrl : `${apiOrigin}${restaurantImageUrl}`}
+                    src={resolveImageUrl(restaurantImageUrl)}
                     alt="Restaurant Logo"
                     width={64}
                     height={64}
@@ -1085,7 +1085,7 @@ export default function LoginPage() {
                   const selImg = selectedStaff.imageUrl || getProfileImage({ id: selectedStaff.id, name: selectedStaff.name, email: selectedStaff.email, role: selectedStaff.role });
                   return selImg ? (
                     <img
-                      src={selImg.startsWith("data:") || selImg.startsWith("http") ? selImg : `${apiOrigin}${selImg}`}
+                      src={resolveImageUrl(selImg)}
                       alt={selectedStaff.name}
                       className="h-13 w-13 rounded-2xl object-cover shadow-sm mb-2 ring-4 ring-emerald-500/10 border border-slate-100 dark:border-slate-800"
                     />
@@ -1216,7 +1216,7 @@ export default function LoginPage() {
                       >
                         {staffImg ? (
                           <img
-                            src={staffImg.startsWith("data:") || staffImg.startsWith("http") ? staffImg : `${apiOrigin}${staffImg}`}
+                            src={resolveImageUrl(staffImg)}
                             alt={staff.name}
                             className="h-10.5 w-10.5 rounded-lg object-cover shadow-xs shrink-0 group-hover:scale-105 transition-transform border border-slate-100 dark:border-slate-800"
                           />

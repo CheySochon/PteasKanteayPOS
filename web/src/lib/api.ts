@@ -24,29 +24,31 @@ export function getApiBaseUrl() {
   if (typeof window !== "undefined") {
     const customUrl = localStorage.getItem("pos_api_url");
     if (customUrl && customUrl.trim()) {
-      const cleanCustom = customUrl.trim().replace(/\/$/, "");
-      if (cleanCustom.includes(".trycloudflare.com") && !cleanCustom.includes(window.location.hostname)) {
-        localStorage.removeItem("pos_api_url");
-      } else {
-        return cleanCustom;
-      }
+      return customUrl.trim().replace(/\/$/, "");
+    }
+
+    const hostname = window.location.hostname;
+    const isLocalHost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".local") ||
+      /^192\.168\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+    if (isLocalHost) {
+      const port = process.env.NEXT_PUBLIC_API_PORT || "4000";
+      const protocol = window.location.protocol;
+      return `${protocol}//${hostname}:${port}/api`;
     }
   }
 
-  const envUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
-  if (typeof window !== "undefined") {
-    try {
-      const parsed = new URL(envUrl, window.location.href);
-      if (parsed.hostname === "localhost" && window.location.hostname !== "localhost") {
-        const isLocalIp = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.)/.test(window.location.hostname);
-        if (isLocalIp) {
-          parsed.hostname = window.location.hostname;
-          return parsed.toString().replace(/\/$/, "");
-        }
-      }
-    } catch {}
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim().replace(/\/$/, "");
   }
-  return envUrl;
+
+  return "https://pteaskanteaypos.onrender.com/api";
 }
 
 export function getApiOrigin() {
@@ -57,21 +59,29 @@ export function resolveImageUrl(value?: string | null): string {
   if (!value || !value.trim()) return "";
   let trimmed = value.trim();
 
+  if (/^(data:|blob:)/i.test(trimmed)) return trimmed;
+
+  const origin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
+
+  const uploadIdx = trimmed.indexOf("/uploads/");
+  if (uploadIdx !== -1) {
+    const relativePath = trimmed.substring(uploadIdx);
+    return `${origin}${relativePath}`;
+  }
+
+  if (trimmed.startsWith("uploads/")) {
+    return `${origin}/${trimmed}`;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return `${origin}${trimmed}`;
+  }
+
   if (trimmed.startsWith("http://") && !trimmed.includes("localhost") && !trimmed.includes("127.0.0.1")) {
     trimmed = trimmed.replace("http://", "https://");
   }
 
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(trimmed)) {
-    const origin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
-    const cleanPath = trimmed.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, "");
-    return `${origin}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
-  }
-
-  if (/^(https?:\/\/|blob:|data:)/i.test(trimmed)) return trimmed;
-
-  const origin = typeof window !== "undefined" ? getApiOrigin() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/api$/, "");
-  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return `${origin}${cleanPath}`;
+  return trimmed;
 }
 
 export const apiBaseUrl = typeof window !== "undefined" ? getApiBaseUrl() : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");

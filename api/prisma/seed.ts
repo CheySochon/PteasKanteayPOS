@@ -1,6 +1,7 @@
+import "dotenv/config";
 import bcrypt from "bcrypt";
-import { prisma } from "../src/config/prisma.js";
 import { TableZone } from "@prisma/client";
+import { prisma } from "../src/config/prisma.js";
 
 function slugify(value: string) {
   return String(value)
@@ -103,14 +104,14 @@ async function main() {
   const superAdmin = await prisma.user.upsert({
     where: { email: "cheychon258@gmail.com" },
     update: {
-      name: "Super Admin",
+      name: "CheySochon",
       password: hashedPassword,
       isActive: true,
       pin: "0000",
       deletedAt: null,
     },
     create: {
-      name: "Super Admin",
+      name: "CheySochon",
       email: "cheychon258@gmail.com",
       password: hashedPassword,
       isActive: true,

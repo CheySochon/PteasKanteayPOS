@@ -36,7 +36,7 @@ import {
   Trash2,
   ShoppingCart,
 } from "lucide-react";
-import { apiOrigin, getAdminGroups, getSettings, logoutApi } from "../lib/api";
+import { apiOrigin, getAdminGroups, getSettings, logoutApi, resolveImageUrl } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { canSeeHref, normalizeStaffPermissions, parseStoredUser, permissionsForUser } from "../lib/permissions";
 import {
@@ -1537,11 +1537,6 @@ function getRestaurantImageSnapshot() {
 
 function getServerRestaurantImageSnapshot() {
   return "";
-}
-
-function resolveImageUrl(imageUrl: string) {
-  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
-  return `${apiOrigin}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
 }
 
 function subscribeToUserChanges(onStoreChange: () => void) {
