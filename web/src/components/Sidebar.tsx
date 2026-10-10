@@ -90,7 +90,6 @@ const REPORTS_CHILDREN = [
 
 const SETTINGS_CHILDREN = [
   { key: "general", label: "General Info", href: "/admin/settings?tab=general", icon: Building2 },
-  { key: "invoice_receipt", label: "Invoice & Receipt", href: "/admin/settings?tab=invoice_receipt", icon: FileText },
   { key: "billing", label: "Tax Setup", href: "/admin/settings?tab=billing", icon: ReceiptText },
   { key: "printers", label: "Hardware & Printers", href: "/admin/settings?tab=printers", icon: Printer },
   { key: "integrations", label: "Integrations", href: "/admin/settings?tab=integrations", icon: SendHorizontal },

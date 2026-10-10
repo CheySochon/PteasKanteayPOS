@@ -538,6 +538,10 @@ export default function LoginPage() {
         localizedMsg = language === "km"
           ? `🛑 គណនីរបស់អ្នកត្រូវបានចាក់សោបណ្តោះអាសន្ន! សូមព្យាយាមម្តងទៀតក្នុងរយៈពេល ${mins} នាទី`
           : `🛑 Account temporarily locked. Please try again in ${mins} minute(s).`;
+      } else if (errText.toLowerCase().includes("failed to connect") || errText.toLowerCase().includes("timed out") || errText.toLowerCase().includes("fetch")) {
+        localizedMsg = language === "km"
+          ? "🛑 មិនអាចភ្ជាប់ទៅកាន់ Backend Server បានទេ (សូមប្រាកដថា API Server កំពុងដំណើរការលើ Port 4000)"
+          : "🛑 Cannot connect to backend server. Make sure API server is running on port 4000.";
       } else if (errText.toLowerCase().includes("invalid pin")) {
         localizedMsg = language === "km" ? "🛑 លេខកូដ PIN មិនត្រឹមត្រូវឡើយ" : "🛑 Invalid PIN code entered";
       }
@@ -634,6 +638,10 @@ export default function LoginPage() {
         localizedMsg = language === "km"
           ? `🛑 គណនីរបស់អ្នកត្រូវបានចាក់សោបណ្តោះអាសន្ន! សូមព្យាយាមម្តងទៀតក្នុងរយៈពេល ${mins} នាទី`
           : `🛑 Account temporarily locked. Please try again in ${mins} minute(s).`;
+      } else if (errText.toLowerCase().includes("failed to connect") || errText.toLowerCase().includes("timed out") || errText.toLowerCase().includes("fetch")) {
+        localizedMsg = language === "km"
+          ? "🛑 មិនអាចភ្ជាប់ទៅកាន់ Backend Server បានទេ (សូមប្រាកដថា API Server កំពុងដំណើរការលើ Port 4000)"
+          : "🛑 Cannot connect to backend server. Make sure API server is running on port 4000.";
       }
       setError(localizedMsg);
       sendClientTelegramAlert(false, cleanEmail || "Unknown User", "Guest", errText);

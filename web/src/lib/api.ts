@@ -21,12 +21,12 @@ import type {
 import { saveToCache, getFromCache, addOfflineOrder } from "./db";
 
 export function getApiBaseUrl() {
-  if (typeof window !== "undefined") {
-    const customUrl = localStorage.getItem("pos_api_url");
-    if (customUrl && customUrl.trim()) {
-      return customUrl.trim().replace(/\/$/, "");
-    }
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim() && !envUrl.includes("pteaskanteaypos.onrender.com")) {
+    return envUrl.trim().replace(/\/$/, "");
+  }
 
+  if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
     const isLocalHost =
       hostname === "localhost" ||
@@ -43,12 +43,7 @@ export function getApiBaseUrl() {
     }
   }
 
-  const envUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (envUrl && envUrl.trim()) {
-    return envUrl.trim().replace(/\/$/, "");
-  }
-
-  return "https://pteaskanteaypos.onrender.com/api";
+  return "http://localhost:4000/api";
 }
 
 export function getApiOrigin() {
@@ -445,7 +440,9 @@ export const getProducts = async () => {
   });
 
   if (typeof window !== "undefined" && list.length > 0) {
-    saveToCache("products", list).catch(console.error);
+    setTimeout(() => {
+      saveToCache("products", list).catch(() => {});
+    }, 600);
   }
 
   return list;
@@ -847,7 +844,9 @@ export const getOrders = async (status?: string): Promise<Order[]> => {
   }
 
   if (data.length > 0 && typeof window !== "undefined") {
-    saveToCache("orders", data).catch(console.error);
+    setTimeout(() => {
+      saveToCache("orders", data).catch(() => {});
+    }, 600);
   }
 
   return data;

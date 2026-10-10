@@ -72,7 +72,6 @@ function buildOrderInclude() {
 }
 
 async function generateOrderNumber(tx?: any): Promise<string> {
-  const client = tx || prisma;
   const date = new Date();
   const stamp = [
     date.getFullYear(),
@@ -81,9 +80,9 @@ async function generateOrderNumber(tx?: any): Promise<string> {
   ].join("");
 
   const rand = Math.floor(1000 + Math.random() * 9000);
-  const count = await client.order.count();
+  const timeSlice = Date.now().toString().slice(-4);
 
-  return `ORD-${stamp}-${String(count + 1).padStart(4, "0")}-${rand}`;
+  return `ORD-${stamp}-${timeSlice}-${rand}`;
 }
 
 export const listOrders = async (query: Record<string, string> = {}) => {
@@ -277,49 +276,87 @@ export const createOrder = async (payload: {
     throw new Error("Order items required");
   }
 
-  return prisma.$transaction(async (tx) => {
-    // Check stock availability first inside transaction
-    for (const item of rawItems) {
+  // 1. Batch lookup existing products to avoid multiple roundtrips inside the transaction
+  const validProductIds = rawItems
+    .map((item) => Number(item.productId))
+    .filter((id) => !isNaN(id) && id > 0 && id <= MAX_INT);
+
+  const resolvedProductsMap = new Map<number, any>();
+  if (validProductIds.length > 0) {
+    const existingProducts = await prisma.product.findMany({
+      where: { id: { in: validProductIds } },
+      include: { category: true },
+    });
+    for (const p of existingProducts) {
+      resolvedProductsMap.set(p.id, p);
+    }
+  }
+
+  // Pre-resolve any missing products before opening transaction
+  for (const item of rawItems) {
+    const pId = Number(item.productId);
+    if (!resolvedProductsMap.has(pId)) {
       const itemName = (item as any).name || (item as any).productName || (item as any).title;
       const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
       const product = await findProductSafely(item.productId, itemName, itemPrice);
-      if (product?.trackStock) {
-        const inventory = await tx.inventory.findUnique({
-          where: { productId: product.id },
-        });
-        const qty = Math.max(1, Number(item.quantity || 1));
-        const available = Number(inventory?.quantity ?? 0);
-        if (available < qty) {
-          throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit}`);
-        }
+      if (product) {
+        resolvedProductsMap.set(pId, product);
+        resolvedProductsMap.set(product.id, product);
       }
     }
-    
+  }
+
+  return prisma.$transaction(async (tx) => {
     let calculatedSubtotal = 0;
     const itemsToCreate = [];
+    const stockTrackedItems: { productId: number; product: any; quantity: number }[] = [];
 
     for (const item of rawItems) {
-      const itemName = (item as any).name || (item as any).productName || (item as any).title;
-      const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
-      const product = await findProductSafely(item.productId, itemName, itemPrice);
+      const pId = Number(item.productId);
+      const product = resolvedProductsMap.get(pId) || resolvedProductsMap.get(Number(item.productId));
       if (!product) {
-        throw new Error(`Unable to resolve or create product for item: "${itemName || item.productId}"`);
+        const itemName = (item as any).name || (item as any).productName || (item as any).title;
+        throw new Error(`Unable to resolve product for item: "${itemName || item.productId}"`);
       }
-      const targetProductId = product.id;
 
       const qty = Math.max(1, Number(item.quantity || 1));
+      const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
       const finalPrice = itemPrice > 0 ? itemPrice : toNum(product?.basePrice ?? 0);
       const totalPrice = toNum(item.totalPrice ?? (finalPrice * qty));
 
       calculatedSubtotal += totalPrice;
 
       itemsToCreate.push({
-        productId: targetProductId,
+        productId: product.id,
         quantity: qty,
         unitPrice: finalPrice,
         totalPrice: totalPrice,
         notes: item.notes || null,
       });
+
+      if (product.trackStock) {
+        stockTrackedItems.push({
+          productId: product.id,
+          product,
+          quantity: qty,
+        });
+      }
+    }
+
+    // Batch validate stock for tracked items
+    if (stockTrackedItems.length > 0) {
+      const trackIds = Array.from(new Set(stockTrackedItems.map((s) => s.productId)));
+      const inventories = await tx.inventory.findMany({
+        where: { productId: { in: trackIds } },
+      });
+      const invMap = new Map<number, number>(inventories.map((i) => [i.productId, Number(i.quantity)]));
+
+      for (const { productId, product, quantity } of stockTrackedItems) {
+        const available = invMap.get(productId) ?? 0;
+        if (available < quantity) {
+          throw new Error(`Insufficient stock for product ${product.name}. Available: ${available} ${product.unit || "units"}`);
+        }
+      }
     }
 
     const subtotal = payload.subtotal ? toNum(payload.subtotal) : calculatedSubtotal;
@@ -347,26 +384,21 @@ export const createOrder = async (payload: {
       include: buildOrderInclude(),
     });
 
-    // Deduct stock for items where trackStock is enabled inside transaction
-    for (const item of created.items) {
-      if (item.product?.trackStock) {
-        const inv = await tx.inventory.findUnique({ where: { productId: item.productId } });
-        if (inv) {
-          await tx.inventory.update({
-            where: { productId: item.productId },
-            data: { quantity: Number(inv.quantity) - item.quantity },
-          });
-          await tx.stockTransaction.create({
-            data: {
-              productId: item.productId,
-              type: "sale",
-              quantity: -item.quantity,
-              referenceId: created.orderNumber,
-              userId: userId || null,
-            },
-          });
-        }
-      }
+    // Deduct stock for items where trackStock is enabled
+    for (const { productId, quantity } of stockTrackedItems) {
+      await tx.inventory.update({
+        where: { productId },
+        data: { quantity: { decrement: quantity } },
+      });
+      await tx.stockTransaction.create({
+        data: {
+          productId,
+          type: "sale",
+          quantity: -quantity,
+          referenceId: created.orderNumber,
+          userId: userId || null,
+        },
+      });
     }
 
     return formatOrder(created);

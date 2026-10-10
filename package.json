@@ -1,0 +1,13 @@
+{
+  "name": "thesis-pos-management",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:api": "npm --prefix api run dev",
+    "dev:web": "npm --prefix web run dev",
+    "build:api": "npm --prefix api run build",
+    "build:web": "npm --prefix web run build",
+    "start:api": "npm --prefix api run start",
+    "start:web": "npm --prefix web run start"
+  }
+}

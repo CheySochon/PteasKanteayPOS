@@ -594,8 +594,12 @@ export default function ReportsPage() {
     refreshReports();
 
     const socket = getSocket();
+    let debounceReportTimer: NodeJS.Timeout | null = null;
     const onRealtimeUpdate = () => {
-      refreshReports();
+      if (debounceReportTimer) clearTimeout(debounceReportTimer);
+      debounceReportTimer = setTimeout(() => {
+        refreshReports();
+      }, 1000);
     };
 
     if (socket) {
@@ -618,6 +622,7 @@ export default function ReportsPage() {
     const refreshTimer = window.setInterval(refreshReports, 10000);
 
     return () => {
+      if (debounceReportTimer) clearTimeout(debounceReportTimer);
       if (socket) {
         socket.off("connect", onRealtimeUpdate);
         socket.off("dashboard:update", onRealtimeUpdate);

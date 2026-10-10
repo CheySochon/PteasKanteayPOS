@@ -142,7 +142,7 @@ async function main() {
     ["T1", 2, "indoor", "table-t-1"],
     ["T2", 2, "indoor", "table-t-2"],
     ["T3", 4, "indoor", "table-t-3"],
-    ["T4", 4, "outdoor", "table-t-4"],
+    ["T4", 4, "indoor", "table-t-4"],
   ] as [string, number, TableZone, string][];
 
   for (const [name, capacity, zone, qrToken] of tables) {

@@ -12,11 +12,26 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
 ].filter(Boolean) as string[];
 
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app") ||
+        origin.includes("vercel.app") ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        /^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   },
 });
@@ -24,51 +39,67 @@ const io = new Server(httpServer, {
 app.set("io", io);
 (global as any).io = io;
 
+// Broadcast cache to prevent duplicate storms across sockets
+const recentBroadcasts = new Map<string, number>();
+function isDuplicateBroadcast(key: string, ttlMs = 2000): boolean {
+  const now = Date.now();
+  const last = recentBroadcasts.get(key);
+  if (last && now - last < ttlMs) return true;
+  recentBroadcasts.set(key, now);
+  if (recentBroadcasts.size > 200) {
+    for (const [k, t] of recentBroadcasts.entries()) {
+      if (now - t > 10000) recentBroadcasts.delete(k);
+    }
+  }
+  return false;
+}
+
 io.on("connection", (socket: Socket) => {
-  socket.on("order:new", (order: unknown) => {
-    io.emit("order:created", order);
-    io.emit("order:new", order);
-    io.emit("orders:updated", order);
-    io.emit("dashboard:update", order);
-    io.emit("reports:updated", order);
-  });
+  const handleOrderCreated = (order: any) => {
+    if (!order) return;
+    const orderId = order.id || order.orderNumber;
+    if (orderId && isDuplicateBroadcast(`create-${orderId}`)) return;
 
-  socket.on("order:create", (order: unknown) => {
-    io.emit("order:created", order);
-    io.emit("order:new", order);
-    io.emit("orders:updated", order);
-    io.emit("dashboard:update", order);
-    io.emit("reports:updated", order);
-  });
+    socket.broadcast.emit("order:created", order);
+    socket.broadcast.emit("order:new", order);
+    socket.broadcast.emit("orders:updated", order);
+    socket.broadcast.emit("dashboard:update", order);
+    socket.broadcast.emit("reports:updated", order);
+  };
 
-  socket.on("order:created", (order: unknown) => {
-    io.emit("order:created", order);
-    io.emit("order:new", order);
-    io.emit("orders:updated", order);
-    io.emit("dashboard:update", order);
-    io.emit("reports:updated", order);
-  });
+  socket.on("order:new", handleOrderCreated);
+  socket.on("order:create", handleOrderCreated);
+  socket.on("order:created", handleOrderCreated);
 
-  socket.on("order:update", (order: unknown) => {
-    io.emit("order:updated", order);
-    io.emit("orders:updated", order);
-    io.emit("dashboard:update", order);
-    io.emit("reports:updated", order);
-  });
+  const handleOrderUpdated = (order: any) => {
+    if (!order) return;
+    const orderId = order.id || order.orderNumber;
+    const status = order.status || "";
+    if (orderId && isDuplicateBroadcast(`update-${orderId}-${status}`)) return;
 
-  socket.on("order:updated", (order: unknown) => {
-    io.emit("order:updated", order);
-    io.emit("orders:updated", order);
-    io.emit("dashboard:update", order);
-    io.emit("reports:updated", order);
-  });
+    socket.broadcast.emit("order:updated", order);
+    socket.broadcast.emit("orders:updated", order);
+    socket.broadcast.emit("dashboard:update", order);
+    socket.broadcast.emit("reports:updated", order);
+  };
 
-  socket.on("order:deleted", (data: unknown) => {
-    io.emit("order:deleted", data);
-    io.emit("orders:updated", data);
-    io.emit("dashboard:update", data);
-    io.emit("reports:updated", data);
-  });
+  socket.on("order:update", handleOrderUpdated);
+  socket.on("order:updated", handleOrderUpdated);
+
+  const handleOrderDeleted = (data: any) => {
+    if (!data) return;
+    const targetId = typeof data === "object" ? data.id || data.orderId : data;
+    if (targetId && isDuplicateBroadcast(`delete-${targetId}`)) return;
+
+    socket.broadcast.emit("order:deleted", data);
+    socket.broadcast.emit("orders:updated", data);
+    socket.broadcast.emit("dashboard:update", data);
+    socket.broadcast.emit("reports:updated", data);
+  };
+
+  socket.on("order:delete", handleOrderDeleted);
+  socket.on("order:deleted", handleOrderDeleted);
+  socket.on("order:removed", handleOrderDeleted);
 
   socket.on("user:created", (user: unknown) => {
     io.emit("user:created", user);

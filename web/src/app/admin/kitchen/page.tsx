@@ -101,13 +101,20 @@ export default function AdminKitchenPage() {
     loadOrders();
     const socket = getSocket();
 
+    let reloadTimer: NodeJS.Timeout | null = null;
+    const scheduleReload = (silent = true) => {
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => {
+        loadOrders(silent);
+      }, 300);
+    };
+
     function handleOrderEvent() {
-      loadOrders(true);
+      scheduleReload(true);
     }
 
     function handleNewOrder() {
-      playKitchenBellSound();
-      loadOrders(true);
+      scheduleReload(true);
     }
 
     if (socket) {
@@ -115,7 +122,6 @@ export default function AdminKitchenPage() {
         socket.connect();
       }
       socket.on("order:created", handleNewOrder);
-      socket.on("order:new", handleNewOrder);
       socket.on("order:updated", handleOrderEvent);
       socket.on("table:merged", handleOrderEvent);
       socket.on("table:moved", handleOrderEvent);
@@ -126,9 +132,9 @@ export default function AdminKitchenPage() {
     window.addEventListener("storage", handleOrderEvent);
 
     return () => {
+      if (reloadTimer) clearTimeout(reloadTimer);
       if (socket) {
         socket.off("order:created", handleNewOrder);
-        socket.off("order:new", handleNewOrder);
         socket.off("order:updated", handleOrderEvent);
         socket.off("table:merged", handleOrderEvent);
         socket.off("table:moved", handleOrderEvent);

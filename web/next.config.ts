@@ -27,15 +27,15 @@ const securityHeaders = [
   },
   {
     key: "Content-Security-Policy",
-    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' http://localhost:4000 ws://localhost:4000 http://localhost:3000 ws://localhost:3000; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self';",
+    value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: http://localhost:4000 http://127.0.0.1:4000 https: http:; connect-src 'self' http://localhost:4000 ws://localhost:4000 http://127.0.0.1:4000 ws://127.0.0.1:4000 http://localhost:3000 ws://localhost:3000 http://127.0.0.1:3000 ws://127.0.0.1:3000 https://pteaskanteaypos.onrender.com wss://pteaskanteaypos.onrender.com https://api.telegram.org https: http: ws: wss:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self';",
   },
 ];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  allowedDevOrigins: ["*.trycloudflare.com", "localhost:3000"],
+  allowedDevOrigins: ["*.trycloudflare.com", "localhost:3000", "127.0.0.1:3000"],
   async rewrites() {
-    let dest = process.env.NEXT_PUBLIC_API_URL || "https://pteaskanteaypos.onrender.com/api";
+    let dest = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
     if (!dest.startsWith("http://") && !dest.startsWith("https://")) {
       dest = `https://${dest}`;
     }
@@ -44,8 +44,8 @@ const nextConfig: NextConfig = {
     }
     return [
       {
-        source: "/api/:path*",
-        destination: `${dest}/:path*`,
+        source: "/api/((?!send-otp).*)",
+        destination: `${dest}/:1`,
       },
     ];
   },

@@ -487,9 +487,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
       const socket = getSocket();
       if (socket) {
-        socket.emit("order:create", fullOrder);
         socket.emit("order:created", fullOrder);
-        socket.emit("order:new", fullOrder);
       }
 
       if (typeof window !== "undefined") {
@@ -573,11 +571,11 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     function isDuplicateEvent(key: string): boolean {
       const now = Date.now();
       const last = recentEvents.get(key);
-      if (last && now - last < 500) return true;
+      if (last && now - last < 2500) return true;
       recentEvents.set(key, now);
-      if (recentEvents.size > 100) {
+      if (recentEvents.size > 200) {
         for (const [k, t] of recentEvents.entries()) {
-          if (now - t > 2000) recentEvents.delete(k);
+          if (now - t > 10000) recentEvents.delete(k);
         }
       }
       return false;
@@ -593,20 +591,24 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         return [order, ...current];
       });
 
-      const label = order.orderNumber || order.orderId || `#${order.id}`;
-      const table = order.table?.name || order.tableNo;
-      const detail = table ? `${label} - Table ${table} needs attention` : `${label} needs attention`;
+      // Only notify if order originated as an online QR order
+      const isQr = order.isQr || order.source === "qr" || (!order.createdById && order.tableId);
+      if (isQr) {
+        const label = order.orderNumber || order.orderId || `#${order.id}`;
+        const table = order.table?.name || order.tableNo;
+        const detail = table ? `${label} - Table ${table} needs attention` : `${label} needs attention`;
 
-      const notif = {
-        id: `order-${order.id}-${Date.now()}`,
-        title: "New QR Order Received",
-        detail,
-        orderId: order.id,
-        tableNo: String(table || ""),
-        totalAmount: Number(order.totalAmount || 0),
-      };
+        const notif = {
+          id: `order-${order.id}-${Date.now()}`,
+          title: "New QR Order Received",
+          detail,
+          orderId: order.id,
+          tableNo: String(table || ""),
+          totalAmount: Number(order.totalAmount || 0),
+        };
 
-      setNotifications((current) => [notif, ...current].slice(0, 5));
+        setNotifications((current) => [notif, ...current].slice(0, 5));
+      }
     }
 
     function handleOrderUpdated(order: any) {
@@ -623,18 +625,12 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     }
 
     socket.on("order:created", handleOrderCreated);
-    socket.on("order:new", handleOrderCreated);
     socket.on("order:updated", handleOrderUpdated);
     socket.on("order:deleted", handleOrderDeleted);
-    socket.on("order:delete", handleOrderDeleted);
-    socket.on("order:removed", handleOrderDeleted);
     return () => {
       socket.off("order:created", handleOrderCreated);
-      socket.off("order:new", handleOrderCreated);
       socket.off("order:updated", handleOrderUpdated);
       socket.off("order:deleted", handleOrderDeleted);
-      socket.off("order:delete", handleOrderDeleted);
-      socket.off("order:removed", handleOrderDeleted);
     };
   }, []);
 
@@ -782,7 +778,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             applySettings(appSettings);
           })
           .catch(() => undefined);
-      }, 300);
+      }, 800);
     }
 
     syncAuthUser();
@@ -1170,9 +1166,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
       const socket = getSocket();
       if (socket) {
-        socket.emit("order:create", fullOrder);
         socket.emit("order:created", fullOrder);
-        socket.emit("order:new", fullOrder);
       }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pos-order-created"));
@@ -2763,14 +2757,14 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               {/* Table Zones & Tables Grid */}
               <div className="space-y-6">
                 {/* Dynamically group tables by zone */}
-                {["indoor", "outdoor"].map((zone) => {
+                {["indoor"].map((zone) => {
                   const zoneTables = tables.filter((t) => t.zone.toLowerCase() === zone);
                   if (zoneTables.length === 0) return null;
 
                   return (
                     <div key={zone} className="space-y-3">
                       <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1.5 capitalize">
-                        📍 Zone: {zone === "indoor" ? "ខាងក្នុង (Indoor)" : "ខាងក្រៅ (Outdoor)"}
+                        📍 Zone: {language === "km" ? "ខាងក្នុង (Indoor)" : "Indoor"}
                       </h4>
                       
                       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -2961,9 +2955,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                       await deleteOrder(targetId);
                       const socket = getSocket();
                       if (socket) {
-                        socket.emit("order:delete", { id: targetId });
                         socket.emit("order:deleted", { id: targetId });
-                        socket.emit("order:removed", { id: targetId });
                       }
                     } catch (err) {
                       console.error("Delete order failed", err);

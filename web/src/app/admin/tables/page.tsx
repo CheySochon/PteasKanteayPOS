@@ -756,9 +756,6 @@ export default function TablesPage() {
                 {[
                   { id: "all", label: language === "km" ? "តុទាំងអស់" : "All Tables", count: zoneCounts.all, icon: Layers },
                   { id: "indoor", label: language === "km" ? "តុ (Table)" : "Table", count: zoneCounts.indoor, icon: Armchair },
-                  ...(zoneCounts.outdoor > 0
-                    ? [{ id: "outdoor", label: language === "km" ? "តុខាងក្រៅ (Outdoor)" : "Outdoor", count: zoneCounts.outdoor, icon: Armchair }]
-                    : []),
                 ].map((tab) => {
                   const Icon = tab.icon;
                   const isActive = selectedZone === tab.id;
@@ -1156,7 +1153,6 @@ export default function TablesPage() {
                     } px-3.5 text-xs font-semibold outline-none focus:border-[#55a060] focus:ring-1 focus:ring-[#55a060] transition-all cursor-pointer`}
                   >
                     <option value="indoor">{language === "km" ? "សាលខាងក្នុង (Indoor)" : "Indoor"}</option>
-                    <option value="outdoor">{language === "km" ? "យ៉រខាងក្រៅ (Outdoor)" : "Outdoor"}</option>
                   </select>
                 </label>
 
