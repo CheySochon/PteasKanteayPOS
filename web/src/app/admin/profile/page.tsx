@@ -522,6 +522,10 @@ export default function ProfilePage() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Enter new password (min 4 chars)"
+                        autoComplete="new-password"
+                        name="user_new_password"
+                        id="user_new_password"
+                        data-lpignore="true"
                         className={`w-full rounded-xl border px-3 py-2 pr-9 text-xs outline-none transition ${
                           dark ? "border-[#3b3c54] bg-[#232333] text-white" : "border-slate-300 bg-white text-slate-800"
                         }`}
@@ -545,6 +549,10 @@ export default function ProfilePage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Confirm new password"
+                      autoComplete="new-password"
+                      name="user_confirm_password"
+                      id="user_confirm_password"
+                      data-lpignore="true"
                       className={`w-full rounded-xl border px-3 py-2 text-xs outline-none transition ${
                         dark ? "border-[#3b3c54] bg-[#232333] text-white" : "border-slate-300 bg-white text-slate-800"
                       }`}

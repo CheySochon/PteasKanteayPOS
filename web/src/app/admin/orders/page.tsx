@@ -19,6 +19,8 @@ import {
   Utensils,
   X,
   Pencil,
+  AlertTriangle,
+  Ban,
 } from "lucide-react";
 import TopBar from "../../../components/TopBar";
 import OrderStatusBadge from "../../../components/OrderStatusBadge";
@@ -198,6 +200,38 @@ const TEXT = {
 
 type OrderTab = "all" | "active" | "completed" | "cancelled";
 type OrderTypeFilter = "all" | "dine-in" | "takeout";
+
+
+function parseCancellationDetails(notes?: string | null) {
+  if (!notes) return null;
+  const match = notes.match(/\[CANCELLED:\s*(.+?)\]/);
+  if (match) {
+    const content = match[1];
+    const parts = content.split(/\s*\|\s*/);
+    const reason = parts[0] || "";
+    let by: string | null = null;
+    let time: string | null = null;
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      if (part.toLowerCase().startsWith("by:")) {
+        by = part.replace(/^by:\s*/i, "").trim();
+      } else {
+        time = part.trim();
+      }
+    }
+    return { reason, by, time };
+  }
+  return {
+    reason: notes.trim(),
+    by: null,
+    time: null,
+  };
+}
+
+function getNonCancellationNotes(notes?: string | null) {
+  if (!notes) return "";
+  return notes.replace(/\[CANCELLED:\s*.+?\]/g, "").trim();
+}
 
 function formatShortOrderNo(order: Order) {
   if (order.id) {
@@ -384,6 +418,9 @@ export default function OrdersPage() {
   const [hoveredOrder, setHoveredOrder] = useState<Order | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [printSlipOrder, setPrintSlipOrder] = useState<Order | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [cancelReasonInput, setCancelReasonInput] = useState("");
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
 
   useEffect(() => {
@@ -535,6 +572,73 @@ export default function OrdersPage() {
     } catch {}
   }, []);
 
+  function handleOpenCancelModal(order: Order) {
+    setOpenActionId(null);
+    setOrderToCancel(order);
+    setCancelReasonInput("");
+    setCancelModalOpen(true);
+  }
+
+  async function handleConfirmCancel() {
+    if (!orderToCancel) return;
+
+    const canDelete = canDeleteFeature(currentUser, "orders");
+    if (!canDelete) {
+      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិលុប ឬលុបចោលការបញ្ជាទិញឡើយ!" : "You do not have permission to delete/cancel orders.");
+      setCancelModalOpen(false);
+      return;
+    }
+
+    const staffName = currentUser?.name || "Staff";
+    const timeStr = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const dateStr = new Date().toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+    const defaultReason = language === "km" ? "អតិថិជនប្តូរចិត្ត" : "Customer Changed Mind";
+    const chosenReason = cancelReasonInput.trim() || defaultReason;
+
+    const cancelRecord = `[CANCELLED: ${chosenReason} | By: ${staffName} | ${dateStr}, ${timeStr}]`;
+    const existingNotes = orderToCancel.notes ? getNonCancellationNotes(orderToCancel.notes) : "";
+    const finalNotes = existingNotes ? `${existingNotes}\n${cancelRecord}` : cancelRecord;
+
+    const updatedPayload: Order = {
+      ...orderToCancel,
+      status: "cancelled",
+      notes: finalNotes,
+    };
+
+    setOrders((current) =>
+      current.map((entry) => (String(entry.id) === String(orderToCancel.id) ? updatedPayload : entry))
+    );
+
+    if (selectedOrder && String(selectedOrder.id) === String(orderToCancel.id)) {
+      setSelectedOrder(updatedPayload);
+    }
+
+    const socket = getSocket();
+    if (socket) {
+      socket.emit("order:updated", updatedPayload);
+    }
+
+    try {
+      const updated = await updateOrderStatus(orderToCancel.id, "cancelled", finalNotes);
+      const finalOrder = updated ? { ...updated, status: "cancelled" as OrderStatus, notes: finalNotes } : updatedPayload;
+      setOrders((current) =>
+        current.map((entry) => (String(entry.id) === String(finalOrder.id) ? finalOrder : entry))
+      );
+      if (selectedOrder && String(selectedOrder.id) === String(orderToCancel.id)) {
+        setSelectedOrder(finalOrder);
+      }
+      if (socket) {
+        socket.emit("order:updated", finalOrder);
+      }
+    } catch {
+      // Optimistic update applied
+    }
+
+    setCancelModalOpen(false);
+    setOrderToCancel(null);
+    setMessage(language === "km" ? "ការបញ្ជាទិញត្រូវបានលុបចោលដោយជោគជ័យ!" : "Order has been cancelled successfully!");
+  }
+
   async function changeStatus(order: Order, status: OrderStatus) {
     setMessage("");
     setOpenActionId(null);
@@ -543,12 +647,16 @@ export default function OrdersPage() {
     const canEdit = canEditFeature(currentUser, "orders");
     const canDelete = canDeleteFeature(currentUser, "orders");
 
-    if (status === "cancelled" && !canDelete) {
-      setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិលុប ឬលុបចោលការបញ្ជាទិញឡើយ!" : "You do not have permission to delete/cancel orders.");
+    if (status === "cancelled") {
+      if (!canDelete) {
+        setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិលុប ឬលុបចោលការបញ្ជាទិញឡើយ!" : "You do not have permission to delete/cancel orders.");
+        return;
+      }
+      handleOpenCancelModal(order);
       return;
     }
 
-    if (status !== "cancelled" && !canEdit) {
+    if (!canEdit) {
       setMessage(language === "km" ? "អ្នកគ្មានសិទ្ធិកែប្រែស្ថានភាពការបញ្ជាទិញឡើយ!" : "You do not have permission to edit order status.");
       return;
     }
@@ -1109,6 +1217,23 @@ export default function OrdersPage() {
                                     <span>{order.status === "completed" ? (language === "km" ? "ព្រីនវិក្កយបត្រ" : "Print Receipt") : (language === "km" ? "ទូទាត់ប្រាក់ & ព្រីន" : "Pay & Print Receipt")}</span>
                                   </button>
                                 </div>
+
+                                {/* 4. Cancel Order (If active) */}
+                                {order.status !== "completed" && order.status !== "cancelled" && (
+                                  <div className="border-t border-slate-100 dark:border-slate-800/80 my-1 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionId(null);
+                                        handleOpenCancelModal(order);
+                                      }}
+                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all cursor-pointer"
+                                    >
+                                      <Ban size={15} className="shrink-0" />
+                                      <span>{language === "km" ? "លុបចោលការបញ្ជាទិញ" : "Cancel Order"}</span>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1206,6 +1331,68 @@ export default function OrdersPage() {
 
               {/* Modal Body: Dishes & Info */}
               <div className="max-h-[420px] overflow-y-auto p-6 space-y-4">
+                {/* Cancellation Alert Banner */}
+                {selectedOrder.status === "cancelled" && (() => {
+                  const cancelDetails = parseCancellationDetails(selectedOrder.notes);
+                  return (
+                    <div className="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-950/40 p-4 text-slate-800 dark:text-rose-100 shadow-xs">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                          <Ban size={20} className="stroke-[2.2]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 font-khmer">
+                              {language === "km" ? "ការបញ្ជាទិញត្រូវបានលុបចោល" : "Order Cancelled"}
+                            </h4>
+                            {cancelDetails?.time && (
+                              <span className="text-[11px] font-medium text-rose-600/80 dark:text-rose-400/80">
+                                {cancelDetails.time}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-2 space-y-1.5 text-xs font-khmer">
+                            <div className="flex items-baseline gap-2">
+                              <span className="font-semibold text-rose-800 dark:text-rose-300 shrink-0">
+                                {language === "km" ? "មូលហេតុ ៖" : "Reason:"}
+                              </span>
+                              <span className="inline-block font-bold text-rose-900 dark:text-rose-100 bg-rose-200/60 dark:bg-rose-900/60 px-2 py-0.5 rounded-lg">
+                                {cancelDetails?.reason || (language === "km" ? "មិនបានបញ្ជាក់" : "Not specified")}
+                              </span>
+                            </div>
+
+                            {cancelDetails?.by && (
+                              <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+                                <span className="font-semibold">
+                                  {language === "km" ? "លុបចោលដោយ ៖" : "Cancelled By:"}
+                                </span>
+                                <span className="font-bold underline decoration-rose-300">
+                                  {cancelDetails.by}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* General Customer / Order Notes (if non-cancellation notes exist) */}
+                {(() => {
+                  const regularNotes = getNonCancellationNotes(selectedOrder.notes);
+                  if (!regularNotes) return null;
+                  return (
+                    <div className={`rounded-xl p-3 border text-xs ${dark ? "border-slate-800 bg-[#252838] text-slate-300" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        {language === "km" ? "ចំណាំបន្ថែម" : "Order Notes"}
+                      </span>
+                      <p className="font-medium whitespace-pre-wrap">{regularNotes}</p>
+                    </div>
+                  );
+                })()}
+
                 {/* Order Status & Time */}
                 <div className={`flex items-center justify-between rounded-xl p-3.5 border ${dark ? "border-slate-800 bg-[#252838]" : "border-slate-100 bg-slate-50"}`}>
                   <div>
@@ -1214,8 +1401,12 @@ export default function OrdersPage() {
                       value={selectedOrder.status}
                       onChange={(e) => {
                         const nextStatus = e.target.value as OrderStatus;
-                        changeStatus(selectedOrder, nextStatus);
-                        setSelectedOrder((prev: any) => prev ? { ...prev, status: nextStatus } : null);
+                        if (nextStatus === "cancelled") {
+                          handleOpenCancelModal(selectedOrder);
+                        } else {
+                          changeStatus(selectedOrder, nextStatus);
+                          setSelectedOrder((prev: any) => prev ? { ...prev, status: nextStatus } : null);
+                        }
                       }}
                       className={`text-xs font-bold px-2.5 py-1 rounded-xl border outline-none cursor-pointer transition-all ${
                         selectedOrder.status === "pending"
@@ -1306,14 +1497,24 @@ export default function OrdersPage() {
 
                 <div className="flex items-center gap-2">
                   {selectedOrder.status !== "completed" && selectedOrder.status !== "cancelled" && (
-                    <button
-                      type="button"
-                      onClick={() => handleEditOrder(selectedOrder)}
-                      className="flex h-9 items-center gap-1.5 rounded-xl bg-red-500 hover:bg-red-600 px-3.5 text-xs font-bold text-white transition-all shadow-md shadow-red-500/20 cursor-pointer active:scale-95"
-                    >
-                      <Pencil size={15} />
-                      {language === "km" ? "កែប្រែ" : "Edit"}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal(selectedOrder)}
+                        className="flex h-9 items-center gap-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 px-3.5 text-xs font-bold text-rose-600 dark:text-rose-400 transition-all cursor-pointer active:scale-95 font-khmer"
+                      >
+                        <Ban size={15} />
+                        {language === "km" ? "លុបចោល" : "Cancel"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEditOrder(selectedOrder)}
+                        className="flex h-9 items-center gap-1.5 rounded-xl bg-red-500 hover:bg-red-600 px-3.5 text-xs font-bold text-white transition-all shadow-md shadow-red-500/20 cursor-pointer active:scale-95"
+                      >
+                        <Pencil size={15} />
+                        {language === "km" ? "កែប្រែ" : "Edit"}
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -1325,6 +1526,98 @@ export default function OrdersPage() {
                     {language === "km" ? "បិទ" : "Close"}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ORDER CANCELLATION CONFIRMATION MODAL */}
+        {cancelModalOpen && orderToCancel && (
+          <div
+            onClick={() => {
+              setCancelModalOpen(false);
+              setOrderToCancel(null);
+            }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4 animate-[usersPageIn_180ms_ease-out]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-[400px] overflow-hidden rounded-3xl border p-6 shadow-2xl transition-all ${
+                dark ? "border-slate-700 bg-[#1f2130] text-slate-100" : "border-slate-200 bg-white text-slate-800"
+              }`}
+            >
+              {/* Warning Danger Icon Badge */}
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 dark:text-rose-400 ring-8 ring-rose-500/5 mb-3.5">
+                <AlertTriangle size={28} className="stroke-[2.2]" />
+              </div>
+
+              {/* Modal Title & Subtitle */}
+              <h3 className="text-center text-lg font-bold text-slate-800 dark:text-slate-100 font-khmer">
+                {language === "km" ? "បញ្ជាក់ការលុបចោលការបញ្ជាទិញ" : "Confirm Order Cancellation"}
+              </h3>
+              <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-khmer">
+                {language === "km" ? (
+                  <>
+                    តើអ្នកពិតជាចង់លុបចោលការបញ្ជាទិញ{" "}
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                      {formatShortOrderNo(orderToCancel)}
+                    </span>{" "}
+                    នេះមែនទេ?
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to cancel order{" "}
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                      {formatShortOrderNo(orderToCancel)}
+                    </span>
+                    ?
+                  </>
+                )}
+              </p>
+
+              {/* Reason Note Form */}
+              <div className="mt-4">
+                <textarea
+                  rows={3}
+                  value={cancelReasonInput}
+                  onChange={(e) => setCancelReasonInput(e.target.value)}
+                  placeholder={
+                    language === "km"
+                      ? "មូលហេតុនៃការលុបចោល..."
+                      : "Reason for cancellation..."
+                  }
+                  className={`w-full rounded-2xl border p-3 text-xs outline-none transition-all resize-none font-khmer ${
+                    dark
+                      ? "border-slate-700 bg-[#252838] text-slate-100 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
+                      : "border-slate-200 bg-slate-50/80 text-slate-800 focus:border-rose-500 focus:bg-white focus:ring-2 focus:ring-rose-500/20"
+                  }`}
+                />
+              </div>
+
+              {/* Action Buttons Side-by-Side */}
+              <div className="mt-5 flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCancelModalOpen(false);
+                    setOrderToCancel(null);
+                  }}
+                  className={`flex-1 h-10 rounded-xl border text-xs font-semibold transition-colors cursor-pointer font-khmer ${
+                    dark
+                      ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {language === "km" ? "បោះបង់" : "Cancel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCancel}
+                  className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-md shadow-rose-600/30 transition-all cursor-pointer active:scale-95 font-khmer"
+                >
+                  <Ban size={15} />
+                  {language === "km" ? "បញ្ជាក់ការលុបចោល" : "Confirm Cancel"}
+                </button>
               </div>
             </div>
           </div>
@@ -1394,7 +1687,9 @@ export default function OrdersPage() {
                     <span className="text-slate-500">
                       {printSlipOrder.status === "completed" ? "Receipt No.:" : "Invoice No.:"}
                     </span>
-                    <span className="font-semibold text-slate-800">{printSlipOrder.orderNumber || `#${printSlipOrder.id}`}</span>
+                    <span className="font-semibold text-slate-800">
+                      {printSlipOrder.id ? `#${String(printSlipOrder.id).padStart(4, "0")}` : formatShortOrderNo(printSlipOrder)}
+                    </span>
                   </div>
                   <div className="text-slate-400 text-[11px] text-right mt-0.5">
                     {dateTimeLabel(printSlipOrder.createdAt)}

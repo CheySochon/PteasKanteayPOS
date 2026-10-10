@@ -75,7 +75,7 @@ export const updateStatus = asyncHandler(
     res: Response,
   ) => {
     const userId = getUserIdFromReq(req);
-    const data = await updateOrderStatus(Number(req.params.id), req.body.status, userId);
+    const data = await updateOrderStatus(Number(req.params.id), req.body.status, userId, req.body.notes);
     const io = req.app.get("io") as { emit: (event: string, data: unknown) => void } | undefined;
     if (io) {
       io.emit("order:updated", data);

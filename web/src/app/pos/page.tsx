@@ -321,6 +321,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [printSlipModalOpen, setPrintSlipModalOpen] = useState(false);
   const [printSlipData, setPrintSlipData] = useState<{
     type?: "invoice" | "receipt";
+    orderId?: number | string;
     orderNumber: string;
     createdAt: string;
     customer: string;
@@ -496,6 +497,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
       setPrintSlipData({
         type: "invoice",
+        orderId: fullOrder?.id,
         orderNumber: fullOrder.orderNumber || ticketNumber,
         createdAt: fullOrder.createdAt || new Date().toISOString(),
         customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
@@ -963,18 +965,61 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     }
   };
 
+  const getNextDraftSeq = () => {
+    let maxSeq = 0;
+    if (typeof window !== "undefined") {
+      try {
+        const storedCounter = parseInt(localStorage.getItem("pos_draft_seq_counter") || "0", 10);
+        if (!isNaN(storedCounter)) maxSeq = storedCounter;
+      } catch {}
+    }
+    heldOrders.forEach((o: any) => {
+      if (typeof o.draftSeq === "number" && o.draftSeq > maxSeq) {
+        maxSeq = o.draftSeq;
+      }
+      const match = String(o.refName || "").match(/#DFT-(\d+)/i);
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10);
+        if (num > maxSeq) maxSeq = num;
+      }
+    });
+    return maxSeq + 1;
+  };
+
   const handleHoldOrder = () => {
     if (cart.length === 0) return;
-    setDraftRefInput(orderNote || (selectedTable ? selectedTable.name : ""));
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const targetEntity = selectedTable ? (selectedTable.name.startsWith("T-") || selectedTable.name.toLowerCase().startsWith("table") ? selectedTable.name : `Table ${selectedTable.name}`) : (orderingMode ? "Takeaway" : "Walk-in");
+    const nextSeq = getNextDraftSeq();
+    const dftCode = `#DFT-${String(nextSeq).padStart(3, "0")}`;
+    const autoRef = orderNote
+      ? `${dftCode} • ${targetEntity} • ${timeStr} (${orderNote})`
+      : `${dftCode} • ${targetEntity} • ${timeStr}`;
+
+    setDraftRefInput(autoRef);
     setSaveDraftModalOpen(true);
   };
 
   const confirmSaveDraft = () => {
     if (cart.length === 0) return;
-    const refName = draftRefInput.trim() || (selectedTable ? selectedTable.name : `Draft #${ticketNumber}`);
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const targetEntity = selectedTable ? (selectedTable.name.startsWith("T-") || selectedTable.name.toLowerCase().startsWith("table") ? selectedTable.name : `Table ${selectedTable.name}`) : (orderingMode ? "Takeaway" : "Walk-in");
+    const nextSeq = getNextDraftSeq();
+    const dftCode = `#DFT-${String(nextSeq).padStart(3, "0")}`;
+    const defaultRef = `${dftCode} • ${targetEntity} • ${timeStr}`;
+    const refName = draftRefInput.trim() || defaultRef;
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("pos_draft_seq_counter", String(nextSeq));
+      } catch {}
+    }
 
     const newHeld = {
       id: Date.now(),
+      draftSeq: nextSeq,
       refName,
       timestamp: new Date().toISOString(),
       ticketNumber,
@@ -1219,6 +1264,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
       setPrintSlipData({
         type: "receipt",
+        orderId: order?.id,
         orderNumber: order.orderNumber || order.orderId || ticketNumber,
         createdAt: new Date().toISOString(),
         customer: selectedTable ? `${selectedTable.name} (${selectedTable.zone})` : "WALKIN",
@@ -2426,13 +2472,18 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/30 print:hidden">
           <div className="w-full max-w-md overflow-hidden rounded-xl bg-white p-6 shadow-none animate-[dashboardPageIn_200ms_ease-out]">
             <h3 className="text-base font-bold text-slate-800 mb-4">
-              Save cart items to draft
+              {language === "km" ? "រក្សាទុកការកុម្ម៉ង់ជា Draft" : "Save cart items to draft"}
             </h3>
 
             <div className="mb-5 space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-500">
-                Reference
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-600">
+                  {language === "km" ? "ឈ្មោះសម្គាល់ (Reference)" : "Reference"}
+                </label>
+                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
+                  {language === "km" ? "បង្កើតស្វ័យប្រវត្តិ" : "Auto-Generated"}
+                </span>
+              </div>
               <input
                 type="text"
                 value={draftRefInput}
@@ -2440,10 +2491,14 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 onKeyDown={(e) => {
                   if (e.key === "Enter") confirmSaveDraft();
                 }}
-                placeholder="Enter Reference Name here..."
+                onFocus={(e) => e.target.select()}
+                placeholder="e.g. #DFT-1025 • Table 02 • 10:55 PM"
                 autoFocus
-                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-700 outline-none focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10 transition-all"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10 transition-all shadow-xs"
               />
+              <p className="text-[11px] text-slate-400 mt-1">
+                {language === "km" ? "💡 អ្នកអាចរក្សាទុកឈ្មោះនេះ ឬវាយកែប្រែបន្ថែមបានតាមចិត្ត" : "💡 You can keep this reference or edit it freely."}
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-2.5">
@@ -2452,14 +2507,14 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 onClick={() => setSaveDraftModalOpen(false)}
                 className="rounded-lg bg-slate-100/90 px-5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/80 active:scale-95 transition-all cursor-pointer"
               >
-                Close
+                {language === "km" ? "បិទ" : "Close"}
               </button>
               <button
                 type="button"
                 onClick={confirmSaveDraft}
-                className="rounded-lg bg-[#55a060] px-6 py-2 text-xs font-semibold text-white hover:bg-[#439150] active:scale-95 transition-all cursor-pointer"
+                className="rounded-lg bg-[#55a060] px-6 py-2 text-xs font-semibold text-white hover:bg-[#439150] active:scale-95 transition-all cursor-pointer shadow-xs"
               >
-                Save
+                {language === "km" ? "រក្សាទុក (Save)" : "Save"}
               </button>
             </div>
           </div>
@@ -3064,11 +3119,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   </span>
                   <span className="font-semibold text-slate-800">
                     {(() => {
+                      if (printSlipData.orderId) {
+                        return `#${String(printSlipData.orderId).padStart(4, "0")}`;
+                      }
                       const numStr = String(printSlipData.orderNumber || "");
-                      const prefix = printSlipData.type === "invoice" ? invoicePrefix : receiptPrefix;
-                      if (!prefix) return numStr;
-                      if (numStr.startsWith(prefix)) return numStr;
-                      return `${prefix}${numStr.replace(/^(INV-|REC-)/i, "")}`;
+                      if (numStr.startsWith("#")) return numStr;
+                      if (/^\d+$/.test(numStr)) return `#${numStr.padStart(4, "0")}`;
+                      const match = numStr.match(/(\d+)$/);
+                      if (match) {
+                        return `#${match[1].slice(-4).padStart(4, "0")}`;
+                      }
+                      return `#${numStr}`;
                     })()}
                   </span>
                 </div>

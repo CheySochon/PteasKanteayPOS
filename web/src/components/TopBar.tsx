@@ -43,7 +43,7 @@ import {
   FileText,
   ShieldCheck,
 } from "lucide-react";
-import { getOrders, getProducts, getTables, logoutApi } from "../lib/api";
+import { getOrders, getProducts, getTables, logoutApi, resolveImageUrl } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useAppLanguage, setAppLanguage } from "../lib/language";
 import { useAppTheme } from "../lib/theme";
@@ -395,7 +395,7 @@ function TopBar({
               quantity: i.quantity || 1,
               price: Number(i.unitPrice || i.price || 0),
               notes: i.notes || "",
-              image: i.product?.imageUrl || i.image || "",
+              image: i.product?.imageUrl || i.product?.image || i.imageUrl || i.image || "",
             })),
           };
         });
@@ -1140,12 +1140,24 @@ function TopBar({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {dish.image ? (
-                            <img src={dish.image} alt={dish.name} className="h-10 w-10 rounded-lg object-cover" />
-                          ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]">
-                              <ShoppingBag size={18} />
-                            </div>
-                          )}
+                            <img
+                              src={resolveImageUrl(dish.image)}
+                              alt={dish.name}
+                              loading="lazy"
+                              className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200/50 dark:ring-slate-700/50"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = "none";
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                                if (fallback) fallback.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: dish.image ? "none" : "flex" }}
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#696cff]/10 text-[#696cff]"
+                          >
+                            <ShoppingBag size={18} />
+                          </div>
                           <div className="min-w-0">
                             <div className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">{dish.name}</div>
                             {dish.notes && (

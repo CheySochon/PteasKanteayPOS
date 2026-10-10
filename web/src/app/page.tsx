@@ -141,7 +141,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {/* Admin Login Button */}
             <Link
-              href="/login"
+              href="/login?mode=admin"
               className="flex items-center justify-between p-4 rounded-xl bg-[#1d1e2c] hover:bg-[#26283b] text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 group active:scale-98 cursor-pointer border border-slate-800"
             >
               <div className="flex items-center gap-3 text-left">
@@ -162,7 +162,7 @@ export default function Home() {
 
             {/* Cashier POS Login Button */}
             <Link
-              href="/login"
+              href="/login?mode=cashier"
               className="flex items-center justify-between p-4 rounded-xl bg-[#55a060] hover:bg-[#488d52] text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 group active:scale-98 cursor-pointer"
             >
               <div className="flex items-center gap-3 text-left">

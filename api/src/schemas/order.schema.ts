@@ -18,6 +18,7 @@ export const createOrderSchema = z.object({
 
 export const updateOrderStatusSchema = z.object({
   status: z.string({ error: "Status is required" }).min(1),
+  notes: z.string().trim().max(1000).optional(),
 });
 
 export const addOrderItemSchema = orderItemSchema;

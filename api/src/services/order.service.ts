@@ -405,7 +405,7 @@ export const createOrder = async (payload: {
   });
 };
 
-export const updateOrderStatus = async (id: number, status: string, userId?: number) => {
+export const updateOrderStatus = async (id: number, status: string, userId?: number, notes?: string) => {
   const currentOrder = await prisma.order.findUnique({
     where: { id },
     include: { items: true },
@@ -461,7 +461,10 @@ export const updateOrderStatus = async (id: number, status: string, userId?: num
 
   const order = await prisma.order.update({
     where: { id },
-    data: { status: newStatus as OrderStatus },
+    data: {
+      status: newStatus as OrderStatus,
+      ...(notes !== undefined ? { notes } : {}),
+    },
     include: buildOrderInclude(),
   });
 

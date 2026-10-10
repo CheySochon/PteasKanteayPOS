@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Check,
+  Eye,
   FileText,
   Filter,
   MoreVertical,
@@ -186,6 +187,26 @@ export default function InvoicesPage() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (actionMenuId === null) return;
+
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (target.closest(".invoice-action-container")) {
+        return;
+      }
+
+      setActionMenuId(null);
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [actionMenuId]);
 
   useEffect(() => {
     cachedOrders = orders;
@@ -546,11 +567,11 @@ export default function InvoicesPage() {
                             {formatDate(inv.createdAt)}
                           </td>
 
-                          <td className="px-3 py-3.5 whitespace-nowrap text-center relative">
+                          <td className="px-3 py-3.5 whitespace-nowrap text-center relative invoice-action-container">
                             <button
                               type="button"
                               onClick={() => setActionMenuId(actionMenuId === inv.id ? null : inv.id)}
-                              className={`p-1 transition-colors cursor-pointer rounded-lg ${
+                              className={`p-1.5 transition-colors cursor-pointer rounded-lg ${
                                 dark ? "text-slate-300 hover:text-white hover:bg-slate-700" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                               }`}
                             >
@@ -560,7 +581,9 @@ export default function InvoicesPage() {
                             {actionMenuId === inv.id && (
                               <div
                                 onClick={(e) => e.stopPropagation()}
-                                className={`absolute right-4 z-50 w-36 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2b2c40] p-1 shadow-xl text-left animate-[userModalIn_150ms_ease-out] ${
+                                className={`absolute right-4 z-50 w-44 rounded-2xl border p-1.5 shadow-xl text-left whitespace-normal flex flex-col gap-0.5 animate-[userModalIn_150ms_ease-out] ${
+                                  dark ? "border-[#4e4f6e] bg-[#1f2130] text-slate-100" : "border-slate-200 bg-white text-slate-800"
+                                } ${
                                   index >= filteredInvoices.length - 2 || filteredInvoices.length <= 3 ? "bottom-8" : "top-10"
                                 }`}
                               >
@@ -570,19 +593,25 @@ export default function InvoicesPage() {
                                     setSelectedInvoice(inv);
                                     setActionMenuId(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+                                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                                    dark ? "text-slate-200 hover:bg-[#2b2c40]" : "text-slate-700 hover:bg-slate-100"
+                                  }`}
                                 >
-                                  View Details
+                                  <Eye size={15} className="text-slate-500 shrink-0" />
+                                  <span>View Details</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    window.print();
+                                    setSelectedInvoice(inv);
                                     setActionMenuId(null);
                                   }}
-                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+                                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                                    dark ? "text-slate-200 hover:bg-[#2b2c40]" : "text-slate-700 hover:bg-slate-100"
+                                  }`}
                                 >
-                                  Print Invoice
+                                  <Printer size={15} className="text-slate-500 shrink-0" />
+                                  <span>Print Invoice</span>
                                 </button>
                               </div>
                             )}

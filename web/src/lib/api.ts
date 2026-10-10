@@ -881,10 +881,12 @@ export const updateOrderApi = async (id: number, body: any) => {
     throw err;
   }
 };
-export const updateOrderStatus = async (id: number, status: Order["status"]): Promise<Order> => {
+export const updateOrderStatus = async (id: number, status: Order["status"], notes?: string): Promise<Order> => {
   let updatedOrder: Order;
   try {
-    updatedOrder = await request<Order>(`/orders/${id}/status`, { method: "PUT", body: { status } });
+    const body: any = { status };
+    if (notes !== undefined) body.notes = notes;
+    updatedOrder = await request<Order>(`/orders/${id}/status`, { method: "PUT", body });
   } catch (err) {
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("orders")) as Order[] | null;
@@ -893,8 +895,8 @@ export const updateOrderStatus = async (id: number, status: Order["status"]): Pr
         targetOrder = cached.find((o) => o.id === id);
       }
       updatedOrder = targetOrder
-        ? { ...targetOrder, status, updatedAt: new Date().toISOString() }
-        : ({ id, status, updatedAt: new Date().toISOString() } as Order);
+        ? { ...targetOrder, status, ...(notes !== undefined ? { notes } : {}), updatedAt: new Date().toISOString() }
+        : ({ id, status, notes, updatedAt: new Date().toISOString() } as Order);
     } else {
       throw err;
     }
