@@ -491,8 +491,21 @@ export default function InventoryPage() {
     return "available";
   };
 
+  const isStockCategory = (catId?: number | null, catName?: string | null) => {
+    const id = Number(catId);
+    const name = String(catName || "").trim().toLowerCase();
+    return (
+      id === 27 ||
+      id === 28 ||
+      name.includes("ភេសជ្ជៈ") ||
+      name.includes("ស្រាបៀរ") ||
+      name.includes("drink") ||
+      name.includes("beer")
+    );
+  };
+
   const trackedProducts = useMemo(() => {
-    return products;
+    return products.filter((p) => isStockCategory(p.categoryId || p.category?.id, p.category?.name));
   }, [products]);
 
   // Metrics Count
@@ -2046,8 +2059,8 @@ export default function InventoryPage() {
                       : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                 >
-                  <option value="">{language === "km" ? "-- ស្វ័យប្រវត្តិតាមឈ្មោះ (Auto-detect Drink/Food) --" : "-- Auto-detect --"}</option>
-                  {categories.map((c) => (
+                  <option value="">{language === "km" ? "-- ជ្រើសរើសប្រភេទ (Drink / Beer) --" : "-- Select Drink Category --"}</option>
+                  {categories.filter((c) => isStockCategory(c.id, c.name)).map((c) => (
                     <option key={c.id} value={c.id}>
                       {resolveCategoryName(c, language)}
                     </option>
@@ -2205,8 +2218,8 @@ export default function InventoryPage() {
                       : "border-slate-200 bg-slate-50 text-slate-800 focus:border-[#55a060] focus:bg-white"
                   }`}
                 >
-                  <option value="">{language === "km" ? "-- គ្មាន Category --" : "-- Select Category --"}</option>
-                  {categories.map((c) => (
+                  <option value="">{language === "km" ? "-- ជ្រើសរើសប្រភេទ (Drink / Beer) --" : "-- Select Category --"}</option>
+                  {categories.filter((c) => isStockCategory(c.id, c.name)).map((c) => (
                     <option key={c.id} value={c.id}>
                       {resolveCategoryName(c, language)}
                     </option>

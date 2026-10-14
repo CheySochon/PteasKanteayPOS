@@ -476,21 +476,15 @@ export default function ReportsPage() {
 
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const [reportTab, setReportTab] = useState<"orders" | "purchases" | "payments" | "stock">(() => {
-    if (tabParam === "purchases") return "purchases";
-    if (tabParam === "payments") return "payments";
+  const [reportTab, setReportTab] = useState<"orders" | "stock">(() => {
     if (tabParam === "stock") return "stock";
     return "orders";
   });
 
   useEffect(() => {
-    if (tabParam === "purchases") {
-      setReportTab("purchases");
-    } else if (tabParam === "payments") {
-      setReportTab("payments");
-    } else if (tabParam === "stock") {
+    if (tabParam === "stock") {
       setReportTab("stock");
-    } else if (tabParam === "orders" || tabParam === "analytics") {
+    } else {
       setReportTab("orders");
     }
   }, [tabParam]);
@@ -563,8 +557,19 @@ export default function ReportsPage() {
       .then(([dailyRows, monthlyRows, topRows, invRows, movRows, allOrders, purData, payData]) => {
         setDaily(dailyRows);
         setMonthly(monthlyRows);
-        setTopProducts(topRows);
-        setInventoryItems(Array.isArray(invRows) ? invRows : []);
+        const stockItemsOnly = (Array.isArray(invRows) ? invRows : []).filter((item: any) => {
+          const catId = Number(item.categoryId || item.category?.id);
+          const catName = String(item.category?.name || "").trim().toLowerCase();
+          return (
+            catId === 27 ||
+            catId === 28 ||
+            catName.includes("ភេសជ្ជៈ") ||
+            catName.includes("ស្រាបៀរ") ||
+            catName.includes("drink") ||
+            catName.includes("beer")
+          );
+        });
+        setInventoryItems(stockItemsOnly);
         setStockMovements(Array.isArray(movRows) ? movRows : []);
         setOrders(Array.isArray(allOrders) ? allOrders : []);
         setPurchaseReport(purData || { totalPurchaseCost: 0, orderCount: 0, activeSuppliersCount: 0, purchaseOrders: [] });
@@ -645,7 +650,7 @@ export default function ReportsPage() {
   useEffect(() => {
     const handleViewChange = (e: any) => {
       const tab = e.detail;
-      if (tab === "orders" || tab === "purchases" || tab === "payments" || tab === "stock") {
+      if (tab === "orders" || tab === "stock") {
         setReportTab(tab);
       }
     };
@@ -1056,10 +1061,6 @@ export default function ReportsPage() {
               <h1 className={`text-xl font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>
                 {reportTab === "stock"
                   ? (language === "km" ? "របាយការណ៍ស្តុកទំនិញ (Stock Inventory Report)" : "Stock Inventory Report")
-                  : reportTab === "purchases"
-                  ? (language === "km" ? "របាយការណ៍ការទិញទំនិញ (Purchase Report)" : "Purchase Report")
-                  : reportTab === "payments"
-                  ? (language === "km" ? "របាយការណ៍ការទូទាត់ (Payment Methods Report)" : "Payment Methods Report")
                   : (language === "km" ? "របាយការណ៍កុម្ម៉ង់ & ការលក់ (Orders & Sales Report)" : "Orders & Sales Report")}
               </h1>
 
@@ -1594,158 +1595,6 @@ export default function ReportsPage() {
                       </tbody>
                     </table>
                   </div>
-                </div>
-              </div>
-            </div>
-          ) : reportTab === "purchases" ? (
-            <div className="space-y-6">
-              {/* Purchase Report Metric Cards */}
-              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                  icon={<Truck size={22} />}
-                  tone="green"
-                  label={language === "km" ? "ចំណាយទិញទំនិញសរុប" : "Total Purchase Cost"}
-                  value={money(purchaseReport.totalPurchaseCost)}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<Boxes size={22} />}
-                  tone="blue"
-                  label={language === "km" ? "ចំនួនការបញ្ជាទិញចូល" : "Purchase Orders"}
-                  value={loading ? "..." : String(purchaseReport.orderCount)}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<Users size={22} />}
-                  tone="orange"
-                  label={language === "km" ? "អ្នកផ្គត់ផ្គង់សរុប (Suppliers)" : "Active Suppliers"}
-                  value={loading ? "..." : `${purchaseReport.activeSuppliersCount} Suppliers`}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<PackageCheck size={22} />}
-                  tone="purple"
-                  label={language === "km" ? "ទំនិញបានទទួល (Received)" : "Stock Received"}
-                  value={loading ? "..." : `${purchaseReport.purchaseOrders.filter((p: any) => (p.status || "").toLowerCase() === "received").length} Completed`}
-                  dark={dark}
-                />
-              </section>
-
-              {/* Purchase Summary Table */}
-              <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
-                <div className="p-4 border-b border-slate-200/80 dark:border-[#3b3c54]">
-                  <h2 className={`text-base font-bold ${textPrimary}`}>
-                    {language === "km" ? "សេចក្តីសង្ខេបការទិញទំនិញចូល (Purchase Orders Summary)" : "Purchase Orders Summary"}
-                  </h2>
-                </div>
-                <div className="overflow-x-auto no-scrollbar">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300" : "bg-slate-50 border-slate-200/80 text-slate-600"}`}>
-                        <th className="px-4 py-3.5">PO #</th>
-                        <th className="px-4 py-3.5">{language === "km" ? "អ្នកផ្គត់ផ្គង់" : "Supplier Name"}</th>
-                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ចំនួនមុខទំនិញ" : "Item Count"}</th>
-                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ចំណាយសរុប" : "Total Amount"}</th>
-                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ស្ថានភាព" : "Status"}</th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
-                      {purchaseReport.purchaseOrders.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400 font-medium">
-                            {language === "km" ? "មិនទាន់មានទិន្នន័យទិញទំនិញចូលទេ" : "No purchase orders recorded for this period"}
-                          </td>
-                        </tr>
-                      ) : (
-                        purchaseReport.purchaseOrders.map((po: any) => (
-                          <tr key={po.id || po.poNumber} className={`transition-colors ${dark ? "hover:bg-slate-800/40 text-slate-200" : "hover:bg-slate-50/70 text-slate-700"}`}>
-                            <td className="px-4 py-3.5 font-mono font-bold text-emerald-600 dark:text-emerald-400">{po.poNumber}</td>
-                            <td className="px-4 py-3.5 font-semibold">{po.supplierName}</td>
-                            <td className="px-4 py-3.5 text-center font-bold">{po.itemCount} items</td>
-                            <td className="px-4 py-3.5 text-right font-black">{money(po.totalAmount)}</td>
-                            <td className="px-4 py-3.5 text-center">
-                              <span className="rounded px-2.5 py-1 text-[10px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
-                                {po.status || "RECEIVED"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : reportTab === "payments" ? (
-            <div className="space-y-6">
-              {/* Payment Method Cards */}
-              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                  icon={<ReceiptText size={22} />}
-                  tone="green"
-                  label={language === "km" ? "ABA KHQR (ធនាគារ)" : "ABA KHQR Sales"}
-                  value={money(khqrPayment.total)}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<ShoppingCart size={22} />}
-                  tone="blue"
-                  label={language === "km" ? "សាច់ប្រាក់ (Cash)" : "Cash Sales"}
-                  value={money(cashPayment.total)}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<Users size={22} />}
-                  tone="orange"
-                  label={language === "km" ? "កាត/ផ្សេងៗ (Card/Other)" : "Credit Card / Other"}
-                  value={money(cardPayment.total)}
-                  dark={dark}
-                />
-                <MetricCard
-                  icon={<TrendingUp size={22} />}
-                  tone="purple"
-                  label={language === "km" ? "ប្រតិបត្តិការសរុប" : "Total Transactions"}
-                  value={loading ? "..." : `${totalOrders} Txns`}
-                  dark={dark}
-                />
-              </section>
-
-              {/* Payment Breakdown Table */}
-              <div className={`overflow-hidden rounded-2xl border ${dark ? "border-[#3b3c54] bg-[#2b2c40]" : "border-slate-200/90 bg-white shadow-xs"}`}>
-                <div className="p-4 border-b border-slate-200/80 dark:border-[#3b3c54]">
-                  <h2 className={`text-base font-bold ${textPrimary}`}>
-                    {language === "km" ? "សេចក្តីសង្ខេបការទូទាត់ប្រាក់ (Payment Method Breakdown)" : "Payment Method Breakdown"}
-                  </h2>
-                </div>
-                <div className="overflow-x-auto no-scrollbar">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className={`border-b text-[11px] font-bold uppercase tracking-wider ${dark ? "bg-[#1e1f2e] border-[#3b3c54] text-slate-300" : "bg-slate-50 border-slate-200/80 text-slate-600"}`}>
-                        <th className="px-4 py-3.5">{language === "km" ? "ប្រភេទទូទាត់" : "Payment Method"}</th>
-                        <th className="px-4 py-3.5 text-center">{language === "km" ? "ចំនួនប្រតិបត្តិការ" : "Transaction Count"}</th>
-                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ចំណូលសរុប" : "Total Revenue"}</th>
-                        <th className="px-4 py-3.5 text-right">{language === "km" ? "ភាគរយ (%)" : "Share (%)"}</th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${dark ? "divide-[#3b3c54]" : "divide-slate-100"}`}>
-                      {dynamicPaymentBreakdown.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-medium">
-                            {language === "km" ? "មិនទាន់មានទិន្នន័យទូទាត់ប្រាក់ទេ" : "No payment transactions recorded for this period"}
-                          </td>
-                        </tr>
-                      ) : (
-                        dynamicPaymentBreakdown.map((b: any, idx: number) => (
-                          <tr key={b.method || idx} className={`transition-colors ${dark ? "hover:bg-slate-800/40 text-slate-200" : "hover:bg-slate-50/70 text-slate-700"}`}>
-                            <td className="px-4 py-3.5 font-bold text-emerald-600 dark:text-emerald-400">{b.method}</td>
-                            <td className="px-4 py-3.5 text-center font-semibold">{b.txns} txns</td>
-                            <td className="px-4 py-3.5 text-right font-black">{money(b.total)}</td>
-                            <td className="px-4 py-3.5 text-right font-bold text-emerald-600">{b.percentage}%</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </div>

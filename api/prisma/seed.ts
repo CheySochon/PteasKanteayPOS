@@ -99,25 +99,33 @@ async function main() {
   }
 
   // 3. Seed Default Users & Map to Groups
-  const hashedPassword = await bcrypt.hash("password123", 10);
-
-  const superAdmin = await prisma.user.upsert({
+  const existingAdmin = await prisma.user.findUnique({
     where: { email: "cheychon258@gmail.com" },
-    update: {
-      name: "CheySochon",
-      password: hashedPassword,
-      isActive: true,
-      pin: "0000",
-      deletedAt: null,
-    },
-    create: {
-      name: "CheySochon",
-      email: "cheychon258@gmail.com",
-      password: hashedPassword,
-      isActive: true,
-      pin: "0000",
-    },
   });
+
+  let superAdmin;
+  if (!existingAdmin) {
+    const hashedPassword = await bcrypt.hash("password123", 10);
+    superAdmin = await prisma.user.create({
+      data: {
+        name: "CheySochon",
+        email: "cheychon258@gmail.com",
+        password: hashedPassword,
+        isActive: true,
+        pin: "0000",
+      },
+    });
+  } else {
+    // If user already exists, NEVER overwrite password or pin!
+    superAdmin = await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        name: existingAdmin.name || "CheySochon",
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+  }
 
   // Explicitly Assign Super Admin (cheychon258@gmail.com) to Group ID 1 ("Admin")
   await prisma.userGroup.upsert({

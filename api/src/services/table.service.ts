@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma.js";
 import { TableZone } from "@prisma/client";
+import { generateOrderNumber } from "./order.service.js";
 
 function makeTableToken(name: string): string {
   return `table-${String(name)
@@ -199,9 +200,7 @@ async function getOrCreateActiveOrder(tableId: number, tableName: string) {
   });
 
   if (!order) {
-    const stamp = Date.now().toString().slice(-6);
-    const rand = Math.floor(100 + Math.random() * 900);
-    const orderNumber = `ORD-${stamp}-${rand}`;
+    const orderNumber = await generateOrderNumber(prisma);
     order = (await prisma.order.create({
       data: {
         orderNumber,

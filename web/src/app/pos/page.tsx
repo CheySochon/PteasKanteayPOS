@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, memo, useCallback, useDeferredValue } from "react";
+import { useEffect, useMemo, useRef, useState, memo, useCallback, useDeferredValue, startTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -45,10 +45,10 @@ import {
   Pencil,
   Loader2,
   StickyNote,
+  Scissors,
 } from "lucide-react";
 import { cartItemFromProduct, type CartItem } from "../../components/CartPanel";
 import Sidebar from "../../components/Sidebar";
-import TopBar from "../../components/TopBar";
 import AnimatedToast from "../../components/AnimatedToast";
 import { useAppTheme } from "../../lib/theme";
 import { useAppLanguage, setAppLanguage, resolveCategoryName, resolveProductName, getProductCategoryBadgeName } from "../../lib/language";
@@ -82,10 +82,19 @@ function money(value: number | string) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-let cachedCategories: Category[] | null = null;
-let cachedProducts: Product[] | null = null;
-let cachedTables: DiningTable[] | null = null;
-let cachedSettings: any = null;
+function getStoredCache<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+let cachedCategories: Category[] | null = typeof window !== "undefined" ? getStoredCache<Category[]>("pos_cached_categories") : null;
+let cachedProducts: Product[] | null = typeof window !== "undefined" ? getStoredCache<Product[]>("pos_cached_products") : null;
+let cachedTables: DiningTable[] | null = typeof window !== "undefined" ? getStoredCache<DiningTable[]>("pos_cached_tables") : null;
+let cachedSettings: any = typeof window !== "undefined" ? getStoredCache<any>("pos_cached_settings") : null;
 
 const ACTIVE_STATUSES = ["pending", "accepted", "preparing", "ready", "served"];
 
@@ -117,7 +126,7 @@ function getPosDisplayTableName(table: DiningTable, qrOrders: any[], language: s
   return language === "km" ? `តុ ${table.name}` : table.name;
 }
 
-export default function PosPage(props?: { isAdminView?: boolean; params?: Promise<any>; searchParams?: Promise<any> }) {
+function PosPageComponent(props?: { isAdminView?: boolean; params?: Promise<any>; searchParams?: Promise<any> }) {
   const isAdminView = props?.isAdminView ?? false;
   const [theme, setTheme] = useAppTheme();
   const dark = theme === "dark";
@@ -130,10 +139,18 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   const [diningOption, setDiningOption] = useState<"dine-in" | "takeaway">("dine-in");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mobileTab, setMobileTab] = useState<"menu" | "cart">("menu");
+  const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [ticketNumber, setTicketNumber] = useState("0000");
+  const [ticketNumber, setTicketNumber] = useState(() => String(Date.now()).slice(-4));
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchInput(val);
+    startTransition(() => {
+      setQuery(val);
+    });
+  }, []);
   const [orderNote, setOrderNote] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [posName, setPosName] = useState(() => {
@@ -248,13 +265,27 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           setEditingOrder(orderToEdit);
 
           if (orderToEdit.items && Array.isArray(orderToEdit.items)) {
+            let kdsStatuses: Record<string, string> = {};
+            try {
+              const rawKds = localStorage.getItem("pos_kds_item_statuses");
+              if (rawKds) kdsStatuses = JSON.parse(rawKds);
+            } catch {}
+
             const loadedCart: CartItem[] = orderToEdit.items.map((it: any) => {
               const prod = it.product || {
                 id: it.productId,
                 name: it.name || it.productName || "Product",
                 basePrice: it.unitPrice || it.price || 0,
               };
+              const itemKey = `${orderToEdit.id}-${it.productId}`;
+              const isCompleted =
+                kdsStatuses[it.id] === "completed" ||
+                kdsStatuses[itemKey] === "completed" ||
+                it.status === "completed" ||
+                it.isCompleted === true;
+
               return {
+                id: it.id,
                 productId: Number(it.productId || prod.id),
                 product: prod,
                 name: prod.name || it.name,
@@ -263,6 +294,8 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 price: Number(it.unitPrice || it.price || prod.basePrice || 0),
                 totalPrice: Number(it.totalPrice || ((it.unitPrice || prod.basePrice) * (it.quantity || 1))),
                 notes: it.notes || "",
+                status: isCompleted ? "completed" : (it.status || "pending"),
+                isCompleted,
               };
             });
             setCart(loadedCart);
@@ -320,7 +353,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   // Thermal Print Receipt Slip Modal State
   const [printSlipModalOpen, setPrintSlipModalOpen] = useState(false);
   const [printSlipData, setPrintSlipData] = useState<{
-    type?: "invoice" | "receipt";
+    type?: "invoice" | "receipt" | "kitchen";
     orderId?: number | string;
     orderNumber: string;
     createdAt: string;
@@ -433,7 +466,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       const payload = {
         tableId,
         orderNumber: ticketNumber,
-        status: "pending" as OrderStatus,
+        status: (editingOrder?.status && editingOrder.status !== "pending") ? editingOrder.status : ("pending" as OrderStatus),
         totalAmount: total,
         discountAmount,
         taxAmount: serviceFee + vat,
@@ -442,16 +475,32 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         notes: finalNotes,
         tableNo: displayTableName || (selectedTable ? selectedTable.name : undefined),
         items: cart.map((i) => ({
+          id: i.id,
           productId: i.productId,
           quantity: i.quantity,
           name: i.name,
           unitPrice: i.unitPrice,
           notes: i.notes || "",
+          status: i.status || (i.isCompleted ? "completed" : undefined),
         })),
         table: selectedTable ? { name: displayTableName || selectedTable.name } : null,
       };
 
       if (editingOrder && editingOrder.id) {
+        // Ensure KDS statuses for existing completed items are preserved
+        try {
+          const raw = localStorage.getItem("pos_kds_item_statuses");
+          const globalObj = raw ? JSON.parse(raw) : {};
+          cart.forEach((it) => {
+            if (it.isCompleted || it.status === "completed") {
+              if (it.id) globalObj[it.id] = "completed";
+              globalObj[`${editingOrder.id}-${it.productId}`] = "completed";
+            }
+          });
+          localStorage.setItem("pos_kds_item_statuses", JSON.stringify(globalObj));
+          window.dispatchEvent(new Event("pos-item-status-change"));
+        } catch {}
+
         const updatedOrder = await updateOrderApi(editingOrder.id, payload);
         const socket = getSocket();
         if (socket) {
@@ -496,7 +545,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       }
 
       setPrintSlipData({
-        type: "invoice",
+        type: "kitchen",
         orderId: fullOrder?.id,
         orderNumber: fullOrder.orderNumber || ticketNumber,
         createdAt: fullOrder.createdAt || new Date().toISOString(),
@@ -560,7 +609,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   }, [loginSuccessToast]);
 
   useEffect(() => {
-    getOrders()
+    getOrders("active")
       .then((data) => {
         if (Array.isArray(data)) setQrOrders(data);
       })
@@ -641,15 +690,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
     const handleOnline = async () => {
       setIsOnline(true);
-      setSyncing(true);
       try {
         const { getOfflineOrders, deleteOfflineOrder } = await import("../../lib/db");
         const orders = await getOfflineOrders();
-        for (const order of orders) {
-           const newOrder = await createOrder(order.payload);
-           await deleteOfflineOrder(order.id);
+        if (orders && orders.length > 0) {
+          setSyncing(true);
+          for (const order of orders) {
+             await createOrder(order.payload);
+             await deleteOfflineOrder(order.id);
+          }
+          setMessage(`Synced ${orders.length} offline orders`);
         }
-        if (orders.length > 0) setMessage(`Synced ${orders.length} offline orders`);
       } catch (err) {
         console.error("Sync failed", err);
       } finally {
@@ -660,21 +711,22 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
-      handleOnline();
-    }
+
+    // Defer initial sync check so it doesn't block critical page mount transition
+    const syncTimer = setTimeout(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        handleOnline();
+      }
+    }, 2000);
 
     return () => {
+      clearTimeout(syncTimer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(() => {
-      setTicketNumber(String(Date.now()).slice(-4));
-    });
-
     if (cachedCategories && cachedProducts && cachedTables) {
       setInitialLoading(false);
     }
@@ -685,6 +737,15 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         cachedProducts = productRows;
         cachedTables = tableRows.filter((table: DiningTable) => table.isActive);
         cachedSettings = appSettings;
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("pos_cached_categories", JSON.stringify(cachedCategories));
+            localStorage.setItem("pos_cached_products", JSON.stringify(cachedProducts));
+            localStorage.setItem("pos_cached_tables", JSON.stringify(cachedTables));
+            localStorage.setItem("pos_cached_settings", JSON.stringify(cachedSettings));
+          } catch {}
+        }
 
         setCategories(cachedCategories);
         setProducts(cachedProducts);
@@ -794,8 +855,12 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         if (!e.key.includes("menu") && !e.key.includes("settings") && !e.key.includes("product") && !e.key.includes("restaurant")) {
           return;
         }
+        if (e.key.includes("menu") || e.key.includes("product")) {
+          reloadMenuData();
+          return;
+        }
       }
-      reloadMenuData();
+      getSettings().then(applySettings).catch(() => undefined);
     };
 
     window.addEventListener("storage", handleSettingsAndAuth);
@@ -806,8 +871,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     const handleSocketSettings = (updated: any) => {
       if (updated && typeof updated === "object") {
         applySettings(updated);
+      } else {
+        getSettings().then(applySettings).catch(() => undefined);
       }
-      reloadMenuData();
     };
 
     const socket = getSocket();
@@ -858,26 +924,53 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   }, [tables, selectedZone]);
 
   const filteredProducts = useMemo(() => {
-    const search = deferredQuery.trim().toLowerCase();
+    const search = query.trim().toLowerCase();
+    if (!search && categoryId === "all") return products;
 
     return products.filter((product) => {
-      const matchesCategory =
-        categoryId === "all" || product.categoryId === categoryId;
-      const matchesSearch =
-        !search ||
-        product.name.toLowerCase().includes(search) ||
-        (product.nameKm || "").toLowerCase().includes(search) ||
-        (product.description || "").toLowerCase().includes(search) ||
-        (product.descriptionKm || "").toLowerCase().includes(search);
+      if (categoryId !== "all" && product.categoryId !== categoryId) return false;
+      if (!search) return true;
 
-      return matchesCategory && matchesSearch;
+      return (
+        product.name.toLowerCase().includes(search) ||
+        (product.nameKm && product.nameKm.toLowerCase().includes(search)) ||
+        (product.description && product.description.toLowerCase().includes(search)) ||
+        (product.descriptionKm && product.descriptionKm.toLowerCase().includes(search))
+      );
     });
-  }, [categoryId, products, deferredQuery]);
+  }, [categoryId, products, query]);
 
   const productMap = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
     [products]
   );
+
+  const categoryBadgeMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      map.set(p.id, getProductCategoryBadgeName(p, categories, language as any));
+    }
+    return map;
+  }, [products, categories, language]);
+
+  const productImageMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      map.set(p.id, resolveImageUrl(p.imageUrl));
+    }
+    return map;
+  }, [products]);
+
+  const productNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      map.set(p.id, resolveProductName(p, language as any));
+    }
+    return map;
+  }, [products, language]);
 
   const tableNameMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -921,27 +1014,56 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
     return map;
   }, [tables, qrOrders, language]);
 
-  const itemsGrossTotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const {
+    itemsGrossTotal,
+    itemDiscountsTotal,
+    subtotal,
+    cartCount,
+    discountAmount,
+    discountedSubtotal,
+    serviceFee,
+    vat,
+    total,
+    splitAmount,
+  } = useMemo(() => {
+    let gross = 0;
+    let itemDiscounts = 0;
+    let count = 0;
 
-  const itemDiscountsTotal = cart.reduce((sum, item) => {
-    const lineGross = item.unitPrice * item.quantity;
-    if (item.itemDiscountPercent && item.itemDiscountPercent > 0) {
-      return sum + (lineGross * item.itemDiscountPercent) / 100;
-    }
-    if (item.itemDiscountAmount && item.itemDiscountAmount > 0) {
-      return sum + Math.min(lineGross, item.itemDiscountAmount);
-    }
-    return sum;
-  }, 0);
+    for (let i = 0; i < cart.length; i++) {
+      const it = cart[i];
+      const lineGross = it.unitPrice * it.quantity;
+      gross += lineGross;
+      count += it.quantity;
 
-  const subtotal = Math.max(0, itemsGrossTotal - itemDiscountsTotal);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const discountAmount = Math.min(subtotal, subtotal * (discountPercent / 100));
-  const discountedSubtotal = Math.max(subtotal - discountAmount, 0);
-  const serviceFee = discountedSubtotal * serviceRate;
-  const vat = discountedSubtotal * vatRate;
-  const total = discountedSubtotal + serviceFee + vat;
-  const splitAmount = splitCount > 0 ? total / splitCount : total;
+      if (it.itemDiscountPercent && it.itemDiscountPercent > 0) {
+        itemDiscounts += (lineGross * it.itemDiscountPercent) / 100;
+      } else if (it.itemDiscountAmount && it.itemDiscountAmount > 0) {
+        itemDiscounts += Math.min(lineGross, it.itemDiscountAmount);
+      }
+    }
+
+    const sub = Math.max(0, gross - itemDiscounts);
+    const discAmt = Math.min(sub, sub * (discountPercent / 100));
+    const discSub = Math.max(sub - discAmt, 0);
+    const sFee = discSub * serviceRate;
+    const v = discSub * vatRate;
+    const tot = discSub + sFee + v;
+    const split = splitCount > 0 ? tot / splitCount : tot;
+
+    return {
+      itemsGrossTotal: gross,
+      itemDiscountsTotal: itemDiscounts,
+      subtotal: sub,
+      cartCount: count,
+      discountAmount: discAmt,
+      discountedSubtotal: discSub,
+      serviceFee: sFee,
+      vat: v,
+      total: tot,
+      splitAmount: split,
+    };
+  }, [cart, discountPercent, serviceRate, vatRate, splitCount]);
 
   const [heldOrders, setHeldOrders] = useState<any[]>([]);
   const [heldModalOpen, setHeldModalOpen] = useState(false);
@@ -1154,6 +1276,23 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
       current.map((i) => (i.productId === productId ? { ...i, notes: noteText } : i))
     );
   }, []);
+
+  const handleUpdateItemDiscount = useCallback(
+    (productId: number, discountPercent?: number, discountAmount?: number) => {
+      setCart((current) =>
+        current.map((i) =>
+          i.productId === productId
+            ? {
+                ...i,
+                itemDiscountPercent: discountPercent,
+                itemDiscountAmount: discountAmount,
+              }
+            : i
+        )
+      );
+    },
+    []
+  );
 
   async function processCheckout() {
     setLoading(true);
@@ -1458,17 +1597,17 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
           <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto no-scrollbar lg:overflow-hidden w-full min-h-0 pt-0 pb-4 sm:pb-6 gap-4 sm:gap-6 bg-transparent">
             {/* LEFT: Product Catalogue */}
-            <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+            <section className={`flex min-w-0 flex-1 flex-col rounded-2xl overflow-hidden shadow-3xs ${
               mobileTab === "cart" ? "hidden lg:flex" : "flex"
             } ${
               dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
             }`}>
 
-            {/* ── Category Pills + Search row (Glassmorphism Backdrop Blur) ── */}
-            <div className={`sticky top-0 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 backdrop-blur-md transition-all ${
+            {/* ── Category Pills + Search row ── */}
+            <div className={`sticky top-0 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 border-b shrink-0 min-w-0 transition-colors ${
               dark
-                ? "bg-[#2b2c40]/85 border-[#3b3c54]/70 shadow-xs"
-                : "bg-white/80 border-slate-200/70 shadow-xs"
+                ? "bg-[#2b2c40] border-[#3b3c54]/70 shadow-xs"
+                : "bg-white border-slate-200/70 shadow-xs"
             }`}>
               {/* Left Scrollable Pills Wrapper */}
               <div className="flex-1 min-w-0 flex items-center pr-2 sm:pr-4">
@@ -1476,7 +1615,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   <button
                     type="button"
                     onClick={() => setCategoryId("all")}
-                    className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-all cursor-pointer ${
+                    className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-colors cursor-pointer ${
                       categoryId === "all"
                         ? "bg-[#55a060] text-white shadow-sm"
                         : dark
@@ -1491,7 +1630,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                       key={category.id}
                       type="button"
                       onClick={() => setCategoryId(category.id)}
-                      className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-all cursor-pointer whitespace-nowrap ${
+                      className={`shrink-0 h-9 sm:h-10 px-4 sm:px-5 rounded-full text-[12.5px] sm:text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap ${
                         categoryId === category.id
                           ? "bg-[#55a060] text-white shadow-sm"
                           : dark
@@ -1511,11 +1650,11 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 <div className="relative flex-1 sm:flex-none sm:w-[220px] md:w-[260px] lg:w-[280px]">
                   <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                   <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    value={searchInput}
+                    onChange={handleSearchChange}
                     placeholder="Search"
-                    className={`h-10 w-full rounded-xl border pl-9 pr-3 text-[13.5px] font-medium outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-all backdrop-blur-md ${
-                      dark ? "border-slate-700/80 bg-[#232333]/80 text-slate-100" : "border-slate-200/90 bg-slate-50/80 text-slate-800"
+                    className={`h-10 w-full rounded-xl border pl-9 pr-3 text-[13.5px] font-medium outline-none placeholder:text-slate-400 focus:border-[#55a060] transition-colors ${
+                      dark ? "border-slate-700/80 bg-[#232333] text-slate-100" : "border-slate-200/90 bg-slate-50 text-slate-800"
                     }`}
                   />
                 </div>
@@ -1567,13 +1706,33 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               ) : viewMode === "grid" ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                   {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} language={language} categories={categories} onAdd={handleAddProduct} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      productName={productNameMap.get(product.id) || product.name}
+                      categoryBadge={categoryBadgeMap.get(product.id) || ""}
+                      imageUrl={productImageMap.get(product.id) || ""}
+                      dark={dark}
+                      exchangeRate={exchangeRate}
+                      language={language}
+                      onAdd={handleAddProduct}
+                    />
                   ))}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-2.5 sm:gap-3.5">
                   {filteredProducts.map((product) => (
-                    <ProductListItem key={product.id} product={product} dark={dark} exchangeRate={exchangeRate} language={language} categories={categories} onAdd={handleAddProduct} />
+                    <ProductListItem
+                      key={product.id}
+                      product={product}
+                      productName={productNameMap.get(product.id) || product.name}
+                      categoryBadge={categoryBadgeMap.get(product.id) || ""}
+                      imageUrl={productImageMap.get(product.id) || ""}
+                      dark={dark}
+                      exchangeRate={exchangeRate}
+                      language={language}
+                      onAdd={handleAddProduct}
+                    />
                   ))}
                 </div>
               )}
@@ -1581,7 +1740,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
           </section>
 
           {/* RIGHT: Cart / WALKIN CUSTOMER */}
-          <aside className={`w-full lg:w-[340px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs transition-all duration-[300ms] ease-in-out ${
+          <aside className={`w-full lg:w-[340px] xl:w-[27%] xl:min-w-[340px] xl:max-w-[370px] shrink-0 rounded-2xl flex flex-col h-full overflow-hidden shadow-3xs ${
             mobileTab === "menu" ? "hidden lg:flex" : "flex"
           } ${
             dark ? "bg-[#2b2c40] border border-[#3b3c54]" : "bg-white border border-slate-200/80"
@@ -1712,60 +1871,21 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 </div>
               ) : (
                 <div className="px-4.5 py-3.5 space-y-2.5">
-                  {cart.map((item, index) => {
-                    const product = productMap.get(item.productId);
-                    return (
-                      <TicketItem
-                        key={`cart-item-${item.productId}-${index}`}
-                        item={item}
-                        dark={dark}
-                        language={language}
-                        exchangeRate={exchangeRate}
-                        imageUrl={resolveImageUrl(product?.imageUrl)}
-                        onIncrement={() => {
-                          const prod = products.find((p) => p.id === item.productId);
-                          const nextQty = item.quantity + 1;
-                          if (prod?.trackStock && Number(prod.inventory?.quantity ?? 0) < nextQty) {
-                            showErrorToast(`Insufficient stock for ${prod.name}. Available: ${Number(prod.inventory?.quantity).toFixed(0)} ${prod.unit}`);
-                            return;
-                          }
-                          setCart((current) =>
-                            current.map((i) =>
-                              i.productId === item.productId ? { ...i, quantity: nextQty } : i
-                            )
-                          );
-                        }}
-                        onDecrement={() => {
-                          setCart((current) =>
-                            current
-                              .map((i) => (i.productId === item.productId ? { ...i, quantity: i.quantity - 1 } : i))
-                              .filter((i) => i.quantity > 0)
-                          );
-                        }}
-                        onRemove={() => {
-                          setCart((current) => current.filter((i) => i.productId !== item.productId));
-                        }}
-                        onAddNote={(noteText) => {
-                          setCart((current) =>
-                            current.map((i) => (i.productId === item.productId ? { ...i, notes: noteText } : i))
-                          );
-                        }}
-                        onUpdateDiscount={(discountPercent, discountAmount) => {
-                          setCart((current) =>
-                            current.map((i) =>
-                              i.productId === item.productId
-                                ? {
-                                    ...i,
-                                    itemDiscountPercent: discountPercent,
-                                    itemDiscountAmount: discountAmount,
-                                  }
-                                : i
-                            )
-                          );
-                        }}
-                      />
-                    );
-                  })}
+                  {cart.map((item) => (
+                    <TicketItem
+                      key={item.productId}
+                      item={item}
+                      dark={dark}
+                      language={language}
+                      exchangeRate={exchangeRate}
+                      imageUrl={productImageMap.get(item.productId) || ""}
+                      onIncrement={handleIncrementItem}
+                      onDecrement={handleDecrementItem}
+                      onRemove={handleRemoveItem}
+                      onAddNote={handleSetItemNote}
+                      onUpdateDiscount={handleUpdateItemDiscount}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -1841,30 +1961,45 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                 </div>
               </div>
 
-              {/* Draft & Send / Update Buttons Row */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Draft & Split & Send / Update Buttons Row */}
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   type="button"
                   onClick={handleHoldOrder}
                   disabled={cart.length === 0 || !!editingOrder}
-                  className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex h-10 items-center justify-center gap-1 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     dark ? "border-[#3b3c54] bg-[#232333] text-slate-300 hover:bg-[#34354e]" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                   } ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  <Archive size={14} /> {language === "km" ? "រក្សាទុកព្រាង" : "Draft"}
+                  <Archive size={13} /> {language === "km" ? "ព្រាង" : "Draft"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSplitCount(2);
+                    setPaidSplits([]);
+                    setSplitOpen(true);
+                  }}
+                  disabled={cart.length === 0}
+                  className={`flex h-10 items-center justify-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:border-indigo-500/30 text-[11px] font-semibold text-indigo-700 dark:text-indigo-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    language === "km" ? "font-khmer" : ""
+                  }`}
+                  title={language === "km" ? "ពុះប៊ីលជាច្រើនចំណែក" : "Split Bill"}
+                >
+                  <Scissors size={13} /> {language === "km" ? "ពុះប៊ីល" : "Split"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSendKitchenModalOpen(true)}
                   disabled={cart.length === 0}
-                  className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-xs font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex h-10 items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:border-emerald-500/30 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     language === "km" ? "font-khmer" : ""
                   }`}
                 >
-                  {editingOrder ? <Pencil size={14} /> : <ChefHat size={14} />} 
+                  {editingOrder ? <Pencil size={13} /> : <ChefHat size={13} />} 
                   {editingOrder 
-                    ? (language === "km" ? "កែប្រែការបញ្ជាទិញ" : "Update Order") 
-                    : (language === "km" ? "ផ្ញើទៅចង្ក្រាន" : "Send to Kitchen")}
+                    ? (language === "km" ? "កែប្រែ" : "Update") 
+                    : (language === "km" ? "ផ្ញើផ្ទះបាយ" : "Kitchen")}
                 </button>
               </div>
 
@@ -2120,6 +2255,27 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
               </div>
             </div>
 
+            {/* Split Bill Option inside Payment Modal */}
+            <div className="mt-3.5 flex items-center justify-between rounded-xl bg-indigo-50/60 border border-indigo-100 p-2.5">
+              <span className={`text-xs text-indigo-900 font-medium ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? "ភ្ញៀវចង់ពុះប៊ីលជាច្រើនចំណែក?" : "Want to split bill among guests?"}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentModalOpen(false);
+                  setSplitCount(2);
+                  setPaidSplits([]);
+                  setSplitOpen(true);
+                }}
+                className={`inline-flex items-center gap-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-2xs ${
+                  language === "km" ? "font-khmer" : ""
+                }`}
+              >
+                <Scissors size={12} /> {language === "km" ? "ពុះប៊ីល" : "Split Bill"}
+              </button>
+            </div>
+
             {/* Payment Method Selector Grid (3 Cards) */}
             <div className="grid grid-cols-3 gap-3 my-4">
               <button
@@ -2224,7 +2380,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm print:hidden">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_200ms_ease-out]">
             <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3 flex items-center justify-between">
-              <h3 className="text-base font-black text-slate-800">Split Bill</h3>
+              <h3 className={`text-base font-black text-slate-800 ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? "ពុះប៊ីលជាច្រើនចំណែក (Split Bill)" : "Split Bill"}
+              </h3>
               <button 
                 onClick={() => setSplitOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -2235,14 +2393,18 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             
             <div className="p-5">
               <div className="mb-5 text-center">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Amount</p>
+                <p className={`text-xs font-bold uppercase tracking-wider text-slate-500 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ទឹកប្រាក់សរុបត្រូវបង់" : "Total Amount"}
+                </p>
                 <p className="text-2xl font-black text-[#696cff] leading-none mt-1.5">{money(total)}</p>
-                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(total * (exchangeRate || 4000)).toLocaleString()} ៛</p>
+                <p className="text-[11px] font-bold text-slate-400 mt-1">~ {(Math.round(total * (exchangeRate || 4000))).toLocaleString()} ៛</p>
               </div>
 
               {/* Split Count Selector */}
               <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Number of Splits</label>
+                <label className={`block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ចំនួនអ្នកពុះប៊ីល" : "Number of Splits"}
+                </label>
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -2252,11 +2414,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                       setSplitCount(next);
                       setPaidSplits([]); // Reset paid splits when count changes
                     }}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 cursor-pointer"
                   >
                     -
                   </button>
-                  <span className="text-xl font-black text-slate-800">{splitCount} Person(s)</span>
+                  <span className={`text-xl font-black text-slate-800 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? `${splitCount} នាក់` : `${splitCount} Person(s)`}
+                  </span>
                   <button
                     type="button"
                     disabled={splitCount >= 10}
@@ -2265,13 +2429,13 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                       setSplitCount(next);
                       setPaidSplits([]); // Reset paid splits when count changes
                     }}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white border border-slate-200 text-lg font-extrabold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 cursor-pointer"
                   >
                     +
                   </button>
                 </div>
-                <div className="mt-3 border-t border-slate-100 pt-2 flex items-center justify-between text-xs font-bold text-slate-600">
-                  <span>Each Pays:</span>
+                <div className={`mt-3 border-t border-slate-100 pt-2 flex items-center justify-between text-xs font-bold text-slate-600 ${language === "km" ? "font-khmer" : ""}`}>
+                  <span>{language === "km" ? "ម្នាក់ៗត្រូវបង់ :" : "Each Pays:"}</span>
                   <span className="text-sm font-black text-emerald-600">{money(total / splitCount)}</span>
                 </div>
               </div>
@@ -2295,13 +2459,15 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                         }`}>
                           {idx + 1}
                         </div>
-                        <span className="text-xs font-bold text-slate-700">Split #{idx + 1}</span>
+                        <span className={`text-xs font-bold text-slate-700 ${language === "km" ? "font-khmer" : ""}`}>
+                          {language === "km" ? `ចំណែកទី #${idx + 1}` : `Split #${idx + 1}`}
+                        </span>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-extrabold text-slate-800">{money(total / splitCount)}</span>
                         {isPaid ? (
-                          <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-[10px] font-black text-emerald-700 uppercase">
-                            ✓ Paid
+                          <span className={`rounded-lg bg-emerald-100 px-2.5 py-1 text-[10px] font-black text-emerald-700 uppercase ${language === "km" ? "font-khmer" : ""}`}>
+                            {language === "km" ? "✓ បានបង់" : "✓ Paid"}
                           </span>
                         ) : (
                           <button
@@ -2312,9 +2478,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                               setSplitPaymentMethod("cash");
                               setSplitPaymentOpen(true);
                             }}
-                            className="rounded-lg bg-[#696cff] px-3 py-1 text-[10px] font-black text-white hover:bg-[#5f61e6] active:scale-95 transition-all"
+                            className={`rounded-lg bg-[#696cff] px-3 py-1 text-[10px] font-black text-white hover:bg-[#5f61e6] active:scale-95 transition-all cursor-pointer ${language === "km" ? "font-khmer" : ""}`}
                           >
-                            Pay
+                            {language === "km" ? "បង់លុយ" : "Pay"}
                           </button>
                         )}
                       </div>
@@ -2327,9 +2493,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             <div className="flex justify-end border-t border-slate-100 bg-slate-50/50 p-4">
               <button 
                 onClick={() => setSplitOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all"
+                className={`rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer ${language === "km" ? "font-khmer" : ""}`}
               >
-                Close
+                {language === "km" ? "បិទ" : "Close"}
               </button>
             </div>
           </div>
@@ -2341,7 +2507,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs print:hidden">
           <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-[dashboardPageIn_180ms_ease-out]">
             <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3 flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-800">Pay Split #{selectedSplitIndex + 1}</h3>
+              <h3 className={`text-sm font-black text-slate-800 ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? `បង់ប្រាក់ចំណែកទី #${selectedSplitIndex + 1}` : `Pay Split #${selectedSplitIndex + 1}`}
+              </h3>
               <button 
                 onClick={() => setSplitPaymentOpen(false)}
                 className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -2352,30 +2520,34 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             
             <div className="p-5">
               <div className="mb-4 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Split Share</p>
+                <p className={`text-[10px] font-bold uppercase tracking-wider text-slate-500 ${language === "km" ? "font-khmer" : ""}`}>
+                  {language === "km" ? "ចំណែកត្រូវបង់" : "Split Share"}
+                </p>
                 <p className="text-2xl font-black text-[#696cff] leading-none mt-1">{money(total / splitCount)}</p>
-                <p className="text-[10px] font-bold text-slate-400 mt-0.5">~ {((total / splitCount) * (exchangeRate || 4000)).toLocaleString()} ៛</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5">~ {(Math.round((total / splitCount) * (exchangeRate || 4000))).toLocaleString()} ៛</p>
               </div>
 
               <div className="mb-4 flex gap-1.5">
                 <button 
                   onClick={() => setSplitPaymentMethod("cash")}
-                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'cash' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
+                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'cash' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'} ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  💵 Cash
+                  {language === "km" ? "💵 សាច់ប្រាក់" : "💵 Cash"}
                 </button>
                 <button 
                   onClick={() => setSplitPaymentMethod("qr")}
-                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'qr' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}`}
+                  className={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${splitPaymentMethod === 'qr' ? 'border-[#696cff] bg-[#696cff]/5 text-[#696cff]' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'} ${language === "km" ? "font-khmer" : ""}`}
                 >
-                  📱 QR Code
+                  {language === "km" ? "📱 ស្កេន QR" : "📱 QR Code"}
                 </button>
               </div>
 
               {splitPaymentMethod === "cash" && (
                 <div className="space-y-3 animate-[usersPageIn_180ms_ease-out]">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Cash Received</label>
+                    <label className={`mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500 ${language === "km" ? "font-khmer" : ""}`}>
+                      {language === "km" ? "ប្រាក់ទទួលបាន" : "Cash Received"}
+                    </label>
                     <div className="relative">
                       <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
                       <input 
@@ -2391,7 +2563,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   {/* Quick Cash Presets */}
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
-                      { label: "Exact", val: total / splitCount },
+                      { label: language === "km" ? "គ្រប់" : "Exact", val: total / splitCount },
                       { label: "$5", val: 5 },
                       { label: "$10", val: 10 },
                       { label: "$20", val: 20 },
@@ -2400,7 +2572,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                         key={idx}
                         type="button"
                         onClick={() => setSplitCashReceived(btn.val)}
-                        className="rounded-lg bg-slate-50 py-1.5 text-[10px] font-extrabold text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100"
+                        className="rounded-lg bg-slate-50 py-1.5 text-[10px] font-extrabold text-slate-600 hover:bg-slate-100 transition-colors border border-slate-100 cursor-pointer"
                       >
                         {btn.label}
                       </button>
@@ -2409,7 +2581,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
 
                   {/* Change calculation */}
                   <div className="mt-2 flex items-center justify-between rounded-xl bg-slate-50 p-2.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Change</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider text-slate-500 ${language === "km" ? "font-khmer" : ""}`}>
+                      {language === "km" ? "ប្រាក់អាប់" : "Change"}
+                    </span>
                     <div className="text-right">
                       <div className={`text-base leading-none font-black ${splitCashReceived - (total / splitCount) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {money(Math.max(0, splitCashReceived - (total / splitCount)))}
@@ -2424,7 +2598,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                   <div className="mb-2 rounded-xl bg-white p-1.5 shadow-sm">
                     <div className="h-24 w-24 bg-[url('https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=KHQR')] bg-contain bg-center bg-no-repeat opacity-85" />
                   </div>
-                  <p className="text-[10px] font-bold text-slate-500">Scan to pay split share</p>
+                  <p className={`text-[10px] font-bold text-slate-500 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? "ស្កេនដើម្បីបង់ចំណែកនេះ" : "Scan to pay split share"}
+                  </p>
                 </div>
               )}
             </div>
@@ -2432,9 +2608,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
             <div className="flex gap-2 border-t border-slate-100 bg-slate-50/50 p-4">
               <button 
                 onClick={() => setSplitPaymentOpen(false)}
-                className="flex-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-all"
+                className={`flex-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-all cursor-pointer ${language === "km" ? "font-khmer" : ""}`}
               >
-                Cancel
+                {language === "km" ? "បោះបង់" : "Cancel"}
               </button>
               <button 
                 disabled={splitPaymentMethod === 'cash' && splitCashReceived < (total / splitCount)}
@@ -2449,7 +2625,7 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     try {
                       // Submit payment via normal processCheckout
                       await processCheckout();
-                      setMessage("All splits paid successfully! Order completed.");
+                      setMessage(language === "km" ? "ការបង់ប្រាក់គ្រប់ចំណែកបានជោគជ័យ! បញ្ចប់ការលក់។" : "All splits paid successfully! Order completed.");
                       setSplitOpen(false);
                     } catch (e) {
                       setMessage(e instanceof Error ? e.message : "Failed to finalize order");
@@ -2458,9 +2634,9 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
                     }
                   }
                 }}
-                className="flex-[2] rounded-xl bg-[#696cff] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#5f61e6] active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all"
+                className={`flex-[2] rounded-xl bg-[#696cff] px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#5f61e6] active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all cursor-pointer ${language === "km" ? "font-khmer" : ""}`}
               >
-                Confirm Split Pay
+                {language === "km" ? "យល់ព្រមបង់" : "Confirm Split Pay"}
               </button>
             </div>
           </div>
@@ -3030,215 +3206,328 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
         </div>
       )}
       {/* ── THERMAL PRINT RECEIPT & KOT SLIP MODAL (Matching User Image Format) ── */}
-      {printSlipModalOpen && printSlipData && typeof window !== "undefined" && createPortal(
-        <div 
-          onClick={() => setPrintSlipModalOpen(false)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px] animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-[380px] max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 text-slate-800 shadow-2xl transition-all font-mono"
+      {printSlipModalOpen && printSlipData && typeof window !== "undefined" && (() => {
+        const formattedOrderNo = (() => {
+          if (printSlipData.orderId) {
+            return `#${String(printSlipData.orderId).padStart(4, "0")}`;
+          }
+          const numStr = String(printSlipData.orderNumber || "");
+          if (numStr.startsWith("#")) return numStr;
+          if (/^\d+$/.test(numStr)) return `#${numStr.padStart(4, "0")}`;
+          const match = numStr.match(/(\d+)$/);
+          if (match) {
+            return `#${match[1].slice(-4).padStart(4, "0")}`;
+          }
+          return `#${numStr}`;
+        })();
+
+        return createPortal(
+          <div 
+            onClick={() => setPrintSlipModalOpen(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px] animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
           >
-            {/* Modal Controls (Print & Close) */}
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 print:hidden font-sans">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {printSlipData.type === "invoice" ? "PRINT INVOICE PREVIEW" : "PRINT RECEIPT PREVIEW"}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#55a060] hover:bg-[#46894f] px-3 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
-                >
-                  <Printer size={14} /> Print
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPrintSlipModalOpen(false)}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Printable Thermal Receipt Area (Soft Clean Typography) */}
-            <div id="thermal-print-area" className="text-xs text-slate-800 leading-normal font-sans font-khmer">
-              {/* Logo / Store Header */}
-              <div className="text-center">
-                {restaurantImageUrl ? (
-                  <img loading="lazy" src={resolveImageUrl(restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F522B] text-white font-bold text-sm mx-auto mb-1.5">
-                    {posName.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <h2 className="text-sm font-bold tracking-tight text-slate-800 font-khmer">{posName}</h2>
-                {restaurantAddress && (
-                  <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
-                    {restaurantAddress}
-                  </p>
-                )}
-                {(restaurantPhone || restaurantEmail) && (
-                  <p className="text-[11px] text-slate-500 font-normal leading-tight">
-                    {restaurantPhone ? `Phone: ${restaurantPhone}` : ""}{restaurantPhone && restaurantEmail ? ", " : ""}{restaurantEmail ? `Email: ${restaurantEmail}` : ""}
-                  </p>
-                )}
-                {showVatTin && vatTin && (
-                  <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                    VAT TIN: {vatTin}
-                  </p>
-                )}
-
-                <div className="mt-2.5 pt-2 border-t border-slate-200">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                    {printSlipData.type === "invoice"
-                      ? (invoiceHeaderTitle || "TAX INVOICE")
-                      : (receiptHeaderTitle || "RECEIPT")}
-                  </h3>
-                </div>
-
-                {((printSlipData.type === "invoice" && showCustomerInfoOnInvoice) || (printSlipData.type !== "invoice" && showTableInfo)) && (
-                  <div className="mt-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
-                    {printSlipData.customer}
-                  </div>
-                )}
-              </div>
-
-              {/* Order Metadata */}
-              <div className="mt-3.5 space-y-1 text-xs">
-                {showTableInfo && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-normal">Order Type:</span>
-                    <span className="font-semibold text-slate-800">{printSlipData.orderType}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-normal">
-                    {printSlipData.type === "invoice" ? "Invoice No.:" : "Receipt No.:"}
-                  </span>
-                  <span className="font-semibold text-slate-800">
-                    {(() => {
-                      if (printSlipData.orderId) {
-                        return `#${String(printSlipData.orderId).padStart(4, "0")}`;
-                      }
-                      const numStr = String(printSlipData.orderNumber || "");
-                      if (numStr.startsWith("#")) return numStr;
-                      if (/^\d+$/.test(numStr)) return `#${numStr.padStart(4, "0")}`;
-                      const match = numStr.match(/(\d+)$/);
-                      if (match) {
-                        return `#${match[1].slice(-4).padStart(4, "0")}`;
-                      }
-                      return `#${numStr}`;
-                    })()}
-                  </span>
-                </div>
-                {showCashierName && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-normal">Cashier:</span>
-                    <span className="font-semibold text-slate-800">{currentUserName}</span>
-                  </div>
-                )}
-                <div className="text-slate-400 text-[11px] text-right font-normal mt-0.5">
-                  {new Date(printSlipData.createdAt).toLocaleDateString("en-US", {
-                    month: "numeric",
-                    day: "numeric",
-                    year: "numeric",
-                  })},{" "}
-                  {new Date(printSlipData.createdAt).toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: true,
-                  })}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-[380px] max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 text-slate-800 shadow-2xl transition-all font-mono"
+            >
+              {/* Modal Controls (Print & Close) */}
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 print:hidden font-sans">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {printSlipData.type === "kitchen"
+                    ? "PRINT KITCHEN SLIP (KOT)"
+                    : printSlipData.type === "invoice"
+                      ? "PRINT INVOICE PREVIEW"
+                      : "PRINT RECEIPT PREVIEW"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#55a060] hover:bg-[#46894f] px-3 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-xs"
+                  >
+                    <Printer size={14} /> Print
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintSlipModalOpen(false)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               </div>
 
-              {/* Dashed Line */}
-              <div className="my-2.5 border-b border-dashed border-slate-200" />
-
-              {/* Dishes Itemized Breakdown */}
-              <div className="space-y-2">
-                {printSlipData.items.map((item, idx) => (
-                  <div key={idx} className="space-y-0.5">
-                    <div className="flex justify-between items-baseline text-xs font-medium text-slate-800">
-                      <span className="flex-1 pr-2 leading-snug">{item.name}</span>
-                      <span className="font-semibold text-slate-900">{money(item.unitPrice * item.quantity)}</span>
+              {/* Printable Thermal Receipt Area (Soft Clean Typography) */}
+              <div id="thermal-print-area" className="text-xs text-slate-800 leading-normal font-sans font-khmer">
+                {printSlipData.type === "kitchen" ? (
+                  <div className="space-y-3 font-sans font-khmer">
+                    {/* Kitchen Slip Header */}
+                    <div className="text-center pb-2 border-b-2 border-dashed border-slate-300">
+                      <h2 className="text-base font-black tracking-tight text-slate-900 uppercase">
+                        KITCHEN ORDER TICKET (KOT)
+                      </h2>
+                      <p className="text-[11px] font-bold text-slate-500 mt-0.5">
+                        {posName || "POS Kitchen"}
+                      </p>
                     </div>
-                    <div className="text-[11px] text-slate-500 font-normal">
-                      {item.quantity}x {money(item.unitPrice)}
+
+                    {/* Table / Customer Highlight (Prominent for Chef & Waiter) */}
+                    <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-center">
+                      <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 block">
+                        តុ / TABLE
+                      </span>
+                      <span className="text-base font-black text-slate-900 block mt-0.5 font-khmer">
+                        {printSlipData.customer}
+                      </span>
                     </div>
-                    {item.notes && (
-                      <div className="text-[10.5px] text-amber-700 font-normal italic pl-1.5 border-l border-amber-300 mt-0.5">
-                        Note: {item.notes}
+
+                    {/* Order Metadata */}
+                    <div className="space-y-1 text-xs px-0.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">Order No:</span>
+                        <span className="font-bold text-slate-900">{formattedOrderNo}</span>
                       </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">ប្រភេទ / Type:</span>
+                        <span className="font-bold text-slate-800">{printSlipData.orderType}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-medium">ម៉ោងកុម្ម៉ង់ / Time:</span>
+                        <span className="font-semibold text-slate-700">
+                          {new Date(printSlipData.createdAt).toLocaleDateString("en-US", {
+                            month: "numeric",
+                            day: "numeric",
+                            year: "numeric",
+                          })},{" "}
+                          {new Date(printSlipData.createdAt).toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </span>
+                      </div>
+                      {currentUserName && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">អ្នកកុម្ម៉ង់ / Server:</span>
+                          <span className="font-semibold text-slate-700">{currentUserName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dashed Separator */}
+                    <div className="border-b-2 border-dashed border-slate-300 my-2" />
+
+                    {/* Dish List Header */}
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-slate-500 pb-1 border-b border-slate-200">
+                      <span className="w-14">ចំនួន (QTY)</span>
+                      <span className="flex-1">មុខម្ហូប (ITEM)</span>
+                    </div>
+
+                    {/* Dish Items (Big bold quantity, clean dish name, visible note) */}
+                    <div className="space-y-2.5 pt-1">
+                      {printSlipData.items.map((item, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex items-start">
+                            <span className="inline-flex items-center justify-center min-w-[28px] h-6 rounded bg-slate-900 text-white text-xs font-black mr-2.5 shrink-0">
+                              {item.quantity}x
+                            </span>
+                            <span className="flex-1 leading-snug font-khmer text-xs font-bold text-slate-900 pt-0.5">
+                              {item.name}
+                            </span>
+                          </div>
+                          {item.notes && (
+                            <div className="ml-9 text-[11px] text-amber-900 font-bold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-300 font-khmer inline-block">
+                              * ចំណាំ: {item.notes}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Dashed Separator */}
+                    <div className="border-b-2 border-dashed border-slate-300 my-2" />
+
+                    {/* Total Items Count */}
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-800 px-0.5">
+                      <span>សរុបមុខម្ហូប (Total Dishes):</span>
+                      <span className="text-sm font-black text-slate-900">
+                        {printSlipData.items.reduce((sum, item) => sum + Number(item.quantity || 1), 0)} ចាន / កែវ
+                      </span>
+                    </div>
+
+                    {/* Footer Stamp */}
+                    <div className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest pt-3 border-t border-dashed border-slate-200">
+                      *** KITCHEN ORDER TICKET (KOT) ***
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Logo / Store Header */}
+                    <div className="text-center">
+                      {restaurantImageUrl ? (
+                        <img loading="lazy" src={resolveImageUrl(restaurantImageUrl)} alt="Logo" className="h-12 w-12 object-contain mx-auto mb-1.5" />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F522B] text-white font-bold text-sm mx-auto mb-1.5">
+                          {posName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      <h2 className="text-sm font-bold tracking-tight text-slate-800 font-khmer">{posName}</h2>
+                      {restaurantAddress && (
+                        <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                          {restaurantAddress}
+                        </p>
+                      )}
+                      {(restaurantPhone || restaurantEmail) && (
+                        <p className="text-[11px] text-slate-500 font-normal leading-tight">
+                          {restaurantPhone ? `Phone: ${restaurantPhone}` : ""}{restaurantPhone && restaurantEmail ? ", " : ""}{restaurantEmail ? `Email: ${restaurantEmail}` : ""}
+                        </p>
+                      )}
+                      {showVatTin && vatTin && (
+                        <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                          VAT TIN: {vatTin}
+                        </p>
+                      )}
+
+                      <div className="mt-2.5 pt-2 border-t border-slate-200">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                          {printSlipData.type === "invoice"
+                            ? (invoiceHeaderTitle || "TAX INVOICE")
+                            : (receiptHeaderTitle || "RECEIPT")}
+                        </h3>
+                      </div>
+
+                      {((printSlipData.type === "invoice" && showCustomerInfoOnInvoice) || (printSlipData.type !== "invoice" && showTableInfo)) && (
+                        <div className="mt-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1 rounded-md inline-block">
+                          {printSlipData.customer}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Metadata */}
+                    <div className="mt-3.5 space-y-1 text-xs">
+                      {showTableInfo && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-normal">Order Type:</span>
+                          <span className="font-semibold text-slate-800">{printSlipData.orderType}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500 font-normal">
+                          {printSlipData.type === "invoice" ? "Invoice No.:" : "Receipt No.:"}
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {formattedOrderNo}
+                        </span>
+                      </div>
+                      {showCashierName && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-normal">Cashier:</span>
+                          <span className="font-semibold text-slate-800">{currentUserName}</span>
+                        </div>
+                      )}
+                      <div className="text-slate-400 text-[11px] text-right font-normal mt-0.5">
+                        {new Date(printSlipData.createdAt).toLocaleDateString("en-US", {
+                          month: "numeric",
+                          day: "numeric",
+                          year: "numeric",
+                        })},{" "}
+                        {new Date(printSlipData.createdAt).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: true,
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Dashed Line */}
+                    <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+                    {/* Dishes Itemized Breakdown */}
+                    <div className="space-y-2">
+                      {printSlipData.items.map((item, idx) => (
+                        <div key={idx} className="space-y-0.5">
+                          <div className="flex justify-between items-baseline text-xs font-medium text-slate-800">
+                            <span className="flex-1 pr-2 leading-snug">{item.name}</span>
+                            <span className="font-semibold text-slate-900">{money(item.unitPrice * item.quantity)}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-normal">
+                            {item.quantity}x {money(item.unitPrice)}
+                          </div>
+                          {item.notes && (
+                            <div className="text-[10.5px] text-amber-700 font-normal italic pl-1.5 border-l border-amber-300 mt-0.5">
+                              Note: {item.notes}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Dashed Line */}
+                    <div className="my-2.5 border-b border-dashed border-slate-200" />
+
+                    {/* Financial Totals */}
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between items-center text-slate-600 font-normal">
+                        <span>Subtotal (excl. tax):</span>
+                        <span className="font-semibold text-slate-800">{money(printSlipData.subtotal)}</span>
+                      </div>
+                      {printSlipData.vat > 0 && (
+                        <div className="flex justify-between items-center text-slate-600 font-normal">
+                          <span>Tax:</span>
+                          <span className="font-semibold text-slate-800">{money(printSlipData.vat)}</span>
+                        </div>
+                      )}
+                      {printSlipData.serviceFee > 0 && (
+                        <div className="flex justify-between items-center text-slate-600 font-normal">
+                          <span>Service Charge:</span>
+                          <span className="font-semibold text-slate-800">{money(printSlipData.serviceFee)}</span>
+                        </div>
+                      )}
+                      {printSlipData.discountAmount > 0 && (
+                        <div className="flex justify-between items-center text-emerald-600 font-normal">
+                          <span>Discount:</span>
+                          <span className="font-semibold">-{money(printSlipData.discountAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
+                        <span>{printSlipData.type === "invoice" ? "Total:" : "Total (PAID):"}</span>
+                        <span className="text-base text-[#55a060] font-bold">{money(printSlipData.total)}</span>
+                      </div>
+                      <div className="text-right text-[10.5px] text-slate-400 font-normal mt-0.5">
+                        ~ {(printSlipData.total * (exchangeRate || 4000)).toLocaleString()} ៛
+                      </div>
+                    </div>
+
+                    {/* Footer Note / Terms */}
+                    {printSlipData.type === "invoice" ? (
+                      invoiceTerms ? (
+                        <>
+                          <div className="my-3 border-b border-dashed border-slate-200" />
+                          <div className="text-[10.5px] text-slate-500 font-normal leading-relaxed whitespace-pre-line">
+                            <p className="font-semibold text-slate-700 mb-0.5">Terms & Conditions:</p>
+                            {invoiceTerms}
+                          </div>
+                        </>
+                      ) : null
+                    ) : (
+                      receiptFooterText ? (
+                        <>
+                          <div className="my-3 border-b border-dashed border-slate-200" />
+                          <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
+                            <p>{receiptFooterText}</p>
+                          </div>
+                        </>
+                      ) : null
                     )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Dashed Line */}
-              <div className="my-2.5 border-b border-dashed border-slate-200" />
-
-              {/* Financial Totals */}
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between items-center text-slate-600 font-normal">
-                  <span>Subtotal (excl. tax):</span>
-                  <span className="font-semibold text-slate-800">{money(printSlipData.subtotal)}</span>
-                </div>
-                {printSlipData.vat > 0 && (
-                  <div className="flex justify-between items-center text-slate-600 font-normal">
-                    <span>Tax:</span>
-                    <span className="font-semibold text-slate-800">{money(printSlipData.vat)}</span>
-                  </div>
-                )}
-                {printSlipData.serviceFee > 0 && (
-                  <div className="flex justify-between items-center text-slate-600 font-normal">
-                    <span>Service Charge:</span>
-                    <span className="font-semibold text-slate-800">{money(printSlipData.serviceFee)}</span>
-                  </div>
-                )}
-                {printSlipData.discountAmount > 0 && (
-                  <div className="flex justify-between items-center text-emerald-600 font-normal">
-                    <span>Discount:</span>
-                    <span className="font-semibold">-{money(printSlipData.discountAmount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center pt-2 text-sm font-bold border-t border-slate-200 text-slate-800 mt-1">
-                  <span>{printSlipData.type === "invoice" ? "Total:" : "Total (PAID):"}</span>
-                  <span className="text-base text-[#55a060] font-bold">{money(printSlipData.total)}</span>
-                </div>
-                <div className="text-right text-[10.5px] text-slate-400 font-normal mt-0.5">
-                  ~ {(printSlipData.total * (exchangeRate || 4000)).toLocaleString()} ៛
-                </div>
-              </div>
-
-              {/* Footer Note / Terms */}
-              {printSlipData.type === "invoice" ? (
-                invoiceTerms ? (
-                  <>
-                    <div className="my-3 border-b border-dashed border-slate-200" />
-                    <div className="text-[10.5px] text-slate-500 font-normal leading-relaxed whitespace-pre-line">
-                      <p className="font-semibold text-slate-700 mb-0.5">Terms & Conditions:</p>
-                      {invoiceTerms}
-                    </div>
                   </>
-                ) : null
-              ) : (
-                receiptFooterText ? (
-                  <>
-                    <div className="my-3 border-b border-dashed border-slate-200" />
-                    <div className="text-center text-xs font-normal text-slate-500 space-y-0.5">
-                      <p>{receiptFooterText}</p>
-                    </div>
-                  </>
-                ) : null
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        );
+      })()}
     </main>
   );
 
@@ -3253,20 +3542,38 @@ export default function PosPage(props?: { isAdminView?: boolean; params?: Promis
   );
 }
 
+const PosPage = memo(PosPageComponent);
+export default PosPage;
+
 const ProductCard = memo(
-  function ProductCard({ product, dark, exchangeRate = 4000, language = "en", categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; language?: "en" | "km" | string; categories?: Category[]; onAdd: (product: Product) => void }) {
-    const imageUrl = resolveImageUrl(product.imageUrl);
+  function ProductCard({
+    product,
+    productName,
+    categoryBadge,
+    imageUrl,
+    dark,
+    exchangeRate = 4000,
+    language = "en",
+    onAdd,
+  }: {
+    product: Product;
+    productName: string;
+    categoryBadge?: string;
+    imageUrl?: string;
+    dark?: boolean;
+    exchangeRate?: number;
+    language?: "en" | "km" | string;
+    onAdd: (product: Product) => void;
+  }) {
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
-
-    const categoryBadge = getProductCategoryBadgeName(product, categories, language as any);
 
     return (
       <button
         type="button"
         onClick={() => onAdd(product)}
         disabled={unavailable}
-        className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-sm active:scale-[0.97] transition-all duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between cursor-pointer ${
+        className={`group relative overflow-hidden rounded-2xl border text-left shadow-2xs hover:shadow-sm active:scale-[0.97] transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-60 flex flex-col justify-between cursor-pointer [contain:paint] ${
           dark ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#3b3c54]" : "bg-white border-slate-200/90 text-slate-800 hover:border-slate-300"
         }`}
       >
@@ -3283,7 +3590,7 @@ const ProductCard = memo(
           {imageUrl && !imgFailed ? (
             <img loading="lazy"
               src={imageUrl}
-              alt={resolveProductName(product, language as any)}
+              alt={productName}
               onError={() => setImgFailed(true)}
               className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
             />
@@ -3296,7 +3603,7 @@ const ProductCard = memo(
 
           {/* Plus Button Overlay */}
           {!unavailable && (
-            <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-2xs hover:bg-[#439150] active:scale-90 transition-all">
+            <span className="absolute bottom-2 right-2 flex h-6.5 w-6.5 items-center justify-center rounded-full bg-[#55a060] text-white shadow-2xs hover:bg-[#439150] active:scale-90 transition-colors">
               <Plus size={13} className="stroke-[3]" />
             </span>
           )}
@@ -3325,7 +3632,7 @@ const ProductCard = memo(
               <h3 className={`line-clamp-1 text-[12.5px] font-semibold leading-snug font-khmer ${
                 dark ? "text-slate-100" : "text-slate-800"
               }`}>
-                {resolveProductName(product, language as any)}
+                {productName}
               </h3>
 
               {/* Reserved Middle Slot for Stock Info */}
@@ -3351,28 +3658,45 @@ const ProductCard = memo(
     prev.dark === next.dark &&
     prev.exchangeRate === next.exchangeRate &&
     prev.language === next.language &&
-    (prev.categories?.length ?? 0) === (next.categories?.length ?? 0) &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
-    prev.product.name === next.product.name &&
-    prev.product.categoryId === next.product.categoryId &&
-    prev.product.category?.name === next.product.category?.name
+    prev.productName === next.productName &&
+    prev.categoryBadge === next.categoryBadge &&
+    prev.imageUrl === next.imageUrl &&
+    prev.product.trackStock === next.product.trackStock &&
+    prev.product.inventory?.quantity === next.product.inventory?.quantity &&
+    prev.onAdd === next.onAdd
 );
 
 const ProductListItem = memo(
-  function ProductListItem({ product, dark, exchangeRate = 4000, language = "en", categories = [], onAdd }: { product: Product; dark?: boolean; exchangeRate?: number; language?: "en" | "km" | string; categories?: Category[]; onAdd: (product: Product) => void }) {
-    const imageUrl = resolveImageUrl(product.imageUrl);
+  function ProductListItem({
+    product,
+    productName,
+    categoryBadge,
+    imageUrl,
+    dark,
+    exchangeRate = 4000,
+    language = "en",
+    onAdd,
+  }: {
+    product: Product;
+    productName: string;
+    categoryBadge?: string;
+    imageUrl?: string;
+    dark?: boolean;
+    exchangeRate?: number;
+    language?: "en" | "km" | string;
+    onAdd: (product: Product) => void;
+  }) {
     const unavailable = !product.isAvailable;
     const [imgFailed, setImgFailed] = useState(false);
-
-    const categoryBadge = getProductCategoryBadgeName(product, categories, language as any);
 
     return (
       <button
         type="button"
         onClick={() => !unavailable && onAdd(product)}
         disabled={unavailable}
-        className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-all duration-150 ease-out h-[105px] w-full cursor-pointer active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`group relative flex overflow-hidden rounded-xl border text-left shadow-2xs transition-[border-color,background-color,box-shadow,transform] duration-150 ease-out h-[105px] w-full cursor-pointer active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-60 [contain:paint] ${
           dark
             ? "bg-[#232333] border-[#2b2c40] text-slate-100 hover:border-[#55a060]/60 hover:bg-[#282a3d]"
             : "bg-white border-slate-200/90 text-slate-800 hover:border-[#55a060]/50 hover:bg-slate-50/80"
@@ -3393,9 +3717,9 @@ const ProductListItem = memo(
           {imageUrl && !imgFailed ? (
             <img loading="lazy"
               src={imageUrl}
-              alt={resolveProductName(product, language as any)}
+              alt={productName}
               onError={() => setImgFailed(true)}
-              className="h-full w-full object-cover transition-all duration-200 group-hover:scale-105 group-hover:opacity-95"
+              className="h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-95"
             />
           ) : (
             <div className={`flex h-full w-full flex-col items-center justify-center ${dark ? "bg-[#2b2c40] text-slate-400" : "bg-slate-50 text-slate-300"}`}>
@@ -3420,7 +3744,7 @@ const ProductListItem = memo(
             <h3 className={`line-clamp-1 text-xs font-semibold leading-snug font-khmer ${
               dark ? "text-slate-100" : "text-slate-800"
             }`}>
-              {resolveProductName(product, language as any)}
+              {productName}
             </h3>
             <div className="flex flex-col items-end shrink-0">
               <span className="text-xs font-black text-[#55a060]">
@@ -3454,386 +3778,421 @@ const ProductListItem = memo(
     prev.dark === next.dark &&
     prev.exchangeRate === next.exchangeRate &&
     prev.language === next.language &&
-    (prev.categories?.length ?? 0) === (next.categories?.length ?? 0) &&
     prev.product.isAvailable === next.product.isAvailable &&
     prev.product.basePrice === next.product.basePrice &&
-    prev.product.name === next.product.name &&
-    prev.product.categoryId === next.product.categoryId &&
-    prev.product.category?.name === next.product.category?.name
+    prev.productName === next.productName &&
+    prev.categoryBadge === next.categoryBadge &&
+    prev.imageUrl === next.imageUrl &&
+    prev.product.trackStock === next.product.trackStock &&
+    prev.product.inventory?.quantity === next.product.inventory?.quantity &&
+    prev.onAdd === next.onAdd
 );
 
-const TicketItem = memo(function TicketItem({
-  item,
-  dark,
-  language,
-  imageUrl,
-  exchangeRate = 4000,
-  onIncrement,
-  onDecrement,
-  onRemove,
-  onAddNote,
-  onUpdateDiscount,
-}: {
-  item: CartItem;
-  dark?: boolean;
-  language?: string;
-  imageUrl: string;
-  exchangeRate?: number;
-  onIncrement: () => void;
-  onDecrement: () => void;
-  onRemove?: () => void;
-  onAddNote?: (noteText: string) => void;
-  onUpdateDiscount?: (discountPercent?: number, discountAmount?: number) => void;
-}) {
-  const [isEditingNote, setIsEditingNote] = useState(false);
-  const [noteText, setNoteText] = useState(item.notes || "");
-  const [isEditingDiscount, setIsEditingDiscount] = useState(false);
-  const [discountMode, setDiscountMode] = useState<"percent" | "amount">(
-    item.itemDiscountAmount ? "amount" : "percent"
-  );
-  const [discountInputVal, setDiscountInputVal] = useState(
-    item.itemDiscountPercent
-      ? String(item.itemDiscountPercent)
-      : item.itemDiscountAmount
-      ? String(item.itemDiscountAmount)
-      : ""
-  );
+const TicketItem = memo(
+  function TicketItem({
+    item,
+    dark,
+    language,
+    imageUrl,
+    exchangeRate = 4000,
+    onIncrement,
+    onDecrement,
+    onRemove,
+    onAddNote,
+    onUpdateDiscount,
+  }: {
+    item: CartItem;
+    dark?: boolean;
+    language?: string;
+    imageUrl: string;
+    exchangeRate?: number;
+    onIncrement: (productId: number) => void;
+    onDecrement: (productId: number) => void;
+    onRemove?: (productId: number) => void;
+    onAddNote?: (productId: number, noteText: string) => void;
+    onUpdateDiscount?: (productId: number, discountPercent?: number, discountAmount?: number) => void;
+  }) {
+    const [isEditingNote, setIsEditingNote] = useState(false);
+    const [noteText, setNoteText] = useState(item.notes || "");
+    const [isEditingDiscount, setIsEditingDiscount] = useState(false);
+    const [discountMode, setDiscountMode] = useState<"percent" | "amount">(
+      item.itemDiscountAmount ? "amount" : "percent"
+    );
+    const [discountInputVal, setDiscountInputVal] = useState(
+      item.itemDiscountPercent
+        ? String(item.itemDiscountPercent)
+        : item.itemDiscountAmount
+        ? String(item.itemDiscountAmount)
+        : ""
+    );
 
-  const lineGross = item.unitPrice * item.quantity;
-  let lineDiscountVal = 0;
-  if (item.itemDiscountPercent && item.itemDiscountPercent > 0) {
-    lineDiscountVal = (lineGross * item.itemDiscountPercent) / 100;
-  } else if (item.itemDiscountAmount && item.itemDiscountAmount > 0) {
-    lineDiscountVal = Math.min(lineGross, item.itemDiscountAmount);
-  }
-  const lineNet = Math.max(0, lineGross - lineDiscountVal);
+    const lineGross = item.unitPrice * item.quantity;
+    let lineDiscountVal = 0;
+    if (item.itemDiscountPercent && item.itemDiscountPercent > 0) {
+      lineDiscountVal = (lineGross * item.itemDiscountPercent) / 100;
+    } else if (item.itemDiscountAmount && item.itemDiscountAmount > 0) {
+      lineDiscountVal = Math.min(lineGross, item.itemDiscountAmount);
+    }
+    const lineNet = Math.max(0, lineGross - lineDiscountVal);
 
-  return (
-    <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 ${
-      dark ? "bg-[#232333] border-[#2b2c40] text-slate-100" : "bg-white border-slate-100 text-slate-700"
-    }`}>
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex-1 min-w-0">
-          <h3 className={`truncate text-sm font-semibold leading-snug ${dark ? "text-slate-100" : "text-slate-700"} ${language === "km" ? "font-khmer" : ""}`}>
-            {item.name}
-          </h3>
-          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {lineDiscountVal > 0 ? (
-              <span className="text-xs font-semibold text-[#55a060] flex items-center gap-1.5">
-                <span className="line-through text-slate-400 font-normal">{money(lineGross)}</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(lineNet)}</span>
-              </span>
-            ) : (
-              <span className="text-xs font-semibold text-[#55a060]">
-                {money(item.unitPrice)} × {item.quantity} = {money(lineGross)}
-              </span>
-            )}
-            {lineDiscountVal > 0 && (
-              <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                -{item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}
-              </span>
-            )}
-            <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
-              ({(Math.round(lineNet * exchangeRate)).toLocaleString()} ៛)
-            </span>
-          </div>
-          {item.notes && (
-            <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
-              {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}
-            </div>
-          )}
-        </div>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
-            title="Remove item"
-          >
-            <Trash2 size={13} className="stroke-[2.5]" />
-          </button>
-        )}
-      </div>
-
-      {/* Stepper Count & Add Note & Discount Row */}
-      <div className="flex items-center justify-between mt-1 flex-wrap gap-1.5">
-        <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
-          dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
-        }`}>
-          <button
-            type="button"
-            onClick={onDecrement}
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
-          >
-            <Minus size={12} />
-          </button>
-          <span className={`w-6 text-center text-xs font-bold ${dark ? "text-slate-200" : "text-slate-600"}`}>
-            {item.quantity}
-          </span>
-          <button
-            type="button"
-            onClick={onIncrement}
-            className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-          >
-            <Plus size={12} />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {/* Add Notes Button */}
-          {onAddNote && (
-            <button
-              type="button"
-              onClick={() => {
-                setNoteText(item.notes || "");
-                setIsEditingNote(true);
-              }}
-              className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
-                dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
-              } ${language === "km" ? "font-khmer" : ""}`}
-            >
-              <StickyNote size={12} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
-              <span>{item.notes ? (language === "km" ? "ចំណាំ" : "Note") : (language === "km" ? "+ចំណាំ" : "+Note")}</span>
-            </button>
-          )}
-
-          {/* Item Discount Button */}
-          {onUpdateDiscount && (
-            <button
-              type="button"
-              onClick={() => {
-                setDiscountInputVal(
-                  item.itemDiscountPercent
-                    ? String(item.itemDiscountPercent)
-                    : item.itemDiscountAmount
-                    ? String(item.itemDiscountAmount)
-                    : ""
-                );
-                setDiscountMode(item.itemDiscountAmount ? "amount" : "percent");
-                setIsEditingDiscount(true);
-              }}
-              className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
-                lineDiscountVal > 0
-                  ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold"
+    return (
+      <div className={`group flex flex-col gap-2 rounded-xl border p-3 shadow-2xs transition-all duration-200 [contain:paint] ${
+        dark ? "bg-[#232333] border-[#2b2c40] text-slate-100" : "bg-white border-slate-100 text-slate-700"
+      }`}>
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className={`truncate text-sm font-semibold leading-snug ${
+                item.isCompleted
+                  ? "line-through text-slate-400 dark:text-slate-500"
                   : dark
-                  ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]"
-                  : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
-              } ${language === "km" ? "font-khmer" : ""}`}
-            >
-              <Tag size={12} strokeWidth={2} className={lineDiscountVal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600 dark:text-slate-300"} />
-              <span>
-                {lineDiscountVal > 0
-                  ? `-${item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}`
-                  : (language === "km" ? "+បញ្ចុះតម្លៃ" : "+Discount")}
+                  ? "text-slate-100"
+                  : "text-slate-700"
+              } ${language === "km" ? "font-khmer" : ""}`}>
+                {item.name}
+              </h3>
+              {item.isCompleted && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 shrink-0">
+                  {language === "km" ? "✓ ផ្ទះបាយធ្វើរួច" : "✓ Made"}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              {lineDiscountVal > 0 ? (
+                <span className="text-xs font-semibold text-[#55a060] flex items-center gap-1.5">
+                  <span className="line-through text-slate-400 font-normal">{money(lineGross)}</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(lineNet)}</span>
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-[#55a060]">
+                  {money(item.unitPrice)} × {item.quantity} = {money(lineGross)}
+                </span>
+              )}
+              {lineDiscountVal > 0 && (
+                <span className="inline-flex items-center rounded-md bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                  -{item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}
+                </span>
+              )}
+              <span className="text-[10.5px] font-bold text-slate-400 dark:text-slate-400">
+                ({(Math.round(lineNet * exchangeRate)).toLocaleString()} ៛)
               </span>
+            </div>
+            {item.notes && (
+              <div className={`text-xs font-medium text-slate-400 dark:text-slate-400 mt-1 truncate ${language === "km" ? "font-khmer" : ""}`}>
+                {language === "km" ? "ចំណាំ: " : "Notes: "}{item.notes}
+              </div>
+            )}
+          </div>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={() => onRemove(item.productId)}
+              className="text-slate-400 hover:text-rose-500 p-0.5 rounded transition-all shrink-0 cursor-pointer"
+              title="Remove item"
+            >
+              <Trash2 size={13} className="stroke-[2.5]" />
             </button>
           )}
         </div>
-      </div>
 
-      {/* Add Notes Modal Popup */}
-      {isEditingNote && onAddNote && typeof window !== "undefined" && createPortal(
-        <div
-          onClick={() => setIsEditingNote(false)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-sm sm:max-w-md overflow-hidden rounded-2xl p-5.5 shadow-2xl transition-all ${
-              dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
-            }`}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between mb-3.5">
-              <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">
-                {language === "km" ? "បន្ថែមចំណាំ" : "Add Notes"}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsEditingNote(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
-              >
-                <X size={15} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* Note Sub-label & Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 block">
-                {language === "km" ? "ចំណាំ (អតិបរមា ១០០ អក្សរ)" : "Notes (100 character max.)"}
-              </label>
-              <input
-                autoFocus
-                type="text"
-                maxLength={100}
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    onAddNote(noteText.trim());
-                    setIsEditingNote(false);
-                  }
-                }}
-                placeholder={language === "km" ? "ឧទាហរណ៍ ៖ ផ្អែមតិច, អត់ម្ទេស..." : "e.g. Less sweet, extra ice..."}
-                className={`h-10 w-full rounded-lg border px-3.5 text-sm font-semibold outline-none transition-all ${
-                  dark
-                    ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-[#55a060]"
-                    : "border-slate-200 bg-white text-slate-800 focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10"
-                }`}
-              />
-            </div>
-
+        {/* Stepper Count & Add Note & Discount Row */}
+        <div className="flex items-center justify-between mt-1 flex-wrap gap-1.5">
+          <div className={`flex items-center rounded-lg border p-0.5 scale-100 ${
+            dark ? "bg-[#2b2c40] border-[#3b3c54]" : "bg-slate-50/50 border-slate-200"
+          }`}>
             <button
               type="button"
-              onClick={() => {
-                onAddNote(noteText.trim());
-                setIsEditingNote(false);
-              }}
-              className="mt-4.5 w-full h-10.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] text-white text-sm font-bold shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer"
+              onClick={() => onDecrement(item.productId)}
+              className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors cursor-pointer"
             >
-              {language === "km" ? "រក្សាទុក" : "Save Note"}
+              <Minus size={12} />
+            </button>
+            <span className={`w-6 text-center text-xs font-bold ${dark ? "text-slate-200" : "text-slate-600"}`}>
+              {item.quantity}
+            </span>
+            <button
+              type="button"
+              onClick={() => onIncrement(item.productId)}
+              className="flex h-6.5 w-6.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+            >
+              <Plus size={12} />
             </button>
           </div>
-        </div>,
-        document.body
-      )}
 
-      {/* Item Discount Modal Popup */}
-      {isEditingDiscount && onUpdateDiscount && typeof window !== "undefined" && createPortal(
-        <div
-          onClick={() => setIsEditingDiscount(false)}
-          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={`w-full max-w-xs sm:max-w-sm overflow-hidden rounded-2xl p-5 shadow-2xl transition-all ${
-              dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
-                  {language === "km" ? `បញ្ចុះតម្លៃ (${item.name})` : `Item Discount (${item.name})`}
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  {language === "km" ? `តម្លៃដើម: ${money(lineGross)}` : `Original Total: ${money(lineGross)}`}
-                </p>
-              </div>
+          <div className="flex items-center gap-1.5">
+            {/* Add Notes Button */}
+            {onAddNote && (
               <button
                 type="button"
-                onClick={() => setIsEditingDiscount(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
+                onClick={() => {
+                  setNoteText(item.notes || "");
+                  setIsEditingNote(true);
+                }}
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                  dark ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]" : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
+                } ${language === "km" ? "font-khmer" : ""}`}
               >
-                <X size={14} strokeWidth={2.5} />
+                <StickyNote size={12} strokeWidth={2} className="text-slate-600 dark:text-slate-300" />
+                <span>{item.notes ? (language === "km" ? "ចំណាំ" : "Note") : (language === "km" ? "+ចំណាំ" : "+Note")}</span>
               </button>
-            </div>
+            )}
 
-            {/* Quick Preset Chips */}
-            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-              {[5, 10, 15, 20, 50].map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => {
-                    setDiscountMode("percent");
-                    setDiscountInputVal(String(pct));
-                  }}
-                  className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-                    discountMode === "percent" && Number(discountInputVal) === pct
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : dark
-                      ? "border-slate-700 bg-[#2b2c40] text-slate-200 hover:bg-slate-700"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
+            {/* Item Discount Button */}
+            {onUpdateDiscount && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscountInputVal(
+                    item.itemDiscountPercent
+                      ? String(item.itemDiscountPercent)
+                      : item.itemDiscountAmount
+                      ? String(item.itemDiscountAmount)
+                      : ""
+                  );
+                  setDiscountMode(item.itemDiscountAmount ? "amount" : "percent");
+                  setIsEditingDiscount(true);
+                }}
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                  lineDiscountVal > 0
+                    ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold"
+                    : dark
+                    ? "border-[#3b3c54] bg-[#2b2c40] text-slate-300 hover:bg-[#34354e]"
+                    : "border-slate-200/80 bg-slate-50/70 text-slate-700 hover:bg-slate-100"
+                } ${language === "km" ? "font-khmer" : ""}`}
+              >
+                <Tag size={12} strokeWidth={2} className={lineDiscountVal > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600 dark:text-slate-300"} />
+                <span>
+                  {lineDiscountVal > 0
+                    ? `-${item.itemDiscountPercent ? `${item.itemDiscountPercent}%` : money(lineDiscountVal)}`
+                    : (language === "km" ? "+បញ្ចុះតម្លៃ" : "+Discount")}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
 
-            {/* Mode Switch & Input */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-[#2b2c40]">
+        {/* Add Notes Modal Popup */}
+        {isEditingNote && onAddNote && typeof window !== "undefined" && createPortal(
+          <div
+            onClick={() => setIsEditingNote(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-sm sm:max-w-md overflow-hidden rounded-2xl p-5.5 shadow-2xl transition-all ${
+                dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-3.5">
+                <h3 className="text-base font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                  {language === "km" ? "បន្ថែមចំណាំ" : "Add Notes"}
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setDiscountMode("percent")}
-                  className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    discountMode === "percent" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
-                  }`}
+                  onClick={() => setIsEditingNote(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
                 >
-                  {language === "km" ? "ភាគរយ (%)" : "Percent (%)"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiscountMode("amount")}
-                  className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    discountMode === "amount" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
-                  }`}
-                >
-                  {language === "km" ? "ទឹកប្រាក់ ($)" : "Amount ($)"}
+                  <X size={15} strokeWidth={2.5} />
                 </button>
               </div>
 
-              <div className="relative">
+              {/* Note Sub-label & Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400 block">
+                  {language === "km" ? "ចំណាំ (អតិបរមា ១០០ អក្សរ)" : "Notes (100 character max.)"}
+                </label>
                 <input
                   autoFocus
-                  type="number"
-                  min="0"
-                  step={discountMode === "percent" ? "1" : "0.01"}
-                  max={discountMode === "percent" ? "100" : lineGross}
-                  value={discountInputVal}
-                  onChange={(e) => setDiscountInputVal(e.target.value)}
-                  placeholder={discountMode === "percent" ? "0 - 100%" : "0.00"}
-                  className={`h-10 w-full rounded-xl border pl-3.5 pr-8 text-sm font-bold outline-none transition-all ${
+                  type="text"
+                  maxLength={100}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      onAddNote(item.productId, noteText.trim());
+                      setIsEditingNote(false);
+                    }
+                  }}
+                  placeholder={language === "km" ? "ឧទាហរណ៍ ៖ ផ្អែមតិច, អត់ម្ទេស..." : "e.g. Less sweet, extra ice..."}
+                  className={`h-10 w-full rounded-lg border px-3.5 text-sm font-semibold outline-none transition-all ${
                     dark
-                      ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-emerald-500"
-                      : "border-slate-200 bg-white text-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                      ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-[#55a060]"
+                      : "border-slate-200 bg-white text-slate-800 focus:border-[#55a060] focus:ring-2 focus:ring-[#55a060]/10"
                   }`}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
-                  {discountMode === "percent" ? "%" : "$"}
-                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onAddNote(item.productId, noteText.trim());
+                  setIsEditingNote(false);
+                }}
+                className="mt-4.5 w-full h-10.5 rounded-xl bg-[#55a060] hover:bg-[#46894f] text-white text-sm font-bold shadow-sm shadow-[#55a060]/20 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                {language === "km" ? "រក្សាទុក" : "Save Note"}
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Item Discount Modal Popup */}
+        {isEditingDiscount && onUpdateDiscount && typeof window !== "undefined" && createPortal(
+          <div
+            onClick={() => setIsEditingDiscount(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4 animate-[usersPageIn_180ms_cubic-bezier(0.16,1,0.3,1)_both]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-xs sm:max-w-sm overflow-hidden rounded-2xl p-5 shadow-2xl transition-all ${
+                dark ? "bg-[#1f2130] text-slate-100 border border-slate-700" : "bg-white text-slate-800 border border-slate-100"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className={`text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100 ${language === "km" ? "font-khmer" : ""}`}>
+                    {language === "km" ? `បញ្ចុះតម្លៃ (${item.name})` : `Item Discount (${item.name})`}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {language === "km" ? `តម្លៃដើម: ${money(lineGross)}` : `Original Total: ${money(lineGross)}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDiscount(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 transition-colors cursor-pointer"
+                >
+                  <X size={14} strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* Quick Preset Chips */}
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                {[5, 10, 15, 20, 50].map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => {
+                      setDiscountMode("percent");
+                      setDiscountInputVal(String(pct));
+                    }}
+                    className={`rounded-lg border px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                      discountMode === "percent" && Number(discountInputVal) === pct
+                        ? "border-emerald-500 bg-emerald-500 text-white"
+                        : dark
+                        ? "border-slate-700 bg-[#2b2c40] text-slate-200 hover:bg-slate-700"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+
+              {/* Mode Switch & Input */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-[#2b2c40]">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode("percent")}
+                    className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      discountMode === "percent" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
+                    }`}
+                  >
+                    {language === "km" ? "ភាគរយ (%)" : "Percent (%)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountMode("amount")}
+                    className={`flex-1 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      discountMode === "amount" ? "bg-white dark:bg-[#1f2130] text-emerald-600 dark:text-emerald-400 shadow-xs" : "text-slate-500"
+                    }`}
+                  >
+                    {language === "km" ? "ទឹកប្រាក់ ($)" : "Amount ($)"}
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step={discountMode === "percent" ? "1" : "0.01"}
+                    max={discountMode === "percent" ? "100" : lineGross}
+                    value={discountInputVal}
+                    onChange={(e) => setDiscountInputVal(e.target.value)}
+                    placeholder={discountMode === "percent" ? "0 - 100%" : "0.00"}
+                    className={`h-10 w-full rounded-xl border pl-3.5 pr-8 text-sm font-bold outline-none transition-all ${
+                      dark
+                        ? "border-slate-700 bg-[#2b2c40] text-slate-100 focus:border-emerald-500"
+                        : "border-slate-200 bg-white text-slate-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                    }`}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                    {discountMode === "percent" ? "%" : "$"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateDiscount(item.productId, undefined, undefined);
+                    setIsEditingDiscount(false);
+                  }}
+                  className={`flex-1 h-9.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    dark ? "border-slate-700 bg-[#2b2c40] text-slate-300 hover:bg-slate-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  {language === "km" ? "លុបបញ្ចុះតម្លៃ" : "Clear"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const num = Number(discountInputVal) || 0;
+                    if (num <= 0) {
+                      onUpdateDiscount(item.productId, undefined, undefined);
+                    } else if (discountMode === "percent") {
+                      onUpdateDiscount(item.productId, Math.min(100, num), undefined);
+                    } else {
+                      onUpdateDiscount(item.productId, undefined, Math.min(lineGross, num));
+                    }
+                    setIsEditingDiscount(false);
+                  }}
+                  className="flex-1 h-9.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                >
+                  {language === "km" ? "រក្សាទុក" : "Apply"}
+                </button>
               </div>
             </div>
-
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdateDiscount(undefined, undefined);
-                  setIsEditingDiscount(false);
-                }}
-                className={`flex-1 h-9.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  dark ? "border-slate-700 bg-[#2b2c40] text-slate-300 hover:bg-slate-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {language === "km" ? "លុបបញ្ចុះតម្លៃ" : "Clear"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const num = Number(discountInputVal) || 0;
-                  if (num <= 0) {
-                    onUpdateDiscount(undefined, undefined);
-                  } else if (discountMode === "percent") {
-                    onUpdateDiscount(Math.min(100, num), undefined);
-                  } else {
-                    onUpdateDiscount(undefined, Math.min(lineGross, num));
-                  }
-                  setIsEditingDiscount(false);
-                }}
-                className="flex-1 h-9.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-              >
-                {language === "km" ? "រក្សាទុក" : "Apply"}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-});
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  },
+  (prev, next) =>
+    prev.item.productId === next.item.productId &&
+    prev.item.quantity === next.item.quantity &&
+    prev.item.unitPrice === next.item.unitPrice &&
+    prev.item.notes === next.item.notes &&
+    prev.item.itemDiscountPercent === next.item.itemDiscountPercent &&
+    prev.item.itemDiscountAmount === next.item.itemDiscountAmount &&
+    prev.item.isCompleted === next.item.isCompleted &&
+    prev.item.status === next.item.status &&
+    prev.dark === next.dark &&
+    prev.language === next.language &&
+    prev.exchangeRate === next.exchangeRate &&
+    prev.imageUrl === next.imageUrl &&
+    prev.onIncrement === next.onIncrement &&
+    prev.onDecrement === next.onDecrement &&
+    prev.onRemove === next.onRemove &&
+    prev.onAddNote === next.onAddNote &&
+    prev.onUpdateDiscount === next.onUpdateDiscount
+);
 
 function getCategoryIcon(name: string): string {
   const map: Record<string, string> = {

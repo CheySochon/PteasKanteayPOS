@@ -6,6 +6,8 @@ import { Loader2 } from "lucide-react";
 import { loginPin, apiOrigin, resolveImageUrl } from "../../lib/api";
 import { getProfileImage } from "../../lib/profile";
 
+import { setCookie } from "../../lib/cookies";
+
 export default function LockScreen() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -24,6 +26,7 @@ export default function LockScreen() {
         setLockedUser({
           id: u.id,
           name: u.name,
+          email: u.email,
           role: u.roleName || (typeof u.role === "string" ? u.role : u.role?.name) || "USER",
           imageUrl: resolvedImage,
           avatarBg: "bg-[#55a060]",
@@ -47,20 +50,36 @@ export default function LockScreen() {
     setLoading(true);
     setError("");
     try {
-      const res = await loginPin(enteredPin);
+      const res = await loginPin(enteredPin, lockedUser?.id, lockedUser?.email);
       localStorage.removeItem("pos_is_locked");
-      if (res.token) localStorage.setItem("pos_token", res.token);
-      
-      const targetRole = typeof res.user.role === "string" 
-        ? res.user.role 
-        : (res.user.roleName || "USER");
+      if (res.token) {
+        localStorage.setItem("pos_token", res.token);
+        setCookie("pos_token", res.token, 7);
+      }
+      localStorage.setItem("pos_logged_in", "true");
+      setCookie("pos_logged_in", "true", 7);
+
+      if (res.user) {
+        const fullUser = {
+          ...res.user,
+          name: res.user.name || lockedUser?.name || "CheySochon",
+          role: res.user.role || lockedUser?.role || "Super Admin",
+          roleName: res.user.roleName || (typeof res.user.role === "string" ? res.user.role : res.user.role?.name) || "SUPER_ADMIN",
+        };
+        localStorage.setItem("pos_user", JSON.stringify(fullUser));
+      }
+      window.dispatchEvent(new Event("pos-auth-change"));
+
+      const targetRole = typeof res.user?.role === "string" 
+        ? res.user.role.toUpperCase() 
+        : String(res.user?.roleName || "ADMIN").toUpperCase();
 
       // Redirect dynamically based on role
-      if (targetRole === "ADMIN") {
+      if (targetRole.includes("ADMIN")) {
         window.location.href = "/admin";
-      } else if (targetRole === "CASHIER") {
+      } else if (targetRole.includes("CASHIER")) {
         window.location.href = "/pos";
-      } else if (targetRole === "KITCHEN") {
+      } else if (targetRole.includes("KITCHEN") || targetRole.includes("KDS")) {
         window.location.href = "/kds";
       } else {
         window.location.href = "/admin";

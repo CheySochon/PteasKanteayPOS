@@ -1,6 +1,7 @@
 "use client";
 
 export type CartItem = {
+  id?: number;
   productId: number;
   name: string;
   unitPrice: number;
@@ -8,6 +9,8 @@ export type CartItem = {
   notes?: string;
   itemDiscountPercent?: number;
   itemDiscountAmount?: number;
+  status?: string;
+  isCompleted?: boolean;
 };
 
 export function cartItemFromProduct(product: {
@@ -56,7 +59,14 @@ export default function CartPanel({
           <div key={`${item.productId}-${index}`} className="rounded-lg bg-gray-50 p-3">
             <div className="flex justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-gray-900">{item.name}</div>
+                <div className={`text-sm font-semibold flex items-center gap-1.5 ${item.isCompleted ? "line-through text-gray-400" : "text-gray-900"}`}>
+                  <span>{item.name}</span>
+                  {item.isCompleted && (
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded no-underline">
+                      ✓ Done
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11px] text-gray-500">${item.unitPrice.toFixed(2)}</div>
               </div>
               <div className="text-sm font-bold text-gray-900">${(item.unitPrice * item.quantity).toFixed(2)}</div>

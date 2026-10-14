@@ -742,7 +742,7 @@ export default function TablesPage() {
               </div>
               <div>
                 <h1 className={`text-xl font-bold ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
-                  {language === "km" ? "តុ និង បន្ទប់" : "Tables & Rooms"}
+                  {language === "km" ? "តុ" : "Tables"}
                 </h1>
                 <p className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"} ${language === "km" ? "font-khmer" : ""}`}>
                   {language === "km" ? "គ្រប់គ្រងស្ថានភាពតុ ការផ្លាស់ប្តូរ និងការរួមតុក្នុងភោជនីយដ្ឋាន។" : "Manage real-time dining tables, movements, and merges."}
@@ -830,7 +830,7 @@ export default function TablesPage() {
             ) : filteredTableCards.length === 0 ? (
               <div className={`rounded border border-dashed p-12 text-center text-sm ${borderCol} ${textSecondary} bg-white/40`}>
                 <Armchair size={32} className="mx-auto mb-3 text-slate-300" />
-                No tables or rooms found in this zone.
+                No tables found in this zone.
               </div>
             ) : (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start justify-start">

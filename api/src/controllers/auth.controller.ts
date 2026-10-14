@@ -430,8 +430,13 @@ export const loginPin = async (
         const payload = {
           id: user.id,
           userId: user.id,
+          name: user.name,
           userName: user.name,
+          role: user.role.name,
+          roleName: user.role.name,
           userRole: user.role.name,
+          email: user.email,
+          imageUrl: user.imageUrl,
           loginTime: loginTimeISO,
           updatedAt: loginTimeISO,
         };

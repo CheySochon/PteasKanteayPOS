@@ -154,16 +154,30 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         try { currentUser = JSON.parse(storedUserRaw); } catch {}
       }
       if (currentUser && (currentUser.id === updatedUser.id || (currentUser.email && currentUser.email.toLowerCase() === updatedUser.email?.toLowerCase()))) {
+        const resolvedName = updatedUser.name || updatedUser.userName || currentUser.name || (currentUser.id === 1 ? "CheySochon" : "User");
+        const resolvedRole = updatedUser.role || updatedUser.userRole || currentUser.role || (currentUser.id === 1 ? "Super Admin" : "Member");
+        const resolvedRoleName = updatedUser.roleName || (typeof updatedUser.role === "string" ? updatedUser.role : updatedUser.role?.name) || updatedUser.userRole || currentUser.roleName || (currentUser.id === 1 ? "SUPER_ADMIN" : "MEMBER");
+        
+        const mergedUser = {
+          ...currentUser,
+          ...updatedUser,
+          id: currentUser.id || updatedUser.id,
+          name: resolvedName,
+          role: resolvedRole,
+          roleName: resolvedRoleName,
+          email: updatedUser.email || currentUser.email,
+        };
+
         let staffPermissions: Record<string, boolean> = {};
-        if (updatedUser.role && typeof updatedUser.role === "object" && Array.isArray(updatedUser.role.permissions)) {
-          updatedUser.role.permissions.forEach((item: any) => {
+        if (mergedUser.role && typeof mergedUser.role === "object" && Array.isArray(mergedUser.role.permissions)) {
+          mergedUser.role.permissions.forEach((item: any) => {
             staffPermissions[item.key] = item.view;
             staffPermissions[`${item.key}_create`] = item.create;
             staffPermissions[`${item.key}_edit`] = item.edit;
             staffPermissions[`${item.key}_delete`] = item.delete;
           });
         }
-        localStorage.setItem("pos_user", JSON.stringify(updatedUser));
+        localStorage.setItem("pos_user", JSON.stringify(mergedUser));
         localStorage.setItem("pos_staff_permissions", JSON.stringify(staffPermissions));
         window.dispatchEvent(new Event("pos-auth-change"));
         window.dispatchEvent(new Event("pos-permissions-change"));

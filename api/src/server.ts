@@ -86,6 +86,10 @@ io.on("connection", (socket: Socket) => {
   socket.on("order:update", handleOrderUpdated);
   socket.on("order:updated", handleOrderUpdated);
 
+  socket.on("kds:item_updated", (data: any) => {
+    io.emit("kds:item_updated", data);
+  });
+
   const handleOrderDeleted = (data: any) => {
     if (!data) return;
     const targetId = typeof data === "object" ? data.id || data.orderId : data;
@@ -181,13 +185,13 @@ async function autoSeedIfEmpty() {
       const hashedPassword = await bcrypt.hash("password123", 10);
       const superAdmin = await prisma.user.upsert({
         where: { email: "cheychon258@gmail.com" },
-        update: { name: "Super Admin", password: hashedPassword, isActive: true, pin: "1234" },
+        update: { isActive: true },
         create: { name: "Super Admin", email: "cheychon258@gmail.com", password: hashedPassword, isActive: true, pin: "1234" },
       });
 
       const cashierUser = await prisma.user.upsert({
         where: { email: "cashier@pos.local" },
-        update: { name: "Cashier User", password: hashedPassword, isActive: true, pin: "1234" },
+        update: { isActive: true },
         create: { name: "Cashier User", email: "cashier@pos.local", password: hashedPassword, isActive: true, pin: "1234" },
       });
 

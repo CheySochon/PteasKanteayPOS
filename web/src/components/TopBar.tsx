@@ -284,7 +284,7 @@ function TopBar({
     { label: "POS - Point of Sale", keywords: ["pos", "point of sale", "sale", "register", "counter", "លក់"], href: "/admin/pos", icon: MonitorSmartphone },
     { label: "Orders", keywords: ["orders", "order", "history", "hold", "ការបញ្ជាទិញ"], href: "/admin/orders", icon: Utensils },
     { label: "Kitchen", keywords: ["kitchen", "kds", "cook", "chef", "ផ្ទះបាយ"], href: "/admin/kitchen", icon: ChefHat },
-    { label: "Tables & Rooms", keywords: ["tables", "table", "rooms", "reservations", "dining", "តុ"], href: "/admin/tables", icon: Grid2X2 },
+    { label: "Tables", keywords: ["tables", "table", "reservations", "dining", "តុ"], href: "/admin/tables", icon: Grid2X2 },
     { label: "Invoices & Receipts", keywords: ["invoices", "invoice", "receipts", "receipt", "billing", "វិក្កយបត្រ"], href: "/admin/invoices", icon: ReceiptText },
     
     // Management
@@ -375,7 +375,7 @@ function TopBar({
 
     async function fetchNotifications() {
       try {
-        const orders = await getOrders();
+        const orders = await getOrders("active");
         if (!mounted || !Array.isArray(orders)) return;
         const active = orders.filter((o) => !["completed", "cancelled"].includes(o.status));
         const items: NotificationItem[] = active.map((o) => {

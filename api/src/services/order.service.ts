@@ -71,18 +71,58 @@ function buildOrderInclude() {
   };
 }
 
-async function generateOrderNumber(tx?: any): Promise<string> {
-  const date = new Date();
+export async function generateOrderNumber(tx?: any): Promise<string> {
+  const client = tx || prisma;
+  const now = new Date();
   const stamp = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
   ].join("");
+  const prefix = `ORD-${stamp}-`;
 
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  const timeSlice = Date.now().toString().slice(-4);
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-  return `ORD-${stamp}-${timeSlice}-${rand}`;
+  // Find today's orders with this daily prefix to determine highest sequence
+  const todayOrders = await client.order.findMany({
+    where: {
+      orderNumber: { startsWith: prefix },
+    },
+    select: { orderNumber: true },
+    orderBy: { orderNumber: "desc" },
+  });
+
+  let maxSeq = 0;
+  for (const o of todayOrders) {
+    const parts = o.orderNumber.split("-");
+    const lastPart = parts[parts.length - 1];
+    const num = parseInt(lastPart, 10);
+    if (!isNaN(num) && num > maxSeq) {
+      maxSeq = num;
+    }
+  }
+
+  // If no sequential format exists today yet, fallback to today's order count
+  if (maxSeq === 0) {
+    const count = await client.order.count({
+      where: {
+        createdAt: { gte: startOfDay, lte: endOfDay },
+      },
+    });
+    maxSeq = count;
+  }
+
+  let seq = maxSeq + 1;
+  let candidate = `${prefix}${String(seq).padStart(4, "0")}`;
+
+  // Ensure 100% collision-proof uniqueness
+  while (await client.order.findUnique({ where: { orderNumber: candidate }, select: { id: true } })) {
+    seq++;
+    candidate = `${prefix}${String(seq).padStart(4, "0")}`;
+  }
+
+  return candidate;
 }
 
 export const listOrders = async (query: Record<string, string> = {}) => {
@@ -596,33 +636,68 @@ export const updateOrder = async (
     }
   }
 
-  // Delete old order items & recreate updated ones
-  await prisma.orderItem.deleteMany({ where: { orderId: id } });
-
   let calculatedSubtotal = 0;
-  const itemsToCreate = [];
+
+  // Track existing items by id or productId so their IDs and statuses are preserved
+  const existingItemsById = new Map<number, (typeof current.items)[0]>();
+  const existingItemsByProduct = new Map<number, (typeof current.items)[0]>();
+  for (const it of current.items) {
+    existingItemsById.set(it.id, it);
+    existingItemsByProduct.set(it.productId, it);
+  }
+
+  const processedItemIds = new Set<number>();
 
   for (const item of rawItems) {
     const itemName = (item as any).name || (item as any).productName || (item as any).title;
     const itemPrice = toNum(item.unitPrice ?? item.price ?? 0);
     const product = await findProductSafely(item.productId, itemName, itemPrice);
 
-    const qty = Math.max(1, Number(item.quantity || 1));
-    const finalPrice = itemPrice > 0 ? itemPrice : toNum(product?.basePrice ?? 0);
-    const totalPrice = toNum(item.totalPrice ?? (finalPrice * qty));
-
-    calculatedSubtotal += totalPrice;
-
     if (!product) {
       throw new Error(`Unable to resolve or create product for item: "${itemName || item.productId}"`);
     }
 
-    itemsToCreate.push({
-      productId: product.id,
-      quantity: qty,
-      unitPrice: finalPrice,
-      totalPrice: totalPrice,
-      notes: item.notes || null,
+    const qty = Math.max(1, Number(item.quantity || 1));
+    const finalPrice = itemPrice > 0 ? itemPrice : toNum(product.basePrice ?? 0);
+    const totalPrice = toNum(item.totalPrice ?? (finalPrice * qty));
+
+    calculatedSubtotal += totalPrice;
+
+    // Check if this item already existed in the order
+    const rawItemId = (item as any).id ? Number((item as any).id) : undefined;
+    const existing = (rawItemId && existingItemsById.get(rawItemId)) || existingItemsByProduct.get(product.id);
+
+    if (existing) {
+      processedItemIds.add(existing.id);
+      await prisma.orderItem.update({
+        where: { id: existing.id },
+        data: {
+          quantity: qty,
+          unitPrice: finalPrice,
+          totalPrice: totalPrice,
+          notes: item.notes || null,
+        },
+      });
+    } else {
+      const createdItem = await prisma.orderItem.create({
+        data: {
+          orderId: id,
+          productId: product.id,
+          quantity: qty,
+          unitPrice: finalPrice,
+          totalPrice: totalPrice,
+          notes: item.notes || null,
+        },
+      });
+      processedItemIds.add(createdItem.id);
+    }
+  }
+
+  // Delete only the items that were removed from the order
+  const toDelete = current.items.filter((it) => !processedItemIds.has(it.id));
+  if (toDelete.length > 0) {
+    await prisma.orderItem.deleteMany({
+      where: { id: { in: toDelete.map((d) => d.id) } },
     });
   }
 
@@ -641,9 +716,6 @@ export const updateOrder = async (
       taxAmount,
       totalAmount,
       notes: payload.notes !== undefined ? payload.notes : current.notes,
-      items: {
-        create: itemsToCreate,
-      },
     },
     include: buildOrderInclude(),
   });

@@ -125,6 +125,7 @@ export default function AdminKitchenPage() {
       socket.on("order:updated", handleOrderEvent);
       socket.on("table:merged", handleOrderEvent);
       socket.on("table:moved", handleOrderEvent);
+      socket.on("kds:item_updated", handleOrderEvent);
     }
 
     window.addEventListener("pos-order-change", handleOrderEvent);
@@ -138,6 +139,7 @@ export default function AdminKitchenPage() {
         socket.off("order:updated", handleOrderEvent);
         socket.off("table:merged", handleOrderEvent);
         socket.off("table:moved", handleOrderEvent);
+        socket.off("kds:item_updated", handleOrderEvent);
       }
       window.removeEventListener("pos-order-change", handleOrderEvent);
       window.removeEventListener("pos-table-change", handleOrderEvent);

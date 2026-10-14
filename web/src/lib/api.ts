@@ -147,85 +147,106 @@ function getStoredToken() {
   return localStorage.getItem("pos_token") || localStorage.getItem("token") || getCookie("pos_token") || null;
 }
 
+const inFlightRequests = new Map<string, Promise<any>>();
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: HeadersInit = { "Content-Type": "application/json" };
+  const method = options.method || "GET";
+  const isGet = method === "GET" && !options.body;
   const token = options.token ?? getStoredToken();
+  const dedupKey = isGet ? `${token || ""}:${path}` : "";
 
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const currentApiUrl = getApiBaseUrl();
-  let response: Response;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
-  try {
-    response = await fetch(`${currentApiUrl}${path}`, {
-      method: options.method || "GET",
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      credentials: "include",
-      signal: controller.signal,
-    });
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      throw new Error(`API request timed out after 5 seconds at ${currentApiUrl}`);
-    }
-    throw new Error(err?.message || `Failed to connect to API server at ${currentApiUrl}`);
-  } finally {
-    clearTimeout(timeoutId);
+  if (isGet && dedupKey && inFlightRequests.has(dedupKey)) {
+    return inFlightRequests.get(dedupKey) as Promise<T>;
   }
 
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json") ? await response.json().catch(() => null) : await response.text().catch(() => "");
+  const executeRequest = async (): Promise<T> => {
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-    if (typeof payload === "object" && payload) {
-      if ("errors" in payload && typeof payload.errors === "object" && payload.errors) {
-        const rawErrors = (payload.errors as any).properties || payload.errors;
-        const details = Object.entries(rawErrors)
-          .map(([field, errs]) => {
-            if (Array.isArray(errs)) return `${field}: ${errs.join(", ")}`;
-            if (typeof errs === "object" && errs !== null) return `${field}: ${JSON.stringify(errs)}`;
-            return `${field}: ${String(errs)}`;
-          })
-          .join(" | ");
-        message = `Validation failed — ${details}`;
-      } else if ("message" in payload && payload.message) {
-        message = String(payload.message);
+    const currentApiUrl = getApiBaseUrl();
+    let response: Response;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    try {
+      response = await fetch(`${currentApiUrl}${path}`, {
+        method,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        credentials: "include",
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        throw new Error(`API request timed out after 5 seconds at ${currentApiUrl}`);
       }
+      throw new Error(err?.message || `Failed to connect to API server at ${currentApiUrl}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    const isAuthLoginRoute = path.startsWith("/auth/login") || path.startsWith("/auth/login-pin") || path.startsWith("/auth/register") || path.startsWith("/auth/refresh");
-    if (!isAuthLoginRoute && (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed")) {
-      if (!isRefreshingToken) {
-        isRefreshingToken = true;
-        const newToken = await tryRefreshToken(currentApiUrl);
-        isRefreshingToken = false;
-        if (newToken) {
-          return request<T>(path, { ...options, token: newToken });
+    const contentType = response.headers.get("content-type") || "";
+    const payload = contentType.includes("application/json") ? await response.json().catch(() => null) : await response.text().catch(() => "");
+
+    if (!response.ok) {
+      let message = `Request failed with status ${response.status}`;
+      if (typeof payload === "object" && payload) {
+        if ("errors" in payload && typeof payload.errors === "object" && payload.errors) {
+          const rawErrors = (payload.errors as any).properties || payload.errors;
+          const details = Object.entries(rawErrors)
+            .map(([field, errs]) => {
+              if (Array.isArray(errs)) return `${field}: ${errs.join(", ")}`;
+              if (typeof errs === "object" && errs !== null) return `${field}: ${JSON.stringify(errs)}`;
+              return `${field}: ${String(errs)}`;
+            })
+            .join(" | ");
+          message = `Validation failed — ${details}`;
+        } else if ("message" in payload && payload.message) {
+          message = String(payload.message);
         }
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("pos_token");
-        localStorage.removeItem("pos_refresh_token");
-        localStorage.removeItem("pos_user");
-        localStorage.removeItem("pos_logged_in");
-        eraseCookie("pos_token");
-        eraseCookie("pos_refresh_token");
-        window.dispatchEvent(new Event("pos-auth-change"));
-        window.location.href = "/login";
+      const isAuthLoginRoute = path.startsWith("/auth/login") || path.startsWith("/auth/login-pin") || path.startsWith("/auth/register") || path.startsWith("/auth/refresh");
+      if (!isAuthLoginRoute && (response.status === 401 || message === "Invalid token" || message === "jwt expired" || message === "jwt malformed")) {
+        if (!isRefreshingToken) {
+          isRefreshingToken = true;
+          const newToken = await tryRefreshToken(currentApiUrl);
+          isRefreshingToken = false;
+          if (newToken) {
+            return request<T>(path, { ...options, token: newToken });
+          }
+        }
+
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("pos_token");
+          localStorage.removeItem("pos_refresh_token");
+          localStorage.removeItem("pos_user");
+          localStorage.removeItem("pos_logged_in");
+          eraseCookie("pos_token");
+          eraseCookie("pos_refresh_token");
+          window.dispatchEvent(new Event("pos-auth-change"));
+          window.location.href = "/login";
+        }
       }
+
+      throw new Error(message);
     }
 
-    throw new Error(message);
+    if (typeof payload === "object" && payload && "success" in payload && "data" in payload) {
+      return (payload as ApiResponse<T>).data as T;
+    }
+
+    return payload as T;
+  };
+
+  if (!isGet || !dedupKey) {
+    return executeRequest();
   }
 
-  if (typeof payload === "object" && payload && "success" in payload && "data" in payload) {
-    return (payload as ApiResponse<T>).data as T;
-  }
-
-  return payload as T;
+  const inFlight = executeRequest().finally(() => {
+    inFlightRequests.delete(dedupKey);
+  });
+  inFlightRequests.set(dedupKey, inFlight);
+  return inFlight;
 }
 
 export const login = (email: string, password: string) => request<AuthResult>("/auth/login", { method: "POST", body: { email, password } });
@@ -254,12 +275,36 @@ export const getMe = async () => {
     throw err;
   }
 };
-export const getCategories = async () => {
+let memCategories: { data: Category[]; timestamp: number } | null = null;
+let memProducts: { data: Product[]; timestamp: number } | null = null;
+let memTables: { data: DiningTable[]; timestamp: number } | null = null;
+let memSettings: { data: AppSettings; timestamp: number } | null = null;
+
+export function invalidatePosMenuCache() {
+  memCategories = null;
+  memProducts = null;
+  memTables = null;
+  memSettings = null;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("pos-menu-change", invalidatePosMenuCache);
+  window.addEventListener("pos-settings-change", () => {
+    memSettings = null;
+  });
+}
+
+export const getCategories = async (forceRefresh = false): Promise<Category[]> => {
+  if (!forceRefresh && memCategories && Date.now() - memCategories.timestamp < 60000) {
+    return memCategories.data;
+  }
   try {
     const data = await request<Category[]>("/categories");
+    memCategories = { data, timestamp: Date.now() };
     if (typeof window !== "undefined") saveToCache("categories", data).catch(console.error);
     return data;
   } catch (err) {
+    if (memCategories) return memCategories.data;
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("categories")) as Category[] | null;
       if (cached && Array.isArray(cached) && cached.length > 0) return cached;
@@ -348,7 +393,10 @@ export const parsePriceNumber = (val: any): number => {
   return 0;
 };
 
-export const getProducts = async () => {
+export const getProducts = async (forceRefresh = false): Promise<Product[]> => {
+  if (!forceRefresh && memProducts && Date.now() - memProducts.timestamp < 60000) {
+    return memProducts.data;
+  }
   let list: Product[] = [];
   let isOnlineSuccess = false;
   try {
@@ -363,6 +411,7 @@ export const getProducts = async () => {
       }
     }
   } catch (err) {
+    if (memProducts) return memProducts.data;
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("products")) as Product[] | null;
       if (cached && Array.isArray(cached) && cached.length > 0) list = cached;
@@ -443,6 +492,10 @@ export const getProducts = async () => {
     setTimeout(() => {
       saveToCache("products", list).catch(() => {});
     }, 600);
+  }
+
+  if (list.length > 0) {
+    memProducts = { data: list, timestamp: Date.now() };
   }
 
   return list;
@@ -597,12 +650,17 @@ export async function uploadUserImage(file: File) {
   return (payload as ApiResponse<{ imageUrl: string }>).data as { imageUrl: string };
 }
 
-export const getTables = async () => {
+export const getTables = async (forceRefresh = false): Promise<DiningTable[]> => {
+  if (!forceRefresh && memTables && Date.now() - memTables.timestamp < 60000) {
+    return memTables.data;
+  }
   try {
     const data = await request<DiningTable[]>("/tables");
+    memTables = { data, timestamp: Date.now() };
     if (typeof window !== "undefined") saveToCache("tables", data).catch(console.error);
     return data;
   } catch (err) {
+    if (memTables) return memTables.data;
     if (typeof window !== "undefined") {
       const cached = (await getFromCache("tables")) as DiningTable[] | null;
       if (cached && Array.isArray(cached) && cached.length > 0) return cached;
@@ -710,11 +768,12 @@ export const mergeTable = async (sourceTableId: number, targetTableId: number) =
       let targetOrder = cached.find((o) => o.tableId === targetTableId && activeStatuses.includes(o.status));
 
       const now = new Date().toISOString();
+      const dayStamp = now.slice(0, 10).replace(/-/g, "");
 
       if (!targetOrder) {
         targetOrder = {
           id: Math.floor(Date.now() % 2000000000),
-          orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          orderNumber: `ORD-${dayStamp}-${String(Math.floor(1 + Math.random() * 99)).padStart(4, "0")}`,
           tableId: targetTableId,
           tableNo: targetTable?.name,
           status: "pending",
@@ -730,7 +789,7 @@ export const mergeTable = async (sourceTableId: number, targetTableId: number) =
       if (!sourceOrder) {
         sourceOrder = {
           id: Math.floor(Date.now() % 2000000000) + 1,
-          orderNumber: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          orderNumber: `ORD-${dayStamp}-${String(Math.floor(1 + Math.random() * 99)).padStart(4, "0")}`,
           tableId: sourceTableId,
           tableNo: sourceTable?.name,
           status: "pending",
@@ -1089,12 +1148,17 @@ export const deleteUser = async (id: number): Promise<void> => {
   await request<void>(`/users/${id}`, { method: "DELETE" });
   swrMemoryCache.delete("users");
 };
-export const getSettings = async (): Promise<AppSettings> => {
+export const getSettings = async (forceRefresh = false): Promise<AppSettings> => {
+  if (!forceRefresh && memSettings && Date.now() - memSettings.timestamp < 60000) {
+    return memSettings.data;
+  }
   try {
     const data = await request<AppSettings>("/settings");
+    memSettings = { data, timestamp: Date.now() };
     if (typeof window !== "undefined") saveToCache("settings", data).catch(console.error);
     return data;
   } catch (err) {
+    if (memSettings) return memSettings.data;
     if (typeof window !== "undefined") {
       try {
         const cached = await getFromCache("settings");
@@ -1125,6 +1189,7 @@ export const getSettings = async (): Promise<AppSettings> => {
 };
 
 export const updateSettings = async (body: Partial<AppSettings>): Promise<AppSettings> => {
+  memSettings = null;
   try {
     const updated = await request<AppSettings>("/settings", { method: "PUT", body });
     if (typeof window !== "undefined") {

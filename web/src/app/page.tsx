@@ -23,6 +23,7 @@ export default function Home() {
   const dark = theme === "dark";
   const [restaurantName, setRestaurantName] = useState(DEFAULT_POS_NAME);
   const [restaurantImageUrl, setRestaurantImageUrl] = useState("");
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     const savedName = localStorage.getItem("pos_restaurant_name");
@@ -38,6 +39,7 @@ export default function Home() {
         }
         if (settings.restaurantImageUrl) {
           setRestaurantImageUrl(settings.restaurantImageUrl);
+          setImageError(false);
           localStorage.setItem("pos_restaurant_image_url", settings.restaurantImageUrl);
         }
       })
@@ -63,23 +65,22 @@ export default function Home() {
       <header className={`w-full border-b ${dark ? "border-[#252738] bg-[#1a1b28]/80" : "border-slate-200/70 bg-white/80"} backdrop-blur-md sticky top-0 z-50`}>
         <div className="w-full max-w-6xl mx-auto flex items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-[#55a060] flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
-              {restaurantImageUrl ? (
+            {restaurantImageUrl && !imageError ? (
+              <div className="h-9 w-9 rounded-xl bg-transparent flex items-center justify-center shrink-0 overflow-hidden">
                 <img
                   src={resolveImageUrl(restaurantImageUrl)}
                   alt={restaurantName}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = "none";
-                    const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                    if (fallback) fallback.style.display = "flex";
-                  }}
+                  className="h-full w-full object-contain"
+                  onError={() => setImageError(true)}
                 />
-              ) : null}
-              <div style={{ display: restaurantImageUrl ? "none" : "flex" }} className="w-full h-full items-center justify-center bg-[#55a060]">
-                <img src="/favicon.svg" alt="POS Logo" className="w-5 h-5 object-contain" />
               </div>
-            </div>
+            ) : (
+              <div className="h-9 w-9 rounded-xl bg-[#cbd0d9] dark:bg-slate-700 flex items-end justify-center overflow-hidden shrink-0 ring-1 ring-slate-200/60 dark:ring-slate-700/60 shadow-xs">
+                <svg className="w-full h-full text-white dark:text-slate-300" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zm-9.5 22c0-5.25 4.25-9.5 9.5-9.5s9.5 4.25 9.5 9.5h-19z" />
+                </svg>
+              </div>
+            )}
             <span className={`text-base font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"} ${language === "km" ? "font-khmer" : ""}`}>
               {restaurantName}
             </span>

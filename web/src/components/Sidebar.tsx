@@ -82,8 +82,6 @@ const INVENTORY_CHILDREN = [
 
 const REPORTS_CHILDREN = [
   { key: "orders", label: "Orders Report", href: "/admin/reports?tab=orders", icon: ShoppingCart },
-  { key: "purchases", label: "Purchase Report", href: "/admin/reports?tab=purchases", icon: Truck },
-  { key: "payments", label: "Payment Report", href: "/admin/reports?tab=payments", icon: ReceiptText },
   { key: "stock", label: "Stock Inventory Report", href: "/admin/reports?tab=stock", icon: Boxes },
   { key: "history", label: "Stock History", href: "/admin/inventory?tab=movements", icon: FileText },
 ];
@@ -344,12 +342,12 @@ function Sidebar({
   );
 
   const activeUser = useMemo(() => {
-    if (currentUser?.name && currentUser.name !== "Guest") return currentUser;
+    if (currentUser?.name && currentUser.name !== "Guest" && currentUser.name !== "User") return currentUser;
     if (typeof window !== "undefined") {
       const stored = parseStoredUser(localStorage.getItem("pos_user"));
-      if (stored.name && stored.name !== "Guest") return stored;
+      if (stored.name && stored.name !== "Guest" && stored.name !== "User") return stored;
     }
-    return { id: 1, name: "CheySochon", role: "SUPER ADMIN", roleName: "SUPER_ADMIN" };
+    return { id: 1, name: "CheySochon", role: "Super Admin", roleName: "SUPER_ADMIN" };
   }, [currentUser]);
 
   const profileImg = getProfileImage(activeUser);
@@ -455,8 +453,6 @@ function Sidebar({
 
   const activeReportsChild = useMemo(() => {
     if (pathname.startsWith("/admin/reports")) {
-      if (tabParam === "purchases") return "purchases";
-      if (tabParam === "payments") return "payments";
       if (tabParam === "stock") return "stock";
       return "orders";
     }
@@ -1187,7 +1183,7 @@ function Sidebar({
         </div>
       </div>
     )}
-    <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-[width,min-width] duration-200 ease-out will-change-[width]`} aria-hidden="true" />
+    <div className={`hidden md:block ${widthClass} h-screen shrink-0 transition-[width,min-width] duration-150 ease-in-out will-change-[width]`} aria-hidden="true" />
     </>
   );
 }
@@ -1222,7 +1218,7 @@ function SideNavItem({
       }}
       onClick={onClick}
       title={collapsed ? label : undefined}
-      className={`group flex items-center border-none cursor-pointer my-1 transition-all duration-200 ease-in-out relative text-left active:scale-[0.98] active:translate-y-[0.5px] overflow-hidden 
+      className={`group flex items-center border-none cursor-pointer my-1 transition-colors duration-150 relative text-left active:scale-[0.98] active:translate-y-[0.5px] overflow-hidden 
         ${
           collapsed
             ? "h-11 w-11 mx-auto justify-center rounded-2xl px-0"
@@ -1240,12 +1236,12 @@ function SideNavItem({
         ${isKhmer ? "font-medium text-[15.5px] leading-normal" : active ? "font-semibold text-[15.5px]" : "font-medium text-[15.5px]"}
       `}
     >
-      <span className={`w-6 h-6 shrink-0 flex items-center justify-center transition-transform duration-200 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
+      <span className={`w-6 h-6 shrink-0 flex items-center justify-center transition-transform duration-150 transform group-hover:scale-105 ${active ? "text-white" : dark ? "text-slate-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900"}`}>
         {icon}
       </span>
 
       <span
-        className={`flex-1 whitespace-nowrap overflow-hidden transition-all duration-200 ease-in-out ${contentClass} ${
+        className={`flex-1 whitespace-nowrap overflow-hidden transition-opacity duration-150 ease-in-out ${contentClass} ${
           collapsed ? "opacity-0 w-0 max-w-0 invisible" : "opacity-100 w-auto max-w-[200px] visible"
         } ${active ? "text-white font-semibold" : dark ? "text-slate-200 group-hover:text-white font-medium" : "text-slate-700 group-hover:text-slate-900 font-normal"} ${isKhmer ? "text-[15.5px]" : "text-[15.5px]"}`}
       >

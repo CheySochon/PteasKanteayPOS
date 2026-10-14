@@ -296,7 +296,8 @@ export default function InvoicesPage() {
         const invoiceNum = (inv.orderNumber || `#${inv.id}`).toLowerCase();
         const orderId = `#${inv.id}`.toLowerCase();
         const staff = cashierName(inv).toLowerCase();
-        const matches = invoiceNum.includes(q) || orderId.includes(q) || staff.includes(q);
+        const table = (inv.tableNo || inv.table?.name || (inv.tableId ? `T${inv.tableId}` : "")).toLowerCase();
+        const matches = invoiceNum.includes(q) || orderId.includes(q) || staff.includes(q) || table.includes(q);
         if (!matches) return false;
       }
 
@@ -348,10 +349,14 @@ export default function InvoicesPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                    const val = e.target.value;
+                    setSearchQuery(val);
+                    setActiveSearch(val);
                   }}
                   onKeyDown={(e) => {
-                    if(e.key === 'Enter') setActiveSearch(searchQuery);
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                    }
                   }}
                   placeholder={language === "km" ? "ស្វែងរកវិក្កយបត្រ..." : "Search Invoices..."}
                   className={`h-9 w-52 sm:w-64 rounded-xl border pl-9 pr-8 text-xs font-medium outline-none transition-all ${

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import { Package, Armchair, MoreVertical, Clock } from "lucide-react";
 import type { Order, OrderStatus } from "../lib/types";
 import AnimatedToast from "./AnimatedToast";
 import { useAppTheme } from "../lib/theme";
+import { getSocket } from "../lib/socket";
 
 function formatTokenNo(order: Order) {
   if (order.id) {
@@ -74,7 +75,7 @@ const KdsOrderCard = memo(function KdsOrderCard({
 }) {
   const [theme] = useAppTheme();
   const dark = theme === "dark";
-  const [itemStatuses, setItemStatuses] = useState<Record<number, "pending" | "preparing" | "completed">>(() => {
+  const [itemStatuses, setItemStatuses] = useState<Record<string | number, "pending" | "preparing" | "completed">>(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem("pos_kds_item_statuses");
@@ -85,29 +86,80 @@ const KdsOrderCard = memo(function KdsOrderCard({
   });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    const syncItemStatuses = () => {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("pos_kds_item_statuses");
+          if (stored) setItemStatuses(JSON.parse(stored));
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener("pos-item-status-change", syncItemStatuses);
+    window.addEventListener("storage", syncItemStatuses);
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on("kds:item_updated", (data: any) => {
+        if (!data) return;
+        setItemStatuses((prev) => {
+          const next = { ...prev };
+          if (data.itemId) next[data.itemId] = data.status;
+          if (data.orderId && data.productId) next[`${data.orderId}-${data.productId}`] = data.status;
+          return next;
+        });
+      });
+    }
+
+    return () => {
+      window.removeEventListener("pos-item-status-change", syncItemStatuses);
+      window.removeEventListener("storage", syncItemStatuses);
+      if (socket) {
+        socket.off("kds:item_updated");
+      }
+    };
+  }, []);
+
   const tokenNo = formatTokenNo(order);
   const orderTypeLabel = formatKdsTableLabel(order);
   const isTakeaway = orderTypeLabel === "WALKIN";
 
-  function handleItemAction(itemId: number, currentItemStatus: string, itemName: string) {
+  function handleItemAction(itemId: number, currentItemStatus: string, itemName: string, productId?: number) {
     const nextStatus: "pending" | "preparing" | "completed" =
       currentItemStatus === "pending" ? "preparing" :
       currentItemStatus === "preparing" ? "completed" :
       "preparing";
     
+    const itemKey = productId ? `${order.id}-${productId}` : null;
+
     setItemStatuses((prev) => {
-      const nextMap = { ...prev, [itemId]: nextStatus };
+      const nextMap = { ...prev };
+      if (itemId) nextMap[itemId] = nextStatus;
+      if (itemKey) nextMap[itemKey] = nextStatus;
+
       if (typeof window !== "undefined") {
         try {
           const raw = localStorage.getItem("pos_kds_item_statuses");
           const globalObj = raw ? JSON.parse(raw) : {};
-          globalObj[itemId] = nextStatus;
+          if (itemId) globalObj[itemId] = nextStatus;
+          if (itemKey) globalObj[itemKey] = nextStatus;
           localStorage.setItem("pos_kds_item_statuses", JSON.stringify(globalObj));
           window.dispatchEvent(new Event("pos-item-status-change"));
         } catch (e) {}
       }
       return nextMap;
     });
+
+    const socket = getSocket();
+    if (socket) {
+      socket.emit("kds:item_updated", {
+        orderId: order.id,
+        itemId,
+        productId,
+        status: nextStatus,
+      });
+    }
 
     if (nextStatus === "preparing") {
       setToastMessage(`Started making "${itemName}" (Order ${tokenNo})`);
@@ -121,7 +173,10 @@ const KdsOrderCard = memo(function KdsOrderCard({
 
     const allItems = order.items || [];
     const willBeAllCompleted = allItems.every((item) => {
-      const status = item.id === itemId ? nextStatus : (itemStatuses[item.id] || (order.status === "preparing" ? "preparing" : "pending"));
+      const key = `${order.id}-${item.productId}`;
+      const status = (item.id === itemId || (productId && item.productId === productId))
+        ? nextStatus
+        : ((item.id && itemStatuses[item.id]) || itemStatuses[key] || (order.status === "preparing" ? "preparing" : "pending"));
       return status === "completed";
     });
 
@@ -167,15 +222,32 @@ const KdsOrderCard = memo(function KdsOrderCard({
             </div>
           ) : (
             order.items?.map((item, idx) => {
-              const currentStatus = itemStatuses[item.id] || (order.status === "preparing" ? "preparing" : "pending");
+              const itemKey = `${order.id}-${item.productId}`;
+              const currentStatus =
+                (item.id && itemStatuses[item.id]) ||
+                itemStatuses[itemKey] ||
+                (item as any).status ||
+                (order.status === "ready" || order.status === "served" || order.status === "completed"
+                  ? "completed"
+                  : order.status === "preparing"
+                  ? "preparing"
+                  : "pending");
               const isCompleted = currentStatus === "completed";
               const isPreparing = currentStatus === "preparing";
 
               return (
                 <div key={item.id ? `kds-item-${item.id}` : `kds-item-idx-${idx}`} className="flex items-center justify-between gap-3 text-xs">
                   <div className="min-w-0 flex-1">
-                    <div className={`font-normal ${isCompleted ? "text-slate-400 line-through" : "text-slate-800 dark:text-slate-200"}`}>
-                      {item.product?.name || item.name || `Item #${item.productId}`} <span className="font-normal text-slate-500">x {item.quantity}</span>
+                    <div className={`font-normal flex items-center gap-1.5 flex-wrap ${isCompleted ? "text-slate-400 opacity-70" : "text-slate-800 dark:text-slate-200"}`}>
+                      <span className={isCompleted ? "line-through text-slate-400" : ""}>
+                        {item.product?.name || item.name || `Item #${item.productId}`}
+                      </span>
+                      <span className="font-normal text-slate-500">x {item.quantity}</span>
+                      {isCompleted && (
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 no-underline shrink-0">
+                          ✓ រួចរាល់
+                        </span>
+                      )}
                     </div>
 
                     {item.notes && (
@@ -188,14 +260,16 @@ const KdsOrderCard = memo(function KdsOrderCard({
 
                   <button
                     type="button"
-                    onClick={() => handleItemAction(item.id, currentStatus, item.product?.name || item.name || `Item #${item.productId}`)}
+                    onClick={() => handleItemAction(item.id, currentStatus, item.product?.name || item.name || `Item #${item.productId}`, item.productId)}
                     className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-semibold transition-all border cursor-pointer ${
                       isCompleted
-                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100"
+                        : isPreparing
+                        ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-100"
                         : "bg-[#f2f4f3] dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-[#c6e4cc] dark:border-slate-700 hover:bg-[#e4eae6] active:scale-95"
                     }`}
                   >
-                    {isCompleted ? "Complete" : isPreparing ? "Complete" : "Start Making"}
+                    {isCompleted ? "Completed (រួចរាល់)" : isPreparing ? "Complete (ធ្វើរួច)" : "Start Making"}
                   </button>
                 </div>
               );

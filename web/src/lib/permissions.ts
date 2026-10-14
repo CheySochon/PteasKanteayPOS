@@ -61,7 +61,10 @@ const routeRoles: { prefix: string; roles: AppRole[]; staffKey?: string }[] = [
 
 export function roleName(user: UserLike | Record<string, any> | null | undefined): string {
   if (!user) return "Member";
-  const r = (user as any).roleName || user.role || (user as any).group;
+  if ((user as any).id === 1 || (user as any).email?.toLowerCase() === "cheychon258@gmail.com") {
+    return "Super Admin";
+  }
+  const r = (user as any).roleName || (user as any).userRole || user.role || (user as any).group;
   if (typeof r === "string") {
     const raw = r.trim();
     const lower = raw.toLowerCase();
@@ -98,17 +101,19 @@ export function parseStoredUser(snapshot: string | null): {
 
   try {
     const user = JSON.parse(snapshot);
-    const rawGroup = user.roleName || user.group || (typeof user.role === "string" ? user.role : user.role?.name) || roleName(user);
+    const isRootOwner = user.id === 1 || (user.email && user.email.toLowerCase() === "cheychon258@gmail.com");
+    const rawGroup = isRootOwner ? "Super Admin" : (user.roleName || user.userRole || user.group || (typeof user.role === "string" ? user.role : user.role?.name) || roleName(user));
+    const rawName = user.name || user.userName || (isRootOwner ? "CheySochon" : "User");
 
     return {
       ...user,
       id: user.id,
-      name: user.name || "User",
+      name: rawName,
       email: user.email,
-      role: roleName(user),
+      role: isRootOwner ? "Super Admin" : roleName(user),
       roleName: rawGroup,
       group: rawGroup,
-      groupId: user.groupId || user.group_id,
+      groupId: user.groupId || user.group_id || (isRootOwner ? 1 : undefined),
       permissions: user.permissions || user.groupPermissions,
       isActive: user.isActive,
     };
